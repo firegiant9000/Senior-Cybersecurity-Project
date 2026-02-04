@@ -1,0 +1,19 @@
+/* App-level styles */
+
+.app {
+  min-height: 100vh;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.app-header {
+  padding: 1.5rem 1rem;
+  border-bottom: 1px solid #334155;
+  background: #1e293b;
+}
+
+.app-main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
