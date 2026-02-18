@@ -1,9 +1,10 @@
 """Core configuration and settings."""
-
-import logging
 from functools import lru_cache
 
-from pydantic_settings import BaseSettings
+try:
+    from pydantic_settings import BaseSettings  # type: ignore[import-not-found]  # pylint: disable=import-error
+except ImportError:  # pragma: no cover - fallback for older environments
+    from pydantic import BaseSettings  # type: ignore
 
 
 class Settings(BaseSettings):
@@ -31,6 +32,8 @@ class Settings(BaseSettings):
     ENABLE_DEMO_MODE: bool = True
 
     class Config:
+        """Pydantic settings configuration."""
+
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = True

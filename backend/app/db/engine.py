@@ -1,5 +1,7 @@
 """Database engine and session management."""
 
+from typing import AsyncGenerator
+
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -28,7 +30,7 @@ AsyncSessionLocal = sessionmaker(
 )
 
 
-async def get_session() -> AsyncSession:
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """Dependency for getting database session."""
     async with AsyncSessionLocal() as session:
         yield session
@@ -36,7 +38,7 @@ async def get_session() -> AsyncSession:
 
 async def init_db() -> None:
     """Initialize database (create tables)."""
-    from app.models.base import Base
+    from app.db.base import Base
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
