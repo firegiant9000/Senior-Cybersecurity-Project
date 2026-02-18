@@ -1,18 +1,19 @@
 """Alembic environment configuration."""
 
+# pylint: disable=no-member,wrong-import-position
+
 import os
+import sys
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import create_engine, pool
 
 # Add app to path
-import sys
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from app.core.config import settings
-from app.models.base import Base
+from app.db.base import Base
 
 # this is the Alembic Config object
 config = context.config
@@ -45,7 +46,7 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
 
-    def process_revision_directives(context, revision, directives):
+    def process_revision_directives(_context, _revision, directives):
         if config.cmd_opts.autogenerate:
             script = directives[0]
             if script.upgrade_ops.is_empty():

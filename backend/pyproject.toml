@@ -35,6 +35,9 @@ target-version = "py311"
 select = ["E", "F", "W", "C90", "I", "N", "UP", "BLE", "FBT", "A", "C4"]
 ignore = ["E501"]  # Line too long (handled by formatter)
 
+[tool.pylint."MAIN"]
+init-hook = "import sys; from pathlib import Path; sys.path.insert(0, str(Path(__file__).resolve().parent))"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
