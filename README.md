@@ -1,4 +1,7 @@
-# Cyber Threat Intelligence & Anomaly Detection Platform
+# Project Members
+Ethan Gagliano, Arlo Kharod, Cody Kinney, Sean Winfield, Phat Nguyen, Darrin Rious
+
+## Cyber Threat Intelligence & Anomaly Detection Platform
 
 Production-ready monorepo for aggregating, analyzing, and detecting cyber threats across multiple data sources. This repo is organized for easy extension of integrations (CISA KEV, NVD, Shodan, etc.) and background ingestion jobs.
 

@@ -6,6 +6,8 @@ Create Date: 2024-01-01 00:00:00.000000
 
 """
 
+# pylint: disable=no-member,invalid-name
+
 from typing import Sequence, Union
 
 import sqlalchemy as sa
