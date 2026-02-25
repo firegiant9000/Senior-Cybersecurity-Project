@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { checkHealth, HealthResponse } from '../api/health'
 
 const Home = () => {
@@ -34,6 +35,25 @@ const Home = () => {
       </header>
 
       <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1rem' }}>
+        <section style={{ marginBottom: '2rem' }}>
+          <Link
+            to="/dashboard"
+            style={{
+              display: 'inline-block',
+              background: '#1e3a5f',
+              color: '#93c5fd',
+              border: '1px solid #1e40af',
+              borderRadius: '0.375rem',
+              padding: '0.5rem 1.25rem',
+              textDecoration: 'none',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+            }}
+          >
+            View Exploited Vulnerabilities →
+          </Link>
+        </section>
+
         <section style={{ marginBottom: '2rem' }}>
           <h2>Welcome</h2>
           <p>
