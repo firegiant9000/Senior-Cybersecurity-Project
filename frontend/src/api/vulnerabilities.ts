@@ -3,13 +3,20 @@
  * Mirrors the pattern in api/health.ts.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+const API_BASE_URL =
+  (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env
+    .VITE_API_BASE_URL || 'http://localhost:8000'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type SeverityLabel = 'Critical' | 'High' | 'Medium' | 'Low' | 'Unknown'
 
-export type SortBy = 'kev_date_added' | 'severity_score' | 'nvd_published' | 'id'
+export type SortBy =
+  | 'kev_date_added'
+  | 'severity_score'
+  | 'risk_score'
+  | 'nvd_published'
+  | 'id'
 
 export type SortOrder = 'asc' | 'desc'
 
@@ -20,6 +27,7 @@ export interface ExploitedVulnItem {
   product: string | null
   severity_label: SeverityLabel
   severity_score: number | null
+  risk_score: number | null
   is_kev: boolean
   kev_date_added: string | null   // ISO YYYY-MM-DD or null
   nvd_published: string | null    // ISO YYYY-MM-DD or null
