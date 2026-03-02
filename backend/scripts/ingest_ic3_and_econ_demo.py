@@ -35,7 +35,7 @@ async def main() -> None:
 
     # Ingest regional economics from CSV (backend/data/region_econ.csv)
     async with AsyncSessionLocal() as session:
-        await ingest_region_economics(session, path="data/region_econ.csv")
+        await ingest_region_economics(session)
 
     await close_db()
 
