@@ -1,0 +1,3 @@
+[MESSAGES CONTROL]
+# SQLAlchemy func.* is callable at runtime; Pylint infers otherwise
+disable=not-callable,unnecessary-ellipsis,global-statement

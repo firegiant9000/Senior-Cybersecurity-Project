@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class IngestRunBase(BaseModel):
@@ -16,8 +16,7 @@ class IngestRunBase(BaseModel):
 
 class IngestRunCreate(IngestRunBase):
     """Schema for creating an IngestRun."""
-
-    pass
+    # No additional fields; inherits all fields from IngestRunBase.
 
 
 class IngestRunUpdate(BaseModel):
@@ -32,12 +31,9 @@ class IngestRunUpdate(BaseModel):
 class IngestRunResponse(IngestRunBase):
     """Schema for IngestRun response."""
 
-    id: UUID
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID  # noqa: A003
     started_at: datetime
     finished_at: datetime | None = None
     error_message: str | None = None
-
-    class Config:
-        """Pydantic config."""
-
-        from_attributes = True

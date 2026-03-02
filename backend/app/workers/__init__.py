@@ -1,6 +1,6 @@
 """Background job workers for data ingestion."""
 
-# TODO: Implement background ingestion jobs
+# Placeholder: implement background ingestion jobs
 #
 # This module will contain scheduled tasks for:
 # 1. Fetching data from external sources (CISA KEV, NVD, Shodan, etc.)
