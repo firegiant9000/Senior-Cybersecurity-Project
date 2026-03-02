@@ -1,0 +1,7 @@
+{
+  "venvPath": "backend",
+  "venv": ".venv",
+  "reportMissingImports": false,
+  "reportCallIssue": false,
+  "executionEnvironments": [{"root": "backend"}]
+}
