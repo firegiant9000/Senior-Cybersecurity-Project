@@ -1,6 +1,7 @@
 """Risk scoring utilities."""
 
-from app.db.models import CVE, EconomicIndicator, IC3Incident, KEV
+from app.db.models import CVE, KEV, EconomicIndicator, IC3Incident
+
 
 def calculate_risk_score(
     cve: CVE | None,
@@ -34,7 +35,7 @@ def calculate_risk_score(
     return min(score, 100.0)
 
 
-def basic_vuln_risk_score(severity_score: float | None, exploited: bool) -> float | None:
+def basic_vuln_risk_score(severity_score: float | None, *, exploited: bool) -> float | None:
     """Basic risk score from CVSS severity and exploitation flag.
 
     The score is normalised to a 0–100 scale:
@@ -42,11 +43,12 @@ def basic_vuln_risk_score(severity_score: float | None, exploited: bool) -> floa
     - Up to 70 points from CVSS base score (0.0–10.0) scaled linearly.
     - +30 points if the vulnerability is known to be exploited (e.g. in KEV).
 
-    Returns ``None`` when no CVSS score is available so callers can
-    decide how to handle unknown risk.
+    If no CVSS score is available, we still return a baseline score when
+    exploitation is known (e.g. KEV), since \"exploited in the wild\" alone is
+    meaningful signal.
     """
     if severity_score is None:
-        return None
+        return 30.0 if exploited else None
 
     base_component = max(0.0, min(severity_score, 10.0)) * 7.0
     exploited_component = 30.0 if exploited else 0.0
