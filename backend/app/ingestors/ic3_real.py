@@ -183,6 +183,14 @@ async def fetch_ic3_pdf_report(year: int) -> dict | None:
     Returns:
         Dictionary with state-level statistics or None if fetch fails
     """
+    # Check if pdfplumber is available
+    if pdfplumber is None:
+        logger.warning(
+            "pdfplumber not installed; cannot fetch IC3 PDFs. "
+            "Install with: pip install pdfplumber"
+        )
+        return None
+
     url = f"https://www.ic3.gov/Media/PDF/Y{year}stats.pdf"
     
     try:
