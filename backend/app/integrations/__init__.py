@@ -1,7 +1,7 @@
 """Integration placeholders for external data sources."""
 
-# TODO: Implement integrations as separate packages
-# 
+# Placeholder: implement integrations as separate packages
+#
 # Structure:
 # app/integrations/
 #   cisa_kev/

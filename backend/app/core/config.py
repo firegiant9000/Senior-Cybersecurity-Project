@@ -2,13 +2,22 @@
 from functools import lru_cache
 
 try:
-    from pydantic_settings import BaseSettings  # type: ignore[import-not-found]  # pylint: disable=import-error
+    from pydantic_settings import (
+        BaseSettings,  # type: ignore[import-not-found]  # pylint: disable=import-error
+    )
 except ImportError:  # pragma: no cover - fallback for older environments
     from pydantic import BaseSettings  # type: ignore
 
 
-class Settings(BaseSettings):
+class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     """Application settings from environment variables."""
+
+    # Pydantic v2-style settings config; using a plain dict keeps type checkers happy.
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "case_sensitive": True,
+    }
 
     # Application
     APP_NAME: str = "Cyber Threat Intelligence Platform"
@@ -31,12 +40,9 @@ class Settings(BaseSettings):
     # Feature flags
     ENABLE_DEMO_MODE: bool = True
 
-    class Config:
-        """Pydantic settings configuration."""
-
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
+    # External API Keys for Data Ingestion
+    NVD_API_KEY: str = ""
+    CENSUS_API_KEY: str = ""
 
 
 @lru_cache(maxsize=1)

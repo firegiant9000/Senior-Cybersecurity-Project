@@ -1,6 +1,7 @@
 """Risk scoring utilities."""
 
-from app.db.models import CVE, EconomicIndicator, IC3Incident, KEV
+from app.db.models import CVE, KEV, EconomicIndicator, IC3Incident
+
 
 def calculate_risk_score(
     cve: CVE | None,

@@ -1,12 +1,13 @@
 """Database engine and session management."""
 
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.db.base import Base
 
 logger = get_logger(__name__)
 
@@ -21,8 +22,8 @@ engine = create_async_engine(
 )
 
 # Session factory
-AsyncSessionLocal = sessionmaker(
-    engine,
+AsyncSessionLocal = sessionmaker(  # pylint: disable=invalid-name
+    engine,  # type: ignore[arg-type]
     class_=AsyncSession,
     expire_on_commit=False,
     autoflush=False,
@@ -32,14 +33,12 @@ AsyncSessionLocal = sessionmaker(
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """Dependency for getting database session."""
-    async with AsyncSessionLocal() as session:
+    async with AsyncSessionLocal() as session:  # type: ignore[reportGeneralTypeIssues]
         yield session
 
 
 async def init_db() -> None:
     """Initialize database (create tables)."""
-    from app.db.base import Base
-
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database initialized")
