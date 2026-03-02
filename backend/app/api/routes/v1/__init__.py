@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from app.api.routes.v1 import health, vulnerabilities
+from app.api.routes.v1 import economics, health, ic3, nvd, vulnerabilities
 
 router = APIRouter()
 
@@ -12,3 +12,7 @@ router.include_router(
     prefix="/vulnerabilities",
     tags=["vulnerabilities"],
 )
+
+router.include_router(ic3.router, prefix="/ic3", tags=["ic3"])
+router.include_router(nvd.router, prefix="/nvd", tags=["nvd"])
+router.include_router(economics.router, prefix="/economics", tags=["economics"])

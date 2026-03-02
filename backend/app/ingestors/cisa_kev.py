@@ -1,22 +1,159 @@
 # app/ingestors/cisa_kev.py
-import httpx
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.db.models import KEV
+"""Ingest CISA Known Exploited Vulnerabilities into cves and kev_catalog.
+
+Includes data validation and normalization to ensure consistency.
+"""
+
+import logging
+from datetime import date
+
+import httpx  # type: ignore[import-not-found]  # pylint: disable=import-error
+from pydantic import ValidationError
+from sqlalchemy import select  # type: ignore[import-not-found]  # pylint: disable=import-error
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,  # type: ignore[import-not-found]  # pylint: disable=import-error
+)
+
+from app.db.models import CVE, KEV
+from app.schemas.validators import CisaKevValidationSchema
+
+logger = logging.getLogger(__name__)
 
 CISA_KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 
-async def ingest_cisa_kev(db: AsyncSession):
+
+def _parse_date(value: str | None) -> date | None:
+    """Parse YYYY-MM-DD string to date, or return None."""
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        logger.warning("Invalid date format: %r", value)
+        return None
+
+
+def _normalize_cisa_kev(item: dict) -> tuple[str, str, str, date | None] | None:
+    """Normalize and validate raw CISA KEV data.
+
+    Args:
+        item: Raw KEV record from CISA API
+
+    Returns:
+        Tuple of (cve_id, vendor, product, due_date) or None if validation fails
+
+    Normalization rules:
+    - CVE ID is uppercased and validated to match CVE-YYYY-NNNNN format
+    - Vendor is trimmed and required to be non-empty
+    - Product is trimmed and required to be non-empty
+    - Due date is parsed to ISO format or None
+    """
+    try:
+        # Extract raw values
+        cve_id = item.get("cveID", "").strip()
+        vendor = (item.get("vendorProject") or "").strip()
+        product = (item.get("product") or "").strip()
+        due_date_str = item.get("dueDate")
+
+        # Get short description with fallback
+        description = (
+            item.get("shortDescription") 
+            or item.get("vulnerabilityName") 
+            or "CISA known exploited vulnerability"
+        )
+        description = description.strip() if description else "CISA known exploited vulnerability"
+
+        # Validate using Pydantic schema
+        validated = CisaKevValidationSchema(
+            cve_id=cve_id,
+            vendor=vendor,
+            product=product,
+            due_date=due_date_str,
+        )
+
+        # Parse due date to Python date object
+        due_date = _parse_date(validated.due_date) if validated.due_date else None
+
+        return (validated.cve_id, validated.vendor, validated.product, due_date)
+
+    except ValidationError as e:
+        logger.warning("CISA KEV validation failed for %s: %s", item.get("cveID"), e)
+        return None
+
+
+async def ingest_cisa_kev(db: AsyncSession) -> int:
+    """
+    Fetch CISA KEV catalog and upsert into cves (stub) and kev_catalog.
+    
+    Applies validation and normalization to all records.
+    
+    Returns:
+        The number of new KEV entries ingested (not including updates)
+    """
     async with httpx.AsyncClient() as client:
         resp = await client.get(CISA_KEV_URL)
+        resp.raise_for_status()
         data = resp.json()
 
+    count = 0
+    total_processed = 0
+    total_validated = 0
+
     for item in data["vulnerabilities"]:
-        kev = KEV(
-            cve_id=item["cveID"],
-            vendor=item["vendorProject"],
-            product=item["product"],
-            due_date=item.get("dueDate")
-        )
-        db.add(kev)
+        total_processed += 1
+
+        # Normalize and validate raw KEV data
+        normalized = _normalize_cisa_kev(item)
+        if normalized is None:
+            logger.debug("Skipped invalid KEV: %s", item.get("cveID"))
+            continue
+
+        cve_id, vendor, product, due_date = normalized
+        total_validated += 1
+
+        # Get or create CVE record
+        result = await db.execute(select(CVE).where(CVE.cve_id == cve_id))
+        cve = result.scalar_one_or_none()
+        if cve is None:
+            description = (
+                item.get("shortDescription")
+                or item.get("vulnerabilityName")
+                or "CISA known exploited vulnerability"
+            )
+            db.add(
+                CVE(
+                    cve_id=cve_id,
+                    description=description,
+                    cvss_score=None,
+                    severity=None,
+                    published_date=None,
+                )
+            )
+            await db.flush()  # so KEV insert can satisfy FK to cves.cve_id
+
+        # Upsert KEV: update if exists, else add.
+        result = await db.execute(select(KEV).where(KEV.cve_id == cve_id))
+        kev = result.scalar_one_or_none()
+        if kev is None:
+            db.add(
+                KEV(
+                    cve_id=cve_id,
+                    vendor=vendor,
+                    product=product,
+                    due_date=due_date,
+                )
+            )
+            count += 1
+        else:
+            kev.vendor = vendor
+            kev.product = product
+            kev.due_date = due_date
 
     await db.commit()
+    logger.info(
+        "CISA KEV ingest complete: %s new entries, %s validated, %s total processed",
+        count,
+        total_validated,
+        total_processed,
+    )
+    return count

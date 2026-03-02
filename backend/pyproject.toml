@@ -38,6 +38,13 @@ ignore = ["E501"]  # Line too long (handled by formatter)
 [tool.pylint."MAIN"]
 init-hook = "import sys; from pathlib import Path; sys.path.insert(0, str(Path(__file__).resolve().parent))"
 
+[tool.pylint.messages_control]
+disable = [
+    "not-callable",           # E1102: SQLAlchemy func.* is callable at runtime
+    "unnecessary-ellipsis",   # W2301: Protocol bodies use ...
+    "global-statement",       # W0603: intentional singleton in get_exploited_repo
+]
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
