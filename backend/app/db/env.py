@@ -7,13 +7,16 @@ import sys
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import create_engine, pool
+from sqlalchemy import (  # type: ignore[import-not-found]  # pylint: disable=import-error
+    create_engine,
+    pool,
+)
 
 # Add app to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-from app.core.config import settings
-from app.db.base import Base
+from app.core.config import settings  # noqa: E402
+from app.db.base import Base  # noqa: E402
 
 # this is the Alembic Config object
 config = context.config
@@ -47,13 +50,16 @@ def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
 
     def process_revision_directives(_context, _revision, directives):
-        if config.cmd_opts.autogenerate:
+        if config.cmd_opts is not None and config.cmd_opts.autogenerate:
             script = directives[0]
             if script.upgrade_ops.is_empty():
                 directives[:] = []
 
+    url = config.get_main_option("sqlalchemy.url")
+    if url is None:
+        raise ValueError("sqlalchemy.url is not set in Alembic config")
     connectable = create_engine(
-        config.get_main_option("sqlalchemy.url"),
+        url,
         poolclass=pool.NullPool,
     )
 
