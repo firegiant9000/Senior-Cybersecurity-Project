@@ -140,7 +140,7 @@ async def ingest_ic3_real(db: AsyncSession, years: list[int] | None = None, use_
         
         for year in years:
             if year not in IC3_ANNUAL_DATA:
-                logger.warning(f"No IC3 data available for year {year}")
+                logger.warning("No IC3 data available for year %s", year)
                 continue
 
             year_data = IC3_ANNUAL_DATA[year]
@@ -288,11 +288,11 @@ async def ingest_ic3_from_pdf(db: AsyncSession, years: list[int] | None = None) 
         if pdf_stats:
             year_data = pdf_stats
         elif year in IC3_ANNUAL_DATA:
-            logger.warning(f"Using fallback hardcoded data for IC3 {year}")
+            logger.warning("Using fallback hardcoded data for IC3 %s", year)
             year_data = IC3_ANNUAL_DATA[year]
             fallback_used = True
         else:
-            logger.warning(f"No IC3 data available for year {year}")
+            logger.warning("No IC3 data available for year %s", year)
             continue
         
         # Ingest the data
