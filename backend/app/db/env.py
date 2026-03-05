@@ -21,8 +21,9 @@ from app.db.base import Base  # noqa: E402
 # this is the Alembic Config object
 config = context.config
 
-# Set SQLAlchemy URL
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# Alembic requires a sync driver; swap asyncpg → psycopg for migrations
+sync_url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql+psycopg://")
+config.set_main_option("sqlalchemy.url", sync_url)
 
 # Interpret the config file for Python logging.
 if config.config_file_name is not None:
