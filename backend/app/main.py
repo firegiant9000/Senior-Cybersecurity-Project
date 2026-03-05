@@ -1,8 +1,4 @@
 """Application main entry point."""
-from dotenv import load_dotenv
-load_dotenv()
-import os
-print(os.getenv("DB_NAME"))
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -25,7 +21,7 @@ def create_app() -> FastAPI:
     # Add CORS middleware
     fastapi_app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # NOTE: Configure properly for production
+        allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
