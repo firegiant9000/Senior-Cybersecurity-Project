@@ -29,13 +29,18 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     SERVER_PORT: int = 8000
 
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/cyber_threat_db"
+    DATABASE_URL: str
 
     # Logging
     LOG_LEVEL: str = "DEBUG"
 
     # Frontend
     FRONTEND_URL: str = "http://localhost:5173"
+    CORS_ORIGINS: list[str] = ["http://localhost:5173"]
+
+    # Auth
+    SECRET_KEY: str = "change-me-in-production"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
     # Feature flags
     ENABLE_DEMO_MODE: bool = True
