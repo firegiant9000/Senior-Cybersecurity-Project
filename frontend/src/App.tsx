@@ -1,17 +1,12 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
-import Home from './pages/Home'
-import Dashboard from './pages/Dashboard'
-import './App.css'
+import Dashboard from './Dashboard.tsx';
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-      </Routes>
-    </Router>
-  )
+    <div>
+      {/* This renders your newly created dashboard */}
+      <Dashboard />
+    </div>
+  );
 }
 
-export default App
+export default App;
