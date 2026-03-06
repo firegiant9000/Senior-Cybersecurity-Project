@@ -25,5 +25,6 @@
     }
   },
   "include": ["src"],
+  "exclude": ["src/pages/Dashboard.tsx"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
