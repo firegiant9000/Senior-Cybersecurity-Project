@@ -6,11 +6,8 @@ Run from the backend directory with the venv activated:
     python scripts/ingest_nvd_no_key.py --limit 100
 """
 
-import asyncio
 import argparse
-import sys
-
-sys.path.insert(0, ".")
+import asyncio
 
 import httpx
 from sqlalchemy import select
@@ -19,17 +16,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.engine import AsyncSessionLocal, close_db, init_db
 from app.db.models import CVE
 
-
 NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 
 
-async def ingest_nvd_no_key(db: AsyncSession, max_results: int = 100):
+async def ingest_nvd_no_key(db: AsyncSession, max_results: int = 100):  # noqa: C901
     """
     Ingest CVEs from NVD API without API key.
-    
+
     Note: Without API key, rate limit is 1 request per 6 seconds.
     This is slow but functional for testing.
-    
+
     Args:
         db: Database session
         max_results: Maximum number of CVEs to ingest
@@ -46,7 +42,7 @@ async def ingest_nvd_no_key(db: AsyncSession, max_results: int = 100):
             }
 
             print(f"📥 Fetching CVEs {current_index}-{current_index + 2000}...", end="", flush=True)
-            
+
             resp = await client.get(NVD_URL, params=params)
             resp.raise_for_status()
             data = resp.json()
@@ -63,19 +59,21 @@ async def ingest_nvd_no_key(db: AsyncSession, max_results: int = 100):
 
                 cve_data = item["cve"]
                 cve_id = cve_data["id"]
-                
+
                 # Check if CVE already exists
                 existing = await db.execute(select(CVE).where(CVE.cve_id == cve_id))
                 if existing.scalar_one_or_none():
                     continue  # Skip duplicate
-                
+
                 # Parse CVSS score
                 cvss_score = None
                 severity = None
                 if "metrics" in cve_data:
-                    cvss_v3 = cve_data["metrics"].get("cvssMetricV31") or \
-                              cve_data["metrics"].get("cvssMetricV30") or \
-                              cve_data["metrics"].get("cvssMetricV2")
+                    cvss_v3 = (
+                        cve_data["metrics"].get("cvssMetricV31")
+                        or cve_data["metrics"].get("cvssMetricV30")
+                        or cve_data["metrics"].get("cvssMetricV2")
+                    )
                     if cvss_v3:
                         cvss_data = cvss_v3[0] if isinstance(cvss_v3, list) else cvss_v3
                         cvss_score = cvss_data.get("cvssData", {}).get("baseScore")
