@@ -1,5 +1,5 @@
 """NVD routes — v1."""
-# pylint: disable=duplicate-code,line-too-long
+# pylint: disable=duplicate-code
 
 import logging
 from datetime import date
