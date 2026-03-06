@@ -28,6 +28,17 @@ interface NVDCVEItem {
     last_modified: string;
 }
 
+interface IC3IncidentItem {
+    id: number;
+    year: number;
+    attack_type: string;
+    sector: string;
+    state: string;
+    complaint_count: number;
+    loss_amount: number;
+    avg_loss_per_incident: number;
+}
+
 interface ApiResponse<T> {
     total: number;
     page: number;
@@ -52,6 +63,11 @@ const Dashboard: React.FC = () => {
     const [nvdError, setNvdError] = useState<string | null>(null);
     const [nvdPage, setNvdPage] = useState(1);
     const [nvdTotal, setNvdTotal] = useState(0);
+    const [ic3Data, setIc3Data] = useState<IC3IncidentItem[]>([]);
+    const [ic3Loading, setIc3Loading] = useState(false);
+    const [ic3Error, setIc3Error] = useState<string | null>(null);
+    const [ic3Page, setIc3Page] = useState(1);
+    const [ic3Total, setIc3Total] = useState(0);
 
     useEffect(() => {
         if (activeTab === 'economics') {
@@ -60,6 +76,8 @@ const Dashboard: React.FC = () => {
             fetchCisaData(1);
         } else if (activeTab === 'nvd') {
             fetchNvdData(1);
+        } else if (activeTab === 'ic3') {
+            fetchIc3Data(1);
         }
     }, [activeTab]);
 
@@ -67,7 +85,7 @@ const Dashboard: React.FC = () => {
         setEconomicsLoading(true);
         setEconomicsError(null);
         try {
-            const baseUrl = `http://${window.location.hostname}:8000`;
+            const baseUrl = 'http://localhost:8000';
             const response = await fetch(`${baseUrl}/api/v1/economics/indicators?page=${page}&page_size=10&sort_by=smb_count&sort_order=desc`);
             if (!response.ok) throw new Error(`Failed to fetch economics data: ${response.status}`);
             const data: ApiResponse<EconomicsItem> = await response.json();
@@ -85,7 +103,7 @@ const Dashboard: React.FC = () => {
         setCisaLoading(true);
         setCisaError(null);
         try {
-            const baseUrl = `http://${window.location.hostname}:8000`;
+            const baseUrl = 'http://localhost:8000';
             const response = await fetch(`${baseUrl}/api/v1/vulnerabilities/exploited?page=${page}&page_size=10&sort_by=kev_date_added&sort_order=desc`);
             if (!response.ok) throw new Error(`Failed to fetch CISA KEV data: ${response.status}`);
             const data: ApiResponse<CISAVulnerability> = await response.json();
@@ -103,7 +121,7 @@ const Dashboard: React.FC = () => {
         setNvdLoading(true);
         setNvdError(null);
         try {
-            const baseUrl = `http://${window.location.hostname}:8000`;
+            const baseUrl = 'http://localhost:8000';
             const url = `${baseUrl}/api/v1/nvd/cves?page=${page}&page_size=10`;
             const response = await fetch(url, {
                 method: 'GET',
@@ -125,6 +143,24 @@ const Dashboard: React.FC = () => {
             setNvdError(errorMsg);
         } finally {
             setNvdLoading(false);
+        }
+    };
+
+    const fetchIc3Data = async (page: number) => {
+        setIc3Loading(true);
+        setIc3Error(null);
+        try {
+            const baseUrl = 'http://localhost:8000';
+            const response = await fetch(`${baseUrl}/api/v1/ic3/incidents?page=${page}&page_size=10&sort_by=loss_amount&sort_order=desc`);
+            if (!response.ok) throw new Error(`Failed to fetch IC3 data: ${response.status}`);
+            const data: ApiResponse<IC3IncidentItem> = await response.json();
+            setIc3Data(data.items);
+            setIc3Total(data.total);
+            setIc3Page(page);
+        } catch (err) {
+            setIc3Error(err instanceof Error ? err.message : 'Error fetching IC3 data');
+        } finally {
+            setIc3Loading(false);
         }
     };
 
@@ -198,7 +234,7 @@ const Dashboard: React.FC = () => {
 
                 {activeTab === 'economics' && (
                     <div className="data-table-container">
-                        <h2>State Economic Indicators (BEA Data)</h2>
+                        <h2>State Economic Indicators</h2>
                         <div className="pagination-info">Showing {economicsData.length} of {economicsTotal} states</div>
                         {economicsLoading && <p>Loading economics data...</p>}
                         {economicsError && <p className="error">Error: {economicsError}</p>}
@@ -208,8 +244,8 @@ const Dashboard: React.FC = () => {
                                     <thead>
                                         <tr>
                                             <th>State</th>
-                                            <th>SMB Count</th>
-                                            <th>Avg Revenue ($)</th>
+                                            <th>Small Business Count</th>
+                                            <th>Average Revenue</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -348,8 +384,91 @@ const Dashboard: React.FC = () => {
 
                 {activeTab === 'ic3' && (
                     <div className="tab-content">
-                        <h2>IC3 - Internet Crime Complaints</h2>
-                        <p>Coming soon...</p>
+                        <h2>IC3 - FBI Internet Crime Complaints</h2>
+
+                        {ic3Loading && <div className="loading">Loading IC3 incidents...</div>}
+                        {ic3Error && <div className="error">Error: {ic3Error}</div>}
+
+                        {!ic3Loading && !ic3Error && ic3Data.length === 0 && (
+                            <div className="empty-state">
+                                <p>No IC3 incidents found. Run the ingestion script:</p>
+                                <code>python scripts/ingest_ic3_enhanced.py</code>
+                            </div>
+                        )}
+
+                        {!ic3Loading && !ic3Error && ic3Data.length > 0 && (
+                            <>
+                                <div className="summary-stats">
+                                    <div className="stat-card">
+                                        <div className="stat-label">Total Records</div>
+                                        <div className="stat-value">{ic3Total.toLocaleString()}</div>
+                                    </div>
+                                    <div className="stat-card">
+                                        <div className="stat-label">Total Complaints</div>
+                                        <div className="stat-value">
+                                            {ic3Data.reduce((sum, item) => sum + item.complaint_count, 0).toLocaleString()}
+                                        </div>
+                                    </div>
+                                    <div className="stat-card">
+                                        <div className="stat-label">Total Losses</div>
+                                        <div className="stat-value">
+                                            ${(ic3Data.reduce((sum, item) => sum + item.loss_amount, 0) / 1000000).toFixed(1)}M
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="table-container">
+                                    <table className="data-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Year</th>
+                                                <th>Attack Type</th>
+                                                <th>State</th>
+                                                <th>Complaints</th>
+                                                <th>Total Loss</th>
+                                                <th>Avg Loss/Incident</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {ic3Data.map((item) => (
+                                                <tr key={item.id}>
+                                                    <td>{item.year}</td>
+                                                    <td className="attack-type">{item.attack_type}</td>
+                                                    <td>{item.state}</td>
+                                                    <td>{item.complaint_count.toLocaleString()}</td>
+                                                    <td className="loss-amount">
+                                                        ${(item.loss_amount / 1000000).toFixed(2)}M
+                                                    </td>
+                                                    <td>
+                                                        {item.avg_loss_per_incident > 0 
+                                                            ? `$${(item.avg_loss_per_incident).toLocaleString(undefined, {maximumFractionDigits: 0})}`
+                                                            : (item.loss_amount > 0 && item.complaint_count > 0)
+                                                            ? `$${(item.loss_amount / item.complaint_count).toLocaleString(undefined, {maximumFractionDigits: 0})}`
+                                                            : 'N/A'}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div className="pagination-controls">
+                                    <button
+                                        disabled={ic3Page === 1}
+                                        onClick={() => fetchIc3Data(ic3Page - 1)}
+                                    >
+                                        ← Previous
+                                    </button>
+                                    <span>Page {ic3Page} of {Math.max(1, Math.ceil(ic3Total / 10))}</span>
+                                    <button
+                                        disabled={ic3Page >= Math.ceil(ic3Total / 10)}
+                                        onClick={() => fetchIc3Data(ic3Page + 1)}
+                                    >
+                                        Next →
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
             </main>
