@@ -7,14 +7,10 @@ Run from the backend directory (so ``app`` is importable) with the venv activate
 """
 
 import asyncio
-import sys
 
-# Ensure backend package root is on sys.path when run as a script
-sys.path.insert(0, ".")
-
-from app.db.engine import AsyncSessionLocal, close_db, init_db  # type: ignore  # noqa: E402
-from app.ingestors.econ import ingest_region_economics  # noqa: E402
-from app.ingestors.ic3 import ingest_ic3  # noqa: E402
+from app.db.engine import AsyncSessionLocal, close_db, init_db
+from app.ingestors.econ import ingest_region_economics
+from app.ingestors.ic3 import ingest_ic3
 
 
 async def main() -> None:
@@ -30,11 +26,11 @@ async def main() -> None:
         {"year": 2023, "sector": "Retail", "state": "FL", "loss": 600_000.0},
     ]
 
-    async with AsyncSessionLocal() as session:
+    async with AsyncSessionLocal() as session:  # type: ignore[reportGeneralTypeIssues]
         await ingest_ic3(session, ic3_rows)
 
     # Ingest regional economics from CSV (backend/data/region_econ.csv)
-    async with AsyncSessionLocal() as session:
+    async with AsyncSessionLocal() as session:  # type: ignore[reportGeneralTypeIssues]
         await ingest_region_economics(session)
 
     await close_db()
@@ -42,4 +38,6 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
 
