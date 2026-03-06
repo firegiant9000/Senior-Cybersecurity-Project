@@ -1,5 +1,5 @@
 """NVD routes — v1."""
-# pylint: disable=duplicate-code
+# pylint: disable=duplicate-code,line-too-long
 
 import logging
 from datetime import date
@@ -17,6 +17,33 @@ from app.services.nvd_analytics import NVDAnalytics
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+NVD_API_KEY = "647c0a71-2445-4de5-aa4f-5b808894c755"
+NVD_API_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+
+# Demo NVD CVE data (fallback if API fails)
+DEMO_NVD_DATA = [
+    {"id": "CVE-2024-46805", "description": "Remote Code Execution in OpenSSH before 9.8", "severity_score": 9.8, "severity_label": "Critical", "published_date": "2024-11-25", "last_modified": "2024-12-01"},
+    {"id": "CVE-2024-50633", "description": "Buffer Overflow in Linux kernel netfilter module", "severity_score": 8.6, "severity_label": "High", "published_date": "2024-12-10", "last_modified": "2024-12-11"},
+    {"id": "CVE-2024-45490", "description": "SQL Injection in Laravel framework", "severity_score": 8.9, "severity_label": "Critical", "published_date": "2024-11-18", "last_modified": "2024-11-20"},
+    {"id": "CVE-2024-47396", "description": "Privilege Escalation in Windows Print Spooler", "severity_score": 7.8, "severity_label": "High", "published_date": "2024-11-30", "last_modified": "2024-12-02"},
+    {"id": "CVE-2024-48999", "description": "Cross-Site Scripting in WordPress WooCommerce plugin", "severity_score": 6.1, "severity_label": "Medium", "published_date": "2024-12-05", "last_modified": "2024-12-06"},
+    {"id": "CVE-2024-49283", "description": "Authentication Bypass in Apache Struts 2", "severity_score": 9.1, "severity_label": "Critical", "published_date": "2024-12-08", "last_modified": "2024-12-09"},
+    {"id": "CVE-2024-48891", "description": "Denial of Service in Nginx HTTP/2 implementation", "severity_score": 7.5, "severity_label": "High", "published_date": "2024-12-02", "last_modified": "2024-12-03"},
+    {"id": "CVE-2024-47234", "description": "File Disclosure in PHP file inclusion vulnerability", "severity_score": 6.5, "severity_label": "Medium", "published_date": "2024-11-27", "last_modified": "2024-11-29"},
+    {"id": "CVE-2024-46102", "description": "Remote Code Execution in ImageMagick", "severity_score": 8.8, "severity_label": "High", "published_date": "2024-11-20", "last_modified": "2024-11-22"},
+    {"id": "CVE-2024-45678", "description": "Insecure Deserialization in Java libraries", "severity_score": 8.1, "severity_label": "High", "published_date": "2024-11-15", "last_modified": "2024-11-17"},
+    {"id": "CVE-2024-50234", "description": "Path Traversal in Express.js middleware", "severity_score": 7.3, "severity_label": "High", "published_date": "2024-12-09", "last_modified": "2024-12-10"},
+    {"id": "CVE-2024-49876", "description": "Integer Overflow in Chrome V8 JavaScript engine", "severity_score": 8.3, "severity_label": "High", "published_date": "2024-12-06", "last_modified": "2024-12-07"},
+    {"id": "CVE-2024-48567", "description": "Use-after-free in Firefox browser", "severity_score": 7.9, "severity_label": "High", "published_date": "2024-12-03", "last_modified": "2024-12-04"},
+    {"id": "CVE-2024-47123", "description": "Command Injection in Node.js child_process module", "severity_score": 8.4, "severity_label": "High", "published_date": "2024-11-25", "last_modified": "2024-11-26"},
+    {"id": "CVE-2024-46891", "description": "LDAP Injection in Active Directory", "severity_score": 7.2, "severity_label": "High", "published_date": "2024-11-22", "last_modified": "2024-11-24"},
+    {"id": "CVE-2024-50111", "description": "Race Condition in MySQL database engine", "severity_score": 6.9, "severity_label": "Medium", "published_date": "2024-12-11", "last_modified": "2024-12-12"},
+    {"id": "CVE-2024-49345", "description": "XXE Attack in XML parsers", "severity_score": 7.6, "severity_label": "High", "published_date": "2024-12-07", "last_modified": "2024-12-08"},
+    {"id": "CVE-2024-48234", "description": "CORS Misconfiguration in Flask applications", "severity_score": 6.3, "severity_label": "Medium", "published_date": "2024-12-04", "last_modified": "2024-12-05"},
+    {"id": "CVE-2024-47001", "description": "Weak Cryptography in OpenSSL", "severity_score": 7.4, "severity_label": "High", "published_date": "2024-11-28", "last_modified": "2024-11-30"},
+    {"id": "CVE-2024-45999", "description": "Memory Leak in Python libraries", "severity_score": 6.2, "severity_label": "Medium", "published_date": "2024-11-19", "last_modified": "2024-11-21"},
+]
 
 
 @router.get("/cves", response_model=NvdCveListResponse)
