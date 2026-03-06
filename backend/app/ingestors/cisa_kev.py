@@ -40,25 +40,27 @@ def _normalize_cisa_kev(item: dict) -> tuple[str, str, str, date | None] | None:
         item: Raw KEV record from CISA API
 
     Returns:
-        Tuple of (cve_id, vendor, product, due_date) or None if validation fails
+        Tuple of (cve_id, vendor, product, kev_date_added) or None if validation fails
 
     Normalization rules:
     - CVE ID is uppercased and validated to match CVE-YYYY-NNNNN format
     - Vendor is trimmed and required to be non-empty
     - Product is trimmed and required to be non-empty
-    - Due date is parsed to ISO format or None
+    - KEV date added is parsed to ISO format or None
     """
     try:
         # Extract raw values
         cve_id = item.get("cveID", "").strip()
         vendor = (item.get("vendorProject") or "").strip()
         product = (item.get("product") or "").strip()
-        due_date_str = item.get("dueDate")
+        # API provides both dateAdded and dueDate; the dashboard column is
+        # "Date Added", so persist that value for response consistency.
+        date_added_str = item.get("dateAdded")
 
         # Get short description with fallback
         description = (
-            item.get("shortDescription") 
-            or item.get("vulnerabilityName") 
+            item.get("shortDescription")
+            or item.get("vulnerabilityName")
             or "CISA known exploited vulnerability"
         )
         description = description.strip() if description else "CISA known exploited vulnerability"
@@ -68,13 +70,17 @@ def _normalize_cisa_kev(item: dict) -> tuple[str, str, str, date | None] | None:
             cve_id=cve_id,
             vendor=vendor,
             product=product,
-            due_date=due_date_str,
+            due_date=date_added_str,
         )
 
-        # Parse due date to Python date object
-        due_date = _parse_date(validated.due_date) if validated.due_date else None
+        kev_date_added = _parse_date(validated.due_date) if validated.due_date else None
 
-        return (validated.cve_id, validated.vendor, validated.product, due_date)
+        return (
+            validated.cve_id,
+            validated.vendor,
+            validated.product,
+            kev_date_added,
+        )
 
     except ValidationError as e:
         logger.warning("CISA KEV validation failed for %s: %s", item.get("cveID"), e)
@@ -84,9 +90,9 @@ def _normalize_cisa_kev(item: dict) -> tuple[str, str, str, date | None] | None:
 async def ingest_cisa_kev(db: AsyncSession) -> int:
     """
     Fetch CISA KEV catalog and upsert into cves (stub) and kev_catalog.
-    
+
     Applies validation and normalization to all records.
-    
+
     Returns:
         The number of new KEV entries ingested (not including updates)
     """
@@ -108,7 +114,7 @@ async def ingest_cisa_kev(db: AsyncSession) -> int:
             logger.debug("Skipped invalid KEV: %s", item.get("cveID"))
             continue
 
-        cve_id, vendor, product, due_date = normalized
+        cve_id, vendor, product, kev_date_added = normalized
         total_validated += 1
 
         # Get or create CVE record
@@ -140,14 +146,14 @@ async def ingest_cisa_kev(db: AsyncSession) -> int:
                     cve_id=cve_id,
                     vendor=vendor,
                     product=product,
-                    due_date=due_date,
+                    due_date=kev_date_added,
                 )
             )
             count += 1
         else:
             kev.vendor = vendor
             kev.product = product
-            kev.due_date = due_date
+            kev.due_date = kev_date_added
 
     await db.commit()
     logger.info(
