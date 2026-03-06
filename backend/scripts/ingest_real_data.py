@@ -14,18 +14,15 @@ Example:
     python scripts/ingest_real_data.py --nvd-limit 5000 --econ --ic3-years 2021,2022,2023
 """
 
-import asyncio
 import argparse
-import sys
-
-# Ensure backend package root is on sys.path when run as a script
-sys.path.insert(0, ".")
+import asyncio
 
 import httpx
-from app.db.engine import AsyncSessionLocal, close_db, init_db  # type: ignore  # noqa: E402
-from app.ingestors.nvd import ingest_nvd  # noqa: E402
-from app.ingestors.econ import ingest_region_economics  # noqa: E402
-from app.ingestors.ic3_real import ingest_ic3_real  # noqa: E402
+
+from app.db.engine import AsyncSessionLocal, close_db, init_db
+from app.ingestors.econ import ingest_region_economics
+from app.ingestors.ic3_real import ingest_ic3_real
+from app.ingestors.nvd import ingest_nvd
 
 
 async def main() -> None:
