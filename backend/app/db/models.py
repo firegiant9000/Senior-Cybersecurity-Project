@@ -61,9 +61,7 @@ class IC3Incident(Base):
     state: Mapped[str]  # US state code
     complaint_count: Mapped[int] = mapped_column(default=0)  # Number of complaints
     loss_amount: Mapped[float]  # Total losses in USD
-    avg_loss_per_incident: Mapped[float | None] = mapped_column(
-        Float, nullable=True
-    )  # Average loss
+    avg_loss_per_incident: Mapped[float | None] = mapped_column(Float, nullable=True)  # Average loss
 
 
 class EconomicIndicator(Base):
