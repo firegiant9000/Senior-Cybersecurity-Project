@@ -5,7 +5,12 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import create_access_token, decode_access_token, hash_password, verify_password
+from app.core.security import (
+    create_access_token,
+    decode_access_token,
+    hash_password,
+    verify_password,
+)
 from app.db.engine import get_session
 from app.db.user import User
 from app.schemas.user import Token, UserCreate, UserRead
@@ -19,6 +24,7 @@ async def get_current_user(
     token: str = Depends(oauth2_scheme),
     session: AsyncSession = Depends(get_session),
 ) -> User:
+    """Resolve and validate the authenticated user from bearer token."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -36,6 +42,7 @@ async def get_current_user(
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 async def register(body: UserCreate, session: AsyncSession = Depends(get_session)) -> User:
+    """Register a new user account."""
     result = await session.execute(select(User).where(User.email == body.email))
     if result.scalar_one_or_none() is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
@@ -52,6 +59,7 @@ async def login(
     form: OAuth2PasswordRequestForm = Depends(),
     session: AsyncSession = Depends(get_session),
 ) -> Token:
+    """Authenticate a user and return an access token."""
     result = await session.execute(select(User).where(User.email == form.username))
     user = result.scalar_one_or_none()
     if user is None or not verify_password(form.password, user.hashed_password):
@@ -68,4 +76,5 @@ async def login(
 
 @router.get("/me", response_model=UserRead)
 async def get_me(current_user: User = Depends(get_current_user)) -> User:
+    """Return profile information for the current authenticated user."""
     return current_user
