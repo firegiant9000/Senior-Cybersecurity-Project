@@ -56,9 +56,12 @@ class SqlIC3Repository:
         sort_column_map = {
             "id": IC3Incident.id,
             "year": IC3Incident.year,
+            "attack_type": IC3Incident.attack_type,
             "sector": IC3Incident.sector,
             "state": IC3Incident.state,
+            "complaint_count": IC3Incident.complaint_count,
             "loss_amount": IC3Incident.loss_amount,
+            "avg_loss_per_incident": IC3Incident.avg_loss_per_incident,
         }
         sort_col = sort_column_map[sort_by]
         order_expr = (
@@ -84,9 +87,12 @@ class SqlIC3Repository:
             IC3IncidentItem(
                 id=row.id,
                 year=row.year,
+                attack_type=row.attack_type,
                 sector=row.sector,
                 state=row.state,
+                complaint_count=row.complaint_count,
                 loss_amount=row.loss_amount,
+                avg_loss_per_incident=row.avg_loss_per_incident,
             )
             for row in rows
         ]
