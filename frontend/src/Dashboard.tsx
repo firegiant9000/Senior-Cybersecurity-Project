@@ -89,6 +89,31 @@ const inferAttackType = (sector: string, lossAmount: number | null | undefined):
     return 'Business Email Compromise';
 };
 
+interface EconomicsItem {
+    id: number;
+    state: string;
+    smb_count: number;
+    avg_revenue: number;
+}
+
+interface CISAVulnerability {
+    id: string;
+    vulnerability_name: string;
+    vendor: string;
+    product: string;
+    severity_label: string;
+    severity_score: number | null;
+    is_kev: boolean;
+    kev_date_added: string;
+}
+
+interface ApiResponse<T> {
+    total: number;
+    page: number;
+    page_size: number;
+    items: T[];
+}
+
 const Dashboard: React.FC = () => {
     const [activeTab, setActiveTab] = useState('overview');
     const [economicsData, setEconomicsData] = useState<EconomicsItem[]>([]);
