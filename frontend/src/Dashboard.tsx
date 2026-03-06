@@ -107,6 +107,15 @@ interface CISAVulnerability {
     kev_date_added: string;
 }
 
+interface NVDCVEItem {
+    id: string;
+    description: string;
+    severity_label: string;
+    severity_score: number | null;
+    published_date: string;
+    last_modified: string;
+}
+
 interface ApiResponse<T> {
     total: number;
     page: number;
