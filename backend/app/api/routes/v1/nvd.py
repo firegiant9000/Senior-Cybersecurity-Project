@@ -1,5 +1,5 @@
 """NVD routes — v1."""
-# pylint: disable=duplicate-code
+# pylint: disable=duplicate-code,line-too-long
 
 import logging
 from datetime import date
@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.nvd import NvdRepository, get_nvd_repo
 from app.schemas.nvd import ALLOWED_SORT_FIELDS, NvdCveListResponse
+from app.schemas.nvd_analytics import SeverityCount, SeverityDistributionResponse
+from app.services.nvd_analytics import NVDAnalytics
 
 logger = logging.getLogger(__name__)
 
@@ -108,9 +110,10 @@ async def get_severity_distribution(
             search=search,
             severity=severity,
         )
-        total = sum(item["count"] for item in items)
+        severity_items = [SeverityCount(**item) for item in items]
+        total = sum(item.count for item in severity_items)
         return SeverityDistributionResponse(
-            items=items,
+            items=severity_items,
             total_cves=total,
             date_from=date_from.isoformat() if date_from else None,
             date_to=date_to.isoformat() if date_to else None,
