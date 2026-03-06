@@ -19,6 +19,15 @@ interface CISAVulnerability {
     kev_date_added: string;
 }
 
+interface NVDCVEItem {
+    id: string;
+    description: string;
+    severity_label: string;
+    severity_score: number | null;
+    published_date: string;
+    last_modified: string;
+}
+
 interface ApiResponse<T> {
     total: number;
     page: number;
@@ -38,12 +47,19 @@ const Dashboard: React.FC = () => {
     const [cisaError, setCisaError] = useState<string | null>(null);
     const [cisaPage, setCisaPage] = useState(1);
     const [cisaTotal, setCisaTotal] = useState(0);
+    const [nvdData, setNvdData] = useState<NVDCVEItem[]>([]);
+    const [nvdLoading, setNvdLoading] = useState(false);
+    const [nvdError, setNvdError] = useState<string | null>(null);
+    const [nvdPage, setNvdPage] = useState(1);
+    const [nvdTotal, setNvdTotal] = useState(0);
 
     useEffect(() => {
         if (activeTab === 'economics') {
             fetchEconomicsData(1);
         } else if (activeTab === 'cisa') {
             fetchCisaData(1);
+        } else if (activeTab === 'nvd') {
+            fetchNvdData(1);
         }
     }, [activeTab]);
 
@@ -80,6 +96,35 @@ const Dashboard: React.FC = () => {
             setCisaError(err instanceof Error ? err.message : 'Error fetching data');
         } finally {
             setCisaLoading(false);
+        }
+    };
+
+    const fetchNvdData = async (page: number) => {
+        setNvdLoading(true);
+        setNvdError(null);
+        try {
+            const baseUrl = `http://${window.location.hostname}:8000`;
+            const url = `${baseUrl}/api/v1/nvd/cves?page=${page}&page_size=10`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to fetch NVD data: ${response.status} - ${errorText}`);
+            }
+            const data: ApiResponse<NVDCVEItem> = await response.json();
+            setNvdData(data.items);
+            setNvdTotal(data.total);
+            setNvdPage(page);
+        } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : 'Unknown error fetching data';
+            console.error('NVD fetch error:', errorMsg);
+            setNvdError(errorMsg);
+        } finally {
+            setNvdLoading(false);
         }
     };
 
@@ -248,9 +293,56 @@ const Dashboard: React.FC = () => {
                 )}
 
                 {activeTab === 'nvd' && (
-                    <div className="tab-content">
-                        <h2>NVD - National Vulnerability Database</h2>
-                        <p>Coming soon...</p>
+                    <div className="data-table-container">
+                        <h2>NVD - National Vulnerability Database ({nvdTotal} total)</h2>
+                        <div className="pagination-info">Showing {nvdData.length} of {nvdTotal}</div>
+                        {nvdLoading && <p>Loading NVD CVE data...</p>}
+                        {nvdError && <p className="error">Error: {nvdError}</p>}
+                        {nvdData.length > 0 && (
+                            <>
+                                <table className="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>CVE ID</th>
+                                            <th>Description</th>
+                                            <th>Severity</th>
+                                            <th>Score</th>
+                                            <th>Published</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {nvdData.map((item) => (
+                                            <tr key={item.id}>
+                                                <td className="cve-id">
+                                                    <a href={`https://nvd.nist.gov/vuln/detail/${item.id}`} target="_blank" rel="noopener noreferrer">
+                                                        {item.id}
+                                                    </a>
+                                                </td>
+                                                <td>{item.description.substring(0, 80)}...</td>
+                                                <td>{item.severity_label || 'Unknown'}</td>
+                                                <td>{item.severity_score || 'N/A'}</td>
+                                                <td>{item.published_date}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                <div className="pagination-controls">
+                                    <button 
+                                        disabled={nvdPage === 1} 
+                                        onClick={() => fetchNvdData(nvdPage - 1)}
+                                    >
+                                        ← Previous
+                                    </button>
+                                    <span>Page {nvdPage} of {Math.ceil(nvdTotal / 10)}</span>
+                                    <button 
+                                        disabled={nvdPage * 10 >= nvdTotal} 
+                                        onClick={() => fetchNvdData(nvdPage + 1)}
+                                    >
+                                        Next →
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
 
