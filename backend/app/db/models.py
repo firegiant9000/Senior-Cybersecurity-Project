@@ -56,9 +56,12 @@ class IC3Incident(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)  # noqa: A003
     year: Mapped[int]
-    sector: Mapped[str]
-    state: Mapped[str]
-    loss_amount: Mapped[float]
+    attack_type: Mapped[str]  # e.g., "Business Email Compromise", "Ransomware", "Phishing"
+    sector: Mapped[str]  # Industry sector (e.g., "Finance", "Healthcare", "Tech")
+    state: Mapped[str]  # US state code
+    complaint_count: Mapped[int] = mapped_column(default=0)  # Number of complaints
+    loss_amount: Mapped[float]  # Total losses in USD
+    avg_loss_per_incident: Mapped[float | None] = mapped_column(Float, nullable=True)  # Average loss
 
 
 class EconomicIndicator(Base):
