@@ -18,14 +18,17 @@ import argparse
 import asyncio
 
 import httpx
+from sqlalchemy import delete
 
 from app.db.engine import AsyncSessionLocal, close_db, init_db
+from app.db.models import CVE, KEV
+from app.ingestors.cisa_kev import ingest_cisa_kev
 from app.ingestors.econ import ingest_region_economics
 from app.ingestors.ic3_real import ingest_ic3_real
 from app.ingestors.nvd import ingest_nvd
 
 
-async def main() -> None:
+async def main() -> None:  # noqa: C901
     """Populate all tables with real production data."""
     parser = argparse.ArgumentParser(
         description="Ingest real data from NVD, IC3, and Census APIs"
@@ -41,6 +44,11 @@ async def main() -> None:
         type=int,
         default=0,
         help="Start index for NVD CVE ingestion (default: 0)",
+    )
+    parser.add_argument(
+        "--replace-nvd",
+        action="store_true",
+        help="Delete existing NVD/KEV rows before NVD ingestion",
     )
     parser.add_argument(
         "--econ",
@@ -62,6 +70,11 @@ async def main() -> None:
         "--skip-ic3",
         action="store_true",
         help="Skip IC3 ingestion",
+    )
+    parser.add_argument(
+        "--cisa-kev",
+        action="store_true",
+        help="Ingest CISA KEV feed into exploited vulnerabilities table",
     )
     parser.add_argument(
         "--ic3-pdf",
@@ -88,6 +101,12 @@ async def main() -> None:
         print(f"📥 Ingesting NVD CVEs (limit: {args.nvd_limit or 'all'})...")
         async with AsyncSessionLocal() as session:  # type: ignore
             try:
+                if args.replace_nvd:
+                    print("🧹 Replacing existing NVD/KEV data...")
+                    await session.execute(delete(KEV))
+                    await session.execute(delete(CVE))
+                    await session.commit()
+
                 await ingest_nvd(
                     session,
                     start_index=args.nvd_start,
@@ -108,6 +127,16 @@ async def main() -> None:
                 print("✓ Economic data ingestion complete\n")
             except (OSError, RuntimeError, ValueError) as e:
                 print(f"✗ Economic data ingestion error: {e}\n")
+
+    # Ingest CISA KEV data
+    if args.cisa_kev:
+        print("📥 Ingesting CISA KEV vulnerabilities...")
+        async with AsyncSessionLocal() as session:  # type: ignore
+            try:
+                count = await ingest_cisa_kev(session)
+                print(f"✓ CISA KEV ingestion complete ({count} records)\n")
+            except (OSError, RuntimeError, ValueError) as e:
+                print(f"✗ CISA KEV ingestion error: {e}\n")
 
     # Ingest IC3 data
     if not args.skip_ic3:
