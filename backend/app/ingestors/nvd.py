@@ -5,6 +5,7 @@ from datetime import date
 
 import httpx
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -16,7 +17,9 @@ logger = logging.getLogger(__name__)
 NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 
 
-def _normalize_nvd_cve(cve_data: dict) -> tuple[str, str, float | None, str | None, date | None] | None:
+def _normalize_nvd_cve(  # noqa: C901
+    cve_data: dict,
+) -> tuple[str, str, float | None, str | None, date | None] | None:
     """Normalize and validate raw NVD CVE data.
 
     Args:
@@ -112,14 +115,19 @@ def _normalize_nvd_cve(cve_data: dict) -> tuple[str, str, float | None, str | No
             severity=severity,
             published_date=published_date.isoformat() if published_date else None,
         )
-        return (validated.cve_id, validated.description, validated.cvss_score, 
-                validated.severity, published_date)
+        return (
+            validated.cve_id,
+            validated.description,
+            validated.cvss_score,
+            validated.severity,
+            published_date,
+        )
     except ValidationError as e:
         logger.warning("NVD CVE validation failed for %s: %s", cve_id, e)
         return None
 
 
-async def ingest_nvd(
+async def ingest_nvd(  # noqa: C901
     db: AsyncSession, start_index: int = 0, max_results: int | None = None
 ) -> None:
     """
@@ -138,25 +146,61 @@ async def ingest_nvd(
     """
     settings = get_settings()
     api_key = settings.NVD_API_KEY
-    
-    if not api_key:
-        raise ValueError("NVD_API_KEY environment variable not set. Get it from https://nvd.nist.gov/developers/request-an-api-key")
+
+    use_api_key = bool(api_key)
+    if use_api_key:
+        logger.info("NVD ingestion: API key detected; attempting authenticated requests")
+    else:
+        logger.info("NVD ingestion: no API key configured; using unauthenticated requests")
 
     total_fetched = 0
     total_validated = 0
     current_index = start_index
+    reached_limit = False
+    aligned_to_latest_window = False
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         while True:
             params = {
                 "startIndex": current_index,
                 "resultsPerPage": 2000,  # Max allowed per request
-                "apiKey": api_key,  # API key as query parameter
             }
+            headers: dict[str, str] = {}
+            if use_api_key and api_key:
+                headers["apiKey"] = api_key
 
-            resp = await client.get(NVD_URL, params=params)
-            resp.raise_for_status()
+            try:
+                resp = await client.get(NVD_URL, params=params, headers=headers)
+                resp.raise_for_status()
+            except httpx.HTTPStatusError as e:
+                status_code = e.response.status_code
+                if use_api_key and status_code in {403, 404}:
+                    logger.warning(
+                        "NVD returned %s with API key; retrying without API key",
+                        status_code,
+                    )
+                    use_api_key = False
+                    continue
+                raise
+
             data = resp.json()
+
+            # NVD API returns oldest records first at startIndex=0.
+            # If caller requests a bounded max_results from index 0,
+            # jump to the latest window so dashboard reflects current CVEs.
+            if (
+                max_results
+                and start_index == 0
+                and current_index == 0
+                and not aligned_to_latest_window
+            ):
+                total_results = int(data.get("totalResults", 0))
+                latest_start = max(total_results - max_results, 0)
+                if latest_start > 0:
+                    current_index = latest_start
+                    aligned_to_latest_window = True
+                    continue
+                aligned_to_latest_window = True
 
             vulnerabilities = data.get("vulnerabilities", [])
             if not vulnerabilities:
@@ -164,7 +208,8 @@ async def ingest_nvd(
 
             for item in vulnerabilities:
                 if max_results and total_validated >= max_results:
-                    return
+                    reached_limit = True
+                    break
 
                 cve_data = item["cve"]
                 normalized = _normalize_nvd_cve(cve_data)
@@ -173,6 +218,10 @@ async def ingest_nvd(
                     continue
 
                 cve_id, description, cvss_score, severity, published_date = normalized
+
+                existing = await db.execute(select(CVE).where(CVE.cve_id == cve_id))
+                if existing.scalar_one_or_none() is not None:
+                    continue
 
                 cve = CVE(
                     cve_id=cve_id,
@@ -186,6 +235,9 @@ async def ingest_nvd(
                 total_validated += 1
 
             await db.commit()
+
+            if reached_limit:
+                break
 
             # Check if there are more results
             total_results = data.get("totalResults", 0)
