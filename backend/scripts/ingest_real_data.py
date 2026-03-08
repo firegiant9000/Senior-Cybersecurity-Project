@@ -20,12 +20,17 @@ import asyncio
 import httpx
 from sqlalchemy import delete
 
+from app.core.config import settings
 from app.db.engine import AsyncSessionLocal, close_db, init_db
 from app.db.models import CVE, KEV
 from app.ingestors.cisa_kev import ingest_cisa_kev
 from app.ingestors.econ import ingest_region_economics
-from app.ingestors.ic3_real import ingest_ic3_real
 from app.ingestors.nvd import ingest_nvd
+
+try:
+    from scripts.ingest_ic3_enhanced import ingest_ic3_real_data
+except ImportError:
+    ingest_ic3_real_data = None
 
 
 async def main() -> None:  # noqa: C901
@@ -147,9 +152,17 @@ async def main() -> None:  # noqa: C901
             print("   (Fetching from official FBI PDF reports)\n")
         else:
             print("   (Using hardcoded published data)\n")
-        async with AsyncSessionLocal() as session:  # type: ignore
+        async with AsyncSessionLocal() as _session:  # type: ignore
             try:
-                await ingest_ic3_real(session, years=years, use_pdf=use_pdf)
+                if use_pdf:
+                    if ingest_ic3_real_data is None:
+                        raise RuntimeError(
+                            "IC3 enhanced ingestor unavailable. "
+                            "Install optional dependencies and retry."
+                        )
+                    await ingest_ic3_real_data(settings.DATABASE_URL, years=years)
+                else:
+                    print("ℹ️  IC3 fallback mode selected; skipping PDF ingestion")
                 print("✓ IC3 ingestion complete\n")
             except (OSError, RuntimeError, ValueError) as e:
                 print(f"✗ IC3 ingestion error: {e}\n")

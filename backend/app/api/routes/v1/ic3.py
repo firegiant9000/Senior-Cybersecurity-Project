@@ -4,7 +4,7 @@
 import logging
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.engine import get_session
@@ -12,11 +12,11 @@ from app.repositories.ic3 import SqlIC3Repository
 from app.schemas.ic3 import ALLOWED_SORT_FIELDS, IC3IncidentListResponse
 from app.schemas.ic3_analytics import (
     AttackTypeListResponse,
-    IndustryRiskResponse,
-    GeographicHeatmapResponse,
-    TemporalTrendResponse,
-    SectorAttackMatrixResponse,
     DashboardSummary,
+    GeographicHeatmapResponse,
+    IndustryRiskResponse,
+    SectorAttackMatrixResponse,
+    TemporalTrendResponse,
 )
 from app.services.ic3_analytics import IC3Analytics
 
@@ -99,7 +99,9 @@ async def get_geographic_heatmap_analytics(
 
 @router.get("/analytics/temporal-trends", response_model=TemporalTrendResponse)
 async def get_temporal_trends_analytics(
-    attack_type: Annotated[str | None, Query(description="Filter by attack type (optional)")] = None,
+    attack_type: Annotated[
+        str | None, Query(description="Filter by attack type (optional)")
+    ] = None,
     db: AsyncSession = Depends(get_session),
 ) -> TemporalTrendResponse:
     """Get temporal trends across years."""
