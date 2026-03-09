@@ -46,9 +46,7 @@ interface ApiResponse<T> {
     items: T[];
 }
 
-const API_BASE_URL =
-    (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env
-        .VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
+const API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:8000`
 
 const formatCurrencyCompact = (value: number): string => {
     const abs = Math.abs(value);

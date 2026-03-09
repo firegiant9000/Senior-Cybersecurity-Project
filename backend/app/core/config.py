@@ -45,6 +45,10 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
         "http://10.231.164.23:5174",
         "http://10.231.164.23:5175",
         "http://10.231.164.23:5176",
+        "http://10.231.150.246:5173",
+        "http://10.231.150.246:5174",
+        "http://10.231.150.246:5175",
+        "http://10.231.150.246:5176",
     ]
 
     # Auth

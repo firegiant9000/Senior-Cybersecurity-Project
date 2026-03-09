@@ -37,6 +37,7 @@ services:
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8000
       FRONTEND_URL: http://localhost:5173
+      BEA_API_KEY: ${BEA_API_KEY}
     ports:
       - "8000:8000"
     volumes:
@@ -51,8 +52,6 @@ services:
       dockerfile: Dockerfile
       target: dev
     container_name: cyber_threat_frontend
-    environment:
-      VITE_API_BASE_URL: http://localhost:8000
     ports:
       - "5173:5173"
     volumes:
@@ -60,6 +59,7 @@ services:
       - ./frontend/index.html:/app/index.html
       - ./frontend/vite.config.ts:/app/vite.config.ts
       - ./frontend/tsconfig.json:/app/tsconfig.json
+      - ./frontend/tsconfig.node.json:/app/tsconfig.node.json
     command: npm run dev
     networks:
       - cyber_threat_network
