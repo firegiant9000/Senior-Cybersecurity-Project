@@ -24,6 +24,9 @@ BEA_DATASET = "Regional"
 BEA_TABLE = "CAGDP2"  # County GDP (provides state-level aggregates)
 BEA_LINECODE = "1"  # GDP: All industry total
 
+# Census County Business Patterns API for state-level establishment counts
+CBP_API_URL = "https://api.census.gov/data/2022/cbp"
+
 # State FIPS codes (format: XXXXX where last 3 digits = 000 for state level)
 STATE_FIPS_CODES = {
     "01000": "Alabama",
@@ -83,6 +86,39 @@ _BEA_CACHE: list[dict[str, float | int | str]] | None = None
 _BEA_CACHE_LOADED = False
 
 
+async def _load_census_establishment_counts(
+    client: httpx.AsyncClient,
+) -> dict[str, int]:
+    """Return state -> establishment count from Census CBP.
+
+    Uses NAICS 00 (all sectors) at state level.
+    """
+    params: dict[str, str] = {
+        "get": "ESTAB,NAME,NAICS2017",
+        "for": "state:*",
+        "NAICS2017": "00",
+    }
+    if settings.CENSUS_API_KEY:
+        params["key"] = settings.CENSUS_API_KEY
+
+    response = await client.get(CBP_API_URL, params=params)
+    response.raise_for_status()
+    raw_rows = response.json()
+
+    # Header row followed by rows: [ESTAB, NAME, NAICS2017, state]
+    rows = raw_rows[1:] if isinstance(raw_rows, list) else []
+    establishments_by_state: dict[str, int] = {}
+    for row in rows:
+        try:
+            estab = int(row[0])
+            state_name = str(row[1]).strip()
+        except (ValueError, TypeError, IndexError):
+            continue
+        establishments_by_state[state_name] = estab
+
+    return establishments_by_state
+
+
 async def _load_bea_cache():
     """Load and cache all 50 state economic data from BEA API once."""
     global _BEA_CACHE, _BEA_CACHE_LOADED
@@ -94,6 +130,8 @@ async def _load_bea_cache():
 
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
+            establishments_by_state = await _load_census_establishment_counts(client)
+
             for fips_code, state_name in STATE_FIPS_CODES.items():
                 response = await client.get(
                     BEA_API_URL,
@@ -121,20 +159,25 @@ async def _load_bea_cache():
                         unit_mult = record.get("UNIT_MULT", 0)
 
                         try:
-                            gdp_val = float(gdp_value) if gdp_value and gdp_value != "NA" else 0
+                            # BEA CAGDP2 reports CL_UNIT="Thousands of dollars".
+                            # DataValue may include commas and UNIT_MULT scaling.
+                            raw_value = str(gdp_value).replace(",", "")
+                            gdp_val = float(raw_value) if raw_value and raw_value != "NA" else 0
                             unit_multiplier = 10 ** int(unit_mult) if unit_mult else 1
-                            gdp_thousands = gdp_val * unit_multiplier
-                            gdp_billions = gdp_thousands / 1_000_000
+                            gdp_dollars = gdp_val * unit_multiplier * 1_000
+                            gdp_billions = gdp_dollars / 1_000_000_000
                         except (ValueError, TypeError):
                             gdp_billions = 0
 
                 if gdp_billions and gdp_billions > 0:
-                    smb_count = max(int(gdp_billions / 4.5), 50)
-                    avg_revenue = (
-                        (gdp_billions * 1_000_000_000) / max(smb_count, 1)
-                        if smb_count > 0
-                        else 0
-                    )
+                    # Use real state establishment counts from Census CBP.
+                    smb_count = establishments_by_state.get(state_name, 0)
+                    if smb_count <= 0:
+                        logger.warning("Missing Census establishment count for %s", state_name)
+                        continue
+
+                    # Approximate per-establishment revenue from BEA state GDP.
+                    avg_revenue = (gdp_billions * 1_000_000_000) / smb_count
 
                     items.append(
                         {

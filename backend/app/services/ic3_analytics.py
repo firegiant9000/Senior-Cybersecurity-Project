@@ -1,7 +1,6 @@
 """IC3 analytics and aggregations for SMB threat dashboard."""
 
 import logging
-from datetime import datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,11 +18,11 @@ class IC3Analytics:
 
     async def get_attack_types_by_loss(self, year: int | None = None, limit: int = 10) -> list[dict]:
         """Get most expensive attack types by total and average loss.
-        
+
         Args:
             year: Filter to specific year (None = all years)
             limit: Number of attack types to return
-            
+
         Returns:
             List of dicts with attack_type, total_loss, avg_loss, complaint_count
         """
@@ -38,10 +37,10 @@ class IC3Analytics:
             stmt = stmt.where(IC3Incident.year == year)
 
         stmt = stmt.order_by(func.sum(IC3Incident.loss_amount).desc()).limit(limit)
-        
+
         result = await self.db.execute(stmt)
         rows = result.all()
-        
+
         return [
             {
                 "attack_type": row[0],
@@ -56,11 +55,11 @@ class IC3Analytics:
         self, year: int | None = None, limit: int = 15
     ) -> list[dict]:
         """Get industry sectors by threat activity (complaints + losses).
-        
+
         Args:
             year: Filter to specific year (None = all years)
             limit: Number of industries to return
-            
+
         Returns:
             List of dicts with sector, complaint_count, total_loss, avg_loss_per_incident
         """
@@ -78,10 +77,10 @@ class IC3Analytics:
             stmt.order_by(func.sum(IC3Incident.complaint_count).desc())
             .limit(limit)
         )
-        
+
         result = await self.db.execute(stmt)
         rows = result.all()
-        
+
         return [
             {
                 "sector": row[0],
@@ -96,10 +95,10 @@ class IC3Analytics:
         self, year: int | None = None
     ) -> list[dict]:
         """Get geographic distribution of threats (state-level heatmap data).
-        
+
         Args:
             year: Filter to specific year (None = aggregated)
-            
+
         Returns:
             List of dicts with state, complaint_count, total_loss, avg_loss
         """
@@ -114,10 +113,10 @@ class IC3Analytics:
             stmt = stmt.where(IC3Incident.year == year)
 
         stmt = stmt.order_by(func.sum(IC3Incident.loss_amount).desc())
-        
+
         result = await self.db.execute(stmt)
         rows = result.all()
-        
+
         return [
             {
                 "state": row[0],
@@ -132,11 +131,11 @@ class IC3Analytics:
         self, attack_type: str | None = None, sector: str | None = None
     ) -> list[dict]:
         """Get incident trends over time for forecasting.
-        
+
         Args:
             attack_type: Filter to specific attack type (None = all)
             sector: Filter to specific sector (None = all)
-            
+
         Returns:
             List of dicts with year, complaint_count, total_loss, avg_loss
         """
@@ -153,10 +152,10 @@ class IC3Analytics:
             stmt = stmt.where(IC3Incident.sector == sector)
 
         stmt = stmt.order_by(IC3Incident.year)
-        
+
         result = await self.db.execute(stmt)
         rows = result.all()
-        
+
         return [
             {
                 "year": int(row[0]),
@@ -171,10 +170,10 @@ class IC3Analytics:
         self, year: int | None = None
     ) -> list[dict]:
         """Get cross-tabulation of sectors vs attack types.
-        
+
         Args:
             year: Filter to specific year (None = all years)
-            
+
         Returns:
             List of dicts with sector, attack_type, complaint_count, total_loss, avg_loss
         """
@@ -189,13 +188,11 @@ class IC3Analytics:
         if year:
             stmt = stmt.where(IC3Incident.year == year)
 
-        stmt = stmt.order_by(
-            func.sum(IC3Incident.loss_amount).desc()
-        )
-        
+        stmt = stmt.order_by(func.sum(IC3Incident.loss_amount).desc())
+
         result = await self.db.execute(stmt)
         rows = result.all()
-        
+
         return [
             {
                 "sector": row[0],
@@ -209,10 +206,10 @@ class IC3Analytics:
 
     async def get_summary_dashboard(self, year: int | None = None) -> dict:
         """Get summary statistics for executive dashboard.
-        
+
         Args:
             year: Filter to specific year (None = all years)
-            
+
         Returns:
             Dict with total_complaints, total_losses, avg_loss, attack_types_count, etc.
         """
@@ -230,7 +227,7 @@ class IC3Analytics:
 
         result = await self.db.execute(stmt)
         row = result.one()
-        
+
         return {
             "total_complaints": int(row[0]) if row[0] else 0,
             "total_losses": float(row[1]) if row[1] else 0.0,
