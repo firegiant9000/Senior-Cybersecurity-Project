@@ -46,6 +46,19 @@ interface ApiResponse<T> {
     items: T[];
 }
 
+const API_BASE_URL =
+    (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env
+        .VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
+
+const formatCurrencyCompact = (value: number): string => {
+    const abs = Math.abs(value);
+    if (abs >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
+    if (abs >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
+    if (abs >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
+    if (abs >= 1e3) return `$${(value / 1e3).toFixed(2)}K`;
+    return `$${value.toFixed(2)}`;
+};
+
 const Dashboard: React.FC = () => {
     const [activeTab, setActiveTab] = useState('overview');
     const [economicsData, setEconomicsData] = useState<EconomicsItem[]>([]);
@@ -85,8 +98,7 @@ const Dashboard: React.FC = () => {
         setEconomicsLoading(true);
         setEconomicsError(null);
         try {
-            const baseUrl = 'http://localhost:8000';
-            const response = await fetch(`${baseUrl}/api/v1/economics/indicators?page=${page}&page_size=10&sort_by=smb_count&sort_order=desc`);
+            const response = await fetch(`${API_BASE_URL}/api/v1/economics/indicators?page=${page}&page_size=10&sort_by=smb_count&sort_order=desc`);
             if (!response.ok) throw new Error(`Failed to fetch economics data: ${response.status}`);
             const data: ApiResponse<EconomicsItem> = await response.json();
             setEconomicsData(data.items);
@@ -103,8 +115,7 @@ const Dashboard: React.FC = () => {
         setCisaLoading(true);
         setCisaError(null);
         try {
-            const baseUrl = 'http://localhost:8000';
-            const response = await fetch(`${baseUrl}/api/v1/vulnerabilities/exploited?page=${page}&page_size=10&sort_by=kev_date_added&sort_order=desc`);
+            const response = await fetch(`${API_BASE_URL}/api/v1/vulnerabilities/exploited?page=${page}&page_size=10&sort_by=kev_date_added&sort_order=desc`);
             if (!response.ok) throw new Error(`Failed to fetch CISA KEV data: ${response.status}`);
             const data: ApiResponse<CISAVulnerability> = await response.json();
             setCisaData(data.items);
@@ -121,14 +132,8 @@ const Dashboard: React.FC = () => {
         setNvdLoading(true);
         setNvdError(null);
         try {
-            const baseUrl = 'http://localhost:8000';
-            const url = `${baseUrl}/api/v1/nvd/cves?page=${page}&page_size=10`;
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            });
+            const url = `${API_BASE_URL}/api/v1/nvd/cves?page=${page}&page_size=10`;
+            const response = await fetch(url);
             if (!response.ok) {
                 const errorText = await response.text();
                 throw new Error(`Failed to fetch NVD data: ${response.status} - ${errorText}`);
@@ -150,8 +155,7 @@ const Dashboard: React.FC = () => {
         setIc3Loading(true);
         setIc3Error(null);
         try {
-            const baseUrl = 'http://localhost:8000';
-            const response = await fetch(`${baseUrl}/api/v1/ic3/incidents?page=${page}&page_size=10&sort_by=loss_amount&sort_order=desc`);
+            const response = await fetch(`${API_BASE_URL}/api/v1/ic3/incidents?page=${page}&page_size=10&sort_by=loss_amount&sort_order=desc`);
             if (!response.ok) throw new Error(`Failed to fetch IC3 data: ${response.status}`);
             const data: ApiResponse<IC3IncidentItem> = await response.json();
             setIc3Data(data.items);
@@ -253,7 +257,7 @@ const Dashboard: React.FC = () => {
                                             <tr key={item.id}>
                                                 <td>{item.state}</td>
                                                 <td>{item.smb_count.toLocaleString()}</td>
-                                                <td>${(item.avg_revenue / 1e9).toFixed(2)}B</td>
+                                                <td>{formatCurrencyCompact(item.avg_revenue)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
