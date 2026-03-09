@@ -73,6 +73,8 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:
     try:
         # Using 2021 data (most recent complete Census data)
         cbp_url = "https://api.census.gov/data/2021/cbp"
+        # Using 2021 data (most recent complete Census data)
+        cbp_url = "https://api.census.gov/data/2021/cbp"
         income_url = "https://api.census.gov/data/2021/acs/acs5"
 
         states = {
@@ -106,12 +108,12 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:
                     "EMPSZES": "001",  # All establishments
                     "key": api_key,
                 }
-
+                
                 try:
                     cbp_resp = await client.get(cbp_url, params=cbp_params)
                     cbp_resp.raise_for_status()
                     cbp_data = cbp_resp.json()
-
+                    
                     # Extract establishment count (ESTAB field)
                     if len(cbp_data) > 1:
                         smb_count = int(cbp_data[1][0]) if cbp_data[1][0] != "null" else 100000
@@ -120,7 +122,7 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:
                 except (httpx.HTTPError, ValueError, IndexError) as e:
                     logger.warning("CBP API error for %s: %s. Using default.", state_abbr, e)
                     smb_count = 100000
-
+                
                 # Fetch median household income from ACS
                 income_params = {
                     "get": "B19013_001E,NAME",

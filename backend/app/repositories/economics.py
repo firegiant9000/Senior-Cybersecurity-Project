@@ -141,9 +141,56 @@ class SqlEconomicsRepository:
                 smb_count=row.smb_count,
                 avg_revenue=row.avg_revenue,
             )
-            for row in rows
+            .group_by(EconomicIndicator.state)
+        )
+        grouped = (await self._session.execute(grouped_stmt)).all()
+
+        by_state: dict[str, tuple[int, float]] = {
+            str(state): (int(smb_count), float(avg_revenue))
+            for state, smb_count, avg_revenue in grouped
+            if state is not None and smb_count is not None and avg_revenue is not None
+        }
+
+        # If we have real data from BEA API, use it and fill gaps with baseline
+        # If we have NO data or very sparse data (<5 states), use full baseline
+        if len(by_state) >= 5:
+            # We have substantial real data - merge with baseline for missing states
+            baseline_dict = {state: (smb, rev) for state, smb, rev in _BASELINE_STATE_ECON}
+            # Fill missing states with baseline values
+            for state, (smb, rev) in baseline_dict.items():
+                if state not in by_state:
+                    by_state[state] = (smb, rev)
+        else:
+            # Very sparse or no data - use full baseline
+            by_state = {
+                state: (smb_count, avg_revenue)
+                for state, smb_count, avg_revenue in _BASELINE_STATE_ECON
+            }
+
+        all_items = [
+            EconomicIndicatorItem(
+                id=idx + 1,
+                state=state,
+                smb_count=smb_count,
+                avg_revenue=avg_revenue,
+            )
+            for idx, (state, (smb_count, avg_revenue)) in enumerate(by_state.items())
         ]
-        return items, total
+
+        reverse = sort_order == "desc"
+        if sort_by == "state":
+            all_items.sort(key=lambda item: item.state, reverse=reverse)
+        elif sort_by == "smb_count":
+            all_items.sort(key=lambda item: item.smb_count, reverse=reverse)
+        elif sort_by == "avg_revenue":
+            all_items.sort(key=lambda item: item.avg_revenue, reverse=reverse)
+        else:
+            all_items.sort(key=lambda item: item.id, reverse=reverse)
+
+        total = len(all_items)
+        start = (page - 1) * page_size
+        end = start + page_size
+        return all_items[start:end], total
 
 
 def get_economics_repo(
