@@ -36,7 +36,16 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
 
     # Frontend
     FRONTEND_URL: str = "http://localhost:5173"
-    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"]
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "http://localhost:5176",
+        "http://10.231.164.23:5173",
+        "http://10.231.164.23:5174",
+        "http://10.231.164.23:5175",
+        "http://10.231.164.23:5176",
+    ]
 
     # Auth
     SECRET_KEY: str = "change-me-in-production"
