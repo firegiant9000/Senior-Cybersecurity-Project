@@ -134,6 +134,19 @@ interface ApiResponse<T> {
     items: T[];
 }
 
+const API_BASE_URL =
+    (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env
+        .VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
+
+const formatCurrencyCompact = (value: number): string => {
+    const abs = Math.abs(value);
+    if (abs >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
+    if (abs >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
+    if (abs >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
+    if (abs >= 1e3) return `$${(value / 1e3).toFixed(2)}K`;
+    return `$${value.toFixed(2)}`;
+};
+
 const Dashboard: React.FC = () => {
     const [activeTab, setActiveTab] = useState('overview');
     const [economicsData, setEconomicsData] = useState<EconomicsItem[]>([]);
@@ -241,6 +254,23 @@ const Dashboard: React.FC = () => {
             setNvdError(errorMsg);
         } finally {
             setNvdLoading(false);
+        }
+    };
+
+    const fetchIc3Data = async (page: number) => {
+        setIc3Loading(true);
+        setIc3Error(null);
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/v1/ic3/incidents?page=${page}&page_size=10&sort_by=loss_amount&sort_order=desc`);
+            if (!response.ok) throw new Error(`Failed to fetch IC3 data: ${response.status}`);
+            const data: ApiResponse<IC3IncidentItem> = await response.json();
+            setIc3Data(data.items);
+            setIc3Total(data.total);
+            setIc3Page(page);
+        } catch (err) {
+            setIc3Error(err instanceof Error ? err.message : 'Error fetching IC3 data');
+        } finally {
+            setIc3Loading(false);
         }
     };
 
