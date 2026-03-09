@@ -17,6 +17,7 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
         "env_file": ".env",
         "env_file_encoding": "utf-8",
         "case_sensitive": True,
+        "extra": "allow",
     }
 
     # Application
@@ -36,7 +37,20 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
 
     # Frontend
     FRONTEND_URL: str = "http://localhost:5173"
-    CORS_ORIGINS: list[str] = ["http://localhost:5173"]
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "http://localhost:5176",
+        "http://10.231.164.23:5173",
+        "http://10.231.164.23:5174",
+        "http://10.231.164.23:5175",
+        "http://10.231.164.23:5176",
+        "http://10.10.11.176:5173",
+        "http://10.10.11.176:5174",
+        "http://10.10.11.176:5175",
+        "http://10.10.11.176:5176",
+    ]
 
     # Auth
     SECRET_KEY: str = "change-me-in-production"
@@ -48,6 +62,7 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     # External API Keys for Data Ingestion
     NVD_API_KEY: str = ""
     CENSUS_API_KEY: str = ""
+    BEA_API_KEY: str = ""
 
 
 @lru_cache(maxsize=1)
