@@ -194,7 +194,7 @@ const Dashboard: React.FC = () => {
         setRiskLoading(true);
         setRiskError(null);
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/vulnerabilities/risk-scored?page=${page}&page_size=10&sort_by=risk_score&sort_order=desc`);
+            const response = await fetch(`${API_BASE_URL}/api/v1/vulnerabilities/risk-scored?page=${page}&page_size=10&sort_by=nvd_published&sort_order=desc`);
             if (!response.ok) throw new Error(`Failed to fetch risk scoring data: ${response.status}`);
             const data: ApiResponse<CISAVulnerability> = await response.json();
             setRiskData(data.items);

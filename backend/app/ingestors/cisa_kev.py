@@ -40,20 +40,22 @@ def _normalize_cisa_kev(item: dict) -> tuple[str, str, str, date | None] | None:
         item: Raw KEV record from CISA API
 
     Returns:
-        Tuple of (cve_id, vendor, product, due_date) or None if validation fails
+        Tuple of (cve_id, vendor, product, kev_date_added) or None if validation fails
 
     Normalization rules:
     - CVE ID is uppercased and validated to match CVE-YYYY-NNNNN format
     - Vendor is trimmed and required to be non-empty
     - Product is trimmed and required to be non-empty
-    - Due date is parsed to ISO format or None
+    - KEV date added is parsed to ISO format or None
     """
     try:
         # Extract raw values
         cve_id = item.get("cveID", "").strip()
         vendor = (item.get("vendorProject") or "").strip()
         product = (item.get("product") or "").strip()
-        due_date_str = item.get("dueDate")
+        # Use CISA's dateAdded for API field kev_date_added.
+        # Keep dueDate only as fallback when dateAdded is absent.
+        date_added_str = item.get("dateAdded") or item.get("dueDate")
 
         # Get short description with fallback
         description = (
@@ -68,13 +70,13 @@ def _normalize_cisa_kev(item: dict) -> tuple[str, str, str, date | None] | None:
             cve_id=cve_id,
             vendor=vendor,
             product=product,
-            due_date=due_date_str,
+            due_date=date_added_str,
         )
 
-        # Parse due date to Python date object
-        due_date = _parse_date(validated.due_date) if validated.due_date else None
+        # Parse KEV date added to Python date object (reuses due_date validator field)
+        kev_date_added = _parse_date(validated.due_date) if validated.due_date else None
 
-        return (validated.cve_id, validated.vendor, validated.product, due_date)
+        return (validated.cve_id, validated.vendor, validated.product, kev_date_added)
 
     except ValidationError as e:
         logger.warning("CISA KEV validation failed for %s: %s", item.get("cveID"), e)

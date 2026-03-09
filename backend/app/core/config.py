@@ -1,5 +1,6 @@
 """Core configuration and settings."""
 from functools import lru_cache
+from pathlib import Path
 
 try:
     from pydantic_settings import (
@@ -13,8 +14,9 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     """Application settings from environment variables."""
 
     # Pydantic v2-style settings config; using a plain dict keeps type checkers happy.
+    _ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
     model_config = {
-        "env_file": ".env",
+        "env_file": str(_ENV_FILE),
         "env_file_encoding": "utf-8",
         "case_sensitive": True,
         "extra": "allow",
