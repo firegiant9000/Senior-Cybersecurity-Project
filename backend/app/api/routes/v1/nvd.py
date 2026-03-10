@@ -2,12 +2,17 @@
 # pylint: disable=duplicate-code
 
 import logging
+from datetime import date
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.engine import get_session
 from app.repositories.nvd import NvdRepository, get_nvd_repo
 from app.schemas.nvd import ALLOWED_SORT_FIELDS, NvdCveListResponse
+from app.schemas.nvd_analytics import SeverityDistributionResponse
+from app.services.nvd_analytics import NVDAnalytics
 
 logger = logging.getLogger(__name__)
 
@@ -62,3 +67,31 @@ async def list_nvd_cves(
     except (TypeError, KeyError) as e:
         logger.error("Unexpected error in NVD route: %s", e)
         raise HTTPException(status_code=500, detail="Internal server error") from e
+
+
+@router.get(
+    "/analytics/severity-distribution",
+    response_model=SeverityDistributionResponse,
+)
+async def get_severity_distribution(
+    date_from: Annotated[
+        date | None, Query(description="Filter: start date (YYYY-MM-DD)")
+    ] = None,
+    date_to: Annotated[
+        date | None, Query(description="Filter: end date (YYYY-MM-DD)")
+    ] = None,
+    db: AsyncSession = Depends(get_session),
+) -> SeverityDistributionResponse:
+    """Get CVE counts grouped by severity level."""
+    analytics = NVDAnalytics(db)
+    items = await analytics.get_severity_distribution(
+        date_from=date_from,
+        date_to=date_to,
+    )
+    total = sum(item["count"] for item in items)
+    return SeverityDistributionResponse(
+        items=items,
+        total_cves=total,
+        date_from=date_from.isoformat() if date_from else None,
+        date_to=date_to.isoformat() if date_to else None,
+    )
