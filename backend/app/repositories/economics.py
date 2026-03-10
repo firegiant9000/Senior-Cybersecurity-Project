@@ -110,65 +110,40 @@ class SqlEconomicsRepository:
         if sort_by not in ALLOWED_SORT_FIELDS:
             raise ValueError(f"Invalid sort_by field: {sort_by!r}")
 
-        # Normalize to one row per state from DB (latest/max values).
-        grouped_stmt = (
-            select(
-                EconomicIndicator.state,
-                func.max(EconomicIndicator.smb_count).label("smb_count"),
-                func.max(EconomicIndicator.avg_revenue).label("avg_revenue"),
-            )
-            .group_by(EconomicIndicator.state)
-        )
-        grouped = (await self._session.execute(grouped_stmt)).all()
-
-        by_state: dict[str, tuple[int, float]] = {
-            str(state): (int(smb_count), float(avg_revenue))
-            for state, smb_count, avg_revenue in grouped
-            if state is not None and smb_count is not None and avg_revenue is not None
+        sort_column_map = {
+            "id": EconomicIndicator.id,
+            "state": EconomicIndicator.state,
+            "smb_count": EconomicIndicator.smb_count,
+            "avg_revenue": EconomicIndicator.avg_revenue,
         }
+        sort_col = sort_column_map[sort_by]
+        order_expr = (
+            sort_col.desc().nullslast() if sort_order == "desc" else sort_col.asc().nullslast()
+        )
 
-        # If we have real data from BEA API, use it and fill gaps with baseline
-        # If we have NO data or very sparse data (<5 states), use full baseline
-        if len(by_state) >= 5:
-            # We have substantial real data - merge with baseline for missing states
-            baseline_dict = {state: (smb, rev) for state, smb, rev in _BASELINE_STATE_ECON}
-            # Fill missing states with baseline values
-            for state, (smb, rev) in baseline_dict.items():
-                if state not in by_state:
-                    by_state[state] = (smb, rev)
-        else:
-            # Very sparse or no data - use full baseline
-            by_state = {
-                state: (smb_count, avg_revenue)
-                for state, smb_count, avg_revenue in _BASELINE_STATE_ECON
-            }
+        stmt = (
+            select(EconomicIndicator)
+            .order_by(order_expr)
+            .limit(page_size)
+            .offset((page - 1) * page_size)
+        )
+        result = await self._session.execute(stmt)
+        rows = result.scalars().all()
 
-        all_items: list[EconomicIndicatorItem] = []
-        for idx, (state, values) in enumerate(by_state.items()):
-            smb_count, avg_revenue = values
-            all_items.append(
-                EconomicIndicatorItem(
-                    id=idx + 1,
-                    state=state,
-                    smb_count=smb_count,
-                    avg_revenue=avg_revenue,
-                )
+        total_stmt = select(func.count(EconomicIndicator.id))
+        total_result = await self._session.execute(total_stmt)
+        total = int(total_result.scalar_one())
+
+        items = [
+            EconomicIndicatorItem(
+                id=row.id,
+                state=row.state,
+                smb_count=row.smb_count,
+                avg_revenue=row.avg_revenue,
             )
-
-        reverse = sort_order == "desc"
-        if sort_by == "state":
-            all_items.sort(key=lambda item: item.state, reverse=reverse)
-        elif sort_by == "smb_count":
-            all_items.sort(key=lambda item: item.smb_count, reverse=reverse)
-        elif sort_by == "avg_revenue":
-            all_items.sort(key=lambda item: item.avg_revenue, reverse=reverse)
-        else:
-            all_items.sort(key=lambda item: item.id, reverse=reverse)
-
-        total = len(all_items)
-        start = (page - 1) * page_size
-        end = start + page_size
-        return all_items[start:end], total
+            for row in rows
+        ]
+        return items, total
 
 
 def get_economics_repo(
