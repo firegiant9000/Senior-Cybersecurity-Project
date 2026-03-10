@@ -217,6 +217,7 @@ async def list_economic_indicators(
     sort_order: Annotated[
         Literal["asc", "desc"], Query(alias="sort_order", description="Sort direction")
     ] = "asc",
+    search: Annotated[str | None, Query(description="Search state name (partial match)")] = None,
 ) -> EconomicIndicatorListResponse:
     """Fetch real economic indicators from BEA Regional Economic Accounts.
 
@@ -242,6 +243,11 @@ async def list_economic_indicators(
 
         if not items:
             raise HTTPException(status_code=502, detail="Failed to load economic data from BEA")
+
+        # Apply state search filter
+        if search:
+            needle = search.lower()
+            items = [i for i in items if needle in str(i.get("state", "")).lower()]
 
         # Sort the data
         reverse = sort_order == "desc"

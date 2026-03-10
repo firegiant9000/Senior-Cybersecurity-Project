@@ -36,12 +36,18 @@ async def list_exploited_vulnerabilities(
     sort_order: Annotated[
         Literal["asc", "desc"], Query(alias="sort_order", description="Sort direction")
     ] = "desc",
+    search: Annotated[str | None, Query(description="Search CVE IDs (partial match)")] = None,
+    severity: Annotated[
+        str | None,
+        Query(description="Filter by severity: Critical, High, Medium, Low, Unknown"),
+    ] = None,
     repo: JsonExploitedVulnRepository | SqlExploitedVulnRepository = Depends(get_exploited_repo),
 ) -> ExploitedVulnListResponse:
     """List exploited vulnerabilities from the CISA KEV catalog.
 
-    Paginated and sortable.  In demo mode the data comes from a local JSON
-    fixture; set ``ENABLE_DEMO_MODE=False`` to query the database instead.
+    Paginated, sortable, and filterable.  In demo mode the data comes from a
+    local JSON fixture; set ``ENABLE_DEMO_MODE=False`` to query the database
+    instead.
     """
     if sort_by not in ALLOWED_SORT_FIELDS:
         raise HTTPException(
@@ -58,6 +64,8 @@ async def list_exploited_vulnerabilities(
             page_size=page_size,
             sort_by=sort_by,
             sort_order=sort_order,
+            search=search,
+            severity=severity,
         )
     except FileNotFoundError as exc:
         logger.error("Fixture file missing: %s", exc)
