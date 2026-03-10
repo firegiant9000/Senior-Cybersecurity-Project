@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './Dashboard.css';
+import SeverityDistributionChart from './components/SeverityDistributionChart';
 
 interface EconomicsItem {
     id: number;
@@ -553,6 +554,7 @@ const Dashboard: React.FC = () => {
 
                 {activeTab === 'nvd' && (
                     <div className="data-table-container">
+                        <SeverityDistributionChart />
                         <h2>NVD - National Vulnerability Database ({nvdTotal} total)</h2>
                         <div className="pagination-info">Showing {nvdData.length} of {nvdTotal}</div>
                         {nvdLoading && <p>Loading NVD CVE data...</p>}
