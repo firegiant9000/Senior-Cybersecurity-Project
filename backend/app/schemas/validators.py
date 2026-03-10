@@ -16,7 +16,6 @@ from pydantic import (  # type: ignore[import-not-found]  # pylint: disable=impo
     field_validator,
 )
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # Common Validators (used across multiple data sources)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -189,9 +188,7 @@ def validate_positive_float(value: float | None, min_val: float = 0.0) -> float 
         raise ValueError(f"Invalid float value: {value}") from e
 
 
-def normalize_positive_float(
-    value: float | None, min_val: float = 0.0
-) -> float | None:
+def normalize_positive_float(value: float | None, min_val: float = 0.0) -> float | None:
     """Normalize float, clamping to min_val. Returns None if invalid."""
     if value is None:
         return None
@@ -211,9 +208,7 @@ class NvdCveValidationSchema(BaseModel):
     """Validation schema for NVD CVE records."""
 
     cve_id: str = Field(..., description="CVE identifier (e.g., CVE-2021-44228)")
-    description: str = Field(
-        ..., min_length=1, description="CVE description (required, non-empty)"
-    )
+    description: str = Field(..., min_length=1, description="CVE description (required, non-empty)")
     cvss_score: float | None = Field(
         default=None,
         description="CVSS v3.1 base score [0.0-10.0] or None",
@@ -269,9 +264,7 @@ class IC3IncidentValidationSchema(BaseModel):
     year: int = Field(..., ge=2000, le=2100, description="Year [2000-2100]")
     sector: str = Field(..., min_length=1, description="Business sector (non-empty)")
     state: str = Field(..., min_length=2, max_length=2, description="US state code (2-letter)")
-    loss_amount: float = Field(
-        ..., ge=0.0, description="Financial loss amount in USD (>= 0)"
-    )
+    loss_amount: float = Field(..., ge=0.0, description="Financial loss amount in USD (>= 0)")
 
     @field_validator("state", mode="before")
     @classmethod
@@ -314,9 +307,7 @@ class EconomicIndicatorValidationSchema(BaseModel):
 
     state: str = Field(..., min_length=2, max_length=2, description="US state code (2-letter)")
     smb_count: int = Field(..., ge=0, description="Number of small/medium businesses")
-    avg_revenue: float = Field(
-        ..., ge=0.0, description="Average revenue per business in USD"
-    )
+    avg_revenue: float = Field(..., ge=0.0, description="Average revenue per business in USD")
 
     @field_validator("state", mode="before")
     @classmethod

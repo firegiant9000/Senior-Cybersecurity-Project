@@ -16,6 +16,7 @@ class IngestRunBase(BaseModel):
 
 class IngestRunCreate(IngestRunBase):
     """Schema for creating an IngestRun."""
+
     # No additional fields; inherits all fields from IngestRunBase.
 
 

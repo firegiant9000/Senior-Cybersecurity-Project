@@ -3,7 +3,18 @@
 from pydantic import BaseModel  # type: ignore[import-not-found]  # pylint: disable=import-error
 
 # Allowed values for the sort_by query parameter.
-ALLOWED_SORT_FIELDS = frozenset({"year", "sector", "state", "loss_amount", "id", "attack_type", "complaint_count", "avg_loss_per_incident"})
+ALLOWED_SORT_FIELDS = frozenset(
+    {
+        "year",
+        "sector",
+        "state",
+        "loss_amount",
+        "id",
+        "attack_type",
+        "complaint_count",
+        "avg_loss_per_incident",
+    }
+)
 
 
 class IC3IncidentItem(BaseModel):
