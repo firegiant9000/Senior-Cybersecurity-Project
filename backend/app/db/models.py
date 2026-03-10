@@ -8,6 +8,7 @@ from sqlalchemy import (  # type: ignore[import-not-found]  # pylint: disable=im
     Date,
     Float,
     ForeignKey,
+    Index,
     String,
     Text,
 )
@@ -28,7 +29,7 @@ class CVE(Base):
     id: Mapped[int] = mapped_column(primary_key=True)  # noqa: A003
     cve_id: Mapped[str] = mapped_column(String(50), unique=True, index=True)
     description: Mapped[str] = mapped_column(Text)
-    cvss_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cvss_score: Mapped[float | None] = mapped_column(Float, nullable=True, index=True)
     severity: Mapped[str | None] = mapped_column(String(20), nullable=True)
     published_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
@@ -53,6 +54,11 @@ class IC3Incident(Base):
     """IC3 incident record for historical impact signals."""
 
     __tablename__ = "ic3_incidents"
+    __table_args__ = (
+        Index("ix_ic3_attack_type", "attack_type"),
+        Index("ix_ic3_state", "state"),
+        Index("ix_ic3_year", "year"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)  # noqa: A003
     year: Mapped[int]

@@ -9,6 +9,7 @@ from typing import Protocol, runtime_checkable
 from fastapi import Depends  # type: ignore[import-not-found]  # pylint: disable=import-error
 from sqlalchemy import (  # type: ignore[import-not-found]  # pylint: disable=import-error
     func,
+    or_,
     select,
 )
 from sqlalchemy.ext.asyncio import (
@@ -41,6 +42,14 @@ def _iso(d: date | None) -> str | None:
     return d.isoformat() if d else None
 
 
+_SEVERITY_SCORE_RANGES: dict[str, tuple[float, float]] = {
+    "Critical": (9.0, 10.0),
+    "High": (7.0, 8.9),
+    "Medium": (4.0, 6.9),
+    "Low": (0.1, 3.9),
+}
+
+
 @runtime_checkable
 class NvdRepository(Protocol):
     """Contract for NVD repository implementations."""
@@ -51,6 +60,9 @@ class NvdRepository(Protocol):
         page_size: int,
         sort_by: str,
         sort_order: str,
+        *,
+        search: str | None = None,
+        severity: str | None = None,
     ) -> tuple[list[NvdCveItem], int]:
         """Return (items_for_page, total_count)."""
         ...
@@ -68,8 +80,11 @@ class SqlNvdRepository:
         page_size: int,
         sort_by: str,
         sort_order: str,
+        *,
+        search: str | None = None,
+        severity: str | None = None,
     ) -> tuple[list[NvdCveItem], int]:
-        """List NVD CVEs from the DB with pagination and sorting."""
+        """List NVD CVEs from the DB with pagination, sorting, and filtering."""
         if sort_by not in ALLOWED_SORT_FIELDS:
             raise ValueError(f"Invalid sort_by field: {sort_by!r}")
 
@@ -83,11 +98,32 @@ class SqlNvdRepository:
             sort_col.desc().nullslast() if sort_order == "desc" else sort_col.asc().nullslast()
         )
 
-        stmt = select(CVE).order_by(order_expr).limit(page_size).offset((page - 1) * page_size)
+        # Build WHERE conditions from filters
+        conditions = []
+        if search:
+            conditions.append(CVE.cve_id.ilike(f"%{search}%"))
+        if severity:
+            sev_list = [s.strip() for s in severity.split(",") if s.strip()]
+            sev_clauses = []
+            for sev in sev_list:
+                if sev in _SEVERITY_SCORE_RANGES:
+                    lo, hi = _SEVERITY_SCORE_RANGES[sev]
+                    sev_clauses.append((CVE.cvss_score >= lo) & (CVE.cvss_score <= hi))
+                elif sev == "Unknown":
+                    sev_clauses.append(CVE.cvss_score.is_(None))
+            if sev_clauses:
+                conditions.append(or_(*sev_clauses))
+
+        stmt = select(CVE)
+        for cond in conditions:
+            stmt = stmt.where(cond)
+        stmt = stmt.order_by(order_expr).limit(page_size).offset((page - 1) * page_size)
         result = await self._session.execute(stmt)
         rows = result.scalars().all()
 
         total_stmt = select(func.count(CVE.id))
+        for cond in conditions:
+            total_stmt = total_stmt.where(cond)
         total_result = await self._session.execute(total_stmt)
         total = int(total_result.scalar_one())
 

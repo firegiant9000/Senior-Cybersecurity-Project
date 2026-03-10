@@ -31,8 +31,16 @@ class IC3Repository(Protocol):
         page_size: int,
         sort_by: str,
         sort_order: str,
+        *,
+        attack_type: str | None = None,
+        state: str | None = None,
+        year: int | None = None,
     ) -> tuple[list[IC3IncidentItem], int]:
         """Return (items_for_page, total_count)."""
+        ...
+
+    async def get_filter_options(self) -> dict[str, list]:
+        """Return distinct values for filter dropdowns."""
         ...
 
 
@@ -48,8 +56,12 @@ class SqlIC3Repository:
         page_size: int,
         sort_by: str,
         sort_order: str,
+        *,
+        attack_type: str | None = None,
+        state: str | None = None,
+        year: int | None = None,
     ) -> tuple[list[IC3IncidentItem], int]:
-        """List IC3 incidents from the DB with pagination and sorting."""
+        """List IC3 incidents from the DB with pagination, sorting, and filtering."""
         if sort_by not in ALLOWED_SORT_FIELDS:
             raise ValueError(f"Invalid sort_by field: {sort_by!r}")
 
@@ -68,13 +80,25 @@ class SqlIC3Repository:
             sort_col.desc().nullslast() if sort_order == "desc" else sort_col.asc().nullslast()
         )
 
-        stmt = (
-            select(IC3Incident).order_by(order_expr).limit(page_size).offset((page - 1) * page_size)
-        )
+        # Build WHERE conditions from filters
+        conditions = []
+        if attack_type:
+            conditions.append(IC3Incident.attack_type == attack_type)
+        if state:
+            conditions.append(IC3Incident.state == state)
+        if year is not None:
+            conditions.append(IC3Incident.year == year)
+
+        stmt = select(IC3Incident)
+        for cond in conditions:
+            stmt = stmt.where(cond)
+        stmt = stmt.order_by(order_expr).limit(page_size).offset((page - 1) * page_size)
         result = await self._session.execute(stmt)
         rows = result.scalars().all()
 
         total_stmt = select(func.count(IC3Incident.id))
+        for cond in conditions:
+            total_stmt = total_stmt.where(cond)
         total_result = await self._session.execute(total_stmt)
         total = int(total_result.scalar_one())
 
@@ -92,6 +116,23 @@ class SqlIC3Repository:
             for row in rows
         ]
         return items, total
+
+    async def get_filter_options(self) -> dict[str, list]:
+        """Return distinct attack types, states, and years for filter dropdowns."""
+        attack_types_result = await self._session.execute(
+            select(IC3Incident.attack_type).distinct().order_by(IC3Incident.attack_type)
+        )
+        states_result = await self._session.execute(
+            select(IC3Incident.state).distinct().order_by(IC3Incident.state)
+        )
+        years_result = await self._session.execute(
+            select(IC3Incident.year).distinct().order_by(IC3Incident.year.desc())
+        )
+        return {
+            "attack_types": [r[0] for r in attack_types_result.all()],
+            "states": [r[0] for r in states_result.all()],
+            "years": [r[0] for r in years_result.all()],
+        }
 
 
 def get_ic3_repo(
