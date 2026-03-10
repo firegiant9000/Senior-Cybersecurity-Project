@@ -30,23 +30,31 @@ const SEVERITY_COLORS: Record<string, string> = {
     Unknown: '#9e9e9e',
 };
 
-const API_BASE_URL =
-    (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env
-        .VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
+interface Props {
+    apiBaseUrl: string;
+    search?: string;
+    severity?: string;
+}
 
-const SeverityDistributionChart: React.FC = () => {
+const SeverityDistributionChart: React.FC<Props> = ({ apiBaseUrl, search, severity }) => {
     const [data, setData] = useState<SeverityCount[]>([]);
     const [totalCves, setTotalCves] = useState(0);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
+        const controller = new AbortController();
         const fetchData = async () => {
             setLoading(true);
             setError(null);
             try {
+                const params = new URLSearchParams();
+                if (search) params.set('search', search);
+                if (severity) params.set('severity', severity);
+                const qs = params.toString();
                 const response = await fetch(
-                    `${API_BASE_URL}/api/v1/nvd/analytics/severity-distribution`
+                    `${apiBaseUrl}/api/v1/nvd/analytics/severity-distribution${qs ? `?${qs}` : ''}`,
+                    { signal: controller.signal }
                 );
                 if (!response.ok) {
                     throw new Error(`Failed to fetch severity data: ${response.status}`);
@@ -55,13 +63,15 @@ const SeverityDistributionChart: React.FC = () => {
                 setData(result.items);
                 setTotalCves(result.total_cves);
             } catch (err) {
+                if (err instanceof DOMException && err.name === 'AbortError') return;
                 setError(err instanceof Error ? err.message : 'Error fetching severity data');
             } finally {
                 setLoading(false);
             }
         };
         fetchData();
-    }, []);
+        return () => controller.abort();
+    }, [apiBaseUrl, search, severity]);
 
     if (loading) return <p>Loading severity distribution...</p>;
     if (error) return <p className="error">Error: {error}</p>;
