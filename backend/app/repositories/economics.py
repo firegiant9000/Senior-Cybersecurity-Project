@@ -143,15 +143,17 @@ class SqlEconomicsRepository:
                 for state, smb_count, avg_revenue in _BASELINE_STATE_ECON
             }
 
-        all_items = [
-            EconomicIndicatorItem(
-                id=idx + 1,
-                state=state,
-                smb_count=smb_count,
-                avg_revenue=avg_revenue,
+        all_items: list[EconomicIndicatorItem] = []
+        for idx, (state, values) in enumerate(by_state.items()):
+            smb_count, avg_revenue = values
+            all_items.append(
+                EconomicIndicatorItem(
+                    id=idx + 1,
+                    state=state,
+                    smb_count=smb_count,
+                    avg_revenue=avg_revenue,
+                )
             )
-            for idx, (state, (smb_count, avg_revenue)) in enumerate(by_state.items())
-        ]
 
         reverse = sort_order == "desc"
         if sort_by == "state":

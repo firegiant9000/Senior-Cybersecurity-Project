@@ -28,7 +28,10 @@ async def list_exploited_vulnerabilities(
     ] = 25,
     sort_by: Annotated[
         str,
-        Query(alias="sort_by", description=f"Sort field. Allowed: {sorted(ALLOWED_SORT_FIELDS)}"),
+        Query(
+            alias="sort_by",
+            description=f"Sort field. Allowed: {sorted(ALLOWED_SORT_FIELDS)}",
+        ),
     ] = "kev_date_added",
     sort_order: Annotated[
         Literal["asc", "desc"], Query(alias="sort_order", description="Sort direction")

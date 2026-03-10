@@ -59,8 +59,8 @@ def _normalize_cisa_kev(item: dict) -> tuple[str, str, str, date | None] | None:
 
         # Get short description with fallback
         description = (
-            item.get("shortDescription") 
-            or item.get("vulnerabilityName") 
+            item.get("shortDescription")
+            or item.get("vulnerabilityName")
             or "CISA known exploited vulnerability"
         )
         description = description.strip() if description else "CISA known exploited vulnerability"
@@ -86,9 +86,9 @@ def _normalize_cisa_kev(item: dict) -> tuple[str, str, str, date | None] | None:
 async def ingest_cisa_kev(db: AsyncSession) -> int:
     """
     Fetch CISA KEV catalog and upsert into cves (stub) and kev_catalog.
-    
+
     Applies validation and normalization to all records.
-    
+
     Returns:
         The number of new KEV entries ingested (not including updates)
     """
