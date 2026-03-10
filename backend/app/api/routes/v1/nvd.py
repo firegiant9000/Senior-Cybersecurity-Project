@@ -74,12 +74,8 @@ async def list_nvd_cves(
     response_model=SeverityDistributionResponse,
 )
 async def get_severity_distribution(
-    date_from: Annotated[
-        date | None, Query(description="Filter: start date (YYYY-MM-DD)")
-    ] = None,
-    date_to: Annotated[
-        date | None, Query(description="Filter: end date (YYYY-MM-DD)")
-    ] = None,
+    date_from: Annotated[date | None, Query(description="Filter: start date (YYYY-MM-DD)")] = None,
+    date_to: Annotated[date | None, Query(description="Filter: end date (YYYY-MM-DD)")] = None,
     db: AsyncSession = Depends(get_session),
 ) -> SeverityDistributionResponse:
     """Get CVE counts grouped by severity level."""
