@@ -16,7 +16,9 @@ class IC3Analytics:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_attack_types_by_loss(self, year: int | None = None, limit: int = 10) -> list[dict]:
+    async def get_attack_types_by_loss(
+        self, year: int | None = None, limit: int = 10
+    ) -> list[dict]:
         """Get most expensive attack types by total and average loss.
 
         Args:
@@ -73,10 +75,7 @@ class IC3Analytics:
         if year:
             stmt = stmt.where(IC3Incident.year == year)
 
-        stmt = (
-            stmt.order_by(func.sum(IC3Incident.complaint_count).desc())
-            .limit(limit)
-        )
+        stmt = stmt.order_by(func.sum(IC3Incident.complaint_count).desc()).limit(limit)
 
         result = await self.db.execute(stmt)
         rows = result.all()
@@ -91,9 +90,7 @@ class IC3Analytics:
             for row in rows
         ]
 
-    async def get_geographic_threat_heatmap(
-        self, year: int | None = None
-    ) -> list[dict]:
+    async def get_geographic_threat_heatmap(self, year: int | None = None) -> list[dict]:
         """Get geographic distribution of threats (state-level heatmap data).
 
         Args:
@@ -166,9 +163,7 @@ class IC3Analytics:
             for row in rows
         ]
 
-    async def get_sector_attack_matrix(
-        self, year: int | None = None
-    ) -> list[dict]:
+    async def get_sector_attack_matrix(self, year: int | None = None) -> list[dict]:
         """Get cross-tabulation of sectors vs attack types.
 
         Args:

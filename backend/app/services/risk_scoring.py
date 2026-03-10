@@ -35,9 +35,7 @@ def calculate_risk_score(
     return min(score, 100.0)
 
 
-def basic_vuln_risk_score(
-    severity_score: float | None, *, exploited: bool
-) -> float | None:
+def basic_vuln_risk_score(severity_score: float | None, *, exploited: bool) -> float | None:
     """Return a simple 0-100 risk score from CVSS and exploitation status.
 
     - CVSS contributes up to 70 points (score * 7)
