@@ -12,6 +12,7 @@ from app.db.base import Base
 
 class IngestRun(Base):
     """Represents an ingestion pipeline run."""
+
     # pylint: disable=too-few-public-methods
 
     __tablename__ = "ingest_runs"

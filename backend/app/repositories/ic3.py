@@ -65,16 +65,11 @@ class SqlIC3Repository:
         }
         sort_col = sort_column_map[sort_by]
         order_expr = (
-            sort_col.desc().nullslast()
-            if sort_order == "desc"
-            else sort_col.asc().nullslast()
+            sort_col.desc().nullslast() if sort_order == "desc" else sort_col.asc().nullslast()
         )
 
         stmt = (
-            select(IC3Incident)
-            .order_by(order_expr)
-            .limit(page_size)
-            .offset((page - 1) * page_size)
+            select(IC3Incident).order_by(order_expr).limit(page_size).offset((page - 1) * page_size)
         )
         result = await self._session.execute(stmt)
         rows = result.scalars().all()
