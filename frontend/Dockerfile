@@ -1,5 +1,5 @@
 # Build stage
-FROM node:18-alpine as build
+FROM node:20-alpine as build
 
 WORKDIR /app
 
@@ -10,7 +10,7 @@ COPY . .
 RUN npm run build
 
 # Dev stage
-FROM node:18-alpine as dev
+FROM node:20-alpine as dev
 
 WORKDIR /app
 
@@ -22,7 +22,7 @@ EXPOSE 5173
 CMD ["npm", "run", "dev"]
 
 # Prod stage
-FROM node:18-alpine as prod
+FROM node:20-alpine as prod
 
 WORKDIR /app
 
