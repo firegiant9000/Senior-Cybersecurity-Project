@@ -11,7 +11,7 @@ class UserCreate(BaseModel):
 
 
 class UserRead(BaseModel):
-    id: int
+    id: int  # noqa: A003
     email: str
     is_active: bool
     role: str
