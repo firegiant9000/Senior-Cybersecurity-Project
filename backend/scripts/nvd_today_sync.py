@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 sys.path.insert(0, ".")
 
 URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
-START = "2026-03-09T00:00:00.000"
-END = "2026-03-09T23:59:59.999"
+START = "2026-03-10T00:00:00.000"
+END = "2026-03-10T23:59:59.999"
 
 
 async def main() -> None:
