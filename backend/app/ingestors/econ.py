@@ -53,17 +53,17 @@ def _normalize_econ_indicator(
 async def ingest_region_economics_from_census(db: AsyncSession) -> None:
     """
     Ingest regional economic indicators from US Census Bureau API.
-    
+
     Uses ACS (American Community Survey) 5-year estimates:
     - B19013: Median household income by state
     - B06011: Income per capita by state
     - NAICS sector data for business counts
-    
+
     Applies validation and normalization to all records.
     """
     settings = get_settings()
     api_key = settings.CENSUS_API_KEY
-    
+
     if not api_key:
         logger.warning("CENSUS_API_KEY not set. Falling back to CSV file.")
         await ingest_region_economics_from_csv(db)
@@ -73,11 +73,22 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:
         # Fetch median household income data from ACS
         # Using 2021 ACS 5-year estimates (most recent complete data)
         income_url = "https://api.census.gov/data/2021/acs/acs5"
-        
+
         states = {
-            "CA": "06", "TX": "48", "NY": "36", "WA": "53", "FL": "12",
-            "PA": "42", "IL": "17", "OH": "39", "GA": "13", "NC": "37",
-            "MI": "26", "NJ": "34", "VA": "51", "AZ": "04"
+            "CA": "06",
+            "TX": "48",
+            "NY": "36",
+            "WA": "53",
+            "FL": "12",
+            "PA": "42",
+            "IL": "17",
+            "OH": "39",
+            "GA": "13",
+            "NC": "37",
+            "MI": "26",
+            "NJ": "34",
+            "VA": "51",
+            "AZ": "04",
         }
 
         indicators_added = 0
@@ -91,32 +102,35 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:
                     "for": f"state:{state_fips}",
                     "key": api_key,
                 }
-                
+
                 resp = await client.get(income_url, params=params)
                 resp.raise_for_status()
                 data = resp.json()
-                
+
                 if len(data) > 1:
                     # data[0] is header, data[1] is the result
                     median_income = float(data[1][0]) if data[1][0] != "null" else 50000.0
-                    
+
                     # Estimate SMB count based on state (rough formula)
                     # Using Census Bureau business patterns
                     smb_estimates = {
-                        "06": 500000, "48": 350000, "36": 300000,
-                        "53": 150000, "12": 320000
+                        "06": 500000,
+                        "48": 350000,
+                        "36": 300000,
+                        "53": 150000,
+                        "12": 320000,
                     }
                     smb_count = smb_estimates.get(state_fips, 100000)
-                    
+
                     # Estimate state GDP (simplified - median income * population factor)
                     gdp_estimate = median_income * smb_count * 2.5
-                    
+
                     # Normalize and validate before storing
                     normalized = _normalize_econ_indicator(state_abbr, smb_count, gdp_estimate)
                     if normalized is None:
                         logger.debug("Skipped invalid economic indicator: %s", state_abbr)
                         continue
-                    
+
                     state, smb_count, avg_revenue = normalized
 
                     economic = EconomicIndicator(
@@ -129,8 +143,10 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:
                     indicators_validated += 1
 
         await db.commit()
-        print(f"✓ Ingested economic data for {indicators_added} states from Census API, validated {indicators_validated}")
-        
+        print(
+            f"✓ Ingested economic data for {indicators_added} states from Census API, validated {indicators_validated}"
+        )
+
     except (httpx.HTTPError, ValueError) as e:
         logger.warning("Census API error: %s. Falling back to CSV file.", e)
         await ingest_region_economics_from_csv(db)
@@ -141,7 +157,7 @@ async def ingest_region_economics_from_csv(
     path: str = "data/region_econ.csv",
 ) -> None:
     """Ingest regional economic indicators from a CSV file (fallback/demo mode).
-    
+
     Applies validation and normalization to all records.
     """
     indicators_added = 0
@@ -159,14 +175,16 @@ async def ingest_region_economics_from_csv(
             if normalized is None:
                 logger.debug("Skipped invalid economic indicator from CSV: %s", row.get("Region"))
                 continue
-            
+
             state, smb_count, avg_revenue = normalized
 
-            db.add(EconomicIndicator(
-                state=state,
-                smb_count=smb_count,
-                avg_revenue=avg_revenue,
-            ))
+            db.add(
+                EconomicIndicator(
+                    state=state,
+                    smb_count=smb_count,
+                    avg_revenue=avg_revenue,
+                )
+            )
             indicators_added += 1
             indicators_validated += 1
 
