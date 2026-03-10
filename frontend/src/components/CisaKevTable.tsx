@@ -1,0 +1,161 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { useDebounce } from '../hooks/useDebounce';
+
+interface CISAVulnerability {
+    id: string;
+    vulnerability_name: string;
+    vendor: string;
+    product: string;
+    severity_label: string | null;
+    severity_score: number | null;
+    is_kev: boolean;
+    kev_date_added: string;
+}
+
+interface ApiResponse {
+    total: number;
+    page: number;
+    page_size: number;
+    items: CISAVulnerability[];
+}
+
+const PAGE_SIZE = 10;
+const SEVERITY_OPTIONS = ['All', 'Critical', 'High', 'Medium', 'Low', 'Unknown'];
+
+interface Props {
+    apiBaseUrl: string;
+}
+
+const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
+    const [data, setData] = useState<CISAVulnerability[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [page, setPage] = useState(1);
+    const [total, setTotal] = useState(0);
+
+    // Filter state
+    const [searchInput, setSearchInput] = useState('');
+    const [severity, setSeverity] = useState('All');
+    const debouncedSearch = useDebounce(searchInput);
+
+    const fetchData = useCallback(async (p: number, search: string, sev: string, signal?: AbortSignal) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const params = new URLSearchParams({
+                page: String(p),
+                page_size: String(PAGE_SIZE),
+                sort_by: 'kev_date_added',
+                sort_order: 'desc',
+            });
+            if (search) params.set('search', search);
+            if (sev !== 'All') params.set('severity', sev);
+
+            const response = await fetch(`${apiBaseUrl}/api/v1/vulnerabilities/exploited?${params}`, signal ? { signal } : undefined);
+            if (!response.ok) throw new Error(`Failed to fetch CISA KEV data: ${response.status}`);
+            const result: ApiResponse = await response.json();
+            setData(result.items);
+            setTotal(result.total);
+            setPage(p);
+        } catch (err) {
+            if (err instanceof DOMException && err.name === 'AbortError') return;
+            const errorMsg = err instanceof Error ? err.message : 'Error fetching data';
+            console.error('CISA KEV fetch error:', errorMsg);
+            setError(errorMsg);
+        } finally {
+            setLoading(false);
+        }
+    }, [apiBaseUrl]);
+
+    // Reset to page 1 when filters change
+    useEffect(() => {
+        const controller = new AbortController();
+        fetchData(1, debouncedSearch, severity, controller.signal);
+        return () => controller.abort();
+    }, [debouncedSearch, severity, fetchData]);
+
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+    return (
+        <div className="data-table-container">
+            <h2>CISA KEV - Exploited Vulnerabilities ({total} total)</h2>
+
+            <div className="filter-controls">
+                <div className="filter-group">
+                    <label htmlFor="cisa-search">CVE ID</label>
+                    <input
+                        id="cisa-search"
+                        type="text"
+                        placeholder="e.g. CVE-2021"
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                    />
+                </div>
+                <div className="filter-group">
+                    <label htmlFor="cisa-severity">Severity</label>
+                    <select
+                        id="cisa-severity"
+                        value={severity}
+                        onChange={(e) => setSeverity(e.target.value)}
+                    >
+                        {SEVERITY_OPTIONS.map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+
+            <div className="pagination-info">Showing {data.length} of {total}</div>
+            {loading && <p>Loading CISA KEV data...</p>}
+            {error && <p className="error">Error: {error}</p>}
+
+            {!loading && !error && data.length === 0 && (
+                <div className="empty-state">
+                    <p>No CISA KEV vulnerabilities found matching your filters. Try adjusting your search or severity filter.</p>
+                </div>
+            )}
+
+            {data.length > 0 && (
+                <>
+                    <table className="data-table cisa-table">
+                        <thead>
+                            <tr>
+                                <th>CVE ID</th>
+                                <th>Severity</th>
+                                <th>Score</th>
+                                <th>Vendor</th>
+                                <th>Product</th>
+                                <th>Vulnerability</th>
+                                <th>Date Added</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {data.map((item) => (
+                                <tr key={item.id}>
+                                    <td className="cve-id">{item.id}</td>
+                                    <td>{item.severity_label || 'Unknown'}</td>
+                                    <td>{item.severity_score ?? 'N/A'}</td>
+                                    <td>{item.vendor}</td>
+                                    <td>{item.product}</td>
+                                    <td className="vuln-name">{item.vulnerability_name.substring(0, 100)}...</td>
+                                    <td>{item.kev_date_added}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                    <div className="pagination-controls">
+                        <button disabled={page === 1} onClick={() => fetchData(page - 1, debouncedSearch, severity)}>
+                            &larr; Previous
+                        </button>
+                        <span>Page {page} of {totalPages}</span>
+                        <button disabled={page >= totalPages} onClick={() => fetchData(page + 1, debouncedSearch, severity)}>
+                            Next &rarr;
+                        </button>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+};
+
+export default CisaKevTable;
