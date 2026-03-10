@@ -27,14 +27,13 @@ async def list_exploited_vulnerabilities(
         int, Query(ge=1, le=100, alias="page_size", description="Items per page (max 100)")
     ] = 25,
     sort_by: Annotated[
-        str, Query(alias="sort_by", description=f"Sort field. Allowed: {sorted(ALLOWED_SORT_FIELDS)}")
+        str,
+        Query(alias="sort_by", description=f"Sort field. Allowed: {sorted(ALLOWED_SORT_FIELDS)}"),
     ] = "kev_date_added",
     sort_order: Annotated[
         Literal["asc", "desc"], Query(alias="sort_order", description="Sort direction")
     ] = "desc",
-    repo: JsonExploitedVulnRepository | SqlExploitedVulnRepository = Depends(
-        get_exploited_repo
-    ),
+    repo: JsonExploitedVulnRepository | SqlExploitedVulnRepository = Depends(get_exploited_repo),
 ) -> ExploitedVulnListResponse:
     """List exploited vulnerabilities from the CISA KEV catalog.
 
