@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import './Dashboard.css';
 import SeverityDistributionChart from './components/SeverityDistributionChart';
 
@@ -138,15 +138,6 @@ const API_BASE_URL =
     (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env
         .VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
 
-const formatCurrencyCompact = (value: number): string => {
-    const abs = Math.abs(value);
-    if (abs >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
-    if (abs >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
-    if (abs >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
-    if (abs >= 1e3) return `$${(value / 1e3).toFixed(2)}K`;
-    return `$${value.toFixed(2)}`;
-};
-
 const Dashboard: React.FC = () => {
     const [activeTab, setActiveTab] = useState('overview');
     const [economicsData, setEconomicsData] = useState<EconomicsItem[]>([]);
@@ -159,11 +150,6 @@ const Dashboard: React.FC = () => {
     const [cisaError, setCisaError] = useState<string | null>(null);
     const [cisaPage, setCisaPage] = useState(1);
     const [cisaTotal, setCisaTotal] = useState(0);
-    const [riskData, setRiskData] = useState<CISAVulnerability[]>([]);
-    const [riskLoading, setRiskLoading] = useState(false);
-    const [riskError, setRiskError] = useState<string | null>(null);
-    const [riskPage, setRiskPage] = useState(1);
-    const [riskTotal, setRiskTotal] = useState(0);
     const [nvdData, setNvdData] = useState<NVDCVEItem[]>([]);
     const [nvdLoading, setNvdLoading] = useState(false);
     const [nvdError, setNvdError] = useState<string | null>(null);
@@ -179,9 +165,7 @@ const Dashboard: React.FC = () => {
         if (activeTab === 'economics') {
             fetchEconomicsData(1);
         } else if (activeTab === 'cisa') {
-            fetchCisaData(1, 'kev_date_added');
-        } else if (activeTab === 'riskScoring') {
-            fetchRiskData(1);
+            fetchCisaData(1);
         } else if (activeTab === 'nvd') {
             fetchNvdData(1);
         } else if (activeTab === 'ic3') {
@@ -193,8 +177,7 @@ const Dashboard: React.FC = () => {
         setEconomicsLoading(true);
         setEconomicsError(null);
         try {
-            const baseUrl = `http://${window.location.hostname}:8000`;
-            const response = await fetch(`${baseUrl}/api/v1/economics/indicators?page=${page}&page_size=10&sort_by=smb_count&sort_order=desc`);
+            const response = await fetch(`${API_BASE_URL}/api/v1/economics/indicators?page=${page}&page_size=10&sort_by=smb_count&sort_order=desc`);
             if (!response.ok) throw new Error(`Failed to fetch economics data: ${response.status}`);
             const data: ApiResponse<EconomicsItem> = await response.json();
             setEconomicsData(data.items);
@@ -207,15 +190,11 @@ const Dashboard: React.FC = () => {
         }
     };
 
-    const fetchCisaData = async (
-        page: number,
-        sortBy: 'kev_date_added' | 'risk_score' = 'kev_date_added',
-    ) => {
+    const fetchCisaData = async (page: number) => {
         setCisaLoading(true);
         setCisaError(null);
         try {
-            const baseUrl = `http://${window.location.hostname}:8000`;
-            const response = await fetch(`${baseUrl}/api/v1/vulnerabilities/exploited?page=${page}&page_size=10&sort_by=kev_date_added&sort_order=desc`);
+            const response = await fetch(`${API_BASE_URL}/api/v1/vulnerabilities/exploited?page=${page}&page_size=10&sort_by=kev_date_added&sort_order=desc`);
             if (!response.ok) throw new Error(`Failed to fetch CISA KEV data: ${response.status}`);
             const data: ApiResponse<CISAVulnerability> = await response.json();
             setCisaData(data.items);
@@ -232,14 +211,8 @@ const Dashboard: React.FC = () => {
         setNvdLoading(true);
         setNvdError(null);
         try {
-            const baseUrl = `http://${window.location.hostname}:8000`;
-            const url = `${baseUrl}/api/v1/nvd/cves?page=${page}&page_size=10`;
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            });
+            const url = `${API_BASE_URL}/api/v1/nvd/cves?page=${page}&page_size=10`;
+            const response = await fetch(url);
             if (!response.ok) {
                 const errorText = await response.text();
                 throw new Error(`Failed to fetch NVD data: ${response.status} - ${errorText}`);
@@ -288,13 +261,13 @@ const Dashboard: React.FC = () => {
 
             {/* Tabs */}
             <div className="tabs-container">
-                <button 
+                <button
                     className={`tab ${activeTab === 'overview' ? 'active' : ''}`}
                     onClick={() => setActiveTab('overview')}
                 >
                     Overview
                 </button>
-                <button 
+                <button
                     className={`tab ${activeTab === 'economics' ? 'active' : ''}`}
                     onClick={() => setActiveTab('economics')}
                 >
@@ -312,13 +285,13 @@ const Dashboard: React.FC = () => {
                 >
                     CISA KEV
                 </button>
-                <button 
+                <button
                     className={`tab ${activeTab === 'nvd' ? 'active' : ''}`}
                     onClick={() => setActiveTab('nvd')}
                 >
                     NVD
                 </button>
-                <button 
+                <button
                     className={`tab ${activeTab === 'ic3' ? 'active' : ''}`}
                     onClick={() => setActiveTab('ic3')}
                 >
