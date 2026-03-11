@@ -37,3 +37,11 @@ class IC3IncidentListResponse(BaseModel):
     page: int
     page_size: int
     items: list[IC3IncidentItem]
+
+
+class IC3FilterOptionsResponse(BaseModel):
+    """Distinct values available for IC3 filter dropdowns."""
+
+    attack_types: list[str]
+    states: list[str]
+    years: list[int]

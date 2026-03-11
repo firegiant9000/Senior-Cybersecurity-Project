@@ -5,11 +5,12 @@ import logging
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.engine import get_session
 from app.repositories.ic3 import SqlIC3Repository
-from app.schemas.ic3 import ALLOWED_SORT_FIELDS, IC3IncidentListResponse
+from app.schemas.ic3 import ALLOWED_SORT_FIELDS, IC3FilterOptionsResponse, IC3IncidentListResponse
 from app.schemas.ic3_analytics import (
     AttackTypeListResponse,
     DashboardSummary,
@@ -41,27 +42,57 @@ async def list_ic3_incidents(
     sort_order: Annotated[
         Literal["asc", "desc"], Query(alias="sort_order", description="Sort direction")
     ] = "desc",
+    attack_type: Annotated[
+        str | None, Query(alias="attack_type", description="Filter by attack type")
+    ] = None,
+    state: Annotated[str | None, Query(description="Filter by US state code")] = None,
+    year: Annotated[int | None, Query(description="Filter by year")] = None,
     db: AsyncSession = Depends(get_session),
 ) -> IC3IncidentListResponse:
-    """List IC3 incidents from database (paginated and sortable)."""
+    """List IC3 incidents from database (paginated, sortable, and filterable)."""
     if sort_by not in ALLOWED_SORT_FIELDS:
         raise HTTPException(
             status_code=422,
             detail=(
-                f"Invalid sort_by value {sort_by!r}. "
-                f"Allowed values: {sorted(ALLOWED_SORT_FIELDS)}"
+                f"Invalid sort_by value {sort_by!r}. Allowed values: {sorted(ALLOWED_SORT_FIELDS)}"
             ),
         )
 
-    repo = SqlIC3Repository(db)
-    items, total = await repo.list_incidents(page, page_size, sort_by, sort_order)
+    try:
+        repo = SqlIC3Repository(db)
+        items, total = await repo.list_incidents(
+            page,
+            page_size,
+            sort_by,
+            sort_order,
+            attack_type=attack_type,
+            state=state,
+            year=year,
+        )
 
-    return IC3IncidentListResponse(
-        total=total,
-        page=page,
-        page_size=page_size,
-        items=items,
-    )
+        return IC3IncidentListResponse(
+            total=total,
+            page=page,
+            page_size=page_size,
+            items=items,
+        )
+    except SQLAlchemyError as e:
+        logger.error("Database error in IC3 incidents route: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error") from e
+
+
+@router.get("/filter-options", response_model=IC3FilterOptionsResponse)
+async def get_ic3_filter_options(
+    db: AsyncSession = Depends(get_session),
+) -> IC3FilterOptionsResponse:
+    """Return distinct values for IC3 filter dropdowns."""
+    try:
+        repo = SqlIC3Repository(db)
+        options = await repo.get_filter_options()
+        return IC3FilterOptionsResponse(**options)
+    except SQLAlchemyError as e:
+        logger.error("Database error in IC3 filter options route: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error") from e
 
 
 @router.get("/analytics/attack-types", response_model=AttackTypeListResponse)
