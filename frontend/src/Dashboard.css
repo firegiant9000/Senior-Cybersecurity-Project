@@ -311,3 +311,111 @@
     font-size: 14px;
     color: #666;
 }
+
+/* Filter Controls */
+.filter-controls {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    padding: 16px;
+    background-color: #f9fafb;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 180px;
+}
+
+.filter-group label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #0b1060;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.filter-group input,
+.filter-group select {
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #333;
+    background-color: white;
+    transition: border-color 0.2s ease;
+}
+
+.filter-group input:focus,
+.filter-group select:focus {
+    outline: none;
+    border-color: #0b1060;
+    box-shadow: 0 0 0 2px rgba(11, 16, 96, 0.1);
+}
+
+.filter-group input::placeholder {
+    color: #9ca3af;
+}
+
+.filter-group select {
+    cursor: pointer;
+}
+
+/* Severity multi-select chips */
+.severity-checkboxes {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.severity-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 20px;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    color: #555 !important;
+    background-color: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+}
+
+.severity-chip input[type="checkbox"] {
+    display: none;
+}
+
+.severity-chip:hover {
+    border-color: #0b1060;
+    color: #0b1060 !important;
+}
+
+.severity-chip.active {
+    background-color: #0b1060;
+    border-color: #0b1060;
+    color: white !important;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #666;
+}
+
+.empty-state code {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 8px 16px;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    font-size: 13px;
+}

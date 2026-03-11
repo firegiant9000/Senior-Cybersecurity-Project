@@ -22,6 +22,12 @@ export default [
         URLSearchParams: 'readonly',
         RequestInit: 'readonly',
         Response: 'readonly',
+        AbortController: 'readonly',
+        AbortSignal: 'readonly',
+        DOMException: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        Number: 'readonly',
       },
     },
     plugins: {
