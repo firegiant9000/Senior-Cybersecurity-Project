@@ -6,6 +6,8 @@ from datetime import date
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.nvd import NvdRepository, get_nvd_repo
 from app.schemas.nvd import ALLOWED_SORT_FIELDS, NvdCveListResponse
@@ -47,8 +49,7 @@ async def list_nvd_cves(
         raise HTTPException(
             status_code=422,
             detail=(
-                f"Invalid sort_by value {sort_by!r}. "
-                f"Allowed values: {sorted(ALLOWED_SORT_FIELDS)}"
+                f"Invalid sort_by value {sort_by!r}. Allowed values: {sorted(ALLOWED_SORT_FIELDS)}"
             ),
         )
 
@@ -79,6 +80,9 @@ async def list_nvd_cves(
     except (TypeError, KeyError) as e:
         logger.error("Unexpected error in NVD route: %s", e)
         raise HTTPException(status_code=500, detail="Internal server error") from e
+    except SQLAlchemyError as e:
+        logger.error("Database error in NVD route: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error") from e
 
 
 @router.get(
@@ -96,17 +100,21 @@ async def get_severity_distribution(
     db: AsyncSession = Depends(get_session),
 ) -> SeverityDistributionResponse:
     """Get CVE counts grouped by severity level."""
-    analytics = NVDAnalytics(db)
-    items = await analytics.get_severity_distribution(
-        date_from=date_from,
-        date_to=date_to,
-        search=search,
-        severity=severity,
-    )
-    total = sum(item["count"] for item in items)
-    return SeverityDistributionResponse(
-        items=items,
-        total_cves=total,
-        date_from=date_from.isoformat() if date_from else None,
-        date_to=date_to.isoformat() if date_to else None,
-    )
+    try:
+        analytics = NVDAnalytics(db)
+        items = await analytics.get_severity_distribution(
+            date_from=date_from,
+            date_to=date_to,
+            search=search,
+            severity=severity,
+        )
+        total = sum(item["count"] for item in items)
+        return SeverityDistributionResponse(
+            items=items,
+            total_cves=total,
+            date_from=date_from.isoformat() if date_from else None,
+            date_to=date_to.isoformat() if date_to else None,
+        )
+    except SQLAlchemyError as e:
+        logger.error("Database error in severity distribution: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error") from e

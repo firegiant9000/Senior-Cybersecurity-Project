@@ -75,9 +75,7 @@ async def test_nvd_cves_combined_filters(client: AsyncClient) -> None:
 async def test_nvd_cves_empty_search_returns_all(client: AsyncClient) -> None:
     """Empty search string should behave like no filter."""
     all_resp = await client.get("/api/v1/nvd/cves", params={"page_size": "5"})
-    search_resp = await client.get(
-        "/api/v1/nvd/cves", params={"search": "", "page_size": "5"}
-    )
+    search_resp = await client.get("/api/v1/nvd/cves", params={"search": "", "page_size": "5"})
     if all_resp.status_code == 200 and search_resp.status_code == 200:
         assert all_resp.json()["total"] == search_resp.json()["total"]
 
@@ -90,9 +88,7 @@ async def test_nvd_cves_empty_search_returns_all(client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_cisa_kev_no_filters(client: AsyncClient) -> None:
     """Baseline: CISA KEV endpoint still works without filters."""
-    response = await client.get(
-        "/api/v1/vulnerabilities/exploited", params={"page_size": "5"}
-    )
+    response = await client.get("/api/v1/vulnerabilities/exploited", params={"page_size": "5"})
     assert response.status_code == 200
     data = response.json()
     assert "items" in data
@@ -133,9 +129,7 @@ async def test_cisa_kev_severity_filter(client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_ic3_no_filters(client: AsyncClient) -> None:
     """Baseline: IC3 endpoint still works without filters."""
-    response = await client.get(
-        "/api/v1/ic3/incidents", params={"page_size": "5"}
-    )
+    response = await client.get("/api/v1/ic3/incidents", params={"page_size": "5"})
     assert response.status_code in _DB_OK
     if response.status_code == 200:
         data = response.json()
@@ -221,9 +215,7 @@ async def test_ic3_filter_options_endpoint(client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_economics_no_filters(client: AsyncClient) -> None:
     """Baseline: Economics endpoint still works without filters."""
-    response = await client.get(
-        "/api/v1/economics/indicators", params={"page_size": "5"}
-    )
+    response = await client.get("/api/v1/economics/indicators", params={"page_size": "5"})
     # May return 502 if BEA API is unavailable in test env, which is acceptable
     assert response.status_code in (200, 502)
 
