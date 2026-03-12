@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.engine import get_session
 from app.repositories.nvd import NvdRepository, get_nvd_repo
 from app.schemas.nvd import ALLOWED_SORT_FIELDS, NvdCveListResponse
-from app.schemas.nvd_analytics import SeverityDistributionResponse
+from app.schemas.nvd_analytics import SeverityCount, SeverityDistributionResponse
 from app.services.nvd_analytics import NVDAnalytics
 
 logger = logging.getLogger(__name__)
@@ -102,9 +102,10 @@ async def get_severity_distribution(
             search=search,
             severity=severity,
         )
-        total = sum(item["count"] for item in items)
+        severity_items = [SeverityCount(**item) for item in items]
+        total = sum(item.count for item in severity_items)
         return SeverityDistributionResponse(
-            items=items,
+            items=severity_items,
             total_cves=total,
             date_from=date_from.isoformat() if date_from else None,
             date_to=date_to.isoformat() if date_to else None,

@@ -1,4 +1,5 @@
 """Application main entry point."""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -30,6 +31,17 @@ def create_app() -> FastAPI:
     # Include routers
     fastapi_app.include_router(health.router)
     fastapi_app.include_router(v1.router, prefix=settings.API_PREFIX)
+
+    @fastapi_app.get("/")
+    async def root() -> dict[str, str]:
+        """Root endpoint with quick API links."""
+        return {
+            "service": settings.APP_NAME,
+            "health": "/health",
+            "api_base": settings.API_PREFIX,
+            "docs": "/docs",
+            "openapi": "/openapi.json",
+        }
 
     return fastapi_app
 
