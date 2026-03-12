@@ -2,6 +2,7 @@
 
 Includes data validation and normalization to ensure consistency.
 """
+
 import csv
 import logging
 

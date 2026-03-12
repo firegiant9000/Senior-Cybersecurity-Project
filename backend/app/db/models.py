@@ -1,4 +1,5 @@
 """Database ORM models."""
+
 from __future__ import annotations
 
 # pylint: disable=too-few-public-methods,unsubscriptable-object

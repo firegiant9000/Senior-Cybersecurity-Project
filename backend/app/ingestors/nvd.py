@@ -1,5 +1,6 @@
 # app/ingestors/nvd.py
 """NVD CVE ingestion with full pagination support and data normalization."""
+
 import asyncio
 import logging
 from datetime import date
@@ -73,9 +74,7 @@ async def upsert_normalized_cve(
 
     Returns a tuple of (`inserted`|`updated`|`unchanged`, changed_flag).
     """
-    existing = (
-        await db.execute(select(CVE).where(CVE.cve_id == cve_id))
-    ).scalar_one_or_none()
+    existing = (await db.execute(select(CVE).where(CVE.cve_id == cve_id))).scalar_one_or_none()
 
     effective_published = published_date
     if max_published_date and effective_published and effective_published > max_published_date:
@@ -173,9 +172,7 @@ async def backfill_missing_nvd_fields_for_existing_cves(
     """
     settings = get_settings()
     stmt = select(CVE).where(
-        (CVE.cvss_score.is_(None))
-        | (CVE.severity.is_(None))
-        | (CVE.published_date.is_(None))
+        (CVE.cvss_score.is_(None)) | (CVE.severity.is_(None)) | (CVE.published_date.is_(None))
     )
     if cve_ids:
         stmt = stmt.where(CVE.cve_id.in_(cve_ids))
