@@ -447,7 +447,11 @@ const Dashboard: React.FC = () => {
                                     <tbody>
                                         {riskData.map((item) => (
                                             <tr key={item.id}>
-                                                <td className="cve-id">{item.id}</td>
+                                                <td className="cve-id">
+                                                    <a href={`https://nvd.nist.gov/vuln/detail/${item.id}`} target="_blank" rel="noopener noreferrer">
+                                                        {item.id}
+                                                    </a>
+                                                </td>
                                                 <td>
                                                     <span style={{
                                                         padding: '3px 8px',
@@ -523,7 +527,11 @@ const Dashboard: React.FC = () => {
                                     <tbody>
                                         {cisaData.map((item) => (
                                             <tr key={item.id}>
-                                                <td className="cve-id">{item.id}</td>
+                                                <td className="cve-id">
+                                                    <a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog" target="_blank" rel="noopener noreferrer">
+                                                        {item.id}
+                                                    </a>
+                                                </td>
                                                 <td>{item.vendor}</td>
                                                 <td>{item.product}</td>
                                                 <td className="vuln-name">{item.vulnerability_name.substring(0, 100)}...</td>
