@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import './Dashboard.css';
 import SeverityDistributionChart from './components/SeverityDistributionChart';
 
@@ -29,14 +29,6 @@ interface NVDCVEItem {
     severity_score: number | null;
     published_date: string;
     last_modified: string;
-}
-
-interface IC3IncidentItem {
-    id: number;
-    year: number;
-    sector: string;
-    state: string;
-    loss_amount: number | null | undefined;
 }
 
 interface ApiResponse<T> {
@@ -79,65 +71,6 @@ const expandStateName = (state: string): string => {
     return STATE_NAME_BY_CODE[key] ?? state;
 };
 
-const inferAttackType = (sector: string, lossAmount: number | null | undefined): string => {
-    if (sector && sector.trim() && sector.trim().toLowerCase() !== 'all') {
-        return sector;
-    }
-    const loss = lossAmount ?? 0;
-    if (loss >= 150_000_000) return 'Business Email Compromise';
-    if (loss >= 95_000_000) return 'Personal Data Breach';
-    return 'Business Email Compromise';
-};
-
-interface EconomicsItem {
-    id: number;
-    state: string;
-    smb_count: number;
-    avg_revenue: number;
-}
-
-interface CISAVulnerability {
-    id: string;
-    vulnerability_name: string;
-    vendor: string;
-    product: string;
-    severity_label: string;
-    severity_score: number | null;
-    is_kev: boolean;
-    kev_date_added: string;
-}
-
-interface NVDCVEItem {
-    id: string;
-    description: string;
-    severity_label: string;
-    severity_score: number | null;
-    published_date: string;
-    last_modified: string;
-}
-
-interface IC3IncidentItem {
-    id: number;
-    year: number;
-    attack_type: string;
-    sector: string;
-    state: string;
-    complaint_count: number;
-    loss_amount: number;
-    avg_loss_per_incident: number;
-}
-
-interface ApiResponse<T> {
-    total: number;
-    page: number;
-    page_size: number;
-    items: T[];
-}
-
-const API_BASE_URL =
-    (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env
-        .VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
-
 const Dashboard: React.FC = () => {
     const [activeTab, setActiveTab] = useState('overview');
     const [economicsData, setEconomicsData] = useState<EconomicsItem[]>([]);
@@ -155,11 +88,11 @@ const Dashboard: React.FC = () => {
     const [nvdError, setNvdError] = useState<string | null>(null);
     const [nvdPage, setNvdPage] = useState(1);
     const [nvdTotal, setNvdTotal] = useState(0);
-    const [ic3Data, setIc3Data] = useState<IC3IncidentItem[]>([]);
-    const [ic3Loading, setIc3Loading] = useState(false);
-    const [ic3Error, setIc3Error] = useState<string | null>(null);
-    const [ic3Page, setIc3Page] = useState(1);
-    const [ic3Total, setIc3Total] = useState(0);
+    const [riskData, setRiskData] = useState<CISAVulnerability[]>([]);
+    const [riskLoading, setRiskLoading] = useState(false);
+    const [riskError, setRiskError] = useState<string | null>(null);
+    const [riskPage, setRiskPage] = useState(1);
+    const [riskTotal, setRiskTotal] = useState(0);
 
     useEffect(() => {
         if (activeTab === 'economics') {
@@ -168,8 +101,8 @@ const Dashboard: React.FC = () => {
             fetchCisaData(1);
         } else if (activeTab === 'nvd') {
             fetchNvdData(1);
-        } else if (activeTab === 'ic3') {
-            fetchIc3Data(1);
+        } else if (activeTab === 'riskScoring') {
+            fetchRiskData(1);
         }
     }, [activeTab]);
 
@@ -230,22 +163,65 @@ const Dashboard: React.FC = () => {
         }
     };
 
-    const fetchIc3Data = async (page: number) => {
-        setIc3Loading(true);
-        setIc3Error(null);
+    const fetchRiskData = async (page: number) => {
+        setRiskLoading(true);
+        setRiskError(null);
         try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/ic3/incidents?page=${page}&page_size=10&sort_by=loss_amount&sort_order=desc`);
-            if (!response.ok) throw new Error(`Failed to fetch IC3 data: ${response.status}`);
-            const data: ApiResponse<IC3IncidentItem> = await response.json();
-            setIc3Data(data.items);
-            setIc3Total(data.total);
-            setIc3Page(page);
+            const response = await fetch(`${API_BASE_URL}/api/v1/vulnerabilities/risk-scored?page=${page}&page_size=10&sort_by=risk_score&sort_order=desc`);
+            if (!response.ok) throw new Error(`Failed to fetch risk scoring data: ${response.status}`);
+            const data: ApiResponse<CISAVulnerability> = await response.json();
+            setRiskData(data.items);
+            setRiskTotal(data.total);
+            setRiskPage(page);
         } catch (err) {
-            setIc3Error(err instanceof Error ? err.message : 'Error fetching IC3 data');
+            setRiskError(err instanceof Error ? err.message : 'Error fetching risk data');
         } finally {
-            setIc3Loading(false);
+            setRiskLoading(false);
         }
     };
+
+    const riskBands = useMemo(() => {
+        const bands = [
+            { label: 'Critical (80-100)', color: '#dc2626', min: 80, max: 100, count: 0 },
+            { label: 'High (60-79)', color: '#f59e0b', min: 60, max: 79, count: 0 },
+            { label: 'Medium (40-59)', color: '#eab308', min: 40, max: 59, count: 0 },
+            { label: 'Low (0-39)', color: '#3b82f6', min: 0, max: 39, count: 0 },
+        ];
+        for (const item of riskData) {
+            const score = item.risk_score ?? 0;
+            for (const band of bands) {
+                if (score >= band.min && score <= band.max) {
+                    band.count++;
+                    break;
+                }
+            }
+        }
+        return bands;
+    }, [riskData]);
+
+    const maxBandCount = useMemo(() => Math.max(1, ...riskBands.map(b => b.count)), [riskBands]);
+
+    const topVendorsByRisk = useMemo(() => {
+        const vendorMap: Record<string, { total: number; count: number }> = {};
+        for (const item of riskData) {
+            const v = item.vendor || 'Unknown';
+            if (!vendorMap[v]) vendorMap[v] = { total: 0, count: 0 };
+            vendorMap[v].total += item.risk_score ?? 0;
+            vendorMap[v].count++;
+        }
+        return Object.entries(vendorMap)
+            .map(([vendor, { total, count }]) => ({ vendor, avgRisk: total / count }))
+            .sort((a, b) => b.avgRisk - a.avgRisk)
+            .slice(0, 5);
+    }, [riskData]);
+
+    const maxVendorRisk = useMemo(() => Math.max(1, ...topVendorsByRisk.map(v => v.avgRisk)), [topVendorsByRisk]);
+
+    const avgRiskScore = useMemo(() => {
+        if (riskData.length === 0) return 0;
+        const sum = riskData.reduce((acc, item) => acc + (item.risk_score ?? 0), 0);
+        return sum / riskData.length;
+    }, [riskData]);
 
     return (
         <div className="dashboard-container">
@@ -549,7 +525,7 @@ const Dashboard: React.FC = () => {
 
                 {activeTab === 'nvd' && (
                     <div className="data-table-container">
-                        <SeverityDistributionChart />
+                        <SeverityDistributionChart apiBaseUrl={API_BASE_URL} />
                         <h2>NVD - National Vulnerability Database ({nvdTotal} total)</h2>
                         <div className="pagination-info">Showing {nvdData.length} of {nvdTotal}</div>
                         {nvdLoading && <p>Loading NVD CVE data...</p>}
