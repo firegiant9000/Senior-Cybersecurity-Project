@@ -7,7 +7,6 @@ from datetime import date
 import httpx
 from pydantic import ValidationError
 from sqlalchemy import select
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -330,13 +329,6 @@ def _normalize_nvd_cve(  # noqa: C901
             validated.severity,
             published_date,
         )
-        return (
-            validated.cve_id,
-            validated.description,
-            validated.cvss_score,
-            validated.severity,
-            published_date,
-        )
     except ValidationError as e:
         logger.warning("NVD CVE validation failed for %s: %s", cve_id, e)
         return None
@@ -368,17 +360,9 @@ async def ingest_nvd(  # noqa: C901
     else:
         logger.info("NVD ingestion: no API key configured; using unauthenticated requests")
 
-    use_api_key = bool(api_key)
-    if use_api_key:
-        logger.info("NVD ingestion: API key detected; attempting authenticated requests")
-    else:
-        logger.info("NVD ingestion: no API key configured; using unauthenticated requests")
-
     total_fetched = 0
     total_validated = 0
     current_index = start_index
-    reached_limit = False
-    aligned_to_latest_window = False
     reached_limit = False
     aligned_to_latest_window = False
 
@@ -391,23 +375,6 @@ async def ingest_nvd(  # noqa: C901
             headers: dict[str, str] = {}
             if use_api_key and api_key:
                 headers["apiKey"] = api_key
-            headers: dict[str, str] = {}
-            if use_api_key and api_key:
-                headers["apiKey"] = api_key
-
-            try:
-                resp = await client.get(NVD_URL, params=params, headers=headers)
-                resp.raise_for_status()
-            except httpx.HTTPStatusError as e:
-                status_code = e.response.status_code
-                if use_api_key and status_code in {403, 404}:
-                    logger.warning(
-                        "NVD returned %s with API key; retrying without API key",
-                        status_code,
-                    )
-                    use_api_key = False
-                    continue
-                raise
 
             try:
                 resp = await client.get(NVD_URL, params=params, headers=headers)
@@ -442,31 +409,12 @@ async def ingest_nvd(  # noqa: C901
                     continue
                 aligned_to_latest_window = True
 
-            # NVD API returns oldest records first at startIndex=0.
-            # If caller requests a bounded max_results from index 0,
-            # jump to the latest window so dashboard reflects current CVEs.
-            if (
-                max_results
-                and start_index == 0
-                and current_index == 0
-                and not aligned_to_latest_window
-            ):
-                total_results = int(data.get("totalResults", 0))
-                latest_start = max(total_results - max_results, 0)
-                if latest_start > 0:
-                    current_index = latest_start
-                    aligned_to_latest_window = True
-                    continue
-                aligned_to_latest_window = True
-
             vulnerabilities = data.get("vulnerabilities", [])
             if not vulnerabilities:
                 break
 
             for item in vulnerabilities:
                 if max_results and total_validated >= max_results:
-                    reached_limit = True
-                    break
                     reached_limit = True
                     break
 
