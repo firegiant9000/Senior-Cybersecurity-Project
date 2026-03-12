@@ -19,6 +19,212 @@ logger = logging.getLogger(__name__)
 NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 
 
+def _should_update_cve(existing: CVE, *, today: date | None = None) -> bool:
+    """Return whether an existing CVE row should be refreshed from NVD."""
+    if existing.cvss_score is None or existing.severity is None:
+        return True
+    if existing.published_date is None:
+        return True
+    return bool(today and existing.published_date > today)
+
+
+def _apply_normalized_cve(
+    existing: CVE,
+    *,
+    description: str,
+    cvss_score: float | None,
+    severity: str | None,
+    published_date: date | None,
+    max_published_date: date | None = None,
+) -> bool:
+    """Update an existing CVE row from normalized NVD data when values changed."""
+    changed = False
+
+    effective_published = published_date
+    if max_published_date and effective_published and effective_published > max_published_date:
+        effective_published = max_published_date
+
+    if existing.description != description:
+        existing.description = description
+        changed = True
+    if existing.cvss_score != cvss_score:
+        existing.cvss_score = cvss_score
+        changed = True
+    if existing.severity != severity:
+        existing.severity = severity
+        changed = True
+    if existing.published_date != effective_published:
+        existing.published_date = effective_published
+        changed = True
+
+    return changed
+
+
+async def upsert_normalized_cve(
+    db: AsyncSession,
+    *,
+    cve_id: str,
+    description: str,
+    cvss_score: float | None,
+    severity: str | None,
+    published_date: date | None,
+    max_published_date: date | None = None,
+) -> tuple[str, bool]:
+    """Insert or update a normalized NVD CVE row.
+
+    Returns a tuple of (`inserted`|`updated`|`unchanged`, changed_flag).
+    """
+    existing = (
+        await db.execute(select(CVE).where(CVE.cve_id == cve_id))
+    ).scalar_one_or_none()
+
+    effective_published = published_date
+    if max_published_date and effective_published and effective_published > max_published_date:
+        effective_published = max_published_date
+
+    if existing is None:
+        db.add(
+            CVE(
+                cve_id=cve_id,
+                description=description,
+                cvss_score=cvss_score,
+                severity=severity,
+                published_date=effective_published,
+            )
+        )
+        return "inserted", True
+
+    changed = _apply_normalized_cve(
+        existing,
+        description=description,
+        cvss_score=cvss_score,
+        severity=severity,
+        published_date=published_date,
+        max_published_date=max_published_date,
+    )
+    if changed:
+        return "updated", True
+    return "unchanged", False
+
+
+async def fetch_nvd_cve_by_id(
+    cve_id: str,
+    *,
+    api_key: str | None = None,
+    timeout: float = 30.0,
+) -> dict | None:
+    """Fetch a single CVE payload from the official NVD API by CVE ID."""
+    params = {"cveId": cve_id}
+    use_api_key = bool(api_key)
+    retries_remaining = 3
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        while True:
+            headers: dict[str, str] = {}
+            if use_api_key and api_key:
+                headers["apiKey"] = api_key
+
+            try:
+                response = await client.get(NVD_URL, params=params, headers=headers)
+                response.raise_for_status()
+                payload = response.json()
+                break
+            except httpx.HTTPStatusError as exc:
+                status_code = exc.response.status_code
+                if status_code == 429 and retries_remaining > 0:
+                    retries_remaining -= 1
+                    wait_seconds = 2 ** (3 - retries_remaining)
+                    await asyncio.sleep(wait_seconds)
+                    continue
+                if status_code == 429:
+                    logger.warning(
+                        "NVD lookup rate-limited for %s after retries; skipping",
+                        cve_id,
+                    )
+                    return None
+                if use_api_key and status_code == 403:
+                    logger.warning(
+                        "NVD lookup for %s returned %s with API key; retrying without key",
+                        cve_id,
+                        status_code,
+                    )
+                    use_api_key = False
+                    continue
+                if status_code == 404:
+                    logger.debug("NVD lookup missing upstream record for %s", cve_id)
+                    return None
+                raise
+
+    vulnerabilities = payload.get("vulnerabilities", [])
+    if not vulnerabilities:
+        return None
+    return vulnerabilities[0].get("cve", {})
+
+
+async def backfill_missing_nvd_fields_for_existing_cves(
+    db: AsyncSession,
+    *,
+    cve_ids: list[str] | None = None,
+    limit: int | None = None,
+    max_published_date: date | None = None,
+) -> dict[str, int]:
+    """Backfill existing CVEs that are missing NVD-derived fields.
+
+    This is primarily used for KEV-created placeholder rows that predate NVD ingestion.
+    """
+    settings = get_settings()
+    stmt = select(CVE).where(
+        (CVE.cvss_score.is_(None))
+        | (CVE.severity.is_(None))
+        | (CVE.published_date.is_(None))
+    )
+    if cve_ids:
+        stmt = stmt.where(CVE.cve_id.in_(cve_ids))
+    stmt = stmt.order_by(CVE.cve_id.asc())
+    if limit is not None:
+        stmt = stmt.limit(limit)
+
+    rows = (await db.execute(stmt)).scalars().all()
+    results = {"checked": 0, "updated": 0, "unchanged": 0, "missing_upstream": 0}
+    per_request_delay_seconds = 0.6 if settings.NVD_API_KEY else 1.2
+
+    for row in rows:
+        results["checked"] += 1
+        cve_payload = await fetch_nvd_cve_by_id(
+            row.cve_id,
+            api_key=settings.NVD_API_KEY,
+        )
+        if cve_payload is None:
+            results["missing_upstream"] += 1
+            await asyncio.sleep(per_request_delay_seconds)
+            continue
+
+        normalized = _normalize_nvd_cve(cve_payload)
+        if normalized is None:
+            results["missing_upstream"] += 1
+            continue
+
+        cve_id, description, cvss_score, severity, published_date = normalized
+        status, _ = await upsert_normalized_cve(
+            db,
+            cve_id=cve_id,
+            description=description,
+            cvss_score=cvss_score,
+            severity=severity,
+            published_date=published_date,
+            max_published_date=max_published_date,
+        )
+        if status == "updated":
+            results["updated"] += 1
+        else:
+            results["unchanged"] += 1
+
+        await asyncio.sleep(per_request_delay_seconds)
+
+    await db.commit()
+    return results
+
+
 def _normalize_nvd_cve(  # noqa: C901
     cve_data: dict,
 ) -> tuple[str, str, float | None, str | None, date | None] | None:
@@ -273,11 +479,8 @@ async def ingest_nvd(  # noqa: C901
 
                 cve_id, description, cvss_score, severity, published_date = normalized
 
-                existing = await db.execute(select(CVE).where(CVE.cve_id == cve_id))
-                if existing.scalar_one_or_none() is not None:
-                    continue
-
-                cve = CVE(
+                status, changed = await upsert_normalized_cve(
+                    db,
                     cve_id=cve_id,
                     description=description,
                     cvss_score=cvss_score,
