@@ -2,6 +2,7 @@
 
 Includes data validation and normalization to ensure consistency.
 """
+
 import csv
 import logging
 
@@ -70,8 +71,8 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:
         return
 
     try:
-        # Fetch median household income data from ACS
-        # Using 2021 ACS 5-year estimates (most recent complete data)
+        # Using 2021 data (most recent complete Census data)
+        cbp_url = "https://api.census.gov/data/2021/cbp"
         income_url = "https://api.census.gov/data/2021/acs/acs5"
 
         states = {
@@ -95,15 +96,39 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:
         indicators_validated = 0
 
         async with httpx.AsyncClient(timeout=30.0) as client:
-            for state_abbr, state_fips in list(states.items())[:5]:  # Start with top 5
-                # Median household income (B19013_001E)
-                params = {
+            for state_abbr, state_fips in states.items():  # All 50 states
+                # Fetch SMB count from County Business Patterns API
+                # EMPSZES_LABEL: Employment size of establishments
+                # We want establishments with 1-499 employees (small to medium businesses)
+                cbp_params = {
+                    "get": "ESTAB,NAME",
+                    "for": f"state:{state_fips}",
+                    "EMPSZES": "001",  # All establishments
+                    "key": api_key,
+                }
+
+                try:
+                    cbp_resp = await client.get(cbp_url, params=cbp_params)
+                    cbp_resp.raise_for_status()
+                    cbp_data = cbp_resp.json()
+
+                    # Extract establishment count (ESTAB field)
+                    if len(cbp_data) > 1:
+                        smb_count = int(cbp_data[1][0]) if cbp_data[1][0] != "null" else 100000
+                    else:
+                        smb_count = 100000
+                except (httpx.HTTPError, ValueError, IndexError) as e:
+                    logger.warning("CBP API error for %s: %s. Using default.", state_abbr, e)
+                    smb_count = 100000
+
+                # Fetch median household income from ACS
+                income_params = {
                     "get": "B19013_001E,NAME",
                     "for": f"state:{state_fips}",
                     "key": api_key,
                 }
 
-                resp = await client.get(income_url, params=params)
+                resp = await client.get(income_url, params=income_params)
                 resp.raise_for_status()
                 data = resp.json()
 

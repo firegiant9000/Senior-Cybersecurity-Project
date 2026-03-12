@@ -93,6 +93,7 @@ async def ingest_cisa_kev(db: AsyncSession) -> int:
 
     Applies validation and normalization to all records.
 
+
     Returns:
         The number of new KEV entries ingested (not including updates)
     """

@@ -232,8 +232,7 @@ async def list_economic_indicators(
         raise HTTPException(
             status_code=422,
             detail=(
-                f"Invalid sort_by value {sort_by!r}. "
-                f"Allowed values: {sorted(ALLOWED_SORT_FIELDS)}"
+                f"Invalid sort_by value {sort_by!r}. Allowed values: {sorted(ALLOWED_SORT_FIELDS)}"
             ),
         )
 

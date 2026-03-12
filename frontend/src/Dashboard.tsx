@@ -4,6 +4,7 @@ import EconomicsTable from './components/EconomicsTable';
 import CisaKevTable from './components/CisaKevTable';
 import NvdTable from './components/NvdTable';
 import IC3Table from './components/IC3Table';
+import RiskScoringTable from './components/RiskScoringTable';
 
 const API_BASE_URL =
     (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env
@@ -37,6 +38,12 @@ const Dashboard: React.FC = () => {
                     onClick={() => setActiveTab('economics')}
                 >
                     Economics
+                </button>
+                <button
+                    className={`tab ${activeTab === 'riskScoring' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('riskScoring')}
+                >
+                    Risk Scoring
                 </button>
                 <button
                     className={`tab ${activeTab === 'cisa' ? 'active' : ''}`}
@@ -81,6 +88,7 @@ const Dashboard: React.FC = () => {
                 )}
 
                 {activeTab === 'economics' && <EconomicsTable apiBaseUrl={API_BASE_URL} />}
+                {activeTab === 'riskScoring' && <RiskScoringTable apiBaseUrl={API_BASE_URL} />}
                 {activeTab === 'cisa' && <CisaKevTable apiBaseUrl={API_BASE_URL} />}
                 {activeTab === 'nvd' && <NvdTable apiBaseUrl={API_BASE_URL} />}
                 {activeTab === 'ic3' && <IC3Table apiBaseUrl={API_BASE_URL} />}
