@@ -61,8 +61,6 @@ def _normalize_cisa_kev(item: dict) -> tuple[str, str, str, date | None] | None:
         description = (
             item.get("shortDescription")
             or item.get("vulnerabilityName")
-            item.get("shortDescription")
-            or item.get("vulnerabilityName")
             or "CISA known exploited vulnerability"
         )
         description = description.strip() if description else "CISA known exploited vulnerability"
@@ -72,7 +70,6 @@ def _normalize_cisa_kev(item: dict) -> tuple[str, str, str, date | None] | None:
             cve_id=cve_id,
             vendor=vendor,
             product=product,
-            due_date=date_added_str,
             due_date=date_added_str,
         )
 
