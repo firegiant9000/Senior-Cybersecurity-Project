@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
+"""One-off bounded NVD sync for a single publication date window."""
+
 import asyncio
 import sys
 from typing import cast
 
 import httpx
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 sys.path.insert(0, ".")
@@ -15,9 +16,9 @@ END = "2026-03-09T23:59:59.999"
 
 
 async def main() -> None:
+    """Fetch and upsert NVD CVEs for the configured day window."""
     from app.db.engine import AsyncSessionLocal
-    from app.db.models import CVE
-    from app.ingestors.nvd import _normalize_nvd_cve
+    from app.ingestors.nvd import _normalize_nvd_cve, upsert_normalized_cve
 
     params = {
         "pubStartDate": START,
@@ -44,37 +45,17 @@ async def main() -> None:
                 continue
 
             cve_id, description, cvss_score, severity, published_date = normalized
-            existing = (
-                await db.execute(select(CVE).where(CVE.cve_id == cve_id))
-            ).scalar_one_or_none()
-
-            if existing is None:
-                db.add(
-                    CVE(
-                        cve_id=cve_id,
-                        description=description,
-                        cvss_score=cvss_score,
-                        severity=severity,
-                        published_date=published_date,
-                    )
-                )
+            status, _ = await upsert_normalized_cve(
+                db,
+                cve_id=cve_id,
+                description=description,
+                cvss_score=cvss_score,
+                severity=severity,
+                published_date=published_date,
+            )
+            if status == "inserted":
                 added += 1
-                continue
-
-            changed = False
-            if existing.description != description:
-                existing.description = description
-                changed = True
-            if existing.cvss_score != cvss_score:
-                existing.cvss_score = cvss_score
-                changed = True
-            if existing.severity != severity:
-                existing.severity = severity
-                changed = True
-            if existing.published_date != published_date:
-                existing.published_date = published_date
-                changed = True
-            if changed:
+            elif status == "updated":
                 updated += 1
 
         await db.commit()
@@ -84,3 +65,4 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
+
