@@ -64,15 +64,12 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:
     settings = get_settings()
     api_key = settings.CENSUS_API_KEY
 
-
     if not api_key:
         logger.warning("CENSUS_API_KEY not set. Falling back to CSV file.")
         await ingest_region_economics_from_csv(db)
         return
 
     try:
-        # Using 2021 data (most recent complete Census data)
-        cbp_url = "https://api.census.gov/data/2021/cbp"
         # Using 2021 data (most recent complete Census data)
         cbp_url = "https://api.census.gov/data/2021/cbp"
         income_url = "https://api.census.gov/data/2021/acs/acs5"
@@ -134,7 +131,6 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:
                 resp.raise_for_status()
                 data = resp.json()
 
-
                 if len(data) > 1:
                     # data[0] is header, data[1] is the result
                     median_income = float(data[1][0]) if data[1][0] != "null" else 50000.0
@@ -153,13 +149,11 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:
                     # Estimate state GDP (simplified - median income * population factor)
                     gdp_estimate = median_income * smb_count * 2.5
 
-
                     # Normalize and validate before storing
                     normalized = _normalize_econ_indicator(state_abbr, smb_count, gdp_estimate)
                     if normalized is None:
                         logger.debug("Skipped invalid economic indicator: %s", state_abbr)
                         continue
-
 
                     state, smb_count, avg_revenue = normalized
 
@@ -188,7 +182,6 @@ async def ingest_region_economics_from_csv(
 ) -> None:
     """Ingest regional economic indicators from a CSV file (fallback/demo mode).
 
-
     Applies validation and normalization to all records.
     """
     indicators_added = 0
@@ -206,7 +199,6 @@ async def ingest_region_economics_from_csv(
             if normalized is None:
                 logger.debug("Skipped invalid economic indicator from CSV: %s", row.get("Region"))
                 continue
-
 
             state, smb_count, avg_revenue = normalized
 

@@ -91,7 +91,6 @@ async def ingest_cisa_kev(db: AsyncSession) -> int:
     """
     Fetch CISA KEV catalog and upsert into cves (stub) and kev_catalog.
 
-
     Applies validation and normalization to all records.
 
 

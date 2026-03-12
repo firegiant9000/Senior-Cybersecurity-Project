@@ -213,6 +213,7 @@
     text-decoration: underline;
 }
 
+
 .cisa-table .vuln-name {
     max-width: 400px;
     overflow: hidden;
@@ -407,6 +408,27 @@
     .risk-analytics-grid {
         grid-template-columns: 1fr;
     }
+}
+
+/* Severity Distribution Chart */
+.severity-chart-container {
+    background-color: #f9fafb;
+    border-radius: 8px;
+    padding: 20px 20px 10px;
+    margin-bottom: 25px;
+    border: 1px solid #e5e7eb;
+}
+
+.severity-chart-container h3 {
+    margin: 0 0 4px;
+    color: #0b1060;
+    font-size: 18px;
+}
+
+.severity-chart-total {
+    margin: 0 0 12px;
+    font-size: 14px;
+    color: #666;
 }
 
 /* Filter Controls */
