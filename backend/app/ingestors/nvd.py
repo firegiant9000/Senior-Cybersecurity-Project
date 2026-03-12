@@ -343,7 +343,6 @@ def _normalize_nvd_cve(  # noqa: C901
 
 
 async def ingest_nvd(  # noqa: C901
-async def ingest_nvd(  # noqa: C901
     db: AsyncSession, start_index: int = 0, max_results: int | None = None
 ) -> None:
     """

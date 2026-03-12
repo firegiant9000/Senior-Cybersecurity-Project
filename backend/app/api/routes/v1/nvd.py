@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.engine import get_session
 from app.repositories.nvd import NvdRepository, get_nvd_repo
 from app.schemas.nvd import ALLOWED_SORT_FIELDS, NvdCveListResponse
 from app.schemas.nvd_analytics import SeverityCount, SeverityDistributionResponse
@@ -42,10 +43,7 @@ async def list_nvd_cves(
     ] = None,
     *,
     repo: Annotated[NvdRepository, Depends(get_nvd_repo)],
-    *,
-    repo: Annotated[NvdRepository, Depends(get_nvd_repo)],
 ) -> NvdCveListResponse:
-    """Fetch NVD CVEs from the local database (populated by ingestion)."""
     """Fetch NVD CVEs from the local database (populated by ingestion)."""
     if sort_by not in ALLOWED_SORT_FIELDS:
         raise HTTPException(
@@ -57,7 +55,6 @@ async def list_nvd_cves(
 
     try:
         items, total = await repo.list_cves(
-        items, total = await repo.list_cves(
             page=page,
             page_size=page_size,
             sort_by=sort_by,
@@ -65,15 +62,10 @@ async def list_nvd_cves(
             search=search,
             severity=severity,
         )
-            sort_by=sort_by,
-            sort_order=sort_order,
-        )
         return NvdCveListResponse(
-            total=total,
             total=total,
             page=page,
             page_size=page_size,
-            items=items,
             items=items,
         )
     except ValueError as e:
