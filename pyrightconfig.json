@@ -1,7 +1,13 @@
 {
   "venvPath": "backend",
-  "venv": "venv",
+  "venv": ".venv",
+  "include": ["backend"],
   "reportMissingImports": false,
   "reportCallIssue": false,
-  "executionEnvironments": [{"root": "backend"}]
+  "executionEnvironments": [
+    {
+      "root": "backend",
+      "extraPaths": ["backend"]
+    }
+  ]
 }

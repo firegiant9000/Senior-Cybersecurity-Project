@@ -88,7 +88,7 @@ const EconomicsTable: React.FC<Props> = ({ apiBaseUrl }) => {
                     <input
                         id="econ-search"
                         type="text"
-                        placeholder="e.g. California"
+                        placeholder="e.g. CA"
                         value={searchInput}
                         onChange={(e) => setSearchInput(e.target.value)}
                     />

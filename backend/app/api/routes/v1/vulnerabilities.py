@@ -4,6 +4,7 @@ import logging
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.repositories.exploited_vuln import (
     JsonExploitedVulnRepository,
@@ -72,6 +73,15 @@ async def list_exploited_vulnerabilities(
     except NotImplementedError as exc:
         logger.error("Repository not implemented: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except SQLAlchemyError as exc:
+        logger.error("Database error in exploited vulnerabilities route: %s", exc)
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        logger.exception("Unhandled error in exploited vulnerabilities route: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail="Database unavailable. Verify DATABASE_URL and PostgreSQL credentials.",
+        ) from exc
 
     return ExploitedVulnListResponse(
         total=total,
@@ -121,6 +131,15 @@ async def list_risk_scored_vulnerabilities(
     except NotImplementedError as exc:
         logger.error("Repository not implemented: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except SQLAlchemyError as exc:
+        logger.error("Database error in risk-scored vulnerabilities route: %s", exc)
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        logger.exception("Unhandled error in risk-scored vulnerabilities route: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail="Database unavailable. Verify DATABASE_URL and PostgreSQL credentials.",
+        ) from exc
 
     return ExploitedVulnListResponse(
         total=total,

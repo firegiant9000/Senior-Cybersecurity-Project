@@ -99,7 +99,11 @@ class SqlNvdRepository:
         )
 
         # Build WHERE conditions from filters
-        conditions = []
+        conditions: list = []
+        # Never surface CVEs published in the future (date cap = today).
+        conditions.append(
+            (CVE.published_date.is_(None)) | (CVE.published_date <= date.today())
+        )
         if search:
             conditions.append(CVE.cve_id.ilike(f"%{search}%"))
         if severity:

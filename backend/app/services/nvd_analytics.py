@@ -64,6 +64,11 @@ class NVDAnalytics:
             func.count(CVE.id).label("count"),
         ).group_by(severity_label)
 
+        # Never surface CVEs published in the future (date cap = today).
+        stmt = stmt.where(
+            (CVE.published_date.is_(None)) | (CVE.published_date <= date.today())
+        )
+
         if date_from:
             stmt = stmt.where(CVE.published_date >= date_from)
         if date_to:
