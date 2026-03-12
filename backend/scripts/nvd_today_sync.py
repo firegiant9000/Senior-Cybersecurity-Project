@@ -3,16 +3,21 @@
 
 import asyncio
 import sys
+from datetime import date as _date
+from pathlib import Path
 from typing import cast
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
-sys.path.insert(0, ".")
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
 
 URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
-START = "2026-03-09T00:00:00.000"
-END = "2026-03-09T23:59:59.999"
+_sync_date = _date.today()
+START = f"{_sync_date.isoformat()}T00:00:00.000"
+END = f"{_sync_date.isoformat()}T23:59:59.999"
 
 
 async def main() -> None:
