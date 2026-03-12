@@ -27,12 +27,24 @@ router = APIRouter()
 
 # Demo IC3 data (2023-2024 statistics from IC3.gov)
 DEMO_IC3_DATA = [
-    {"id": 1, "year": 2024, "sector": "Business Email Compromise", "state": "CA", "loss_amount": 2780000000},
+    {
+        "id": 1,
+        "year": 2024,
+        "sector": "Business Email Compromise",
+        "state": "CA",
+        "loss_amount": 2780000000,
+    },
     {"id": 2, "year": 2024, "sector": "Ransomware", "state": "TX", "loss_amount": 612360000},
     {"id": 3, "year": 2024, "sector": "Extortion", "state": "NY", "loss_amount": 179000000},
     {"id": 4, "year": 2024, "sector": "Romance Scams", "state": "FL", "loss_amount": 1320000000},
     {"id": 5, "year": 2024, "sector": "Investment Fraud", "state": "IL", "loss_amount": 904000000},
-    {"id": 6, "year": 2023, "sector": "Business Email Compromise", "state": "CA", "loss_amount": 2670000000},
+    {
+        "id": 6,
+        "year": 2023,
+        "sector": "Business Email Compromise",
+        "state": "CA",
+        "loss_amount": 2670000000,
+    },
     {"id": 7, "year": 2023, "sector": "Ransomware", "state": "TX", "loss_amount": 564000000},
     {"id": 8, "year": 2023, "sector": "Extortion", "state": "NY", "loss_amount": 158000000},
     {"id": 9, "year": 2023, "sector": "Romance Scams", "state": "FL", "loss_amount": 1078000000},

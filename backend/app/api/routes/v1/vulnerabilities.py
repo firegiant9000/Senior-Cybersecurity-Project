@@ -53,8 +53,7 @@ async def list_exploited_vulnerabilities(
         raise HTTPException(
             status_code=422,
             detail=(
-                f"Invalid sort_by value {sort_by!r}. "
-                f"Allowed values: {sorted(ALLOWED_SORT_FIELDS)}"
+                f"Invalid sort_by value {sort_by!r}. Allowed values: {sorted(ALLOWED_SORT_FIELDS)}"
             ),
         )
 
@@ -98,17 +97,14 @@ async def list_risk_scored_vulnerabilities(
     sort_order: Annotated[
         Literal["asc", "desc"], Query(alias="sort_order", description="Sort direction")
     ] = "desc",
-    repo: JsonExploitedVulnRepository | SqlExploitedVulnRepository = Depends(
-        get_exploited_repo
-    ),
+    repo: JsonExploitedVulnRepository | SqlExploitedVulnRepository = Depends(get_exploited_repo),
 ) -> ExploitedVulnListResponse:
     """List risk-scored vulnerabilities using NVD CVSS + KEV exploitation context."""
     if sort_by not in ALLOWED_SORT_FIELDS:
         raise HTTPException(
             status_code=422,
             detail=(
-                f"Invalid sort_by value {sort_by!r}. "
-                f"Allowed values: {sorted(ALLOWED_SORT_FIELDS)}"
+                f"Invalid sort_by value {sort_by!r}. Allowed values: {sorted(ALLOWED_SORT_FIELDS)}"
             ),
         )
 
