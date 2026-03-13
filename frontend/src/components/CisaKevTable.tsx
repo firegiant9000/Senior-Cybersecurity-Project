@@ -21,6 +21,14 @@ interface ApiResponse {
 
 const PAGE_SIZE = 10;
 const SEVERITY_OPTIONS = ['All', 'Critical', 'High', 'Medium', 'Low', 'Unknown'];
+const CANONICAL_SEVERITIES = new Set(['Critical', 'High', 'Medium', 'Low', 'Unknown']);
+
+function normalizeSeverity(value: string | null | undefined): string {
+    const raw = (value || '').trim();
+    if (!raw) return 'Unknown';
+    const normalized = `${raw.charAt(0).toUpperCase()}${raw.slice(1).toLowerCase()}`;
+    return CANONICAL_SEVERITIES.has(normalized) ? normalized : 'Unknown';
+}
 
 interface Props {
     apiBaseUrl: string;
@@ -54,8 +62,23 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
             const response = await fetch(`${apiBaseUrl}/api/v1/vulnerabilities/exploited?${params}`, signal ? { signal } : undefined);
             if (!response.ok) throw new Error(`Failed to fetch CISA KEV data: ${response.status}`);
             const result: ApiResponse = await response.json();
-            setData(result.items);
-            setTotal(result.total);
+
+            // Safety net: if the backend ignores severity for any reason,
+            // enforce the selected severity on the current page response.
+            const selectedSeverity = normalizeSeverity(sev);
+            const filteredItems = selectedSeverity === 'Unknown'
+                ? (sev === 'All'
+                    ? result.items
+                    : result.items.filter((item) => normalizeSeverity(item.severity_label) === 'Unknown'))
+                : (sev === 'All'
+                    ? result.items
+                    : result.items.filter((item) => normalizeSeverity(item.severity_label) === selectedSeverity));
+
+            const backendHonoredFilter =
+                sev === 'All' || filteredItems.length === result.items.length;
+
+            setData(filteredItems);
+            setTotal(backendHonoredFilter ? result.total : filteredItems.length);
             setPage(p);
         } catch (err) {
             if (err instanceof DOMException && err.name === 'AbortError') return;
@@ -70,6 +93,8 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
     // Reset to page 1 when filters change
     useEffect(() => {
         const controller = new AbortController();
+        setData([]);
+        setTotal(0);
         fetchData(1, debouncedSearch, severity, controller.signal);
         return () => controller.abort();
     }, [debouncedSearch, severity, fetchData]);
@@ -115,7 +140,7 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
                 </div>
             )}
 
-            {data.length > 0 && (
+            {!error && data.length > 0 && (
                 <>
                     <table className="data-table cisa-table">
                         <thead>
