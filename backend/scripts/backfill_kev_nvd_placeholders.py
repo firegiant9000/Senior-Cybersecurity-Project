@@ -5,10 +5,15 @@ import argparse
 import asyncio
 import sys
 from datetime import date
+from pathlib import Path
+from typing import cast
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-sys.path.insert(0, ".")
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
 
 
 async def main() -> None:
@@ -24,11 +29,18 @@ async def main() -> None:
         default=250,
         help="Maximum number of recent KEV placeholder CVEs to backfill",
     )
+    parser.add_argument(
+        "--commit-every",
+        type=int,
+        default=25,
+        help="Commit and print progress every N processed CVEs",
+    )
     args = parser.parse_args()
 
-    today = date(2026, 3, 11)
+    today = date.today()
 
-    async with AsyncSessionLocal() as db:
+    db = cast(AsyncSession, AsyncSessionLocal())
+    async with db:
         missing_kev_cve_ids = (
             await db.execute(
                 select(CVE.cve_id)
@@ -43,11 +55,30 @@ async def main() -> None:
             )
         ).scalars().all()
 
+        total_candidates = len(missing_kev_cve_ids)
+        print(
+            "Starting KEV placeholder backfill: "
+            f"candidates={total_candidates} commit_every={args.commit_every}",
+            flush=True,
+        )
+
+        def report_progress(progress: dict[str, int]) -> None:
+            print(
+                "KEV backfill progress: "
+                f"checked={progress['checked']}/{progress['total']} "
+                f"updated={progress['updated']} "
+                f"unchanged={progress['unchanged']} "
+                f"missing_upstream={progress['missing_upstream']}",
+                flush=True,
+            )
+
         result = await backfill_missing_nvd_fields_for_existing_cves(
             db,
             cve_ids=list(missing_kev_cve_ids),
             limit=args.limit,
             max_published_date=today,
+            commit_every=args.commit_every,
+            progress_callback=report_progress,
         )
 
     print(

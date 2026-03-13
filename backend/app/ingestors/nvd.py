@@ -3,6 +3,7 @@
 
 import asyncio
 import logging
+from collections.abc import Callable
 from datetime import date
 
 import httpx
@@ -159,12 +160,14 @@ async def fetch_nvd_cve_by_id(
     return vulnerabilities[0].get("cve", {})
 
 
-async def backfill_missing_nvd_fields_for_existing_cves(
+async def backfill_missing_nvd_fields_for_existing_cves(  # noqa: C901
     db: AsyncSession,
     *,
     cve_ids: list[str] | None = None,
     limit: int | None = None,
     max_published_date: date | None = None,
+    commit_every: int = 25,
+    progress_callback: Callable[[dict[str, int]], None] | None = None,
 ) -> dict[str, int]:
     """Backfill existing CVEs that are missing NVD-derived fields.
 
@@ -182,7 +185,11 @@ async def backfill_missing_nvd_fields_for_existing_cves(
 
     rows = (await db.execute(stmt)).scalars().all()
     results = {"checked": 0, "updated": 0, "unchanged": 0, "missing_upstream": 0}
-    per_request_delay_seconds = 0.6 if settings.NVD_API_KEY else 1.2
+    per_request_delay_seconds = 1.2 if settings.NVD_API_KEY else 2.0
+    total_rows = len(rows)
+
+    if progress_callback is not None:
+        progress_callback({**results, "total": total_rows})
 
     for row in rows:
         results["checked"] += 1
@@ -192,12 +199,21 @@ async def backfill_missing_nvd_fields_for_existing_cves(
         )
         if cve_payload is None:
             results["missing_upstream"] += 1
+            if commit_every > 0 and results["checked"] % commit_every == 0:
+                await db.commit()
+                if progress_callback is not None:
+                    progress_callback({**results, "total": total_rows})
             await asyncio.sleep(per_request_delay_seconds)
             continue
 
         normalized = _normalize_nvd_cve(cve_payload)
         if normalized is None:
             results["missing_upstream"] += 1
+            if commit_every > 0 and results["checked"] % commit_every == 0:
+                await db.commit()
+                if progress_callback is not None:
+                    progress_callback({**results, "total": total_rows})
+            await asyncio.sleep(per_request_delay_seconds)
             continue
 
         cve_id, description, cvss_score, severity, published_date = normalized
@@ -215,9 +231,16 @@ async def backfill_missing_nvd_fields_for_existing_cves(
         else:
             results["unchanged"] += 1
 
+        if commit_every > 0 and results["checked"] % commit_every == 0:
+            await db.commit()
+            if progress_callback is not None:
+                progress_callback({**results, "total": total_rows})
+
         await asyncio.sleep(per_request_delay_seconds)
 
     await db.commit()
+    if progress_callback is not None:
+        progress_callback({**results, "total": total_rows})
     return results
 
 

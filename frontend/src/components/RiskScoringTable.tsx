@@ -21,6 +21,7 @@ interface ApiResponse {
 }
 
 const PAGE_SIZE = 10;
+type DataSourceFilter = 'all' | 'kev' | 'nvd';
 
 interface Props {
     apiBaseUrl: string;
@@ -32,16 +33,18 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
     const [error, setError] = useState<string | null>(null);
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
+    const [dataSource, setDataSource] = useState<DataSourceFilter>('all');
 
-    const fetchData = useCallback(async (p: number, signal?: AbortSignal) => {
+    const fetchData = useCallback(async (p: number, source: DataSourceFilter, signal?: AbortSignal) => {
         setLoading(true);
         setError(null);
         try {
             const params = new URLSearchParams({
                 page: String(p),
                 page_size: String(PAGE_SIZE),
-                sort_by: 'risk_score',
+                sort_by: 'nvd_published',
                 sort_order: 'desc',
+                data_source: source,
             });
             const response = await fetch(
                 `${apiBaseUrl}/api/v1/vulnerabilities/risk-scored?${params}`,
@@ -62,9 +65,9 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
 
     useEffect(() => {
         const controller = new AbortController();
-        fetchData(1, controller.signal);
+        fetchData(1, dataSource, controller.signal);
         return () => controller.abort();
-    }, [fetchData]);
+    }, [fetchData, dataSource]);
 
     const riskBands = useMemo(() => {
         const bands = [
@@ -124,6 +127,20 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
     return (
         <div className="data-table-container">
             <h2>Risk Scoring - NVD + KEV Combined ({total} total)</h2>
+            <div className="filter-controls">
+                <div className="filter-group">
+                    <label htmlFor="risk-source-filter">Data Source</label>
+                    <select
+                        id="risk-source-filter"
+                        value={dataSource}
+                        onChange={(e) => setDataSource(e.target.value as DataSourceFilter)}
+                    >
+                        <option value="all">All</option>
+                        <option value="kev">KEV</option>
+                        <option value="nvd">NVD</option>
+                    </select>
+                </div>
+            </div>
             <div className="pagination-info">
                 Showing {data.length} of {total} vulnerabilities with calculated risk scores
             </div>
@@ -231,14 +248,14 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
                     <div className="pagination-controls">
                         <button
                             disabled={page === 1}
-                            onClick={() => fetchData(page - 1)}
+                            onClick={() => fetchData(page - 1, dataSource)}
                         >
                             &larr; Previous
                         </button>
                         <span>Page {page} of {totalPages}</span>
                         <button
                             disabled={page >= totalPages}
-                            onClick={() => fetchData(page + 1)}
+                            onClick={() => fetchData(page + 1, dataSource)}
                         >
                             Next &rarr;
                         </button>
