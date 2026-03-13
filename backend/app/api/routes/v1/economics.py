@@ -5,9 +5,15 @@ import logging
 from typing import Annotated, Literal
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func as sql_func
+from sqlalchemy import select as sql_select
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.db.engine import get_session
+from app.db.models import EconomicIndicator
 from app.schemas.economics import (
     ALLOWED_SORT_FIELDS,
     EconomicIndicatorItem,
@@ -201,6 +207,53 @@ async def _load_bea_cache():
         return []
 
 
+async def _query_economic_indicators_from_db(
+    db: AsyncSession,
+    *,
+    page: int,
+    page_size: int,
+    sort_by: str,
+    sort_order: Literal["asc", "desc"],
+    search: str | None,
+) -> EconomicIndicatorListResponse | None:
+    """Return paginated indicators from DB, or ``None`` if no data exists."""
+    sort_col_map = {
+        "id": EconomicIndicator.id,
+        "state": EconomicIndicator.state,
+        "smb_count": EconomicIndicator.smb_count,
+        "avg_revenue": EconomicIndicator.avg_revenue,
+    }
+    count_stmt = sql_select(sql_func.count(EconomicIndicator.id))
+    if search:
+        count_stmt = count_stmt.where(EconomicIndicator.state.ilike(f"%{search}%"))
+    db_total = int((await db.execute(count_stmt)).scalar_one())
+
+    if db_total <= 0:
+        return None
+
+    sort_col = sort_col_map[sort_by]
+    order_expr = sort_col.desc().nullslast() if sort_order == "desc" else sort_col.asc().nullslast()
+    stmt = sql_select(EconomicIndicator)
+    if search:
+        stmt = stmt.where(EconomicIndicator.state.ilike(f"%{search}%"))
+    stmt = stmt.order_by(order_expr).limit(page_size).offset((page - 1) * page_size)
+    rows = (await db.execute(stmt)).scalars().all()
+    return EconomicIndicatorListResponse(
+        total=db_total,
+        page=page,
+        page_size=page_size,
+        items=[
+            EconomicIndicatorItem(
+                id=row.id,
+                state=row.state,
+                smb_count=row.smb_count,
+                avg_revenue=row.avg_revenue,
+            )
+            for row in rows
+        ],
+    )
+
+
 @router.get("/indicators", response_model=EconomicIndicatorListResponse)
 async def list_economic_indicators(
     page: Annotated[int, Query(ge=1, description="Page number (1-based)")] = 1,
@@ -218,15 +271,14 @@ async def list_economic_indicators(
         Literal["asc", "desc"], Query(alias="sort_order", description="Sort direction")
     ] = "asc",
     search: Annotated[str | None, Query(description="Search state name (partial match)")] = None,
+    db: AsyncSession = Depends(get_session),
 ) -> EconomicIndicatorListResponse:
-    """Fetch real economic indicators from BEA Regional Economic Accounts.
+    """Fetch economic indicators (state-level GDP and SMB counts).
 
-    Data source: Bureau of Economic Analysis (BEA) Regional Accounts
-    Table: CAGDP2 - Gross Domestic Product (GDP) by County (aggregated to state level)
-    Metric: GDP in thousands of dollars, all industry total
-
-    Used for state-level economic impact modeling of cybersecurity threats.
-    Cached on first load for fast pagination.
+    Data sources in priority order:
+    1. Local database — populated by ``scripts/ingest_real_data.py --econ``.
+    2. Live BEA API  — Bureau of Economic Analysis Regional Accounts (CAGDP2)
+       joined with US Census Bureau establishment counts. Requires BEA_API_KEY.
     """
     if sort_by not in ALLOWED_SORT_FIELDS:
         raise HTTPException(
@@ -236,12 +288,35 @@ async def list_economic_indicators(
             ),
         )
 
+    # --- 1. Try database first (populated by `scripts/ingest_real_data.py --econ`) ---
     try:
-        # Load cached BEA data (queries all 50 states only on first request)
+        db_result = await _query_economic_indicators_from_db(
+            db,
+            page=page,
+            page_size=page_size,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            search=search,
+        )
+        if db_result is not None:
+            return db_result
+    except SQLAlchemyError as db_err:
+        logger.warning(
+            "DB query failed for economic indicators: %s; falling back to BEA API", db_err
+        )
+
+    # --- 2. Fall back to live BEA API (requires BEA_API_KEY + CENSUS_API_KEY in .env) ---
+    try:
         items = await _load_bea_cache()
 
         if not items:
-            raise HTTPException(status_code=502, detail="Failed to load economic data from BEA")
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "No economic data available. "
+                    "Run `scripts/ingest_real_data.py --econ` or set BEA_API_KEY in .env."
+                ),
+            )
 
         # Apply state search filter
         if search:
@@ -266,10 +341,7 @@ async def list_economic_indicators(
         )
     except httpx.HTTPError as e:
         logger.error("BEA API HTTP error: %s", e)
-        raise HTTPException(
-            status_code=502,
-            detail=f"BEA API error: {str(e)}",
-        ) from e
+        raise HTTPException(status_code=502, detail=f"BEA API error: {str(e)}") from e
     except ValueError as e:
         logger.error("BEA API JSON parsing error: %s", e)
         raise HTTPException(

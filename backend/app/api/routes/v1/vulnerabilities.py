@@ -4,6 +4,7 @@ import logging
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.repositories.exploited_vuln import (
     JsonExploitedVulnRepository,
@@ -72,6 +73,15 @@ async def list_exploited_vulnerabilities(
     except NotImplementedError as exc:
         logger.error("Repository not implemented: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except SQLAlchemyError as exc:
+        logger.error("Database error in exploited vulnerabilities route: %s", exc)
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        logger.exception("Unhandled error in exploited vulnerabilities route: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail="Database unavailable. Verify DATABASE_URL and PostgreSQL credentials.",
+        ) from exc
 
     return ExploitedVulnListResponse(
         total=total,
@@ -93,10 +103,17 @@ async def list_risk_scored_vulnerabilities(
             alias="sort_by",
             description=f"Sort field. Allowed: {sorted(ALLOWED_SORT_FIELDS)}",
         ),
-    ] = "risk_score",
+    ] = "nvd_published",
     sort_order: Annotated[
         Literal["asc", "desc"], Query(alias="sort_order", description="Sort direction")
     ] = "desc",
+    data_source: Annotated[
+        Literal["all", "kev", "nvd"],
+        Query(
+            alias="data_source",
+            description="Filter by source: all, kev, or nvd",
+        ),
+    ] = "all",
     repo: JsonExploitedVulnRepository | SqlExploitedVulnRepository = Depends(get_exploited_repo),
 ) -> ExploitedVulnListResponse:
     """List risk-scored vulnerabilities using NVD CVSS + KEV exploitation context."""
@@ -114,6 +131,7 @@ async def list_risk_scored_vulnerabilities(
             page_size=page_size,
             sort_by=sort_by,
             sort_order=sort_order,
+            data_source=data_source,
         )
     except FileNotFoundError as exc:
         logger.error("Fixture file missing: %s", exc)
@@ -121,6 +139,15 @@ async def list_risk_scored_vulnerabilities(
     except NotImplementedError as exc:
         logger.error("Repository not implemented: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except SQLAlchemyError as exc:
+        logger.error("Database error in risk-scored vulnerabilities route: %s", exc)
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        logger.exception("Unhandled error in risk-scored vulnerabilities route: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail="Database unavailable. Verify DATABASE_URL and PostgreSQL credentials.",
+        ) from exc
 
     return ExploitedVulnListResponse(
         total=total,
