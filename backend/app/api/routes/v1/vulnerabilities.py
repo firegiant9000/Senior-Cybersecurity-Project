@@ -103,10 +103,17 @@ async def list_risk_scored_vulnerabilities(
             alias="sort_by",
             description=f"Sort field. Allowed: {sorted(ALLOWED_SORT_FIELDS)}",
         ),
-    ] = "risk_score",
+    ] = "nvd_published",
     sort_order: Annotated[
         Literal["asc", "desc"], Query(alias="sort_order", description="Sort direction")
     ] = "desc",
+    data_source: Annotated[
+        Literal["all", "kev", "nvd"],
+        Query(
+            alias="data_source",
+            description="Filter by source: all, kev, or nvd",
+        ),
+    ] = "all",
     repo: JsonExploitedVulnRepository | SqlExploitedVulnRepository = Depends(get_exploited_repo),
 ) -> ExploitedVulnListResponse:
     """List risk-scored vulnerabilities using NVD CVSS + KEV exploitation context."""
@@ -124,6 +131,7 @@ async def list_risk_scored_vulnerabilities(
             page_size=page_size,
             sort_by=sort_by,
             sort_order=sort_order,
+            data_source=data_source,
         )
     except FileNotFoundError as exc:
         logger.error("Fixture file missing: %s", exc)
