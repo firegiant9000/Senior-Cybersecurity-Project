@@ -157,7 +157,11 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
                         <tbody>
                             {data.map((item) => (
                                 <tr key={item.id}>
-                                    <td className="cve-id">{item.id}</td>
+                                    <td className="cve-id">
+                                        <a href={`https://www.cve.org/CVERecord?id=${item.id}`} target="_blank" rel="noopener noreferrer">
+                                            {item.id}
+                                        </a>
+                                    </td>
                                     <td>{item.severity_label || 'Unknown'}</td>
                                     <td>{item.severity_score ?? 'N/A'}</td>
                                     <td>{item.vendor}</td>
