@@ -183,14 +183,14 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
                                         outerRadius={100}
                                         fill="#8884d8"
                                         dataKey="value"
-                                        label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
-                                    
-                                        shape={(props: any) => (
+                                        label={({ name, percent }: { name?: string; percent?: number }) => `${name ?? ''} ${((percent ?? 0) * 100).toFixed(0)}%`}
 
-                                        
+                                        shape={(props: React.ComponentProps<typeof Sector>) => (
+
+
                                             <Sector
                                                 {...props}
-                                                fill={SEVERITY_COLORS[props.name] || SEVERITY_COLORS['Unknown']}
+                                                fill={SEVERITY_COLORS[props.name ?? 'Unknown'] || SEVERITY_COLORS['Unknown']}
                                             />
                                         )}
                             
