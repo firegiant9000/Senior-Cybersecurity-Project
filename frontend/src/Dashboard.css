@@ -191,6 +191,29 @@
     color: #d32f2f;
 }
 
+.cisa-table .cve-id a {
+    color: #d32f2f;
+    text-decoration: none;
+    transition: color 0.2s ease, text-decoration 0.2s ease;
+}
+
+.cisa-table .cve-id a:hover {
+    color: #0b1060;
+    text-decoration: underline;
+}
+
+.data-table .cve-id a {
+    color: #0b1060;
+    text-decoration: none;
+    transition: color 0.2s ease, text-decoration 0.2s ease;
+}
+
+.data-table .cve-id a:hover {
+    color: #d32f2f;
+    text-decoration: underline;
+}
+
+
 .cisa-table .vuln-name {
     max-width: 400px;
     overflow: hidden;
@@ -289,6 +312,102 @@
 .table-container {
     margin-top: 20px;
     overflow-x: auto;
+}
+
+/* Risk Scoring Analytics */
+.risk-analytics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 220px;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.risk-analytics-card,
+.risk-kpi-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px;
+}
+
+.risk-analytics-card h3 {
+    margin: 0 0 10px;
+    font-size: 14px;
+    color: #0f172a;
+}
+
+.risk-bar-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.risk-bar-row {
+    display: grid;
+    grid-template-columns: 130px 1fr 42px;
+    align-items: center;
+    gap: 8px;
+}
+
+.risk-bar-label {
+    font-size: 12px;
+    color: #334155;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.risk-bar-track {
+    height: 10px;
+    background: #e2e8f0;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.risk-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+}
+
+.risk-bar-fill-vendor {
+    background: #6366f1;
+}
+
+.risk-bar-value {
+    text-align: right;
+    font-size: 12px;
+    color: #0f172a;
+    font-weight: 600;
+}
+
+.risk-kpi-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.risk-kpi-label {
+    font-size: 12px;
+    color: #475569;
+}
+
+.risk-kpi-value {
+    font-size: 36px;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.1;
+}
+
+.risk-kpi-subtitle {
+    font-size: 12px;
+    color: #64748b;
+}
+
+@media (max-width: 1024px) {
+    .risk-analytics-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* Severity Distribution Chart */

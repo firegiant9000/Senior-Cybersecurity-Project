@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.engine import get_session
 from app.repositories.nvd import NvdRepository, get_nvd_repo
 from app.schemas.nvd import ALLOWED_SORT_FIELDS, NvdCveListResponse
-from app.schemas.nvd_analytics import SeverityDistributionResponse
+from app.schemas.nvd_analytics import SeverityCount, SeverityDistributionResponse
 from app.services.nvd_analytics import NVDAnalytics
 
 logger = logging.getLogger(__name__)
@@ -77,6 +77,12 @@ async def list_nvd_cves(
     except SQLAlchemyError as e:
         logger.error("Database error in NVD route: %s", e)
         raise HTTPException(status_code=500, detail="Internal server error") from e
+    except Exception as e:  # pragma: no cover - defensive fallback
+        logger.exception("Unhandled error in NVD route: %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail="Database unavailable. Verify DATABASE_URL and PostgreSQL credentials.",
+        ) from e
 
 
 @router.get(
@@ -102,9 +108,10 @@ async def get_severity_distribution(
             search=search,
             severity=severity,
         )
-        total = sum(item["count"] for item in items)
+        severity_items = [SeverityCount(**item) for item in items]
+        total = sum(item.count for item in severity_items)
         return SeverityDistributionResponse(
-            items=items,
+            items=severity_items,
             total_cves=total,
             date_from=date_from.isoformat() if date_from else None,
             date_to=date_to.isoformat() if date_to else None,
@@ -112,3 +119,9 @@ async def get_severity_distribution(
     except SQLAlchemyError as e:
         logger.error("Database error in severity distribution: %s", e)
         raise HTTPException(status_code=500, detail="Internal server error") from e
+    except Exception as e:  # pragma: no cover - defensive fallback
+        logger.exception("Unhandled error in severity distribution: %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail="Database unavailable. Verify DATABASE_URL and PostgreSQL credentials.",
+        ) from e
