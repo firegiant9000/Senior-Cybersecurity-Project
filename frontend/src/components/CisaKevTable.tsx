@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDebounce } from '../hooks/useDebounce';
 
-import { PieChart, Pie, Tooltip, Legend, ResponsiveContainer, Sector} from 'recharts';
+import { PieChart, Pie, Tooltip, Legend, ResponsiveContainer, Sector } from 'recharts';
 
 interface CISAVulnerability {
     id: string;
@@ -183,9 +183,9 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
                                         outerRadius={100}
                                         fill="#8884d8"
                                         dataKey="value"
-                                        label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
-                                    
-                                        shape={(props: any) => (
+                                        label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`}
+
+                                        shape={(props: React.ComponentProps<typeof Sector>) => (
 
                                         
                                             <Sector
