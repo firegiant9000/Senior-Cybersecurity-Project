@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDebounce } from '../hooks/useDebounce';
 
-import { PieChart, Pie, Tooltip, Legend, ResponsiveContainer, Sector} from 'recharts';
+import { PieChart, Pie, Tooltip, Legend, ResponsiveContainer, Sector } from 'recharts';
 
 interface CISAVulnerability {
     id: string;
