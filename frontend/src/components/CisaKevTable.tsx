@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDebounce } from '../hooks/useDebounce';
 
+import { PieChart, Pie, Tooltip, Legend, ResponsiveContainer, Sector} from 'recharts';
+
 interface CISAVulnerability {
     id: string;
     vulnerability_name: string;
@@ -21,6 +23,15 @@ interface ApiResponse {
 
 const PAGE_SIZE = 10;
 const SEVERITY_OPTIONS = ['All', 'Critical', 'High', 'Medium', 'Low', 'Unknown'];
+
+const SEVERITY_COLORS: Record<string, string> = {
+    'Critical': '#d32f2f', // Red
+    'High': '#f57c00', // Orange
+    'Medium': '#fbc02d', // Yellow
+    'Low': '#388e3c', // Green
+    'Unknown': '#9e9e9e' // Grey
+
+};
 
 interface Props {
     apiBaseUrl: string;
@@ -76,6 +87,21 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
 
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+    // ADDED CODE FOR PIE CHART
+    const severityCounts = data.reduce((acc, curr) => {
+        const sev = curr.severity_label || 'Unknown';
+        acc[sev] = (acc[sev] || 0) + 1;
+        return acc;
+    }, {} as Record<string, number>);
+
+    const pieChartData = Object.keys(severityCounts).map(key => ({
+        name: key,
+        value: severityCounts[key],
+        fill: SEVERITY_COLORS[key] || SEVERITY_COLORS['Unknown']
+
+    }));
+    
+
     return (
         <div className="data-table-container">
             <h2>CISA KEV - Exploited Vulnerabilities ({total} total)</h2>
@@ -116,7 +142,40 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
             )}
 
             {data.length > 0 && (
+
                 <>
+                    <div className=" severity-chart-container">
+                        <h3>Severity Distribution (Current Page)</h3>
+                        <p className="severity-chart-total">Showing {data.length} vulnerabilities and their severity breakdown below.</p>
+                        <div style={{ width: '100%', height: 300}}>
+                            <ResponsiveContainer>
+                                <PieChart>
+                                    <Tooltip />
+                                    <Legend />
+                                    <Pie
+                                        data={pieChartData}
+                                        cx="50%"
+                                        cy="50%"
+                                        outerRadius={100}
+                                        fill="#8884d8"
+                                        dataKey="value"
+                                        label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                    
+                                        shape={(props: any) => (
+
+                                        
+                                            <Sector
+                                                {...props}
+                                                fill={SEVERITY_COLORS[props.name] || SEVERITY_COLORS['Unknown']}
+                                            />
+                                        )}
+                            
+                                    />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
                     <table className="data-table cisa-table">
                         <thead>
                             <tr>
