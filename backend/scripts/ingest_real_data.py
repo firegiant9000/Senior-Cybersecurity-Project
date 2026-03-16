@@ -16,16 +16,15 @@ Example:
 
 import argparse
 import asyncio
+import sys
+from pathlib import Path
 
 import httpx
 from sqlalchemy import delete
 
-from app.core.config import settings
-from app.db.engine import AsyncSessionLocal, close_db, init_db
-from app.db.models import CVE, KEV
-from app.ingestors.cisa_kev import ingest_cisa_kev
-from app.ingestors.econ import ingest_region_economics
-from app.ingestors.nvd import ingest_nvd
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
 
 try:
     from scripts.ingest_ic3_enhanced import ingest_ic3_real_data
@@ -35,6 +34,13 @@ except ImportError:
 
 async def main() -> None:  # noqa: C901
     """Populate all tables with real production data."""
+    from app.core.config import settings
+    from app.db.engine import AsyncSessionLocal, close_db, init_db
+    from app.db.models import CVE, KEV
+    from app.ingestors.cisa_kev import ingest_cisa_kev
+    from app.ingestors.econ import ingest_region_economics
+    from app.ingestors.nvd import ingest_nvd
+
     parser = argparse.ArgumentParser(
         description="Ingest real data from NVD, IC3, and Census APIs"
     )
@@ -63,8 +69,8 @@ async def main() -> None:  # noqa: C901
     parser.add_argument(
         "--ic3-years",
         type=str,
-        default="2021,2022,2023",
-        help="Comma-separated years for IC3 ingestion (default: 2021,2022,2023)",
+        default="2022,2023,2024",
+        help="Comma-separated years for IC3 ingestion (default: 2022,2023,2024)",
     )
     parser.add_argument(
         "--skip-nvd",
