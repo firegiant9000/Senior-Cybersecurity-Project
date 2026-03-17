@@ -207,9 +207,7 @@ async def fetch_cve_org_enrichment(cve_id: str, *, timeout: float = 8.0) -> CveO
 
     try:
         client = _get_client()
-        response = await client.get(
-            f"{CVE_ORG_API_URL}/{normalized_cve_id}", timeout=timeout
-        )
+        response = await client.get(f"{CVE_ORG_API_URL}/{normalized_cve_id}", timeout=timeout)
         response.raise_for_status()
         payload = response.json()
     except httpx.HTTPStatusError as exc:
