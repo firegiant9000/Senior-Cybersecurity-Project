@@ -17,6 +17,13 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-recharts': ['recharts'],
+        },
+      },
+    },
   },
   css: {
     postcss: null, // Disable PostCSS config search (not using Tailwind/PostCSS)

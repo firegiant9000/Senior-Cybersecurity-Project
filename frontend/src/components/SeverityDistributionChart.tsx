@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { SEVERITY_COLORS } from '../theme';
 import {
     BarChart,
     Bar,
@@ -22,13 +23,6 @@ interface SeverityDistributionData {
     date_to: string | null;
 }
 
-const SEVERITY_COLORS: Record<string, string> = {
-    Critical: '#d32f2f',
-    High: '#f57c00',
-    Medium: '#fbc02d',
-    Low: '#388e3c',
-    Unknown: '#9e9e9e',
-};
 
 interface Props {
     apiBaseUrl: string;
@@ -93,7 +87,7 @@ const SeverityDistributionChart: React.FC<Props> = ({ apiBaseUrl, search, severi
                         {data.map((entry) => (
                             <Cell
                                 key={entry.severity}
-                                fill={SEVERITY_COLORS[entry.severity] || '#9e9e9e'}
+                                fill={SEVERITY_COLORS[entry.severity as keyof typeof SEVERITY_COLORS] ?? '#9e9e9e'}
                             />
                         ))}
                     </Bar>
