@@ -224,7 +224,7 @@
 
 /* ── Overview Stat Card ───────────────────────────────────────────────────── */
 .overview-stat-card {
-    background-color: white;
+    background-color: var(--card-bg);
     align-items: flex-start;
     justify-content: center;
     padding: 24px;
@@ -236,7 +236,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.8px;
-    color: #555;
+    color: var(--text-secondary);
 }
 
 .overview-stat-value-row {

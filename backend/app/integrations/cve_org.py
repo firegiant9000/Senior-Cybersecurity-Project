@@ -25,6 +25,14 @@ def _get_client() -> httpx.AsyncClient:
     return _http_client
 
 
+async def aclose_http_client() -> None:
+    """Close the shared AsyncClient. Call from application shutdown/lifespan."""
+    global _http_client
+    if _http_client is not None and not _http_client.is_closed:
+        await _http_client.aclose()
+    _http_client = None
+
+
 @dataclass(slots=True)
 class CveOrgEnrichment:
     """Normalized enrichment fields extracted from a CVE.org record."""
