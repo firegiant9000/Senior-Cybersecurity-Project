@@ -47,6 +47,7 @@ async def list_ic3_incidents(
     sort_order: Annotated[
         Literal["asc", "desc"], Query(alias="sort_order", description="Sort direction")
     ] = "desc",
+    search: Annotated[str | None, Query(description="Search attack type or sector (partial match)")] = None,
     attack_type: Annotated[
         str | None, Query(alias="attack_type", description="Filter by attack type")
     ] = None,
@@ -70,6 +71,7 @@ async def list_ic3_incidents(
             page_size,
             sort_by,
             sort_order,
+            search=search,
             attack_type=attack_type,
             state=state,
             year=year,
@@ -162,12 +164,20 @@ async def get_temporal_trends_analytics(
     attack_type: Annotated[
         str | None, Query(description="Filter by attack type (optional)")
     ] = None,
+    year_from: Annotated[int | None, Query(description="Start year (inclusive)")] = None,
+    year_to: Annotated[int | None, Query(description="End year (inclusive)")] = None,
     db: AsyncSession = Depends(get_session),
 ) -> TemporalTrendResponse:
     """Get temporal trends across years."""
+    if year_from is not None and year_to is not None and year_from > year_to:
+        raise HTTPException(status_code=422, detail="year_from must be <= year_to")
     try:
         analytics = IC3Analytics(db)
-        rows = await analytics.get_temporal_trends(attack_type=attack_type)
+        rows = await analytics.get_temporal_trends(
+            attack_type=attack_type,
+            year_from=year_from,
+            year_to=year_to,
+        )
         return TemporalTrendResponse(
             items=[TemporalTrend(**r) for r in rows],
             attack_type=attack_type,
