@@ -4,6 +4,7 @@
 Includes data validation and normalization to ensure consistency.
 """
 
+import asyncio
 import logging
 from datetime import date
 
@@ -15,6 +16,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.db.models import CVE, KEV
+from app.integrations.cve_org import fetch_cve_org_enrichment
 from app.schemas.validators import CisaKevValidationSchema
 
 logger = logging.getLogger(__name__)
@@ -87,7 +89,7 @@ def _normalize_cisa_kev(item: dict) -> tuple[str, str, str, date | None] | None:
         return None
 
 
-async def ingest_cisa_kev(db: AsyncSession) -> int:
+async def ingest_cisa_kev(db: AsyncSession) -> int:  # noqa: C901
     """
     Fetch CISA KEV catalog and upsert into cves (stub) and kev_catalog.
 
@@ -105,6 +107,8 @@ async def ingest_cisa_kev(db: AsyncSession) -> int:
     count = 0
     total_processed = 0
     total_validated = 0
+    # Track CVE rows that were newly created and need enrichment
+    new_cve_ids: list[str] = []
 
     for item in data["vulnerabilities"]:
         total_processed += 1
@@ -137,6 +141,7 @@ async def ingest_cisa_kev(db: AsyncSession) -> int:
                 )
             )
             await db.flush()  # so KEV insert can satisfy FK to cves.cve_id
+            new_cve_ids.append(cve_id)
 
         # Upsert KEV: update if exists, else add.
         result = await db.execute(select(KEV).where(KEV.cve_id == cve_id))
@@ -155,6 +160,38 @@ async def ingest_cisa_kev(db: AsyncSession) -> int:
             kev.vendor = vendor
             kev.product = product
             kev.due_date = kev_date_added
+
+    # Enrich newly-created CVE placeholder rows from CVE.org before committing.
+    # This eliminates per-row API calls at query time (N+1 problem).
+    if new_cve_ids:
+        logger.info("Enriching %d new CVE rows from CVE.org", len(new_cve_ids))
+        semaphore = asyncio.Semaphore(8)
+
+        async def _enrich_one(cve_id: str) -> None:
+            async with semaphore:
+                enrichment = await fetch_cve_org_enrichment(cve_id)
+            if not any(
+                [enrichment.severity_score, enrichment.severity_label, enrichment.published_date]
+            ):
+                return
+            row_result = await db.execute(select(CVE).where(CVE.cve_id == cve_id))
+            row = row_result.scalar_one_or_none()
+            if row is None:
+                return
+            if enrichment.description and not row.description:
+                row.description = enrichment.description
+            if enrichment.severity_score is not None and row.cvss_score is None:
+                row.cvss_score = enrichment.severity_score
+            if enrichment.severity_label and row.severity is None:
+                row.severity = enrichment.severity_label
+            if enrichment.published_date and row.published_date is None:
+                try:
+                    row.published_date = date.fromisoformat(enrichment.published_date)
+                except ValueError:
+                    pass
+
+        await asyncio.gather(*(_enrich_one(cid) for cid in new_cve_ids))
+        logger.info("CVE.org enrichment complete for %d rows", len(new_cve_ids))
 
     await db.commit()
     logger.info(
