@@ -39,9 +39,6 @@ const TOP_SECTORS = 6;
 const TOP_ATTACKS = 7;
 
 const SectorAttackHeatmap: React.FC<Props> = ({ data, loading }) => {
-    if (loading) return <WidgetSkeleton variant="chart" />;
-    if (data.length === 0) return <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>;
-
     const { sectors, attacks, grid, maxVal } = useMemo(() => {
         // Aggregate complaint counts by sector and attack type
         const sectorTotals: Record<string, number> = {};
@@ -78,6 +75,9 @@ const SectorAttackHeatmap: React.FC<Props> = ({ data, loading }) => {
 
         return { sectors, attacks, grid, maxVal };
     }, [data]);
+
+    if (loading) return <WidgetSkeleton variant="chart" />;
+    if (data.length === 0) return <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>;
 
     // Truncate long names for display
     const truncate = (s: string, n: number) => s.length > n ? s.slice(0, n) + '…' : s;

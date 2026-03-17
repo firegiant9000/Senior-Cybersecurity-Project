@@ -1,7 +1,7 @@
 """Ingest status routes — v1."""
 
 import logging
-from datetime import timezone
+import datetime
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -54,7 +54,7 @@ async def get_ingest_freshness(
             SourceFreshness(
                 source=run.source,
                 last_run_at=(
-                    run.finished_at.replace(tzinfo=timezone.utc).isoformat()
+                    run.finished_at.replace(tzinfo=datetime.UTC).isoformat()
                     if run.finished_at
                     else None
                 ),

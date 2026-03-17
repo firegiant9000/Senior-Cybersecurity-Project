@@ -1,3 +1,4 @@
+/* eslint-env browser */
 /**
  * Triggers a browser download of a CSV file built from `rows`.
  * Each row is an array of values in the same order as `headers`.

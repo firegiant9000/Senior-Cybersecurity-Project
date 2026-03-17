@@ -89,7 +89,7 @@ def _normalize_cisa_kev(item: dict) -> tuple[str, str, str, date | None] | None:
         return None
 
 
-async def ingest_cisa_kev(db: AsyncSession) -> int:
+async def ingest_cisa_kev(db: AsyncSession) -> int:  # noqa: C901
     """
     Fetch CISA KEV catalog and upsert into cves (stub) and kev_catalog.
 
