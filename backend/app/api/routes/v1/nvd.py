@@ -12,7 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.engine import get_session
 from app.repositories.nvd import NvdRepository, get_nvd_repo
 from app.schemas.nvd import ALLOWED_SORT_FIELDS, NvdCveListResponse
-from app.schemas.nvd_analytics import SeverityCount, SeverityDistributionResponse
+from app.schemas.nvd_analytics import (
+    NvdTimelinePoint,
+    NvdTimelineResponse,
+    SeverityCount,
+    SeverityDistributionResponse,
+)
 from app.services.nvd_analytics import NVDAnalytics
 
 logger = logging.getLogger(__name__)
@@ -85,6 +90,23 @@ async def list_nvd_cves(
         ) from e
 
 
+@router.get("/analytics/timeline", response_model=NvdTimelineResponse)
+async def get_cve_timeline(
+    db: AsyncSession = Depends(get_session),
+) -> NvdTimelineResponse:
+    """Get CVE publication counts grouped by year."""
+    try:
+        analytics = NVDAnalytics(db)
+        rows = await analytics.get_cve_timeline()
+        return NvdTimelineResponse(items=[NvdTimelinePoint(**r) for r in rows])
+    except SQLAlchemyError as e:
+        logger.error("Database error in CVE timeline: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error") from e
+    except Exception as e:  # pragma: no cover
+        logger.exception("Unhandled error in CVE timeline: %s", e)
+        raise HTTPException(status_code=503, detail="Database unavailable.") from e
+
+
 @router.get(
     "/analytics/severity-distribution",
     response_model=SeverityDistributionResponse,
@@ -100,6 +122,8 @@ async def get_severity_distribution(
     db: AsyncSession = Depends(get_session),
 ) -> SeverityDistributionResponse:
     """Get CVE counts grouped by severity level."""
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(status_code=422, detail="date_from must not be after date_to")
     try:
         analytics = NVDAnalytics(db)
         items = await analytics.get_severity_distribution(

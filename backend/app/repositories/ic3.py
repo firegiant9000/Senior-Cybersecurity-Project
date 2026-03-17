@@ -8,6 +8,7 @@ from typing import Protocol, runtime_checkable
 from fastapi import Depends  # type: ignore[import-not-found]  # pylint: disable=import-error
 from sqlalchemy import (  # type: ignore[import-not-found]  # pylint: disable=import-error
     func,
+    or_,
     select,
 )
 from sqlalchemy.ext.asyncio import (
@@ -32,6 +33,7 @@ class IC3Repository(Protocol):
         sort_by: str,
         sort_order: str,
         *,
+        search: str | None = None,
         attack_type: str | None = None,
         state: str | None = None,
         year: int | None = None,
@@ -57,6 +59,7 @@ class SqlIC3Repository:
         sort_by: str,
         sort_order: str,
         *,
+        search: str | None = None,
         attack_type: str | None = None,
         state: str | None = None,
         year: int | None = None,
@@ -82,6 +85,13 @@ class SqlIC3Repository:
 
         # Build WHERE conditions from filters
         conditions = []
+        if search:
+            conditions.append(
+                or_(
+                    IC3Incident.attack_type.ilike(f"%{search}%"),
+                    IC3Incident.sector.ilike(f"%{search}%"),
+                )
+            )
         if attack_type:
             conditions.append(IC3Incident.attack_type == attack_type)
         if state:
