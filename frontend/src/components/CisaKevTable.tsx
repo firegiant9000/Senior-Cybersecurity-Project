@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useDebounce } from '../hooks/useDebounce';
+import { SEVERITY_COLORS } from '../theme';
+import { downloadCsv } from '../utils/csvExport';
 
 import { PieChart, Pie, Tooltip, Legend, ResponsiveContainer, Sector } from 'recharts';
 
@@ -21,6 +23,16 @@ interface ApiResponse {
     items: CISAVulnerability[];
 }
 
+interface SeveritySummaryItem {
+    label: string;
+    count: number;
+}
+
+interface SeveritySummaryResponse {
+    items: SeveritySummaryItem[];
+    total: number;
+}
+
 const PAGE_SIZE = 10;
 const SEVERITY_OPTIONS = ['All', 'Critical', 'High', 'Medium', 'Low', 'Unknown'];
 const CANONICAL_SEVERITIES = new Set(['Critical', 'High', 'Medium', 'Low', 'Unknown']);
@@ -32,14 +44,6 @@ function normalizeSeverity(value: string | null | undefined): string {
     return CANONICAL_SEVERITIES.has(normalized) ? normalized : 'Unknown';
 }
 
-const SEVERITY_COLORS: Record<string, string> = {
-    'Critical': '#d32f2f', // Red
-    'High': '#f57c00', // Orange
-    'Medium': '#fbc02d', // Yellow
-    'Low': '#388e3c', // Green
-    'Unknown': '#9e9e9e' // Grey
-
-};
 
 interface Props {
     apiBaseUrl: string;
@@ -51,6 +55,9 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
     const [error, setError] = useState<string | null>(null);
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
+    const [severitySummary, setSeveritySummary] = useState<SeveritySummaryItem[]>([]);
+
+    const pageControllerRef = useRef<AbortController | null>(null);
 
     // Filter state
     const [searchInput, setSearchInput] = useState('');
@@ -101,29 +108,33 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
         }
     }, [apiBaseUrl]);
 
-    // Reset to page 1 when filters change
+    // Reset to page 1 and refresh severity summary when filters change
     useEffect(() => {
         const controller = new AbortController();
         setData([]);
         setTotal(0);
+
         fetchData(1, debouncedSearch, severity, controller.signal);
+
+        const summaryParams = new URLSearchParams();
+        if (debouncedSearch) summaryParams.set('search', debouncedSearch);
+        if (severity !== 'All') summaryParams.set('severity', severity);
+
+        fetch(`${apiBaseUrl}/api/v1/vulnerabilities/exploited/severity-summary?${summaryParams}`, { signal: controller.signal })
+            .then(r => r.ok ? r.json() as Promise<SeveritySummaryResponse> : Promise.reject(r.status))
+            .then(r => setSeveritySummary(r.items))
+            .catch(() => { /* non-fatal */ });
+
         return () => controller.abort();
-    }, [debouncedSearch, severity, fetchData]);
+    }, [debouncedSearch, severity, fetchData, apiBaseUrl]);
 
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-    // ADDED CODE FOR PIE CHART
-    const severityCounts = data.reduce((acc, curr) => {
-        const sev = curr.severity_label || 'Unknown';
-        acc[sev] = (acc[sev] || 0) + 1;
-        return acc;
-    }, {} as Record<string, number>);
-
-    const pieChartData = Object.keys(severityCounts).map(key => ({
-        name: key,
-        value: severityCounts[key],
-        fill: SEVERITY_COLORS[key] || SEVERITY_COLORS['Unknown']
-
+    // Pie chart uses full-dataset severity summary (not just the current page)
+    const pieChartData = severitySummary.map(item => ({
+        name: item.label,
+        value: item.count,
+        fill: SEVERITY_COLORS[item.label as keyof typeof SEVERITY_COLORS] ?? SEVERITY_COLORS['Unknown'],
     }));
     
 
@@ -133,7 +144,7 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
 
             <div className="filter-controls">
                 <div className="filter-group">
-                    <label htmlFor="cisa-search">CVE ID</label>
+                    <label htmlFor="cisa-search">CVE ID / Vendor / Product</label>
                     <input
                         id="cisa-search"
                         type="text"
@@ -156,7 +167,20 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
                 </div>
             </div>
 
-            <div className="pagination-info">Showing {data.length} of {total}</div>
+            <div className="table-toolbar">
+                <div className="pagination-info">Showing {data.length} of {total}</div>
+                <button
+                    className="export-csv-btn"
+                    disabled={data.length === 0}
+                    onClick={() => downloadCsv(
+                        'cisa-kev.csv',
+                        ['CVE ID', 'Severity', 'Score', 'Vendor', 'Product', 'Vulnerability', 'Date Added'],
+                        data.map(r => [r.id, r.severity_label ?? 'Unknown', r.severity_score, r.vendor, r.product, r.vulnerability_name, r.kev_date_added]),
+                    )}
+                >
+                    Export CSV
+                </button>
+            </div>
             {loading && <p>Loading CISA KEV data...</p>}
             {error && <p className="error">Error: {error}</p>}
 
@@ -169,8 +193,8 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
             {!error && data.length > 0 && (
                 <>
                     <div className=" severity-chart-container">
-                        <h3>Severity Distribution (Current Page)</h3>
-                        <p className="severity-chart-total">Showing {data.length} vulnerabilities and their severity breakdown below.</p>
+                        <h3>Severity Distribution (All Results)</h3>
+                        <p className="severity-chart-total">Showing severity breakdown across all {total} matching vulnerabilities.</p>
                         <div style={{ width: '100%', height: 300}}>
                             <ResponsiveContainer>
                                 <PieChart>
@@ -190,7 +214,7 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
 
                                             <Sector
                                                 {...props}
-                                                fill={SEVERITY_COLORS[props.name ?? 'Unknown'] || SEVERITY_COLORS['Unknown']}
+                                                fill={SEVERITY_COLORS[(props.name ?? 'Unknown') as keyof typeof SEVERITY_COLORS] ?? SEVERITY_COLORS['Unknown']}
                                             />
                                         )}
                             
@@ -231,11 +255,19 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
                         </tbody>
                     </table>
                     <div className="pagination-controls">
-                        <button disabled={page === 1} onClick={() => fetchData(page - 1, debouncedSearch, severity)}>
+                        <button disabled={page === 1} onClick={() => {
+                            pageControllerRef.current?.abort();
+                            pageControllerRef.current = new AbortController();
+                            fetchData(page - 1, debouncedSearch, severity, pageControllerRef.current.signal);
+                        }}>
                             &larr; Previous
                         </button>
                         <span>Page {page} of {totalPages}</span>
-                        <button disabled={page >= totalPages} onClick={() => fetchData(page + 1, debouncedSearch, severity)}>
+                        <button disabled={page >= totalPages} onClick={() => {
+                            pageControllerRef.current?.abort();
+                            pageControllerRef.current = new AbortController();
+                            fetchData(page + 1, debouncedSearch, severity, pageControllerRef.current.signal);
+                        }}>
                             Next &rarr;
                         </button>
                     </div>

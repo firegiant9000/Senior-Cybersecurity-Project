@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { downloadCsv } from '../utils/csvExport';
 import { useDebounce } from '../hooks/useDebounce';
 import SeverityDistributionChart from './SeverityDistributionChart';
 
@@ -101,7 +102,7 @@ const NvdTable: React.FC<Props> = ({ apiBaseUrl }) => {
 
             <div className="filter-controls">
                 <div className="filter-group">
-                    <label htmlFor="nvd-search">CVE ID</label>
+                    <label htmlFor="nvd-search">CVE ID / Description</label>
                     <input
                         id="nvd-search"
                         type="text"
@@ -127,7 +128,20 @@ const NvdTable: React.FC<Props> = ({ apiBaseUrl }) => {
                 </div>
             </div>
 
-            <div className="pagination-info">Showing {data.length} of {total}</div>
+            <div className="table-toolbar">
+                <div className="pagination-info">Showing {data.length} of {total}</div>
+                <button
+                    className="export-csv-btn"
+                    disabled={data.length === 0}
+                    onClick={() => downloadCsv(
+                        'nvd-cves.csv',
+                        ['CVE ID', 'Description', 'Severity', 'Score', 'Published', 'Last Modified'],
+                        data.map(r => [r.id, r.description, r.severity_label, r.severity_score, r.published_date, r.last_modified]),
+                    )}
+                >
+                    Export CSV
+                </button>
+            </div>
             {loading && <p>Loading NVD CVE data...</p>}
             {error && <p className="error">Error: {error}</p>}
 

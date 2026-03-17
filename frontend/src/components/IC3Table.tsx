@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useDebounce } from '../hooks/useDebounce';
+import { downloadCsv } from '../utils/csvExport';
 
 interface IC3IncidentItem {
     id: number;
@@ -38,9 +40,11 @@ const IC3Table: React.FC<Props> = ({ apiBaseUrl }) => {
     const [total, setTotal] = useState(0);
 
     // Filter state
+    const [searchInput, setSearchInput] = useState('');
     const [attackType, setAttackType] = useState('All');
     const [state, setState] = useState('All');
     const [year, setYear] = useState('All');
+    const debouncedSearch = useDebounce(searchInput);
 
     // Dropdown options from the server
     const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null);
@@ -68,7 +72,7 @@ const IC3Table: React.FC<Props> = ({ apiBaseUrl }) => {
         return () => controller.abort();
     }, [apiBaseUrl]);
 
-    const fetchData = useCallback(async (p: number, at: string, st: string, yr: string, signal?: AbortSignal) => {
+    const fetchData = useCallback(async (p: number, search: string, at: string, st: string, yr: string, signal?: AbortSignal) => {
         setLoading(true);
         setError(null);
         try {
@@ -78,6 +82,7 @@ const IC3Table: React.FC<Props> = ({ apiBaseUrl }) => {
                 sort_by: 'loss_amount',
                 sort_order: 'desc',
             });
+            if (search) params.set('search', search);
             if (at !== 'All') params.set('attack_type', at);
             if (st !== 'All') params.set('state', st);
             if (yr !== 'All') params.set('year', yr);
@@ -101,9 +106,9 @@ const IC3Table: React.FC<Props> = ({ apiBaseUrl }) => {
     // Reset to page 1 when filters change
     useEffect(() => {
         const controller = new AbortController();
-        fetchData(1, attackType, state, year, controller.signal);
+        fetchData(1, debouncedSearch, attackType, state, year, controller.signal);
         return () => controller.abort();
-    }, [attackType, state, year, fetchData]);
+    }, [debouncedSearch, attackType, state, year, fetchData]);
 
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -112,6 +117,16 @@ const IC3Table: React.FC<Props> = ({ apiBaseUrl }) => {
             <h2>IC3 - FBI Internet Crime Complaints</h2>
 
             <div className="filter-controls">
+                <div className="filter-group">
+                    <label htmlFor="ic3-search">Search</label>
+                    <input
+                        id="ic3-search"
+                        type="text"
+                        placeholder="e.g. Ransomware, Finance"
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                    />
+                </div>
                 <div className="filter-group">
                     <label htmlFor="ic3-attack-type">Attack Type</label>
                     <select
@@ -153,6 +168,20 @@ const IC3Table: React.FC<Props> = ({ apiBaseUrl }) => {
                 </div>
             </div>
 
+            <div className="table-toolbar">
+                <div className="pagination-info">Showing {data.length} of {total}</div>
+                <button
+                    className="export-csv-btn"
+                    disabled={data.length === 0}
+                    onClick={() => downloadCsv(
+                        'ic3-incidents.csv',
+                        ['Year', 'Attack Type', 'Sector', 'State', 'Complaints', 'Total Loss', 'Avg Loss/Incident'],
+                        data.map(r => [r.year, r.attack_type, r.sector, r.state, r.complaint_count, r.loss_amount, r.avg_loss_per_incident]),
+                    )}
+                >
+                    Export CSV
+                </button>
+            </div>
             {loading && <div className="loading">Loading IC3 incidents...</div>}
             {error && <div className="error">Error: {error}</div>}
 
@@ -213,14 +242,14 @@ const IC3Table: React.FC<Props> = ({ apiBaseUrl }) => {
                     <div className="pagination-controls">
                         <button
                             disabled={page === 1}
-                            onClick={() => fetchData(page - 1, attackType, state, year)}
+                            onClick={() => fetchData(page - 1, debouncedSearch, attackType, state, year)}
                         >
                             &larr; Previous
                         </button>
                         <span>Page {page} of {totalPages}</span>
                         <button
                             disabled={page >= totalPages}
-                            onClick={() => fetchData(page + 1, attackType, state, year)}
+                            onClick={() => fetchData(page + 1, debouncedSearch, attackType, state, year)}
                         >
                             Next &rarr;
                         </button>
