@@ -167,17 +167,23 @@ async def ingest_cisa_kev(db: AsyncSession) -> int:  # noqa: C901
         logger.info("Enriching %d new CVE rows from CVE.org", len(new_cve_ids))
         semaphore = asyncio.Semaphore(8)
 
-        async def _enrich_one(cve_id: str) -> None:
+        async def _fetch_enrichment(cve_id: str):
+            """Fetch CVE.org enrichment (network I/O only, no DB access)."""
             async with semaphore:
-                enrichment = await fetch_cve_org_enrichment(cve_id)
+                return cve_id, await fetch_cve_org_enrichment(cve_id)
+
+        # Fetch all enrichments concurrently (network-bound), then apply DB
+        # updates sequentially to avoid concurrent use of the shared AsyncSession.
+        enrichments = await asyncio.gather(*(_fetch_enrichment(cid) for cid in new_cve_ids))
+        for cve_id, enrichment in enrichments:
             if not any(
                 [enrichment.severity_score, enrichment.severity_label, enrichment.published_date]
             ):
-                return
+                continue
             row_result = await db.execute(select(CVE).where(CVE.cve_id == cve_id))
             row = row_result.scalar_one_or_none()
             if row is None:
-                return
+                continue
             if enrichment.description and not row.description:
                 row.description = enrichment.description
             if enrichment.severity_score is not None and row.cvss_score is None:
@@ -189,8 +195,6 @@ async def ingest_cisa_kev(db: AsyncSession) -> int:  # noqa: C901
                     row.published_date = date.fromisoformat(enrichment.published_date)
                 except ValueError:
                     pass
-
-        await asyncio.gather(*(_enrich_one(cid) for cid in new_cve_ids))
         logger.info("CVE.org enrichment complete for %d rows", len(new_cve_ids))
 
     await db.commit()

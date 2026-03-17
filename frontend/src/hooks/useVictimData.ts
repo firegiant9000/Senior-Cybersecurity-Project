@@ -37,6 +37,7 @@ export function useVictimData(): UseVictimResult {
       settled(fetchAttackTypes(signal)),
       settled(fetchIndustryRisk(signal)),
     ]).then(([attackR, industryR]) => {
+      if (signal.aborted) return
       const errs: string[] = []
       const warn = (r: PromiseSettledResult<unknown>, label: string) => {
         if (r.status === 'rejected') {
@@ -54,7 +55,7 @@ export function useVictimData(): UseVictimResult {
         industryRisk: industryR.status === 'fulfilled' ? industryR.value.items : [],
       })
       setErrors(errs)
-    }).finally(() => setLoading(false))
+    }).finally(() => { if (!signal.aborted) setLoading(false) })
 
     return () => controller.abort()
   }, [refreshKey])
