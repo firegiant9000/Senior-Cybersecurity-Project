@@ -114,7 +114,7 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
                                         pressed: { outline: 'none' },
                                     }}
                                     onMouseEnter={(e) => {
-                                        const parentRect = (e.currentTarget as SVGElement)
+                                        const parentRect = (e.currentTarget as Element)
                                             .closest('[style]')
                                             ?.getBoundingClientRect();
                                         setTooltip({
@@ -126,7 +126,7 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
                                         });
                                     }}
                                     onMouseMove={(e) => {
-                                        const parentRect = (e.currentTarget as SVGElement)
+                                        const parentRect = (e.currentTarget as Element)
                                             .closest('[style]')
                                             ?.getBoundingClientRect();
                                         setTooltip(prev => prev ? {
