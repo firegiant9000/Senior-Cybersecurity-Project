@@ -47,10 +47,13 @@ export function useThreatIntelData(): UseThreatIntelResult {
       settled(fetchSeverityDistribution(signal)),
       settled(fetchRecentKev(signal, 50)),
     ]).then(([timelineR, severityR, kevR]) => {
+      if (signal.aborted) return
       const errs: string[] = []
       const warn = (r: PromiseSettledResult<unknown>, label: string) => {
         if (r.status === 'rejected') {
-          const msg = r.reason instanceof Error ? r.reason.message : String(r.reason)
+          const err = r.reason
+          if (err instanceof Error && err.name === 'AbortError') return
+          const msg = err instanceof Error ? err.message : String(err)
           errs.push(`${label}: ${msg}`)
         }
       }
@@ -64,7 +67,7 @@ export function useThreatIntelData(): UseThreatIntelResult {
         recentKev: kevR.status === 'fulfilled' ? kevR.value.items : [],
       })
       setErrors(errs)
-    }).finally(() => setLoading(false))
+    }).finally(() => { if (!signal.aborted) setLoading(false) })
 
     return () => controller.abort()
   }, [refreshKey])

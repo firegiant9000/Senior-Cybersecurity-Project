@@ -1,6 +1,8 @@
 """Application main entry point."""
 
 import logging
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,8 +10,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import health, v1
 from app.core.config import settings
 from app.core.logging import setup_logging
+from app.integrations.cve_org import aclose_http_client
 
 _log = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
+    yield
+    await aclose_http_client()
 
 
 def create_app() -> FastAPI:
@@ -24,6 +33,7 @@ def create_app() -> FastAPI:
         title=settings.APP_NAME,
         version="0.1.0",
         description="Cyber Threat Intelligence & Anomaly Detection Platform",
+        lifespan=lifespan,
     )
 
     # Setup logging
