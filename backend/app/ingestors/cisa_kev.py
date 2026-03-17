@@ -170,8 +170,9 @@ async def ingest_cisa_kev(db: AsyncSession) -> int:  # noqa: C901
         async def _enrich_one(cve_id: str) -> None:
             async with semaphore:
                 enrichment = await fetch_cve_org_enrichment(cve_id)
-            if not any([enrichment.severity_score, enrichment.severity_label,
-                        enrichment.published_date]):
+            if not any(
+                [enrichment.severity_score, enrichment.severity_label, enrichment.published_date]
+            ):
                 return
             row_result = await db.execute(select(CVE).where(CVE.cve_id == cve_id))
             row = row_result.scalar_one_or_none()
