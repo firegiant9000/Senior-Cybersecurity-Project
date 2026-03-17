@@ -1,7 +1,7 @@
 """Ingest status routes — v1."""
 
-import logging
 import datetime
+import logging
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel

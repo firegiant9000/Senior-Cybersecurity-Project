@@ -28,6 +28,11 @@ export default [
         setTimeout: 'readonly',
         clearTimeout: 'readonly',
         Number: 'readonly',
+        localStorage: 'readonly',
+        Blob: 'readonly',
+        URL: 'readonly',
+        Element: 'readonly',
+        SVGElement: 'readonly',
       },
     },
     plugins: {
