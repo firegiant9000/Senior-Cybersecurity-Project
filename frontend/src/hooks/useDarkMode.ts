@@ -1,4 +1,3 @@
-/* eslint-env browser */
 import { useState, useEffect } from 'react'
 
 export function useDarkMode(): [boolean, () => void] {
