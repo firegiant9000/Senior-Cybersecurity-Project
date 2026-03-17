@@ -2,13 +2,27 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
 import httpx
+from cachetools import TTLCache  # type: ignore[import-not-found]
+
+_log = logging.getLogger(__name__)
 
 CVE_ORG_API_URL = "https://cveawg.mitre.org/api/cve"
+
+# Reuse a single client across all calls to avoid repeated SSL handshakes
+_http_client: httpx.AsyncClient | None = None
+
+
+def _get_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient()
+    return _http_client
 
 
 @dataclass(slots=True)
@@ -24,7 +38,10 @@ class CveOrgEnrichment:
     product: str | None = None
 
 
-_enrichment_cache: dict[str, CveOrgEnrichment] = {}
+# TTLCache: max 2 000 entries, expire after 1 hour.
+# Bounded size prevents unbounded memory growth; TTL means transient outages
+# self-heal within an hour rather than requiring a process restart.
+_enrichment_cache: TTLCache = TTLCache(maxsize=2000, ttl=3600)
 
 
 def _iso_from_datetime(raw: Any) -> str | None:
@@ -189,11 +206,20 @@ async def fetch_cve_org_enrichment(cve_id: str, *, timeout: float = 8.0) -> CveO
         return cached
 
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.get(f"{CVE_ORG_API_URL}/{normalized_cve_id}")
-            response.raise_for_status()
-            payload = response.json()
-    except (httpx.HTTPError, ValueError):
+        client = _get_client()
+        response = await client.get(f"{CVE_ORG_API_URL}/{normalized_cve_id}", timeout=timeout)
+        response.raise_for_status()
+        payload = response.json()
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            _log.debug("CVE.org has no record for %s (404)", normalized_cve_id)
+        else:
+            _log.warning("CVE.org enrichment failed for %s: %s", normalized_cve_id, exc)
+        enrichment = CveOrgEnrichment()
+        _enrichment_cache[normalized_cve_id] = enrichment
+        return enrichment
+    except (httpx.HTTPError, ValueError) as exc:
+        _log.warning("CVE.org enrichment failed for %s: %s", normalized_cve_id, exc)
         enrichment = CveOrgEnrichment()
         _enrichment_cache[normalized_cve_id] = enrichment
         return enrichment

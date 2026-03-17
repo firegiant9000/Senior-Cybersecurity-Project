@@ -103,9 +103,14 @@ class SqlNvdRepository:
         # Never surface CVEs published in the future (date cap = today).
         conditions.append((CVE.published_date.is_(None)) | (CVE.published_date <= date.today()))
         if search:
-            conditions.append(CVE.cve_id.ilike(f"%{search}%"))
+            conditions.append(
+                or_(
+                    CVE.cve_id.ilike(f"%{search}%"),
+                    CVE.description.ilike(f"%{search}%"),
+                )
+            )
         if severity:
-            sev_list = [s.strip() for s in severity.split(",") if s.strip()]
+            sev_list = [s.strip().capitalize() for s in severity.split(",") if s.strip()]
             sev_clauses = []
             for sev in sev_list:
                 if sev in _SEVERITY_SCORE_RANGES:

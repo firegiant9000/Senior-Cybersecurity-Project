@@ -45,14 +45,6 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
         "http://localhost:5174",
         "http://localhost:5175",
         "http://localhost:5176",
-        "http://10.231.164.23:5173",
-        "http://10.231.164.23:5174",
-        "http://10.231.164.23:5175",
-        "http://10.231.164.23:5176",
-        "http://10.10.11.176:5173",
-        "http://10.10.11.176:5174",
-        "http://10.10.11.176:5175",
-        "http://10.10.11.176:5176",
     ]
 
     # Auth

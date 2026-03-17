@@ -125,7 +125,11 @@ class IC3Analytics:
         ]
 
     async def get_temporal_trends(
-        self, attack_type: str | None = None, sector: str | None = None
+        self,
+        attack_type: str | None = None,
+        sector: str | None = None,
+        year_from: int | None = None,
+        year_to: int | None = None,
     ) -> list[dict]:
         """Get incident trends over time for forecasting.
 
@@ -147,6 +151,10 @@ class IC3Analytics:
             stmt = stmt.where(IC3Incident.attack_type == attack_type)
         if sector:
             stmt = stmt.where(IC3Incident.sector == sector)
+        if year_from is not None:
+            stmt = stmt.where(IC3Incident.year >= year_from)
+        if year_to is not None:
+            stmt = stmt.where(IC3Incident.year <= year_to)
 
         stmt = stmt.order_by(IC3Incident.year)
 

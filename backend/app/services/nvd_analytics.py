@@ -3,7 +3,7 @@
 import logging
 from datetime import date
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import case, extract, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import CVE
@@ -74,7 +74,7 @@ class NVDAnalytics:
         if search:
             stmt = stmt.where(CVE.cve_id.ilike(f"%{search}%"))
         if severity:
-            sev_list = [s.strip() for s in severity.split(",") if s.strip()]
+            sev_list = [s.strip().capitalize() for s in severity.split(",") if s.strip()]
             sev_clauses = []
             for sev in sev_list:
                 if sev in self._SEVERITY_SCORE_RANGES:
@@ -97,3 +97,26 @@ class NVDAnalytics:
             }
             for row in rows
         ]
+
+    async def get_cve_timeline(self) -> list[dict]:
+        """Get CVE publication counts grouped by year, sorted ascending.
+
+        Only includes CVEs with a known published_date that are not in the future.
+
+        Returns:
+            List of dicts with year and count, ordered oldest-to-newest.
+        """
+        year_col = extract("year", CVE.published_date).label("year")
+
+        stmt = (
+            select(year_col, func.count(CVE.id).label("count"))
+            .where(CVE.published_date.is_not(None))
+            .where(CVE.published_date <= date.today())
+            .group_by(year_col)
+            .order_by(year_col)
+        )
+
+        result = await self.db.execute(stmt)
+        rows = result.all()
+
+        return [{"year": int(row[0]), "count": int(row[1])} for row in rows]

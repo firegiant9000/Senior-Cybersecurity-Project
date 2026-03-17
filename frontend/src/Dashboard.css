@@ -1,10 +1,58 @@
+/* ── Design tokens ────────────────────────────────────────────────────────── */
+:root {
+    --bg:               #f0f2f5;
+    --card-bg:          #ffffff;
+    --text-primary:     #333;
+    --text-secondary:   #555;
+    --text-muted:       #9ca3af;
+    --border:           #eee;
+    --header-bg:        #0b1060;
+    --tabs-bg:          #ffffff;
+    --tab-hover-bg:     #f5f6ff;
+    --tab-active-bg:    #eef0ff;
+    --tab-active-color: #0b1060;
+    --table-head-bg:    #f5f5f5;
+    --table-row-hover:  #f9f9f9;
+    --widget-title:     #0b1060;
+    --accent:           #0b1060;
+    --accent-hover:     #1a2080;
+    --error-bg:         #ffebee;
+    --error-text:       #d32f2f;
+    --warn-bg:          #fffbeb;
+    --warn-border:      #f59e0b;
+    --warn-text:        #92400e;
+}
+
+[data-theme="dark"] {
+    --bg:               #0f172a;
+    --card-bg:          #1e293b;
+    --text-primary:     #e2e8f0;
+    --text-secondary:   #94a3b8;
+    --text-muted:       #64748b;
+    --border:           #334155;
+    --header-bg:        #020617;
+    --tabs-bg:          #1e293b;
+    --tab-hover-bg:     #1e3a5f;
+    --tab-active-bg:    #1e3a5f;
+    --tab-active-color: #93c5fd;
+    --table-head-bg:    #162032;
+    --table-row-hover:  #1a2e45;
+    --widget-title:     #93c5fd;
+    --accent:           #3b82f6;
+    --accent-hover:     #2563eb;
+    --error-bg:         #3c1414;
+    --error-text:       #fca5a5;
+    --warn-bg:          #2d1c00;
+    --warn-border:      #d97706;
+    --warn-text:        #fcd34d;
+}
 
 /*Main Background and font */
 .dashboard-container {
-    background-color: #f0f2f5;
+    background-color: var(--bg);
     min-height: 100vh;
     padding: 20px;
-    font-family: sans-serif;
+    font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
 }
 
 /* Header Styling */
@@ -12,7 +60,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background-color: #0b1060;
+    background-color: var(--header-bg);
     color: white;
     padding: 15px 30px;
     border-radius: 8px;
@@ -33,95 +81,574 @@
 /* Grid Layout */
 .dashboard-grid {
     display: grid;
-    grid-template-columns: repeat (4, 1fr);
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: 240px 240px 340px 300px;
     gap: 20px;
-
 }
 
 /* White boxes for Data */
 .card {
-    background-color: white;
+    background-color: var(--card-bg);
     border-radius: 10px;
     padding: 20px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
     display: flex;
     justify-content: center;
     align-items: center;
-    text-align: center;
     flex-direction: column;
-    font-weight: bold;
-    color: #333;
-    min-height: 200px;
+    color: var(--text-primary);
+    box-sizing: border-box;
+    height: 100%;
+    overflow: hidden;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
 
+.card:hover {
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
 }
 
 /* Widgets */
 .map-widget {
     grid-column: span 1;
-
+    overflow: hidden;
 }
 
 .malware-widget {
     grid-column: span 1;
-
 }
 
 .progress-widget {
     grid-column: span 1;
     background-color: #0b1060;
     color: white;
-
 }
 
 .compliance-widget {
     grid-column: span 1;
     background-color: #0b1060;
     color: white;
-
 }
 
 .incident-widget {
     grid-column: span 3;
-    min-height: 300px;
 }
 
 .risks-widget {
     grid-column: span 1;
-    min-height: 300px;
+}
+
+.heatmap-widget {
+    grid-column: span 4;
+}
+
+.map-widget svg {
+    display: block;
+}
+
+/* ── Progress Gauges ─────────────────────────────────────────────────────── */
+.gauges-card {
+    justify-content: flex-start;
+    align-items: center;
+    padding: 20px;
+    gap: 0;
+}
+
+.gauges-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: white;
+    margin-bottom: 8px;
+}
+
+.gauges-row {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+    align-items: center;
+    width: 100%;
+    flex: 1;
+}
+
+.gauge-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    gap: 2px;
+}
+
+.gauge-value {
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1;
+    margin-top: -20px;
+}
+
+.gauge-label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.75);
+    font-weight: 500;
+    margin-top: 4px;
+}
+
+/* ── Chart widget title + body ────────────────────────────────────────────── */
+.widget-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--widget-title);
+    margin-bottom: 6px;
+    width: 100%;
+    text-align: center;
+    flex-shrink: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chart-widget {
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: 16px 20px;
+}
+
+/* Flex-fill wrapper — makes the chart fill remaining card height */
+.chart-body {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+}
+
+/* ── Overview Stat Card ───────────────────────────────────────────────────── */
+.overview-stat-card {
+    background-color: white;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 24px;
+    gap: 6px;
+}
+
+.overview-stat-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #555;
+}
+
+.overview-stat-value-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.overview-stat-value {
+    font-size: 40px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.overview-stat-change {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.overview-stat-subtitle {
+    font-size: 12px;
+    color: #888;
+    font-weight: 400;
+    margin-top: 2px;
+}
+
+/* ── Cyber Risks Tiles ───────────────────────────────────────────────────── */
+.risks-tiles-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr 1fr;
+    gap: 4px;
+    width: 100%;
+    height: 100%;
+}
+
+.risks-tile {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: default;
+    transition: opacity 0.2s ease;
+}
+
+.risks-tile:hover {
+    opacity: 0.88;
+}
+
+/* First tile spans 2 rows on the left */
+.risks-tile--large {
+    grid-row: span 2;
+}
+
+.risks-tile-rank {
+    font-size: 11px;
+    font-weight: 700;
+    color: white;
+    line-height: 1.3;
+}
+
+.risks-tile-pct {
+    font-size: 18px;
+    font-weight: 800;
+    color: rgba(255, 255, 255, 0.9);
+    align-self: flex-end;
+}
+
+/* ── Compliance Status Bars ───────────────────────────────────────────────── */
+.compliance-bars-card {
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 0;
+    padding: 24px;
+}
+
+.compliance-bars-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: white;
+    margin-bottom: 20px;
+    align-self: center;
+}
+
+.compliance-bars-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
+}
+
+.compliance-bar-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+}
+
+.compliance-bar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.compliance-bar-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: white;
+}
+
+.compliance-bar-percent {
+    font-size: 13px;
+    font-weight: 700;
+    color: white;
+}
+
+.compliance-bar-track {
+    width: 100%;
+    height: 16px;
+    background-color: rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.compliance-bar-fill {
+    height: 100%;
+    border-radius: 8px;
+    transition: width 0.4s ease;
+}
+
+/* ── Skeleton loader ─────────────────────────────────────────────────────── */
+@keyframes shimmer {
+    0%   { background-position: -400px 0; }
+    100% { background-position:  400px 0; }
+}
+
+.skeleton-line,
+.skeleton-block,
+.skeleton-bar {
+    background: linear-gradient(90deg, #e8eaf0 25%, #f5f6fa 50%, #e8eaf0 75%);
+    background-size: 800px 100%;
+    animation: shimmer 1.4s infinite linear;
+    border-radius: 4px;
+}
+
+.skeleton-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    padding: 4px 0;
+}
+
+.skeleton-line--short  { height: 10px; width: 60%; }
+.skeleton-line--value  { height: 38px; width: 80%; border-radius: 6px; }
+.skeleton-line--xs     { height: 8px;  width: 50%; }
+
+.skeleton-chart {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+}
+
+.skeleton-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    width: 100%;
+    height: 100%;
+    padding: 8px 0;
+}
+
+.skeleton-bar {
+    flex: 1;
+    min-height: 12px;
+    border-radius: 4px 4px 0 0;
+}
+
+.skeleton-block--map {
+    width: 100%;
+    height: 100%;
+    min-height: 140px;
+    border-radius: 8px;
+}
+
+.skeleton-map {
+    width: 100%;
+    height: 100%;
+}
+
+/* ── Widget error fallback ────────────────────────────────────────────────── */
+.widget-error-fallback {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    height: 100%;
+    min-height: 80px;
+    color: #9ca3af;
+}
+
+.widget-error-icon {
+    font-size: 22px;
+    color: #f59e0b;
+}
+
+.widget-error-msg {
+    font-size: 12px;
+    font-weight: 500;
+    text-align: center;
+}
+
+.widget-error-retry {
+    font-size: 11px;
+    padding: 4px 12px;
+    border: 1px solid #d1d5db;
+    background: white;
+    border-radius: 20px;
+    cursor: pointer;
+    color: #0b1060;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.widget-error-retry:hover {
+    background: #eef0ff;
+}
+
+/* ── Data freshness indicator ─────────────────────────────────────────────── */
+.freshness-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 11px;
+    margin-right: auto;
+}
+
+.freshness-item {
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+}
+
+.freshness-item.freshness-failed,
+.freshness-item.freshness-error {
+    background: var(--error-bg);
+    color: var(--error-text);
+    border-color: #fca5a5;
+}
+
+.freshness-item.freshness-unknown {
+    background: var(--table-head-bg);
+    color: var(--text-muted);
+    border-color: var(--border);
+}
+
+[data-theme="dark"] .freshness-item {
+    background: #14532d;
+    color: #86efac;
+    border-color: #166534;
+}
+
+/* ── Overview toolbar (refresh + last updated) ────────────────────────────── */
+.overview-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.overview-last-updated {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.overview-refresh-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+}
+
+.overview-refresh-btn:hover {
+    background: var(--accent-hover);
+}
+
+.overview-refresh-btn:active {
+    transform: scale(0.97);
+}
+
+.overview-refresh-btn.spinning svg {
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── Widget error banner (non-fatal partial errors) ───────────────────────── */
+.overview-partial-errors {
+    grid-column: span 4;
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 12px;
+    color: var(--warn-text);
+}
+
+/* ── Responsive breakpoints ───────────────────────────────────────────────── */
+@media (max-width: 1200px) {
+    .dashboard-grid {
+        grid-template-columns: repeat(2, 1fr);
+        grid-template-rows: auto;
+    }
+    .incident-widget {
+        grid-column: span 2;
+    }
+    .risks-widget {
+        grid-column: span 2;
+    }
+    .heatmap-widget {
+        grid-column: span 2;
+    }
+    .dashboard-grid .card {
+        height: auto;
+        min-height: 240px;
+    }
+    .chart-body {
+        min-height: 180px;
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+    }
+    .incident-widget,
+    .risks-widget {
+        grid-column: span 1;
+    }
+    .dashboard-grid .card {
+        height: auto;
+        min-height: 220px;
+    }
+    .chart-body {
+        min-height: 200px;
+    }
 }
 
 /* Tabs Styling */
 .tabs-container {
     display: flex;
-    gap: 10px;
+    flex-wrap: wrap;
+    gap: 0;
     margin-bottom: 20px;
-    border-bottom: 2px solid #ddd;
+    background-color: var(--tabs-bg);
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+    overflow: hidden;
 }
 
 .tab {
-    padding: 12px 24px;
+    flex: 1;
+    min-width: 100px;
+    padding: 16px 20px;
     background-color: transparent;
     border: none;
     border-bottom: 3px solid transparent;
     cursor: pointer;
-    font-size: 16px;
-    font-weight: 500;
-    color: #666;
-    transition: all 0.3s ease;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    transition: all 0.25s ease;
+    white-space: nowrap;
+    text-align: center;
+    letter-spacing: 0.3px;
 }
 
 .tab:hover {
-    color: #0b1060;
+    color: var(--tab-active-color);
+    background-color: var(--tab-hover-bg);
 }
 
 .tab.active {
-    color: #0b1060;
-    border-bottom-color: #0b1060;
+    color: var(--tab-active-color);
+    border-bottom-color: var(--accent);
+    background-color: var(--tab-active-bg);
 }
 
 /* Data Table Container */
 .data-table-container {
-    background-color: white;
+    background-color: var(--card-bg);
     border-radius: 10px;
     padding: 30px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
@@ -130,7 +657,7 @@
 .data-table-container h2 {
     margin-top: 0;
     margin-bottom: 20px;
-    color: #0b1060;
+    color: var(--widget-title);
 }
 
 .data-table {
@@ -140,45 +667,77 @@
 }
 
 .data-table thead {
-    background-color: #f5f5f5;
+    background-color: var(--table-head-bg);
 }
 
 .data-table th {
     padding: 12px;
     text-align: left;
     font-weight: 600;
-    color: #0b1060;
-    border-bottom: 2px solid #ddd;
+    color: var(--widget-title);
+    border-bottom: 2px solid var(--border);
 }
 
 .data-table td {
     padding: 12px;
-    border-bottom: 1px solid #eee;
-    color: #222;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-primary);
     font-weight: 500;
 }
 
 .data-table tbody tr:hover {
-    background-color: #f9f9f9;
+    background-color: var(--table-row-hover);
 }
 
 .tab-content {
-    background-color: white;
+    background-color: var(--card-bg);
     border-radius: 10px;
     padding: 30px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
 }
 
 .tab-content h2 {
-    color: #0b1060;
+    color: var(--widget-title);
     margin-top: 0;
 }
 
 .error {
-    color: #d32f2f;
+    color: var(--error-text);
     padding: 10px;
-    background-color: #ffebee;
+    background-color: var(--error-bg);
     border-radius: 5px;
+}
+
+/* ── Table toolbar (pagination info + export button) ─────────────────────── */
+.table-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.export-csv-btn {
+    padding: 5px 14px;
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    margin-top: 0;
+}
+
+.export-csv-btn:hover:not(:disabled) {
+    background: var(--accent);
+    color: white;
+}
+
+.export-csv-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background: transparent;
 }
 
 .cisa-table {
@@ -537,4 +1096,289 @@
     background-color: #f5f5f5;
     border-radius: 4px;
     font-size: 13px;
+}
+
+/* ── Shared tab-page layout ───────────────────────────────────────────────── */
+.tab-page {
+    padding: 4px 0;
+}
+
+.tab-table-scroll {
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: 340px;
+    border-radius: 0 0 8px 8px;
+}
+
+.tab-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.tab-table thead {
+    position: sticky;
+    top: 0;
+    background: #f5f7fa;
+    z-index: 1;
+}
+
+.tab-table th {
+    padding: 8px 10px;
+    text-align: left;
+    font-weight: 600;
+    color: #0b1060;
+    border-bottom: 2px solid #e0e4f0;
+    white-space: nowrap;
+}
+
+.tab-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid #f0f2f5;
+    vertical-align: middle;
+}
+
+.tab-table tbody tr:hover {
+    background: #f5f7ff;
+}
+
+.trends-filter {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.trends-select {
+    padding: 5px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #0b1060;
+    background: white;
+    cursor: pointer;
+    outline: none;
+}
+
+.trends-select:focus {
+    border-color: #0b1060;
+}
+
+.trends-year-input {
+    width: 90px;
+    padding: 5px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text-primary);
+    background: var(--card-bg);
+    outline: none;
+}
+
+.trends-year-input:focus {
+    border-color: var(--accent);
+}
+
+.widget-title-filter {
+    font-weight: 400;
+    color: #666;
+    font-size: 12px;
+}
+
+/* ── Threat Intelligence tab grid ─────────────────────────────────────────── */
+.threat-intel-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 300px 360px;
+    gap: 16px;
+}
+
+.ti-timeline  { grid-column: 1; grid-row: 1; }
+.ti-severity  { grid-column: 2; grid-row: 1; }
+.ti-vendors   { grid-column: 1; grid-row: 2; }
+.ti-kev-table { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; }
+
+/* ── Trends tab grid ──────────────────────────────────────────────────────── */
+.trends-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 280px 340px;
+    gap: 16px;
+}
+
+.trends-table-card { display: flex; flex-direction: column; }
+
+/* ── Alerts Feed tab grid ─────────────────────────────────────────────────── */
+.alerts-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+}
+
+.alerts-card {
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── Victim Profile tab grid ──────────────────────────────────────────────── */
+.victim-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 300px 340px;
+    gap: 16px;
+}
+
+.victim-table-card { display: flex; flex-direction: column; }
+
+@media (max-width: 900px) {
+    .threat-intel-grid,
+    .trends-grid,
+    .victim-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+    }
+
+    .ti-timeline, .ti-severity, .ti-vendors, .ti-kev-table,
+    .trends-table-card,
+    .victim-table-card {
+        grid-column: 1;
+        grid-row: auto;
+        min-height: 260px;
+    }
+}
+
+/* ── Sector × Attack Heatmap ──────────────────────────────────────────────── */
+.heatmap-wrapper {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    gap: 6px;
+}
+
+.heatmap-scroll {
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: auto;
+}
+
+.heatmap-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    min-width: 600px;
+}
+
+.heatmap-corner {
+    background: #f0f2f5;
+    font-size: 10px;
+    color: #666;
+    font-weight: 500;
+    padding: 6px 10px;
+    white-space: nowrap;
+    text-align: left;
+    border-bottom: 2px solid #e0e4f0;
+    border-right: 2px solid #e0e4f0;
+}
+
+.heatmap-col-header {
+    padding: 6px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #0b1060;
+    text-align: center;
+    white-space: nowrap;
+    background: #f5f7fa;
+    border-bottom: 2px solid #e0e4f0;
+    max-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.heatmap-row-header {
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #0b1060;
+    white-space: nowrap;
+    background: #f5f7fa;
+    border-right: 2px solid #e0e4f0;
+    border-bottom: 1px solid #e8eaf0;
+}
+
+.heatmap-cell {
+    text-align: center;
+    padding: 6px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    border-bottom: 1px solid rgba(255,255,255,0.3);
+    border-right: 1px solid rgba(255,255,255,0.3);
+    transition: opacity 0.15s;
+    cursor: default;
+    min-width: 60px;
+}
+
+.heatmap-cell:hover {
+    opacity: 0.85;
+    outline: 2px solid #0b1060;
+    outline-offset: -2px;
+}
+
+.heatmap-note {
+    font-size: 10px;
+    color: #9ca3af;
+    margin: 0;
+    text-align: right;
+}
+
+/* ── Dark mode input/select overrides ────────────────────────────────────── */
+[data-theme="dark"] input,
+[data-theme="dark"] select {
+    background-color: var(--card-bg);
+    color: var(--text-primary);
+    border-color: var(--border);
+}
+
+[data-theme="dark"] .filter-controls {
+    background-color: var(--card-bg);
+}
+
+[data-theme="dark"] .pagination-controls button {
+    background: var(--card-bg);
+    color: var(--text-primary);
+    border-color: var(--border);
+}
+
+[data-theme="dark"] .pagination-controls button:hover:not(:disabled) {
+    background: var(--tab-hover-bg);
+}
+
+[data-theme="dark"] .tab-table th,
+[data-theme="dark"] .tab-table td {
+    border-color: var(--border);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .tab-table thead {
+    background-color: var(--table-head-bg);
+}
+
+[data-theme="dark"] .tab-table tr:hover {
+    background-color: var(--table-row-hover);
+}
+
+/* Dark mode toggle button in header */
+.dark-mode-btn {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+    margin-left: 10px;
+}
+
+.dark-mode-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
 }
