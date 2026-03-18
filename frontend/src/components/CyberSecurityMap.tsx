@@ -27,6 +27,31 @@ const FIPS_TO_STATE: Record<string, string> = {
     '56': 'WY',
 };
 
+const GEO_URL = '/states-10m.json';
+
+const STATE_NAME_TO_CODE: Record<string, string> = {
+    Alabama: 'AL', Alaska: 'AK', Arizona: 'AZ', Arkansas: 'AR', California: 'CA',
+    Colorado: 'CO', Connecticut: 'CT', Delaware: 'DE', Florida: 'FL', Georgia: 'GA',
+    Hawaii: 'HI', Idaho: 'ID', Illinois: 'IL', Indiana: 'IN', Iowa: 'IA',
+    Kansas: 'KS', Kentucky: 'KY', Louisiana: 'LA', Maine: 'ME', Maryland: 'MD',
+    Massachusetts: 'MA', Michigan: 'MI', Minnesota: 'MN', Mississippi: 'MS', Missouri: 'MO',
+    Montana: 'MT', Nebraska: 'NE', Nevada: 'NV', 'New Hampshire': 'NH', 'New Jersey': 'NJ',
+    'New Mexico': 'NM', 'New York': 'NY', 'North Carolina': 'NC', 'North Dakota': 'ND',
+    Ohio: 'OH', Oklahoma: 'OK', Oregon: 'OR', Pennsylvania: 'PA', 'Rhode Island': 'RI',
+    'South Carolina': 'SC', 'South Dakota': 'SD', Tennessee: 'TN', Texas: 'TX',
+    Utah: 'UT', Vermont: 'VT', Virginia: 'VA', Washington: 'WA', 'West Virginia': 'WV',
+    Wisconsin: 'WI', Wyoming: 'WY',
+    'Washington DC': 'DC', 'Washington D.C.': 'DC', 'District of Columbia': 'DC',
+};
+
+function toStateCode(state: string): string | null {
+    const s = state.trim();
+    if (!s) return null;
+    const upper = s.toUpperCase();
+    if (STATE_NAMES[upper]) return upper;
+    return STATE_NAME_TO_CODE[s] ?? null;
+}
+
 function interpolateTeal(ratio: number): string {
     // Low → light grey, High → deep teal (#006064)
     const r = Math.round(200 - ratio * 170);
@@ -34,8 +59,6 @@ function interpolateTeal(ratio: number): string {
     const b = Math.round(220 - ratio * 120);
     return `rgb(${r},${g},${b})`;
 }
-
-const GEO_URL = '/states-10m.json';
 
 interface TooltipState {
     stateCode: string;
@@ -51,14 +74,24 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
     const complaintByState = useMemo(() => {
         const map: Record<string, number> = {};
         for (const d of data) {
-            map[d.state] = d.complaint_count;
+            const stateCode = toStateCode(d.state);
+            if (!stateCode) continue;
+            map[stateCode] = (map[stateCode] ?? 0) + d.complaint_count;
         }
         return map;
     }, [data]);
 
     const maxComplaints = useMemo(
-        () => Math.max(1, ...data.map(d => d.complaint_count)),
-        [data]
+        () => Math.max(1, ...Object.values(complaintByState)),
+        [complaintByState]
+    );
+
+    const topStateCodes = useMemo(
+        () => Object.entries(complaintByState)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([stateCode]) => stateCode),
+        [complaintByState]
     );
 
     if (loading) return <p style={{ color: '#888', fontSize: 13 }}>Loading…</p>;
@@ -143,15 +176,13 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
                 </Geographies>
 
                 {/* Highlight top 3 states with a marker label */}
-                {data
-                    .sort((a, b) => b.complaint_count - a.complaint_count)
-                    .slice(0, 3)
-                    .map((d) => {
-                        const coords = STATE_LABEL_COORDS[d.state];
+                {topStateCodes
+                    .map((stateCode) => {
+                        const coords = STATE_LABEL_COORDS[stateCode];
                         if (!coords) return null;
                         return (
                             <Annotation
-                                key={d.state}
+                                key={stateCode}
                                 subject={coords}
                                 dx={0}
                                 dy={0}
@@ -161,7 +192,7 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
                                     textAnchor="middle"
                                     style={{ fontSize: 8, fontWeight: 700, fill: '#0b1060' }}
                                 >
-                                    {d.state}
+                                    {stateCode}
                                 </text>
                             </Annotation>
                         );
