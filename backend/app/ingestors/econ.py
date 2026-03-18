@@ -30,9 +30,7 @@ async def _upsert_economic_indicator(
     This avoids duplicate rows when ingestion runs multiple times.
     """
     existing = (
-        await db.execute(
-            select(EconomicIndicator).where(EconomicIndicator.state == state).limit(1)
-        )
+        await db.execute(select(EconomicIndicator).where(EconomicIndicator.state == state).limit(1))
     ).scalar_one_or_none()
 
     if existing is None:
