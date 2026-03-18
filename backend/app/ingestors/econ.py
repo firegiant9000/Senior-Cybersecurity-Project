@@ -8,6 +8,7 @@ import logging
 
 import httpx
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -15,6 +16,38 @@ from app.db.models import EconomicIndicator
 from app.schemas.validators import EconomicIndicatorValidationSchema
 
 logger = logging.getLogger(__name__)
+
+
+async def _upsert_economic_indicator(
+    db: AsyncSession,
+    *,
+    state: str,
+    smb_count: int,
+    avg_revenue: float,
+) -> None:
+    """Upsert a single economic indicator row by state code.
+
+    This avoids duplicate rows when ingestion runs multiple times.
+    """
+    existing = (
+        await db.execute(
+            select(EconomicIndicator).where(EconomicIndicator.state == state).limit(1)
+        )
+    ).scalar_one_or_none()
+
+    if existing is None:
+        db.add(
+            EconomicIndicator(
+                state=state,
+                smb_count=smb_count,
+                avg_revenue=avg_revenue,
+            )
+        )
+        return
+
+    existing.smb_count = smb_count
+    existing.avg_revenue = avg_revenue
+    db.add(existing)
 
 
 def _normalize_econ_indicator(
@@ -51,7 +84,7 @@ def _normalize_econ_indicator(
         return None
 
 
-async def ingest_region_economics_from_census(db: AsyncSession) -> None:
+async def ingest_region_economics_from_census(db: AsyncSession) -> None:  # noqa: C901
     """
     Ingest regional economic indicators from US Census Bureau API.
 
@@ -66,9 +99,10 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:
     api_key = settings.CENSUS_API_KEY
 
     if not api_key:
-        logger.warning("CENSUS_API_KEY not set. Falling back to CSV file.")
-        await ingest_region_economics_from_csv(db)
-        return
+        logger.warning(
+            "CENSUS_API_KEY not set. Attempting unauthenticated Census API requests. "
+            "If rate-limited, will fall back to CSV."
+        )
 
     try:
         # Using 2021 data (most recent complete Census data)
@@ -76,96 +110,131 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:
         income_url = "https://api.census.gov/data/2021/acs/acs5"
 
         states = {
-            "CA": "06",
-            "TX": "48",
-            "NY": "36",
-            "WA": "53",
-            "FL": "12",
-            "PA": "42",
-            "IL": "17",
-            "OH": "39",
-            "GA": "13",
-            "NC": "37",
-            "MI": "26",
-            "NJ": "34",
-            "VA": "51",
+            "AL": "01",
+            "AK": "02",
             "AZ": "04",
+            "AR": "05",
+            "CA": "06",
+            "CO": "08",
+            "CT": "09",
+            "DE": "10",
+            "FL": "12",
+            "GA": "13",
+            "HI": "15",
+            "ID": "16",
+            "IL": "17",
+            "IN": "18",
+            "IA": "19",
+            "KS": "20",
+            "KY": "21",
+            "LA": "22",
+            "ME": "23",
+            "MD": "24",
+            "MA": "25",
+            "MI": "26",
+            "MN": "27",
+            "MS": "28",
+            "MO": "29",
+            "MT": "30",
+            "NE": "31",
+            "NV": "32",
+            "NH": "33",
+            "NJ": "34",
+            "NM": "35",
+            "NY": "36",
+            "NC": "37",
+            "ND": "38",
+            "OH": "39",
+            "OK": "40",
+            "OR": "41",
+            "PA": "42",
+            "RI": "44",
+            "SC": "45",
+            "SD": "46",
+            "TN": "47",
+            "TX": "48",
+            "UT": "49",
+            "VT": "50",
+            "VA": "51",
+            "WA": "53",
+            "WV": "54",
+            "WI": "55",
+            "WY": "56",
         }
 
         indicators_added = 0
         indicators_validated = 0
 
         async with httpx.AsyncClient(timeout=30.0) as client:
-            for state_abbr, state_fips in states.items():  # All 50 states
-                # Fetch SMB count from County Business Patterns API
-                # EMPSZES_LABEL: Employment size of establishments
-                # We want establishments with 1-499 employees (small to medium businesses)
-                cbp_params = {
-                    "get": "ESTAB,NAME",
-                    "for": f"state:{state_fips}",
-                    "EMPSZES": "001",  # All establishments
-                    "key": api_key,
-                }
+            cbp_params = {
+                "get": "ESTAB,NAME",
+                "for": "state:*",
+                "EMPSZES": "001",  # all establishments
+            }
+            if api_key:
+                cbp_params["key"] = api_key
 
+            income_params = {
+                "get": "B19013_001E,NAME",
+                "for": "state:*",
+            }
+            if api_key:
+                income_params["key"] = api_key
+
+            cbp_resp = await client.get(cbp_url, params=cbp_params)
+            cbp_resp.raise_for_status()
+            cbp_data = cbp_resp.json()
+
+            income_resp = await client.get(income_url, params=income_params)
+            income_resp.raise_for_status()
+            income_data = income_resp.json()
+
+            smb_by_fips: dict[str, int] = {}
+            for row in cbp_data[1:] if isinstance(cbp_data, list) else []:
                 try:
-                    cbp_resp = await client.get(cbp_url, params=cbp_params)
-                    cbp_resp.raise_for_status()
-                    cbp_data = cbp_resp.json()
+                    estab_raw = str(row[0]).replace(",", "").strip()
+                    fips = str(row[-1]).zfill(2)
+                    smb_by_fips[fips] = int(estab_raw) if estab_raw.lower() != "null" else 0
+                except (TypeError, ValueError, IndexError):
+                    continue
 
-                    # Extract establishment count (ESTAB field)
-                    if len(cbp_data) > 1:
-                        smb_count = int(cbp_data[1][0]) if cbp_data[1][0] != "null" else 100000
-                    else:
-                        smb_count = 100000
-                except (httpx.HTTPError, ValueError, IndexError) as e:
-                    logger.warning("CBP API error for %s: %s. Using default.", state_abbr, e)
-                    smb_count = 100000
-
-                # Fetch median household income from ACS
-                income_params = {
-                    "get": "B19013_001E,NAME",
-                    "for": f"state:{state_fips}",
-                    "key": api_key,
-                }
-
-                resp = await client.get(income_url, params=income_params)
-                resp.raise_for_status()
-                data = resp.json()
-
-                if len(data) > 1:
-                    # data[0] is header, data[1] is the result
-                    median_income = float(data[1][0]) if data[1][0] != "null" else 50000.0
-
-                    # Estimate SMB count based on state (rough formula)
-                    # Using Census Bureau business patterns
-                    smb_estimates = {
-                        "06": 500000,
-                        "48": 350000,
-                        "36": 300000,
-                        "53": 150000,
-                        "12": 320000,
-                    }
-                    smb_count = smb_estimates.get(state_fips, 100000)
-
-                    # Estimate state GDP (simplified - median income * population factor)
-                    gdp_estimate = median_income * smb_count * 2.5
-
-                    # Normalize and validate before storing
-                    normalized = _normalize_econ_indicator(state_abbr, smb_count, gdp_estimate)
-                    if normalized is None:
-                        logger.debug("Skipped invalid economic indicator: %s", state_abbr)
-                        continue
-
-                    state, smb_count, avg_revenue = normalized
-
-                    economic = EconomicIndicator(
-                        state=state,
-                        smb_count=smb_count,
-                        avg_revenue=avg_revenue,
+            income_by_fips: dict[str, float] = {}
+            for row in income_data[1:] if isinstance(income_data, list) else []:
+                try:
+                    income_raw = str(row[0]).replace(",", "").strip()
+                    fips = str(row[-1]).zfill(2)
+                    income_by_fips[fips] = (
+                        float(income_raw) if income_raw.lower() != "null" else 50_000.0
                     )
-                    db.add(economic)
-                    indicators_added += 1
-                    indicators_validated += 1
+                except (TypeError, ValueError, IndexError):
+                    continue
+
+            for state_abbr, state_fips in states.items():
+                smb_count = smb_by_fips.get(state_fips, 0)
+                if smb_count <= 0:
+                    logger.warning("Missing/invalid SMB count for %s; using default", state_abbr)
+                    smb_count = 100_000
+
+                median_income = income_by_fips.get(state_fips, 50_000.0)
+
+                # Approximate state-level revenue proxy from household income + business counts.
+                gdp_estimate = median_income * smb_count * 2.5
+
+                normalized = _normalize_econ_indicator(state_abbr, smb_count, gdp_estimate)
+                if normalized is None:
+                    logger.debug("Skipped invalid economic indicator: %s", state_abbr)
+                    continue
+
+                state, smb_count, avg_revenue = normalized
+
+                await _upsert_economic_indicator(
+                    db,
+                    state=state,
+                    smb_count=smb_count,
+                    avg_revenue=avg_revenue,
+                )
+                indicators_added += 1
+                indicators_validated += 1
 
         await db.commit()
         print(
@@ -203,12 +272,11 @@ async def ingest_region_economics_from_csv(
 
             state, smb_count, avg_revenue = normalized
 
-            db.add(
-                EconomicIndicator(
-                    state=state,
-                    smb_count=smb_count,
-                    avg_revenue=avg_revenue,
-                )
+            await _upsert_economic_indicator(
+                db,
+                state=state,
+                smb_count=smb_count,
+                avg_revenue=avg_revenue,
             )
             indicators_added += 1
             indicators_validated += 1

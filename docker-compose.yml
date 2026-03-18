@@ -28,6 +28,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    env_file:
+      - ./backend/.env
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/cyber_threat_db
       APP_ENV: development
@@ -56,6 +58,7 @@ services:
     ports:
       - "5173:5173"
     volumes:
+      - ./frontend/public:/app/public
       - ./frontend/src:/app/src
       - ./frontend/index.html:/app/index.html
       - ./frontend/vite.config.ts:/app/vite.config.ts
