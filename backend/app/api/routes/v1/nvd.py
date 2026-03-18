@@ -82,12 +82,6 @@ async def list_nvd_cves(
     except SQLAlchemyError as e:
         logger.error("Database error in NVD route: %s", e)
         raise HTTPException(status_code=500, detail="Internal server error") from e
-    except Exception as e:  # pragma: no cover - defensive fallback
-        logger.exception("Unhandled error in NVD route: %s", e)
-        raise HTTPException(
-            status_code=503,
-            detail="Database unavailable. Verify DATABASE_URL and PostgreSQL credentials.",
-        ) from e
 
 
 @router.get("/analytics/timeline", response_model=NvdTimelineResponse)
@@ -102,9 +96,6 @@ async def get_cve_timeline(
     except SQLAlchemyError as e:
         logger.error("Database error in CVE timeline: %s", e)
         raise HTTPException(status_code=500, detail="Internal server error") from e
-    except Exception as e:  # pragma: no cover
-        logger.exception("Unhandled error in CVE timeline: %s", e)
-        raise HTTPException(status_code=503, detail="Database unavailable.") from e
 
 
 @router.get(
@@ -143,9 +134,3 @@ async def get_severity_distribution(
     except SQLAlchemyError as e:
         logger.error("Database error in severity distribution: %s", e)
         raise HTTPException(status_code=500, detail="Internal server error") from e
-    except Exception as e:  # pragma: no cover - defensive fallback
-        logger.exception("Unhandled error in severity distribution: %s", e)
-        raise HTTPException(
-            status_code=503,
-            detail="Database unavailable. Verify DATABASE_URL and PostgreSQL credentials.",
-        ) from e

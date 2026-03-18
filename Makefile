@@ -77,7 +77,7 @@ install-local:
 	cd frontend && npm install
 
 migrate-local:
-	cd backend && alembic upgrade head
+	cd backend && alembic -c app/db/alembic.ini upgrade head
 
 test-local:
 	cd backend && pytest -v tests/
