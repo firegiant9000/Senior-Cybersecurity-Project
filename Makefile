@@ -32,17 +32,17 @@ frontend-logs:
 	docker compose logs -f frontend
 
 migrate:
-	docker compose exec backend alembic upgrade head
+	docker compose exec backend alembic -c app/db/alembic.ini upgrade head
 
 makemigrations:
 	@if [ -z "$(message)" ]; then \
 		echo "Usage: make makemigrations message=\"your message\""; \
 		exit 1; \
 	fi
-	docker compose exec backend alembic revision --autogenerate -m "$(message)"
+	docker compose exec backend alembic -c app/db/alembic.ini revision --autogenerate -m "$(message)"
 
 rollback:
-	docker compose exec backend alembic downgrade -1
+	docker compose exec backend alembic -c app/db/alembic.ini downgrade -1
 
 seed:
 	@echo "TODO: Implement database seeding"
@@ -77,7 +77,7 @@ install-local:
 	cd frontend && npm install
 
 migrate-local:
-	cd backend && alembic upgrade head
+	cd backend && alembic -c app/db/alembic.ini upgrade head
 
 test-local:
 	cd backend && pytest -v tests/
