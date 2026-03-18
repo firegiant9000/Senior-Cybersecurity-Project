@@ -88,12 +88,6 @@ async def list_ic3_incidents(
     except SQLAlchemyError as e:
         logger.error("Database error in IC3 incidents route: %s", e)
         raise HTTPException(status_code=500, detail="Internal server error") from e
-    except Exception as e:  # pragma: no cover - defensive fallback
-        logger.exception("Unhandled error in IC3 incidents route: %s", e)
-        raise HTTPException(
-            status_code=503,
-            detail="Database unavailable. Verify DATABASE_URL and PostgreSQL credentials.",
-        ) from e
 
 
 @router.get("/filter-options", response_model=IC3FilterOptionsResponse)
@@ -108,12 +102,6 @@ async def get_ic3_filter_options(
     except SQLAlchemyError as e:
         logger.error("Database error in IC3 filter options route: %s", e)
         raise HTTPException(status_code=500, detail="Internal server error") from e
-    except Exception as e:  # pragma: no cover - defensive fallback
-        logger.exception("Unhandled error in IC3 filter options route: %s", e)
-        raise HTTPException(
-            status_code=503,
-            detail="Database unavailable. Verify DATABASE_URL and PostgreSQL credentials.",
-        ) from e
 
 
 @router.get("/analytics/attack-types", response_model=AttackTypeListResponse)
@@ -122,13 +110,9 @@ async def get_attack_types_analytics(
     db: AsyncSession = Depends(get_session),
 ) -> AttackTypeListResponse:
     """Get attack types ranked by financial impact."""
-    try:
-        analytics = IC3Analytics(db)
-        rows = await analytics.get_attack_types_by_loss(year=year)
-        return AttackTypeListResponse(items=[AttackTypeStats(**r) for r in rows], year=year)
-    except Exception as e:  # pragma: no cover
-        logger.exception("Error in IC3 attack-types analytics: %s", e)
-        raise HTTPException(status_code=503, detail="Database unavailable.") from e
+    analytics = IC3Analytics(db)
+    rows = await analytics.get_attack_types_by_loss(year=year)
+    return AttackTypeListResponse(items=[AttackTypeStats(**r) for r in rows], year=year)
 
 
 @router.get("/analytics/industry-risk", response_model=IndustryRiskResponse)
@@ -137,13 +121,9 @@ async def get_industry_risk_analytics(
     db: AsyncSession = Depends(get_session),
 ) -> IndustryRiskResponse:
     """Get industry/sector risk profile with attack vectors."""
-    try:
-        analytics = IC3Analytics(db)
-        rows = await analytics.get_industry_risk_profile(year=year)
-        return IndustryRiskResponse(items=[IndustryRiskProfile(**r) for r in rows], year=year)
-    except Exception as e:  # pragma: no cover
-        logger.exception("Error in IC3 industry-risk analytics: %s", e)
-        raise HTTPException(status_code=503, detail="Database unavailable.") from e
+    analytics = IC3Analytics(db)
+    rows = await analytics.get_industry_risk_profile(year=year)
+    return IndustryRiskResponse(items=[IndustryRiskProfile(**r) for r in rows], year=year)
 
 
 @router.get("/analytics/geographic-heatmap", response_model=GeographicHeatmapResponse)
@@ -152,13 +132,9 @@ async def get_geographic_heatmap_analytics(
     db: AsyncSession = Depends(get_session),
 ) -> GeographicHeatmapResponse:
     """Get geographic threat heatmap by state."""
-    try:
-        analytics = IC3Analytics(db)
-        rows = await analytics.get_geographic_threat_heatmap(year=year)
-        return GeographicHeatmapResponse(items=[GeographicThreat(**r) for r in rows], year=year)
-    except Exception as e:  # pragma: no cover
-        logger.exception("Error in IC3 geographic-heatmap analytics: %s", e)
-        raise HTTPException(status_code=503, detail="Database unavailable.") from e
+    analytics = IC3Analytics(db)
+    rows = await analytics.get_geographic_threat_heatmap(year=year)
+    return GeographicHeatmapResponse(items=[GeographicThreat(**r) for r in rows], year=year)
 
 
 @router.get("/analytics/temporal-trends", response_model=TemporalTrendResponse)
@@ -173,20 +149,16 @@ async def get_temporal_trends_analytics(
     """Get temporal trends across years."""
     if year_from is not None and year_to is not None and year_from > year_to:
         raise HTTPException(status_code=422, detail="year_from must be <= year_to")
-    try:
-        analytics = IC3Analytics(db)
-        rows = await analytics.get_temporal_trends(
-            attack_type=attack_type,
-            year_from=year_from,
-            year_to=year_to,
-        )
-        return TemporalTrendResponse(
-            items=[TemporalTrend(**r) for r in rows],
-            attack_type=attack_type,
-        )
-    except Exception as e:  # pragma: no cover
-        logger.exception("Error in IC3 temporal-trends analytics: %s", e)
-        raise HTTPException(status_code=503, detail="Database unavailable.") from e
+    analytics = IC3Analytics(db)
+    rows = await analytics.get_temporal_trends(
+        attack_type=attack_type,
+        year_from=year_from,
+        year_to=year_to,
+    )
+    return TemporalTrendResponse(
+        items=[TemporalTrend(**r) for r in rows],
+        attack_type=attack_type,
+    )
 
 
 @router.get("/analytics/sector-attack-matrix", response_model=SectorAttackMatrixResponse)
@@ -195,16 +167,12 @@ async def get_sector_attack_matrix_analytics(
     db: AsyncSession = Depends(get_session),
 ) -> SectorAttackMatrixResponse:
     """Get sector vs attack type matrix for risk assessment."""
-    try:
-        analytics = IC3Analytics(db)
-        rows = await analytics.get_sector_attack_matrix(year=year)
-        return SectorAttackMatrixResponse(
-            items=[SectorAttackCombination(**r) for r in rows],
-            year=year,
-        )
-    except Exception as e:  # pragma: no cover
-        logger.exception("Error in IC3 sector-attack-matrix analytics: %s", e)
-        raise HTTPException(status_code=503, detail="Database unavailable.") from e
+    analytics = IC3Analytics(db)
+    rows = await analytics.get_sector_attack_matrix(year=year)
+    return SectorAttackMatrixResponse(
+        items=[SectorAttackCombination(**r) for r in rows],
+        year=year,
+    )
 
 
 @router.get("/analytics/dashboard-summary", response_model=DashboardSummary)
@@ -213,10 +181,6 @@ async def get_dashboard_summary_analytics(
     db: AsyncSession = Depends(get_session),
 ) -> DashboardSummary:
     """Get executive dashboard summary for SMB threat intelligence."""
-    try:
-        analytics = IC3Analytics(db)
-        summary_dict = await analytics.get_summary_dashboard(year=year)
-        return DashboardSummary(**summary_dict)
-    except Exception as e:  # pragma: no cover
-        logger.exception("Error in IC3 dashboard-summary analytics: %s", e)
-        raise HTTPException(status_code=503, detail="Database unavailable.") from e
+    analytics = IC3Analytics(db)
+    summary_dict = await analytics.get_summary_dashboard(year=year)
+    return DashboardSummary(**summary_dict)
