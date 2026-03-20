@@ -47,9 +47,6 @@ async def list_ic3_incidents(
     sort_order: Annotated[
         Literal["asc", "desc"], Query(alias="sort_order", description="Sort direction")
     ] = "desc",
-    search: Annotated[
-        str | None, Query(description="Search attack type or sector (partial match)")
-    ] = None,
     attack_type: Annotated[
         str | None, Query(alias="attack_type", description="Filter by attack type")
     ] = None,
@@ -73,7 +70,6 @@ async def list_ic3_incidents(
             page_size,
             sort_by,
             sort_order,
-            search=search,
             attack_type=attack_type,
             state=state,
             year=year,
@@ -142,8 +138,12 @@ async def get_temporal_trends_analytics(
     attack_type: Annotated[
         str | None, Query(description="Filter by attack type (optional)")
     ] = None,
-    year_from: Annotated[int | None, Query(description="Start year (inclusive)")] = None,
-    year_to: Annotated[int | None, Query(description="End year (inclusive)")] = None,
+    year_from: Annotated[
+        int | None, Query(description="Start year for range filter (optional)")
+    ] = None,
+    year_to: Annotated[
+        int | None, Query(description="End year for range filter (optional)")
+    ] = None,
     db: AsyncSession = Depends(get_session),
 ) -> TemporalTrendResponse:
     """Get temporal trends across years."""
