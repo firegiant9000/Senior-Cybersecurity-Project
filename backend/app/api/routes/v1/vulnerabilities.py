@@ -14,6 +14,7 @@ from app.repositories.exploited_vuln import (
 from app.schemas.vulnerability import (
     ALLOWED_SORT_FIELDS,
     ExploitedVulnListResponse,
+    RiskScoreStatsResponse,
     SeveritySummaryResponse,
 )
 
@@ -116,6 +117,25 @@ async def exploited_severity_summary(
     except Exception as exc:  # pragma: no cover - defensive fallback
         logger.exception("Unhandled error in severity summary: %s", exc)
         raise HTTPException(status_code=503, detail="Database unavailable.") from exc
+
+
+@router.get("/risk-scored/stats", response_model=RiskScoreStatsResponse)
+async def get_risk_score_stats(
+    data_source: Annotated[
+        Literal["all", "kev", "nvd"],
+        Query(
+            alias="data_source",
+            description="Filter by source: all, kev, or nvd",
+        ),
+    ] = "all",
+    repo: JsonExploitedVulnRepository | SqlExploitedVulnRepository = Depends(get_exploited_repo),
+) -> RiskScoreStatsResponse:
+    """Return full-dataset risk score distribution stats (not paginated)."""
+    try:
+        return await repo.risk_score_stats(data_source=data_source)
+    except SQLAlchemyError as exc:
+        logger.error("Database error in risk-score stats: %s", exc)
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
 @router.get("/risk-scored", response_model=ExploitedVulnListResponse)
