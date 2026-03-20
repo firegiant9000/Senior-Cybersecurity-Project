@@ -1,0 +1,323 @@
+// @ts-nocheck
+import React, { useState, useMemo, Suspense, lazy } from 'react';
+import './Dashboard.css';
+import { useDarkMode } from './hooks/useDarkMode';
+import StatCard from './components/StatCard';
+import ComplianceStatusBars from './components/ComplianceStatusBars';
+import CyberSecurityMap from './components/CyberSecurityMap';
+import MalwareBarChart from './components/MalwareBarChart';
+import ProgressGauges from './components/ProgressGauges';
+import IncidentManagementChart from './components/IncidentManagementChart';
+import CyberRisksTiles from './components/CyberRisksTiles';
+import WidgetErrorBoundary from './components/WidgetErrorBoundary';
+import SectorAttackHeatmap from './components/SectorAttackHeatmap';
+import WidgetSkeleton from './components/WidgetSkeleton';
+import DataFreshness from './components/DataFreshness';
+import { useDashboardData } from './hooks/useDashboardData';
+
+// Tab components are lazy-loaded so they are excluded from the initial bundle
+const EconomicsTable = lazy(() => import('./components/EconomicsTable'));
+const CisaKevTable = lazy(() => import('./components/CisaKevTable'));
+const NvdTable = lazy(() => import('./components/NvdTable'));
+const IC3Table = lazy(() => import('./components/IC3Table'));
+const RiskScoringTable = lazy(() => import('./components/RiskScoringTable'));
+const ThreatIntelTab = lazy(() => import('./components/ThreatIntelTab'));
+const TrendsTab = lazy(() => import('./components/TrendsTab'));
+const AlertsFeedTab = lazy(() => import('./components/AlertsFeedTab'));
+const VictimProfileTab = lazy(() => import('./components/VictimProfileTab'));
+
+const API_BASE_URL =
+    (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env
+        .VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
+
+function yoyChange(curr: number | undefined, prev: number | undefined): string | undefined {
+    if (!curr || !prev || prev === 0) return undefined;
+    const pct = ((curr - prev) / prev) * 100;
+    return `${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%`;
+}
+
+function fmtCurrency(v: number | null | undefined): string {
+    if (v === undefined || v === null) return '—';
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        maximumFractionDigits: 0,
+    }).format(v);
+}
+
+const Dashboard: React.FC = () => {
+    const [activeTab, setActiveTab] = useState('overview');
+    const [dark, toggleDark] = useDarkMode();
+    const { data: dashboardData, loading: dashboardLoading, loadingHeavy: dashboardLoadingHeavy, errors: dashboardErrors, lastUpdated, refresh } = useDashboardData();
+
+    // ── Year-over-year change helpers ────────────────────────────────────────
+    const sortedTrends = useMemo(
+        () => [...dashboardData.temporalTrends].sort((a, b) => b.year - a.year),
+        [dashboardData.temporalTrends]
+    );
+    const thisYear = sortedTrends[0];
+    const lastYear = sortedTrends[1];
+
+    const complaintChange = useMemo(
+        () => yoyChange(thisYear?.complaint_count, lastYear?.complaint_count),
+        [thisYear?.complaint_count, lastYear?.complaint_count]
+    );
+    const lossChange = useMemo(
+        () => yoyChange(thisYear?.total_loss, lastYear?.total_loss),
+        [thisYear?.total_loss, lastYear?.total_loss]
+    );
+
+    return (
+        <div className="dashboard-container">
+            {/* Header */}
+            <header className="dashboard-header">
+                <h1>Hacker Tracker</h1>
+                <div className="header-buttons">
+                    <button className="dark-mode-btn" onClick={toggleDark} title="Toggle dark mode">
+                        {dark ? '☀' : '🌙'}
+                    </button>
+                    <button>Settings</button>
+                    <button>Log In</button>
+                    <button>Sign Up</button>
+                </div>
+            </header>
+
+            {/* Tabs */}
+            <div className="tabs-container">
+                <button
+                    className={`tab ${activeTab === 'overview' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('overview')}
+                >
+                    Overview
+                </button>
+                <button
+                    className={`tab ${activeTab === 'economics' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('economics')}
+                >
+                    Economics
+                </button>
+                <button
+                    className={`tab ${activeTab === 'riskScoring' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('riskScoring')}
+                >
+                    Risk Scoring
+                </button>
+                <button
+                    className={`tab ${activeTab === 'cisa' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('cisa')}
+                >
+                    CISA KEV
+                </button>
+                <button
+                    className={`tab ${activeTab === 'nvd' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('nvd')}
+                >
+                    NVD
+                </button>
+                <button
+                    className={`tab ${activeTab === 'ic3' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('ic3')}
+                >
+                    IC3
+                </button>
+                <button
+                    className={`tab ${activeTab === 'threatIntel' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('threatIntel')}
+                >
+                    Threat Intelligence
+                </button>
+                <button
+                    className={`tab ${activeTab === 'trends' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('trends')}
+                >
+                    Trends
+                </button>
+                <button
+                    className={`tab ${activeTab === 'alerts' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('alerts')}
+                >
+                    Alerts Feed
+                </button>
+                <button
+                    className={`tab ${activeTab === 'victimProfile' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('victimProfile')}
+                >
+                    Victim Profile
+                </button>
+            </div>
+
+            {/* Main Content */}
+            <main className="dashboard-content">
+                {activeTab === 'overview' && (
+                    <>
+                        {/* Toolbar */}
+                        <div className="overview-toolbar">
+                            <DataFreshness />
+                            <button className="overview-refresh-btn" onClick={refresh}>
+                                ↻ Refresh
+                            </button>
+                            {lastUpdated && (
+                                <span className="overview-last-updated">
+                                    Updated {lastUpdated.toLocaleTimeString()}
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Non-fatal partial errors */}
+                        {dashboardErrors.length > 0 && (
+                            <div className="overview-partial-errors">
+                                ⚠ Some widgets failed to load: {dashboardErrors.join(' · ')}
+                            </div>
+                        )}
+
+                        <div className="dashboard-grid">
+                            {/* Top Row */}
+                            <WidgetErrorBoundary title="Cyber Security Map">
+                                <div className="card map-widget chart-widget">
+                                    <span className="widget-title">Cyber Security</span>
+                                    <div className="chart-body">
+                                        <CyberSecurityMap
+                                            data={dashboardData.geographicThreats}
+                                            loading={dashboardLoadingHeavy}
+                                        />
+                                    </div>
+                                </div>
+                            </WidgetErrorBoundary>
+                            <WidgetErrorBoundary title="Intrusion Attempts">
+                                <div className="card malware-widget chart-widget">
+                                    <span className="widget-title">Intrusion Attempts by Malware Type</span>
+                                    <div className="chart-body">
+                                        <MalwareBarChart
+                                            data={dashboardData.attackTypes}
+                                            loading={dashboardLoading}
+                                        />
+                                    </div>
+                                </div>
+                            </WidgetErrorBoundary>
+                            {dashboardLoading ? (
+                                <>
+                                    <WidgetErrorBoundary title="Total Complaints">
+                                        <StatCard title="Total Complaints" value="Loading…" valueColor="#d32f2f" />
+                                    </WidgetErrorBoundary>
+                                    <WidgetErrorBoundary title="Total Losses">
+                                        <StatCard title="Total Losses" value="Loading…" valueColor="#3f51b5" />
+                                    </WidgetErrorBoundary>
+                                </>
+                            ) : dashboardData.summary ? (
+                                <>
+                                    <WidgetErrorBoundary title="Total Complaints">
+                                        <StatCard
+                                            title="Total Complaints"
+                                            value={dashboardData.summary.total_complaints}
+                                            valueColor="#d32f2f"
+                                            change={complaintChange}
+                                            changeNote={thisYear ? `vs ${thisYear.year - 1}` : undefined}
+                                        />
+                                    </WidgetErrorBoundary>
+                                    <WidgetErrorBoundary title="Total Losses">
+                                        <StatCard
+                                            title="Total Losses"
+                                            value={fmtCurrency(dashboardData.summary.total_losses)}
+                                            valueColor="#3f51b5"
+                                            change={lossChange}
+                                            changeNote={thisYear ? `vs ${thisYear.year - 1}` : undefined}
+                                        />
+                                    </WidgetErrorBoundary>
+                                </>
+                            ) : null}
+
+                            {/* Middle Row */}
+                            <WidgetErrorBoundary title="Progression Gauges">
+                                <ProgressGauges
+                                    data={dashboardData.severityDistribution}
+                                    loading={dashboardLoading}
+                                />
+                            </WidgetErrorBoundary>
+                            <WidgetErrorBoundary title="Compliance Status">
+                                <ComplianceStatusBars />
+                            </WidgetErrorBoundary>
+                            {dashboardLoading ? (
+                                <>
+                                    <WidgetErrorBoundary title="Average Loss">
+                                        <StatCard title="Average Loss" value="Loading…" valueColor="#00bcd4" />
+                                    </WidgetErrorBoundary>
+                                    <WidgetErrorBoundary title="States Affected">
+                                        <StatCard title="States Affected" value="Loading…" valueColor="#e65100" />
+                                    </WidgetErrorBoundary>
+                                </>
+                            ) : dashboardData.summary ? (
+                                <>
+                                    <WidgetErrorBoundary title="Average Loss">
+                                        <StatCard
+                                            title="Average Loss"
+                                            value={fmtCurrency(dashboardData.summary.avg_loss_per_incident)}
+                                            valueColor="#00bcd4"
+                                        />
+                                    </WidgetErrorBoundary>
+                                    <WidgetErrorBoundary title="States Affected">
+                                        <StatCard
+                                            title="States Affected"
+                                            value={dashboardData.summary.state_count}
+                                            valueColor="#e65100"
+                                        />
+                                    </WidgetErrorBoundary>
+                                </>
+                            ) : null}
+
+                            {/* Bottom Row */}
+                            <WidgetErrorBoundary title="Incident Management">
+                                <div className="card incident-widget chart-widget">
+                                    <span className="widget-title">Incident Management</span>
+                                    <div className="chart-body">
+                                        <IncidentManagementChart
+                                            data={dashboardData.sectorAttackMatrix}
+                                            loading={dashboardLoadingHeavy}
+                                        />
+                                    </div>
+                                </div>
+                            </WidgetErrorBoundary>
+                            <WidgetErrorBoundary title="Top Cyber Security Risks">
+                                <div className="card risks-widget chart-widget">
+                                    <span className="widget-title">Top Cyber Security Risks</span>
+                                    <div className="chart-body">
+                                        <CyberRisksTiles
+                                            data={dashboardData.attackTypes}
+                                            loading={dashboardLoading}
+                                        />
+                                    </div>
+                                </div>
+                            </WidgetErrorBoundary>
+
+                            {/* Row 4 — Sector × Attack Heatmap */}
+                            <WidgetErrorBoundary title="Sector × Attack Heatmap">
+                                <div className="card heatmap-widget chart-widget">
+                                    <span className="widget-title">Sector × Attack Type Heatmap</span>
+                                    <div className="chart-body">
+                                        <SectorAttackHeatmap
+                                            data={dashboardData.sectorAttackMatrix}
+                                            loading={dashboardLoadingHeavy}
+                                        />
+                                    </div>
+                                </div>
+                            </WidgetErrorBoundary>
+                        </div>
+                    </>
+                )}
+
+                <Suspense fallback={<WidgetSkeleton />}>
+                    {activeTab === 'economics' && <EconomicsTable apiBaseUrl={API_BASE_URL} />}
+                    {activeTab === 'riskScoring' && <RiskScoringTable apiBaseUrl={API_BASE_URL} />}
+                    {activeTab === 'cisa' && <CisaKevTable apiBaseUrl={API_BASE_URL} />}
+                    {activeTab === 'nvd' && <NvdTable apiBaseUrl={API_BASE_URL} />}
+                    {activeTab === 'ic3' && <IC3Table apiBaseUrl={API_BASE_URL} />}
+                    {activeTab === 'threatIntel' && <ThreatIntelTab />}
+                    {activeTab === 'trends' && <TrendsTab />}
+                    {activeTab === 'alerts' && <AlertsFeedTab />}
+                    {activeTab === 'victimProfile' && <VictimProfileTab />}
+                </Suspense>
+            </main>
+        </div>
+    );
+};
+
+export default Dashboard;
