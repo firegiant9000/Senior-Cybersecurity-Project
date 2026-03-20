@@ -39,6 +39,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.db.base import Base
 from app.db.models import IC3Incident
+from app.ingestors.ic3_real import get_sector_weights
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,7 @@ IC3_REPORT_URLS = {
     2024: "https://www.ic3.gov/Media/PDF/AnnualReport/2024_IC3Report.pdf",
     2023: "https://www.ic3.gov/Media/PDF/AnnualReport/2023_IC3Report.pdf",
     2022: "https://www.ic3.gov/Media/PDF/AnnualReport/2022_IC3Report.pdf",
+    2021: "https://www.ic3.gov/Media/PDF/AnnualReport/2021_IC3Report.pdf",
 }
 
 # Common attack types tracked by IC3 (based on official categories)
@@ -97,69 +99,73 @@ async def fetch_ic3_pdf(year: int) -> bytes | None:
         return None
 
 
+def _is_skip_label(text: str) -> bool:
+    """Return True if *text* is a header / footer label, not a crime type."""
+    low = text.lower().strip()
+    skip_phrases = [
+        "crime type", "by complaint", "by loss", "total", "descriptors",
+        "complaint count", "loss amount", "subject", "annual report",
+        "table", "page", "continued", "internet crime", "ic3",
+    ]
+    return any(p in low for p in skip_phrases) or len(low) < 3
+
+
 def parse_crime_type_table(pdf_pages) -> list[dict]:
     """Extract crime type statistics from IC3 PDF.
 
-    FBI IC3 PDFs have crime types split across pages 9-10:
-    - Page 9: Crime types by complaint count
-    - Page 10: Crime types by loss amount
-    Tables are split into many 1-2 row tables.
-    
+    Scans **all** pages for 2-column tables whose rows look like
+    ``[crime_type_name, numeric_value]``.  This is resilient to year-
+    over-year layout changes (different page numbers, merged tables, etc.).
+
     Returns:
         List of dicts with attack_type, complaint_count, total_loss
     """
-    # Store complaint counts and losses separately
-    complaint_data = {}  # {crime_type: count}
-    loss_data = {}  # {crime_type: loss}
-    
-    # Scan pages 8-12 (0-indexed pages 7-11) for crime type data
-    for page_num in range(min(7, len(pdf_pages)), min(12, len(pdf_pages))):
-        page = pdf_pages[page_num]
+    complaint_data: dict[str, int] = {}
+    loss_data: dict[str, float] = {}
+
+    for page in pdf_pages:
         tables = page.extract_tables()
-        
+
         for table in tables:
-            if not table or len(table) == 0:
+            if not table:
                 continue
-            
-            # Each table is 1-2 rows: [crime_type, value]
+
             for row in table:
                 if not row or len(row) < 2:
                     continue
-                
-                # Clean crime type name
+
                 crime_type = str(row[0]).strip() if row[0] else ""
                 value_str = str(row[1]).strip() if row[1] else ""
-                
-                # Skip empty or header rows
+
                 if not crime_type or not value_str:
                     continue
-                if crime_type.lower() in ["crime type", "by complaint count", "by complaint loss"]:
+                if _is_skip_label(crime_type):
                     continue
-                    
-                # Determine if this is complaint count or loss based on value format
-                value_clean = value_str.replace("$", "").replace(",", "")
-                
+
+                value_clean = value_str.replace("$", "").replace(",", "").strip()
+
                 try:
                     value = float(value_clean)
-                    
-                    # If value has $ or is very large (>1M), it's a loss amount
-                    if "$" in value_str or value > 1_000_000:
-                        loss_data[crime_type] = value
-                    else:
-                        # Otherwise it's a complaint count
-                        complaint_data[crime_type] = int(value)
                 except (ValueError, TypeError):
                     continue
-    
+
+                # Heuristic: values containing '$' or > 1 M are loss amounts
+                if "$" in value_str or value > 1_000_000:
+                    # Keep the larger value if we see duplicates
+                    if crime_type not in loss_data or value > loss_data[crime_type]:
+                        loss_data[crime_type] = value
+                else:
+                    if crime_type not in complaint_data or value > complaint_data[crime_type]:
+                        complaint_data[crime_type] = int(value)
+
     # Merge complaint and loss data
-    crime_stats = []
+    crime_stats: list[dict] = []
     all_crime_types = set(complaint_data.keys()) | set(loss_data.keys())
-    
+
     for crime_type in all_crime_types:
         complaint_count = complaint_data.get(crime_type, 0)
         total_loss = loss_data.get(crime_type, 0.0)
-        
-        # Only include if we have at least one metric
+
         if complaint_count > 0 or total_loss > 0:
             crime_stats.append({
                 "attack_type": crime_type,
@@ -167,60 +173,96 @@ def parse_crime_type_table(pdf_pages) -> list[dict]:
                 "total_loss": total_loss,
                 "avg_loss": total_loss / complaint_count if complaint_count > 0 else 0.0,
             })
-    
+
     return crime_stats
+
+
+_US_STATE_CODES = {
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL",
+    "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME",
+    "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH",
+    "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI",
+    "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI",
+    "WY",
+}
+
+
+def _looks_like_state_table(table: list[list]) -> bool:
+    """Heuristic: does this table contain US state codes in the first column?"""
+    state_hits = 0
+    for row in table[1:6]:  # check first few data rows
+        if row and row[0]:
+            val = str(row[0]).strip().upper()
+            if val in _US_STATE_CODES:
+                state_hits += 1
+    return state_hits >= 2
 
 
 def parse_state_statistics(pdf_pages) -> list[dict]:
     """Extract state-level statistics from IC3 PDF.
 
-    Looks for tables containing:
-    - State
-    - Victim Count
-    - Loss Amount
-    
+    Uses two heuristics to find state tables:
+    1. Header row contains 'state' + 'victim' or 'loss'
+    2. First column contains recognisable 2-letter US state codes
+
     Returns:
         List of dicts with state, complaint_count, total_loss
     """
-    state_stats = []
-    
+    state_stats: list[dict] = []
+    seen_states: set[str] = set()
+
     for page in pdf_pages:
         tables = page.extract_tables()
-        
+
         for table in tables:
-            if not table:
+            if not table or len(table) < 2:
                 continue
-            
+
             header = table[0] if table else []
             header_text = " ".join([str(cell).lower() for cell in header if cell])
-            
-            # Check if this looks like a state table
-            if "state" in header_text and ("victim" in header_text or "loss" in header_text):
-                for row in table[1:]:
-                    if not row or len(row) < 3:
+
+            is_state_table = (
+                ("state" in header_text and ("victim" in header_text or "loss" in header_text or "count" in header_text))
+                or _looks_like_state_table(table)
+            )
+            if not is_state_table:
+                continue
+
+            for row in table[1:]:
+                if not row or len(row) < 2:
+                    continue
+
+                state = str(row[0]).strip().upper() if row[0] else ""
+
+                if state not in _US_STATE_CODES or state in seen_states:
+                    continue
+
+                # Try to extract victim count and loss from remaining columns
+                nums: list[float] = []
+                for cell in row[1:]:
+                    if not cell:
                         continue
-                    
-                    state = str(row[0]).strip() if row[0] else ""
-                    victim_count_str = str(row[1]).replace(",", "") if row[1] else "0"
-                    loss_str = str(row[2]).replace("$", "").replace(",", "") if row[2] else "0"
-                    
-                    # Skip headers, totals, and non-state codes
-                    if not state or len(state) != 2 or state.lower() in ["state", "total"]:
-                        continue
-                    
+                    cleaned = str(cell).replace("$", "").replace(",", "").strip()
                     try:
-                        victim_count = int(victim_count_str)
-                        total_loss = float(loss_str)
-                        
-                        if victim_count > 0 and total_loss > 0:
-                            state_stats.append({
-                                "state": state.upper(),
-                                "complaint_count": victim_count,
-                                "total_loss": total_loss,
-                            })
+                        nums.append(float(cleaned))
                     except (ValueError, TypeError):
                         continue
-    
+
+                if not nums:
+                    continue
+
+                # First number is usually victim/complaint count, second is loss
+                victim_count = int(nums[0]) if nums else 0
+                total_loss = nums[1] if len(nums) > 1 else 0.0
+
+                if victim_count > 0:
+                    state_stats.append({
+                        "state": state,
+                        "complaint_count": victim_count,
+                        "total_loss": total_loss,
+                    })
+                    seen_states.add(state)
+
     return state_stats
 
 
@@ -300,13 +342,19 @@ async def ingest_ic3_real_data(db_url: str, years: list[int] | None = None) -> i
             print(f"\n{'='*60}")
             print(f"Processing IC3 data for {year}")
             print(f"{'='*60}")
-            
+
+            # Clear existing data for this year to avoid duplicates on re-run
+            from sqlalchemy import delete as sa_delete
+            await session.execute(
+                sa_delete(IC3Incident).where(IC3Incident.year == year)
+            )
+
             # Download PDF
             pdf_bytes = await fetch_ic3_pdf(year)
             if not pdf_bytes:
                 print(f"⚠️  Skipping {year} - PDF download failed")
                 continue
-            
+
             # Parse PDF
             crime_stats, state_stats = await parse_ic3_pdf(pdf_bytes, year)
             
@@ -314,83 +362,49 @@ async def ingest_ic3_real_data(db_url: str, years: list[int] | None = None) -> i
                 print(f"⚠️  Skipping {year} - no crime data extracted from PDF")
                 continue
             
-            # If no state breakdown available, distribute across all 50 states
-            if not state_stats:
-                print(f"ℹ️  No state breakdown found, distributing across 50 US states")
-                
-                # All 50 US states (proportional distribution by population)
-                states = [
-                    ("California", 0.115), ("Texas", 0.092), ("Florida", 0.067), 
-                    ("New York", 0.060), ("Pennsylvania", 0.038), ("Illinois", 0.038),
-                    ("Ohio", 0.035), ("Georgia", 0.033), ("North Carolina", 0.032),
-                    ("Michigan", 0.030), ("New Jersey", 0.028), ("Virginia", 0.027),
-                    ("Washington", 0.024), ("Arizona", 0.023), ("Massachusetts", 0.021),
-                    ("Tennessee", 0.021), ("Indiana", 0.021), ("Maryland", 0.019),
-                    ("Missouri", 0.019), ("Wisconsin", 0.017), ("Colorado", 0.017),
-                    ("Minnesota", 0.017), ("South Carolina", 0.016), ("Alabama", 0.016),
-                    ("Louisiana", 0.014), ("Kentucky", 0.014), ("Oregon", 0.013),
-                    ("Oklahoma", 0.012), ("Connecticut", 0.011), ("Utah", 0.011),
-                    ("Nevada", 0.011), ("Arkansas", 0.009), ("Kansas", 0.009),
-                    ("Mississippi", 0.009), ("New Mexico", 0.007), ("Nebraska", 0.006),
-                    ("New Hampshire", 0.004), ("West Virginia", 0.006), ("Idaho", 0.005),
-                    ("Hawaii", 0.004), ("Maine", 0.004), ("Montana", 0.003),
-                    ("Delaware", 0.003), ("South Dakota", 0.003), ("North Dakota", 0.002),
-                    ("Alaska", 0.002), ("Vermont", 0.002), ("Wyoming", 0.002),
-                    ("Washington DC", 0.002),
+            # Build state shares: either from parsed state data or population estimates
+            from app.ingestors.ic3_real import STATE_POPULATION_SHARES
+
+            if state_stats:
+                total_state_loss = sum(s["total_loss"] for s in state_stats) or 1
+                state_shares = [
+                    (s["state"], s["total_loss"] / total_state_loss)
+                    for s in state_stats
                 ]
-                
-                # Create records for each attack type across all states
-                for crime in crime_stats:
-                    for state, population_share in states:
-                        # Distribute losses and complaints by state population
-                        state_loss = crime["total_loss"] * population_share
-                        state_complaints = max(1, int(crime["complaint_count"] * population_share))
-                        
-                        # Only create record if it has meaningful data
-                        if state_loss >= 100 or state_complaints >= 1:
-                            # Calculate average loss for this state's distributed data
-                            state_avg_loss = state_loss / state_complaints if state_complaints > 0 else 0
-                            
-                            incident = IC3Incident(
-                                year=year,
-                                attack_type=crime["attack_type"],
-                                sector="All",  # IC3 aggregates across sectors
-                                state=state,
-                                complaint_count=state_complaints,
-                                loss_amount=float(state_loss),
-                                avg_loss_per_incident=state_avg_loss,
-                            )
-                            session.add(incident)
-                            incidents_added += 1
-                
-                print(f"✓ Added {incidents_added} incident records for {year} ({len(crime_stats)} crime types × 50 states)")
-                continue
-            
-            # Create matrix: attack_type x state (if state data available)
-            # For each (attack_type, state) pair, create an incident
+            else:
+                print(f"ℹ️  No state breakdown found, distributing across US states by population")
+                state_shares = STATE_POPULATION_SHARES
+
+            year_added = 0
             for crime in crime_stats:
-                for state_data in state_stats:
-                    # Distribute attack type losses proportionally to each state
-                    state_proportion = state_data["total_loss"] / sum(s["total_loss"] for s in state_stats)
-                    attack_loss_in_state = crime["total_loss"] * state_proportion
-                    attack_complaints_in_state = int(crime["complaint_count"] * state_proportion)
-                    
-                    if attack_loss_in_state < 1000 or attack_complaints_in_state < 1:
-                        continue  # Skip tiny values
-                    
-                    incident = IC3Incident(
-                        year=year,
-                        attack_type=crime["attack_type"],
-                        sector="Mixed",  # IC3 doesn't break down by sector in all reports
-                        state=state_data["state"],
-                        complaint_count=attack_complaints_in_state,
-                        loss_amount=float(attack_loss_in_state),
-                        avg_loss_per_incident=crime["avg_loss"],
-                    )
-                    session.add(incident)
-                    incidents_added += 1
-            
-            print(f"✓ Added {incidents_added} incident records for {year}")
+                sector_weights = get_sector_weights(crime["attack_type"])
+
+                for sector, sector_weight in sector_weights:
+                    sector_complaints = max(1, int(crime["complaint_count"] * sector_weight))
+                    sector_loss = crime["total_loss"] * sector_weight
+
+                    for state, state_share in state_shares:
+                        state_complaints = max(1, int(sector_complaints * state_share))
+                        state_loss = sector_loss * state_share
+
+                        if state_loss < 100 and state_complaints <= 1:
+                            continue
+
+                        avg_loss = state_loss / state_complaints if state_complaints > 0 else 0.0
+
+                        session.add(IC3Incident(
+                            year=year,
+                            attack_type=crime["attack_type"],
+                            sector=sector,
+                            state=state,
+                            complaint_count=state_complaints,
+                            loss_amount=float(state_loss),
+                            avg_loss_per_incident=avg_loss,
+                        ))
+                        year_added += 1
+                        incidents_added += 1
+
+            print(f"✓ Added {year_added} incident records for {year} ({len(crime_stats)} crime types × {len(state_shares)} states × sectors)")
         
         await session.commit()
         print(f"\n{'='*60}")
