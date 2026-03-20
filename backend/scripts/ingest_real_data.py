@@ -151,25 +151,21 @@ async def main() -> None:  # noqa: C901
 
     # Ingest IC3 data
     if not args.skip_ic3:
+        from app.ingestors.ic3_real import ingest_ic3_real
+
         years = [int(y.strip()) for y in args.ic3_years.split(",")]
         use_pdf = not args.ic3_fallback  # Use PDF unless --ic3-fallback is set
         print(f"📥 Ingesting IC3 incidents for years {years}...")
         if use_pdf:
             print("   (Fetching from official FBI PDF reports)\n")
         else:
-            print("   (Using hardcoded published data)\n")
-        async with AsyncSessionLocal() as _session:  # type: ignore
+            print("   (Using hardcoded published statistics)\n")
+        async with AsyncSessionLocal() as session:  # type: ignore
             try:
-                if use_pdf:
-                    if ingest_ic3_real_data is None:
-                        raise RuntimeError(
-                            "IC3 enhanced ingestor unavailable. "
-                            "Install optional dependencies and retry."
-                        )
-                    await ingest_ic3_real_data(settings.DATABASE_URL, years=years)
-                else:
-                    print("ℹ️  IC3 fallback mode selected; skipping PDF ingestion")
-                print("✓ IC3 ingestion complete\n")
+                count = await ingest_ic3_real(
+                    session, years=years, use_pdf=use_pdf
+                )
+                print(f"✓ IC3 ingestion complete ({count} records)\n")
             except (OSError, RuntimeError, ValueError) as e:
                 print(f"✗ IC3 ingestion error: {e}\n")
 
