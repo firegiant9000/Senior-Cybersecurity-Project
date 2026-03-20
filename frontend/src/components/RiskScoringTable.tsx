@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 
 interface RiskScoredItem {
     id: string;
@@ -20,6 +20,25 @@ interface ApiResponse {
     items: RiskScoredItem[];
 }
 
+interface RiskBand {
+    label: string;
+    min: number;
+    max: number;
+    count: number;
+}
+
+interface TopVendor {
+    vendor: string;
+    avg_risk: number;
+}
+
+interface RiskStatsResponse {
+    bands: RiskBand[];
+    top_vendors: TopVendor[];
+    avg_risk: number;
+    total: number;
+}
+
 const PAGE_SIZE = 10;
 type DataSourceFilter = 'all' | 'kev' | 'nvd';
 
@@ -29,6 +48,7 @@ interface Props {
 
 const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
     const [data, setData] = useState<RiskScoredItem[]>([]);
+    const [stats, setStats] = useState<RiskStatsResponse | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [page, setPage] = useState(1);
@@ -63,54 +83,40 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
         }
     }, [apiBaseUrl]);
 
+    const fetchStats = useCallback(async (source: DataSourceFilter, signal?: AbortSignal) => {
+        try {
+            const params = new URLSearchParams({ data_source: source });
+            const response = await fetch(
+                `${apiBaseUrl}/api/v1/vulnerabilities/risk-scored/stats?${params}`,
+                signal ? { signal } : undefined
+            );
+            if (!response.ok) return;
+            const result: RiskStatsResponse = await response.json();
+            setStats(result);
+        } catch {
+            // Stats are supplementary; don't block the page on failure
+        }
+    }, [apiBaseUrl]);
+
     useEffect(() => {
         const controller = new AbortController();
         fetchData(1, dataSource, controller.signal);
+        fetchStats(dataSource, controller.signal);
         return () => controller.abort();
-    }, [fetchData, dataSource]);
+    }, [fetchData, fetchStats, dataSource]);
 
-    const riskBands = useMemo(() => {
-        const bands = [
-            { label: 'Critical (80-100)', color: '#dc2626', min: 80, max: 100, count: 0 },
-            { label: 'High (60-79)', color: '#f59e0b', min: 60, max: 79, count: 0 },
-            { label: 'Medium (40-59)', color: '#eab308', min: 40, max: 59, count: 0 },
-            { label: 'Low (0-39)', color: '#3b82f6', min: 0, max: 39, count: 0 },
-        ];
-        for (const item of data) {
-            const score = item.risk_score ?? 0;
-            for (const band of bands) {
-                if (score >= band.min && score <= band.max) {
-                    band.count++;
-                    break;
-                }
-            }
-        }
-        return bands;
-    }, [data]);
+    const BAND_COLORS: Record<string, string> = {
+        'Critical (80-100)': '#dc2626',
+        'High (60-79)': '#f59e0b',
+        'Medium (40-59)': '#eab308',
+        'Low (0-39)': '#3b82f6',
+    };
 
-    const maxBandCount = useMemo(() => Math.max(1, ...riskBands.map(b => b.count)), [riskBands]);
-
-    const topVendorsByRisk = useMemo(() => {
-        const vendorMap: Record<string, { total: number; count: number }> = {};
-        for (const item of data) {
-            const v = item.vendor || 'Unknown';
-            if (!vendorMap[v]) vendorMap[v] = { total: 0, count: 0 };
-            vendorMap[v].total += item.risk_score ?? 0;
-            vendorMap[v].count++;
-        }
-        return Object.entries(vendorMap)
-            .map(([vendor, { total: t, count }]) => ({ vendor, avgRisk: t / count }))
-            .sort((a, b) => b.avgRisk - a.avgRisk)
-            .slice(0, 5);
-    }, [data]);
-
-    const maxVendorRisk = useMemo(() => Math.max(1, ...topVendorsByRisk.map(v => v.avgRisk)), [topVendorsByRisk]);
-
-    const avgRiskScore = useMemo(() => {
-        if (data.length === 0) return 0;
-        const sum = data.reduce((acc, item) => acc + (item.risk_score ?? 0), 0);
-        return sum / data.length;
-    }, [data]);
+    const riskBands = stats?.bands ?? [];
+    const maxBandCount = Math.max(1, ...riskBands.map(b => b.count));
+    const topVendorsByRisk = stats?.top_vendors ?? [];
+    const maxVendorRisk = Math.max(1, ...topVendorsByRisk.map(v => v.avg_risk));
+    const avgRiskScore = stats?.avg_risk ?? 0;
 
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -167,7 +173,7 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
                                                 className="risk-bar-fill"
                                                 style={{
                                                     width: `${(band.count / maxBandCount) * 100}%`,
-                                                    backgroundColor: band.color,
+                                                    backgroundColor: BAND_COLORS[band.label] ?? '#3b82f6',
                                                 }}
                                             />
                                         </div>
@@ -185,16 +191,16 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
                                         <div className="risk-bar-track">
                                             <div
                                                 className="risk-bar-fill risk-bar-fill-vendor"
-                                                style={{ width: `${(vendor.avgRisk / maxVendorRisk) * 100}%` }}
+                                                style={{ width: `${(vendor.avg_risk / maxVendorRisk) * 100}%` }}
                                             />
                                         </div>
-                                        <span className="risk-bar-value">{vendor.avgRisk.toFixed(1)}</span>
+                                        <span className="risk-bar-value">{vendor.avg_risk.toFixed(1)}</span>
                                     </div>
                                 ))}
                             </div>
                         </div>
                         <div className="risk-kpi-card">
-                            <div className="risk-kpi-label">Average Risk (page)</div>
+                            <div className="risk-kpi-label">Average Risk</div>
                             <div className="risk-kpi-value">{avgRiskScore.toFixed(1)}</div>
                             <div className="risk-kpi-subtitle">out of 100</div>
                         </div>
