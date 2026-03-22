@@ -19,6 +19,10 @@ const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
     failed: { bg: '#fee2e2', color: '#991b1b' },
 };
 
+function capitalize(s: string): string {
+    return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 function fmtDuration(start: string | null, end: string | null): string {
     if (!start || !end) return '—';
     const ms = new Date(end).getTime() - new Date(start).getTime();
@@ -100,7 +104,7 @@ const PipelineHealthTab: React.FC = () => {
                                     {SOURCE_LABELS[s.source] ?? s.source}
                                 </div>
                                 <div style={{ fontSize: '12px' }}>
-                                    Status: <strong>{s.status ?? 'unknown'}</strong>
+                                    Status: <strong>{capitalize(s.status ?? 'unknown')}</strong>
                                 </div>
                                 <div style={{ fontSize: '12px' }}>
                                     Records: {s.records_ingested?.toLocaleString() ?? '—'}
@@ -163,7 +167,7 @@ const PipelineHealthTab: React.FC = () => {
                                     <th>Status</th>
                                     <th>Started</th>
                                     <th>Duration</th>
-                                    <th>Records</th>
+                                    <th>New Records</th>
                                     <th>Error</th>
                                 </tr>
                             </thead>
@@ -184,7 +188,7 @@ const PipelineHealthTab: React.FC = () => {
                                                     background: style.bg,
                                                     color: style.color,
                                                 }}>
-                                                    {run.status}
+                                                    {capitalize(run.status)}
                                                 </span>
                                             </td>
                                             <td>{fmtTime(run.started_at)}</td>
