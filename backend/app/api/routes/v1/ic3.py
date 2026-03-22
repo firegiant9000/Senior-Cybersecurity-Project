@@ -47,6 +47,9 @@ async def list_ic3_incidents(
     sort_order: Annotated[
         Literal["asc", "desc"], Query(alias="sort_order", description="Sort direction")
     ] = "desc",
+    search: Annotated[
+        str | None, Query(description="Search attack type, sector, state (partial match)")
+    ] = None,
     attack_type: Annotated[
         str | None, Query(alias="attack_type", description="Filter by attack type")
     ] = None,
@@ -70,6 +73,7 @@ async def list_ic3_incidents(
             page_size,
             sort_by,
             sort_order,
+            search=search,
             attack_type=attack_type,
             state=state,
             year=year,

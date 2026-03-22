@@ -9,6 +9,7 @@ from datetime import date
 import httpx
 from pydantic import ValidationError
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -82,16 +83,26 @@ async def upsert_normalized_cve(
         effective_published = max_published_date
 
     if existing is None:
-        db.add(
-            CVE(
-                cve_id=cve_id,
-                description=description,
-                cvss_score=cvss_score,
-                severity=severity,
-                published_date=effective_published,
-            )
-        )
-        return "inserted", True
+        try:
+            async with db.begin_nested():
+                db.add(
+                    CVE(
+                        cve_id=cve_id,
+                        description=description,
+                        cvss_score=cvss_score,
+                        severity=severity,
+                        published_date=effective_published,
+                    )
+                )
+                await db.flush()
+            return "inserted", True
+        except IntegrityError:
+            # Another ingestor inserted this CVE concurrently — fetch and update it.
+            existing = (
+                await db.execute(select(CVE).where(CVE.cve_id == cve_id))
+            ).scalar_one_or_none()
+            if existing is None:
+                return "unchanged", False
 
     changed = _apply_normalized_cve(
         existing,
@@ -356,7 +367,7 @@ def _normalize_nvd_cve(  # noqa: C901
 
 async def ingest_nvd(  # noqa: C901
     db: AsyncSession, start_index: int = 0, max_results: int | None = None
-) -> None:
+) -> int:
     """
     Ingest CVEs from NVD API with pagination support and data normalization.
 
@@ -408,6 +419,13 @@ async def ingest_nvd(  # noqa: C901
                     )
                     use_api_key = False
                     continue
+                if status_code == 429:
+                    logger.warning(
+                        "NVD rate limited at index %s. Committing %s CVEs fetched so far.",
+                        current_index,
+                        total_fetched,
+                    )
+                    break
                 raise
 
             data = resp.json()
@@ -474,3 +492,6 @@ async def ingest_nvd(  # noqa: C901
                 f"Fetched {total_fetched} CVEs, validated {total_validated} "
                 f"(Total available: {total_results})"
             )
+
+    logger.info("NVD ingestion complete: %d fetched, %d validated", total_fetched, total_validated)
+    return total_validated

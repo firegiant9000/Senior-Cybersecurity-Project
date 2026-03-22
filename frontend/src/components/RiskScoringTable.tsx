@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { useDebounce } from '../hooks/useDebounce';
 
 interface RiskScoredItem {
     id: string;
@@ -54,8 +55,10 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
     const [dataSource, setDataSource] = useState<DataSourceFilter>('all');
+    const [searchInput, setSearchInput] = useState('');
+    const debouncedSearch = useDebounce(searchInput);
 
-    const fetchData = useCallback(async (p: number, source: DataSourceFilter, signal?: AbortSignal) => {
+    const fetchData = useCallback(async (p: number, source: DataSourceFilter, search?: string, signal?: AbortSignal) => {
         setLoading(true);
         setError(null);
         try {
@@ -66,6 +69,7 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
                 sort_order: 'desc',
                 data_source: source,
             });
+            if (search) params.set('search', search);
             const response = await fetch(
                 `${apiBaseUrl}/api/v1/vulnerabilities/risk-scored?${params}`,
                 signal ? { signal } : undefined
@@ -100,10 +104,10 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
 
     useEffect(() => {
         const controller = new AbortController();
-        fetchData(1, dataSource, controller.signal);
+        fetchData(1, dataSource, debouncedSearch, controller.signal);
         fetchStats(dataSource, controller.signal);
         return () => controller.abort();
-    }, [fetchData, fetchStats, dataSource]);
+    }, [fetchData, fetchStats, dataSource, debouncedSearch]);
 
     const BAND_COLORS: Record<string, string> = {
         'Critical (80-100)': '#dc2626',
@@ -135,6 +139,16 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
             <h2>Risk Scoring - NVD + KEV Combined ({total} total)</h2>
             <div className="filter-controls">
                 <div className="filter-group">
+                    <label htmlFor="risk-search">CVE ID / Vulnerability</label>
+                    <input
+                        id="risk-search"
+                        type="text"
+                        placeholder="e.g. CVE-2021"
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                    />
+                </div>
+                <div className="filter-group">
                     <label htmlFor="risk-source-filter">Data Source</label>
                     <select
                         id="risk-source-filter"
@@ -146,6 +160,12 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
                         <option value="nvd">NVD</option>
                     </select>
                 </div>
+                <button
+                    className="reset-filters-btn"
+                    onClick={() => { setSearchInput(''); setDataSource('all'); }}
+                >
+                    Reset Filters
+                </button>
             </div>
             <div className="pagination-info">
                 Showing {data.length} of {total} vulnerabilities with calculated risk scores
@@ -206,6 +226,7 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
                         </div>
                     </div>
 
+                    <div className="table-scroll-wrapper">
                     <table className="data-table cisa-table">
                         <thead>
                             <tr>
@@ -251,17 +272,18 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
                             ))}
                         </tbody>
                     </table>
+                    </div>
                     <div className="pagination-controls">
                         <button
                             disabled={page === 1}
-                            onClick={() => fetchData(page - 1, dataSource)}
+                            onClick={() => fetchData(page - 1, dataSource, debouncedSearch)}
                         >
                             &larr; Previous
                         </button>
                         <span>Page {page} of {totalPages}</span>
                         <button
                             disabled={page >= totalPages}
-                            onClick={() => fetchData(page + 1, dataSource)}
+                            onClick={() => fetchData(page + 1, dataSource, debouncedSearch)}
                         >
                             Next &rarr;
                         </button>

@@ -30,6 +30,9 @@ interface Props {
     apiBaseUrl: string;
 }
 
+type SortField = 'state' | 'smb_count' | 'avg_revenue';
+type SortOrder = 'asc' | 'desc';
+
 const EconomicsTable: React.FC<Props> = ({ apiBaseUrl }) => {
     const [data, setData] = useState<EconomicsItem[]>([]);
     const [loading, setLoading] = useState(false);
@@ -41,15 +44,28 @@ const EconomicsTable: React.FC<Props> = ({ apiBaseUrl }) => {
     const [searchInput, setSearchInput] = useState('');
     const debouncedSearch = useDebounce(searchInput);
 
-    const fetchData = useCallback(async (p: number, search: string, signal?: AbortSignal) => {
+    // Sort state
+    const [sortBy, setSortBy] = useState<SortField>('smb_count');
+    const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+
+    const handleSort = (field: SortField) => {
+        if (sortBy === field) {
+            setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortBy(field);
+            setSortOrder('desc');
+        }
+    };
+
+    const fetchData = useCallback(async (p: number, search: string, sb: SortField, so: SortOrder, signal?: AbortSignal) => {
         setLoading(true);
         setError(null);
         try {
             const params = new URLSearchParams({
                 page: String(p),
                 page_size: String(PAGE_SIZE),
-                sort_by: 'smb_count',
-                sort_order: 'desc',
+                sort_by: sb,
+                sort_order: so,
             });
             if (search) params.set('search', search);
 
@@ -69,12 +85,12 @@ const EconomicsTable: React.FC<Props> = ({ apiBaseUrl }) => {
         }
     }, [apiBaseUrl]);
 
-    // Reset to page 1 when filters change
+    // Reset to page 1 when filters or sort change
     useEffect(() => {
         const controller = new AbortController();
-        fetchData(1, debouncedSearch, controller.signal);
+        fetchData(1, debouncedSearch, sortBy, sortOrder, controller.signal);
         return () => controller.abort();
-    }, [debouncedSearch, fetchData]);
+    }, [debouncedSearch, sortBy, sortOrder, fetchData]);
 
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -93,6 +109,12 @@ const EconomicsTable: React.FC<Props> = ({ apiBaseUrl }) => {
                         onChange={(e) => setSearchInput(e.target.value)}
                     />
                 </div>
+                <button
+                    className="reset-filters-btn"
+                    onClick={() => { setSearchInput(''); setSortBy('smb_count'); setSortOrder('desc'); }}
+                >
+                    Reset Filters
+                </button>
             </div>
 
             <div className="pagination-info">Showing {data.length} of {total} states</div>
@@ -107,12 +129,25 @@ const EconomicsTable: React.FC<Props> = ({ apiBaseUrl }) => {
 
             {data.length > 0 && (
                 <>
+                    <div className="table-scroll-wrapper">
                     <table className="data-table">
                         <thead>
                             <tr>
-                                <th>State</th>
-                                <th>Small Business Count</th>
-                                <th>Average Revenue</th>
+                                <th className="sortable-th" aria-sort={sortBy === 'state' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                                    <button type="button" onClick={() => handleSort('state')}>
+                                        State {sortBy === 'state' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                                    </button>
+                                </th>
+                                <th className="sortable-th" aria-sort={sortBy === 'smb_count' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                                    <button type="button" onClick={() => handleSort('smb_count')}>
+                                        Small Business Count {sortBy === 'smb_count' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                                    </button>
+                                </th>
+                                <th className="sortable-th" aria-sort={sortBy === 'avg_revenue' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                                    <button type="button" onClick={() => handleSort('avg_revenue')}>
+                                        Average Revenue {sortBy === 'avg_revenue' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                                    </button>
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
@@ -125,12 +160,13 @@ const EconomicsTable: React.FC<Props> = ({ apiBaseUrl }) => {
                             ))}
                         </tbody>
                     </table>
+                    </div>
                     <div className="pagination-controls">
-                        <button disabled={page === 1} onClick={() => fetchData(page - 1, debouncedSearch)}>
+                        <button disabled={page === 1} onClick={() => fetchData(page - 1, debouncedSearch, sortBy, sortOrder)}>
                             &larr; Previous
                         </button>
                         <span>Page {page} of {totalPages}</span>
-                        <button disabled={page >= totalPages} onClick={() => fetchData(page + 1, debouncedSearch)}>
+                        <button disabled={page >= totalPages} onClick={() => fetchData(page + 1, debouncedSearch, sortBy, sortOrder)}>
                             Next &rarr;
                         </button>
                     </div>

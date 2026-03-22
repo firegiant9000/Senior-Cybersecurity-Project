@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import AsyncGenerator
+from uuid import uuid4
 
 import pytest
 import pytest_asyncio
@@ -23,3 +24,8 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
     """Create test client."""
     async with AsyncClient(app=app, base_url="http://test") as test_client:
         yield test_client
+
+
+def unique_email() -> str:
+    """Generate a unique email for test isolation."""
+    return f"test_{uuid4().hex[:8]}@example.com"

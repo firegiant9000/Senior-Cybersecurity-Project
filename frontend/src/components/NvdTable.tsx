@@ -126,6 +126,12 @@ const NvdTable: React.FC<Props> = ({ apiBaseUrl }) => {
                         ))}
                     </div>
                 </div>
+                <button
+                    className="reset-filters-btn"
+                    onClick={() => { setSearchInput(''); setSelectedSeverities(new Set()); }}
+                >
+                    Reset Filters
+                </button>
             </div>
 
             <div className="table-toolbar">
@@ -153,32 +159,34 @@ const NvdTable: React.FC<Props> = ({ apiBaseUrl }) => {
 
             {data.length > 0 && (
                 <>
-                    <table className="data-table">
-                        <thead>
-                            <tr>
-                                <th>CVE ID</th>
-                                <th>Description</th>
-                                <th>Severity</th>
-                                <th>Score</th>
-                                <th>Published</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {data.map((item) => (
-                                <tr key={item.id}>
-                                    <td className="cve-id">
-                                        <a href={`https://nvd.nist.gov/vuln/detail/${item.id}`} target="_blank" rel="noopener noreferrer">
-                                            {item.id}
-                                        </a>
-                                    </td>
-                                    <td>{item.description.substring(0, 80)}...</td>
-                                    <td>{item.severity_label || 'Unknown'}</td>
-                                    <td>{item.severity_score || 'N/A'}</td>
-                                    <td>{item.published_date}</td>
+                    <div className="table-scroll-wrapper">
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>CVE ID</th>
+                                    <th>Description</th>
+                                    <th>Severity</th>
+                                    <th>Score</th>
+                                    <th>Published</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {data.map((item) => (
+                                    <tr key={item.id}>
+                                        <td className="cve-id">
+                                            <a href={`https://nvd.nist.gov/vuln/detail/${item.id}`} target="_blank" rel="noopener noreferrer">
+                                                {item.id}
+                                            </a>
+                                        </td>
+                                        <td>{item.description.substring(0, 80)}...</td>
+                                        <td>{item.severity_label || 'Unknown'}</td>
+                                        <td>{item.severity_score || 'N/A'}</td>
+                                        <td>{item.published_date}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                     <div className="pagination-controls">
                         <button disabled={page === 1} onClick={() => fetchData(page - 1, debouncedSearch, severityParam)}>
                             &larr; Previous

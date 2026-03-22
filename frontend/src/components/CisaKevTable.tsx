@@ -165,6 +165,12 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
                         ))}
                     </select>
                 </div>
+                <button
+                    className="reset-filters-btn"
+                    onClick={() => { setSearchInput(''); setSeverity('All'); }}
+                >
+                    Reset Filters
+                </button>
             </div>
 
             <div className="table-toolbar">
@@ -224,36 +230,38 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
                         </div>
                     </div>
 
-                    <table className="data-table cisa-table">
-                        <thead>
-                            <tr>
-                                <th>CVE ID</th>
-                                <th>Severity</th>
-                                <th>Score</th>
-                                <th>Vendor</th>
-                                <th>Product</th>
-                                <th>Vulnerability</th>
-                                <th>Date Added</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {data.map((item) => (
-                                <tr key={item.id}>
-                                    <td className="cve-id">
-                                        <a href={`https://www.cve.org/CVERecord?id=${item.id}`} target="_blank" rel="noopener noreferrer">
-                                            {item.id}
-                                        </a>
-                                    </td>
-                                    <td>{item.severity_label || 'Unknown'}</td>
-                                    <td>{item.severity_score ?? 'N/A'}</td>
-                                    <td>{item.vendor}</td>
-                                    <td>{item.product}</td>
-                                    <td className="vuln-name">{item.vulnerability_name.substring(0, 100)}...</td>
-                                    <td>{item.kev_date_added}</td>
+                    <div className="table-scroll-wrapper">
+                        <table className="data-table cisa-table">
+                            <thead>
+                                <tr>
+                                    <th>CVE ID</th>
+                                    <th>Severity</th>
+                                    <th>Score</th>
+                                    <th>Vendor</th>
+                                    <th>Product</th>
+                                    <th>Vulnerability</th>
+                                    <th>Date Added</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {data.map((item) => (
+                                    <tr key={item.id}>
+                                        <td className="cve-id">
+                                            <a href={`https://www.cve.org/CVERecord?id=${item.id}`} target="_blank" rel="noopener noreferrer">
+                                                {item.id}
+                                            </a>
+                                        </td>
+                                        <td>{item.severity_label || 'Unknown'}</td>
+                                        <td>{item.severity_score ?? 'N/A'}</td>
+                                        <td>{item.vendor}</td>
+                                        <td>{item.product}</td>
+                                        <td className="vuln-name">{item.vulnerability_name.substring(0, 100)}...</td>
+                                        <td>{item.kev_date_added}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                     <div className="pagination-controls">
                         <button disabled={page === 1} onClick={() => {
                             pageControllerRef.current?.abort();
