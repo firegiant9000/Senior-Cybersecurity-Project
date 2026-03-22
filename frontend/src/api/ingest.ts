@@ -7,6 +7,7 @@ export interface SourceFreshness {
   last_run_at: string | null  // ISO datetime
   status: string | null
   records_ingested: number | null
+  total_records: number | null
   error_message: string | null
 }
 
