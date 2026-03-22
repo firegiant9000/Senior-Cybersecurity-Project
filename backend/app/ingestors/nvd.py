@@ -9,6 +9,7 @@ from datetime import date
 import httpx
 from pydantic import ValidationError
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -95,7 +96,7 @@ async def upsert_normalized_cve(
                 )
                 await db.flush()
             return "inserted", True
-        except Exception:  # noqa: BLE001
+        except IntegrityError:
             # Another ingestor inserted this CVE concurrently — fetch and update it.
             existing = (
                 await db.execute(select(CVE).where(CVE.cve_id == cve_id))

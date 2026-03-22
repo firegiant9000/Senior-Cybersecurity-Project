@@ -11,6 +11,7 @@ from datetime import date
 import httpx  # type: ignore[import-not-found]  # pylint: disable=import-error
 from pydantic import ValidationError
 from sqlalchemy import select  # type: ignore[import-not-found]  # pylint: disable=import-error
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import (
     AsyncSession,  # type: ignore[import-not-found]  # pylint: disable=import-error
 )
@@ -146,7 +147,7 @@ async def ingest_cisa_kev(db: AsyncSession) -> int:  # noqa: C901
                     )
                     await db.flush()
                 new_cve_ids.append(cve_id)
-            except Exception:  # noqa: BLE001
+            except IntegrityError:
                 # CVE was created by NVD between our SELECT and INSERT —
                 # the savepoint rolled back, so we can safely continue.
                 logger.debug(
