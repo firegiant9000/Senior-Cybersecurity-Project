@@ -24,6 +24,7 @@ const ThreatIntelTab = lazy(() => import('./components/ThreatIntelTab'));
 const TrendsTab = lazy(() => import('./components/TrendsTab'));
 const AlertsFeedTab = lazy(() => import('./components/AlertsFeedTab'));
 const VictimProfileTab = lazy(() => import('./components/VictimProfileTab'));
+const PipelineHealthTab = lazy(() => import('./components/PipelineHealthTab'));
 
 const API_BASE_URL =
     (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env
@@ -151,6 +152,12 @@ const Dashboard: React.FC = () => {
                     onClick={() => setActiveTab('victimProfile')}
                 >
                     Victim Profile
+                </button>
+                <button
+                    className={`tab ${activeTab === 'pipelineHealth' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('pipelineHealth')}
+                >
+                    Pipeline Health
                 </button>
             </div>
 
@@ -297,6 +304,7 @@ const Dashboard: React.FC = () => {
                     {activeTab === 'trends' && <TrendsTab />}
                     {activeTab === 'alerts' && <AlertsFeedTab />}
                     {activeTab === 'victimProfile' && <VictimProfileTab />}
+                    {activeTab === 'pipelineHealth' && <PipelineHealthTab />}
                 </Suspense>
             </main>
         </div>
