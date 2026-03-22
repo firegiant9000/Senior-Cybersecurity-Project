@@ -63,6 +63,8 @@ class NvdRepository(Protocol):
         *,
         search: str | None = None,
         severity: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
     ) -> tuple[list[NvdCveItem], int]:
         """Return (items_for_page, total_count)."""
         ...
@@ -83,6 +85,8 @@ class SqlNvdRepository:
         *,
         search: str | None = None,
         severity: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
     ) -> tuple[list[NvdCveItem], int]:
         """List NVD CVEs from the DB with pagination, sorting, and filtering."""
         if sort_by not in ALLOWED_SORT_FIELDS:
@@ -109,6 +113,10 @@ class SqlNvdRepository:
                     CVE.description.ilike(f"%{search}%"),
                 )
             )
+        if date_from:
+            conditions.append(CVE.published_date >= date_from)
+        if date_to:
+            conditions.append(CVE.published_date <= date_to)
         if severity:
             sev_list = [s.strip().capitalize() for s in severity.split(",") if s.strip()]
             sev_clauses = []
