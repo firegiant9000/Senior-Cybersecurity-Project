@@ -52,12 +52,15 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
     # Feature flags
-    ENABLE_DEMO_MODE: bool = True
+    ENABLE_DEMO_MODE: bool = False
 
     # External API Keys for Data Ingestion
     NVD_API_KEY: str = ""
     CENSUS_API_KEY: str = ""
     BEA_API_KEY: str = ""
+
+    # Ingestion
+    FORCE_SEED: bool = False
 
 
 @lru_cache(maxsize=1)
