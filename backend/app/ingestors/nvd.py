@@ -97,7 +97,9 @@ async def upsert_normalized_cve(
             return "inserted", True
         except Exception:  # noqa: BLE001
             # Another ingestor inserted this CVE concurrently — fetch and update it.
-            existing = (await db.execute(select(CVE).where(CVE.cve_id == cve_id))).scalar_one_or_none()
+            existing = (
+                await db.execute(select(CVE).where(CVE.cve_id == cve_id))
+            ).scalar_one_or_none()
             if existing is None:
                 return "unchanged", False
 
@@ -419,7 +421,8 @@ async def ingest_nvd(  # noqa: C901
                 if status_code == 429:
                     logger.warning(
                         "NVD rate limited at index %s. Committing %s CVEs fetched so far.",
-                        current_index, total_fetched,
+                        current_index,
+                        total_fetched,
                     )
                     break
                 raise

@@ -24,6 +24,7 @@ from app.schemas.validators import (
 # validate_cvss_score
 # ---------------------------------------------------------------------------
 
+
 class TestValidateCvssScore:
     def test_none(self):
         assert validate_cvss_score(None) is None
@@ -54,6 +55,7 @@ class TestValidateCvssScore:
 # normalize_cvss_score
 # ---------------------------------------------------------------------------
 
+
 class TestNormalizeCvssScore:
     def test_none(self):
         assert normalize_cvss_score(None) is None
@@ -75,6 +77,7 @@ class TestNormalizeCvssScore:
 # validate_iso_date
 # ---------------------------------------------------------------------------
 
+
 class TestValidateIsoDate:
     def test_none(self):
         assert validate_iso_date(None) is None
@@ -94,6 +97,7 @@ class TestValidateIsoDate:
 # normalize_iso_date
 # ---------------------------------------------------------------------------
 
+
 class TestNormalizeIsoDate:
     def test_none(self):
         assert normalize_iso_date(None) is None
@@ -111,6 +115,7 @@ class TestNormalizeIsoDate:
 # ---------------------------------------------------------------------------
 # validate_state_code
 # ---------------------------------------------------------------------------
+
 
 class TestValidateStateCode:
     def test_upper(self):
@@ -132,6 +137,7 @@ class TestValidateStateCode:
 # normalize_state_code
 # ---------------------------------------------------------------------------
 
+
 class TestNormalizeStateCode:
     def test_upper(self):
         assert normalize_state_code("CA") == "CA"
@@ -149,6 +155,7 @@ class TestNormalizeStateCode:
 # ---------------------------------------------------------------------------
 # validate_cve_id
 # ---------------------------------------------------------------------------
+
 
 class TestValidateCveId:
     def test_valid(self):
@@ -170,6 +177,7 @@ class TestValidateCveId:
 # normalize_cve_id
 # ---------------------------------------------------------------------------
 
+
 class TestNormalizeCveId:
     def test_valid(self):
         assert normalize_cve_id("CVE-2021-44228") == "CVE-2021-44228"
@@ -184,6 +192,7 @@ class TestNormalizeCveId:
 # ---------------------------------------------------------------------------
 # validate_positive_float
 # ---------------------------------------------------------------------------
+
 
 class TestValidatePositiveFloat:
     def test_none(self):
@@ -205,6 +214,7 @@ class TestValidatePositiveFloat:
 # normalize_positive_float
 # ---------------------------------------------------------------------------
 
+
 class TestNormalizePositiveFloat:
     def test_none(self):
         assert normalize_positive_float(None) is None
@@ -222,6 +232,7 @@ class TestNormalizePositiveFloat:
 # ---------------------------------------------------------------------------
 # NvdCveValidationSchema
 # ---------------------------------------------------------------------------
+
 
 class TestNvdCveValidationSchema:
     def test_valid(self):
@@ -276,6 +287,7 @@ class TestNvdCveValidationSchema:
 # IC3IncidentValidationSchema
 # ---------------------------------------------------------------------------
 
+
 class TestIC3IncidentValidationSchema:
     def test_valid(self):
         data = {
@@ -322,6 +334,7 @@ class TestIC3IncidentValidationSchema:
 # EconomicIndicatorValidationSchema
 # ---------------------------------------------------------------------------
 
+
 class TestEconomicIndicatorValidationSchema:
     def test_valid(self):
         data = {
@@ -354,6 +367,7 @@ class TestEconomicIndicatorValidationSchema:
 # ---------------------------------------------------------------------------
 # CisaKevValidationSchema
 # ---------------------------------------------------------------------------
+
 
 class TestCisaKevValidationSchema:
     def test_valid(self):
