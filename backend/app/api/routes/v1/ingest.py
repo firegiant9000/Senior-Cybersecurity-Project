@@ -4,7 +4,7 @@ import datetime
 import logging
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -212,10 +212,7 @@ async def get_ingest_runs(
         return IngestRunsResponse(items=items, total=total, page=page, page_size=page_size)
     except Exception as exc:
         logger.exception("Error fetching ingest runs: %s", exc)
-        return IngestRunsResponse(items=[], total=0, page=page, page_size=page_size)
-
-
-ALLOWED_SOURCES = {"nvd", "cisa_kev", "ic3", "economics", "all"}
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
 @router.post("/trigger", response_model=list[IngestTriggerResponse])
@@ -238,7 +235,7 @@ async def trigger_ingestion(
             IngestTriggerResponse(
                 source=src,
                 status="started",
-                message=f"{src} ingestion started in background. Check GET /ingest/freshness for status.",
+                message=f"{src} ingestion started in background. Check GET /api/v1/ingest/freshness for status.",
             )
         )
 

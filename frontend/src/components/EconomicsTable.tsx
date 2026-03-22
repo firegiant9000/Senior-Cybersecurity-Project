@@ -133,14 +133,20 @@ const EconomicsTable: React.FC<Props> = ({ apiBaseUrl }) => {
                     <table className="data-table">
                         <thead>
                             <tr>
-                                <th className="sortable-th" onClick={() => handleSort('state')}>
-                                    State {sortBy === 'state' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                                <th className="sortable-th" aria-sort={sortBy === 'state' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                                    <button type="button" onClick={() => handleSort('state')}>
+                                        State {sortBy === 'state' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                                    </button>
                                 </th>
-                                <th className="sortable-th" onClick={() => handleSort('smb_count')}>
-                                    Small Business Count {sortBy === 'smb_count' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                                <th className="sortable-th" aria-sort={sortBy === 'smb_count' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                                    <button type="button" onClick={() => handleSort('smb_count')}>
+                                        Small Business Count {sortBy === 'smb_count' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                                    </button>
                                 </th>
-                                <th className="sortable-th" onClick={() => handleSort('avg_revenue')}>
-                                    Average Revenue {sortBy === 'avg_revenue' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                                <th className="sortable-th" aria-sort={sortBy === 'avg_revenue' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                                    <button type="button" onClick={() => handleSort('avg_revenue')}>
+                                        Average Revenue {sortBy === 'avg_revenue' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                                    </button>
                                 </th>
                             </tr>
                         </thead>

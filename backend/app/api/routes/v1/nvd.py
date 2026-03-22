@@ -47,6 +47,8 @@ async def list_nvd_cves(
     repo: Annotated[NvdRepository, Depends(get_nvd_repo)],
 ) -> NvdCveListResponse:
     """Fetch NVD CVEs from the local database (populated by ingestion)."""
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(status_code=422, detail="date_from cannot be after date_to")
     if sort_by not in ALLOWED_SORT_FIELDS:
         raise HTTPException(
             status_code=422,
