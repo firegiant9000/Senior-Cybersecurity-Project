@@ -166,6 +166,12 @@ const IC3Table: React.FC<Props> = ({ apiBaseUrl }) => {
                         ))}
                     </select>
                 </div>
+                <button
+                    className="reset-filters-btn"
+                    onClick={() => { setSearchInput(''); setAttackType('All'); setState('All'); setYear('All'); }}
+                >
+                    Reset Filters
+                </button>
             </div>
 
             <div className="table-toolbar">

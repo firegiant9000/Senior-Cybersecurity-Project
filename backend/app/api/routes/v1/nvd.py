@@ -12,12 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.engine import get_session
 from app.repositories.nvd import NvdRepository, get_nvd_repo
 from app.schemas.nvd import ALLOWED_SORT_FIELDS, NvdCveListResponse
-from app.schemas.nvd_analytics import (
-    NvdTimelinePoint,
-    NvdTimelineResponse,
-    SeverityCount,
-    SeverityDistributionResponse,
-)
+from app.schemas.nvd_analytics import NvdTimelineResponse, SeverityDistributionResponse
 from app.services.nvd_analytics import NVDAnalytics
 
 logger = logging.getLogger(__name__)
@@ -46,10 +41,14 @@ async def list_nvd_cves(
         str | None,
         Query(description="Filter by severity: Critical, High, Medium, Low, Unknown"),
     ] = None,
+    date_from: Annotated[date | None, Query(description="Filter: start date (YYYY-MM-DD)")] = None,
+    date_to: Annotated[date | None, Query(description="Filter: end date (YYYY-MM-DD)")] = None,
     *,
     repo: Annotated[NvdRepository, Depends(get_nvd_repo)],
 ) -> NvdCveListResponse:
     """Fetch NVD CVEs from the local database (populated by ingestion)."""
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(status_code=422, detail="date_from cannot be after date_to")
     if sort_by not in ALLOWED_SORT_FIELDS:
         raise HTTPException(
             status_code=422,
@@ -66,6 +65,8 @@ async def list_nvd_cves(
             sort_order=sort_order,
             search=search,
             severity=severity,
+            date_from=date_from,
+            date_to=date_to,
         )
         return NvdCveListResponse(
             total=total,
@@ -84,20 +85,6 @@ async def list_nvd_cves(
         raise HTTPException(status_code=500, detail="Internal server error") from e
 
 
-@router.get("/analytics/timeline", response_model=NvdTimelineResponse)
-async def get_cve_timeline(
-    db: AsyncSession = Depends(get_session),
-) -> NvdTimelineResponse:
-    """Get CVE publication counts grouped by year."""
-    try:
-        analytics = NVDAnalytics(db)
-        rows = await analytics.get_cve_timeline()
-        return NvdTimelineResponse(items=[NvdTimelinePoint(**r) for r in rows])
-    except SQLAlchemyError as e:
-        logger.error("Database error in CVE timeline: %s", e)
-        raise HTTPException(status_code=500, detail="Internal server error") from e
-
-
 @router.get(
     "/analytics/severity-distribution",
     response_model=SeverityDistributionResponse,
@@ -113,8 +100,6 @@ async def get_severity_distribution(
     db: AsyncSession = Depends(get_session),
 ) -> SeverityDistributionResponse:
     """Get CVE counts grouped by severity level."""
-    if date_from and date_to and date_from > date_to:
-        raise HTTPException(status_code=422, detail="date_from must not be after date_to")
     try:
         analytics = NVDAnalytics(db)
         items = await analytics.get_severity_distribution(
@@ -123,14 +108,27 @@ async def get_severity_distribution(
             search=search,
             severity=severity,
         )
-        severity_items = [SeverityCount(**item) for item in items]
-        total = sum(item.count for item in severity_items)
+        total = sum(item["count"] for item in items)
         return SeverityDistributionResponse(
-            items=severity_items,
+            items=items,
             total_cves=total,
             date_from=date_from.isoformat() if date_from else None,
             date_to=date_to.isoformat() if date_to else None,
         )
     except SQLAlchemyError as e:
         logger.error("Database error in severity distribution: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error") from e
+
+
+@router.get("/analytics/timeline", response_model=NvdTimelineResponse)
+async def get_nvd_timeline(
+    db: AsyncSession = Depends(get_session),
+) -> NvdTimelineResponse:
+    """Get CVE publication counts grouped by year."""
+    try:
+        analytics = NVDAnalytics(db)
+        items = await analytics.get_cve_timeline()
+        return NvdTimelineResponse(items=items)
+    except SQLAlchemyError as e:
+        logger.error("Database error in NVD timeline: %s", e)
         raise HTTPException(status_code=500, detail="Internal server error") from e

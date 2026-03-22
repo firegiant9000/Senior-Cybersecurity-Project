@@ -11,6 +11,7 @@ from datetime import date
 import httpx  # type: ignore[import-not-found]  # pylint: disable=import-error
 from pydantic import ValidationError
 from sqlalchemy import select  # type: ignore[import-not-found]  # pylint: disable=import-error
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import (
     AsyncSession,  # type: ignore[import-not-found]  # pylint: disable=import-error
 )
@@ -131,17 +132,27 @@ async def ingest_cisa_kev(db: AsyncSession) -> int:  # noqa: C901
                 or item.get("vulnerabilityName")
                 or "CISA known exploited vulnerability"
             )
-            db.add(
-                CVE(
-                    cve_id=cve_id,
-                    description=description,
-                    cvss_score=None,
-                    severity=None,
-                    published_date=None,
+            # Use a savepoint so a duplicate-key conflict doesn't poison
+            # the entire transaction (NVD may insert the same CVE concurrently).
+            try:
+                async with db.begin_nested():
+                    db.add(
+                        CVE(
+                            cve_id=cve_id,
+                            description=description,
+                            cvss_score=None,
+                            severity=None,
+                            published_date=None,
+                        )
+                    )
+                    await db.flush()
+                new_cve_ids.append(cve_id)
+            except IntegrityError:
+                # CVE was created by NVD between our SELECT and INSERT —
+                # the savepoint rolled back, so we can safely continue.
+                logger.debug(
+                    "CVE %s already exists (concurrent insert) — skipping stub creation", cve_id
                 )
-            )
-            await db.flush()  # so KEV insert can satisfy FK to cves.cve_id
-            new_cve_ids.append(cve_id)
 
         # Upsert KEV: update if exists, else add.
         result = await db.execute(select(KEV).where(KEV.cve_id == cve_id))
