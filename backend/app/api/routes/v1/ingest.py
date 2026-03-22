@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.engine import AsyncSessionLocal, get_session
+from app.db.models import CVE, KEV, IC3Incident
 from app.models.ingest_run import IngestRun
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ class SourceFreshness(BaseModel):
     last_run_at: str | None  # ISO datetime string
     status: str | None
     records_ingested: int | None
+    total_records: int | None = None
     error_message: str | None = None
 
 
@@ -117,6 +119,17 @@ async def get_ingest_freshness(
                 seen.add(run.source)
                 latest.append(run)
 
+        # Query total record counts per source table
+        source_table_map = {
+            "nvd": CVE,
+            "cisa_kev": KEV,
+            "ic3": IC3Incident,
+        }
+        total_counts: dict[str, int] = {}
+        for src_name, model in source_table_map.items():
+            count_result = await db.execute(select(func.count()).select_from(model))
+            total_counts[src_name] = int(count_result.scalar_one())
+
         sources = [
             SourceFreshness(
                 source=run.source,
@@ -127,6 +140,7 @@ async def get_ingest_freshness(
                 ),
                 status=run.status,
                 records_ingested=run.records_ingested,
+                total_records=total_counts.get(run.source),
                 error_message=run.error_message,
             )
             for run in latest

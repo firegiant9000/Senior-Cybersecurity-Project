@@ -107,7 +107,10 @@ const PipelineHealthTab: React.FC = () => {
                                     Status: <strong>{capitalize(s.status ?? 'unknown')}</strong>
                                 </div>
                                 <div style={{ fontSize: '12px' }}>
-                                    Records: {s.records_ingested?.toLocaleString() ?? '—'}
+                                    Total Records: {s.total_records?.toLocaleString() ?? '—'}
+                                </div>
+                                <div style={{ fontSize: '12px' }}>
+                                    Last Run New: {s.records_ingested?.toLocaleString() ?? '—'}
                                 </div>
                                 <div style={{ fontSize: '12px' }}>
                                     Last run: {s.last_run_at ? new Date(s.last_run_at).toLocaleString() : 'never'}
@@ -168,6 +171,7 @@ const PipelineHealthTab: React.FC = () => {
                                     <th>Started</th>
                                     <th>Duration</th>
                                     <th>New Records</th>
+                                    <th>Total Records</th>
                                     <th>Error</th>
                                 </tr>
                             </thead>
@@ -194,6 +198,7 @@ const PipelineHealthTab: React.FC = () => {
                                             <td>{fmtTime(run.started_at)}</td>
                                             <td>{fmtDuration(run.started_at, run.finished_at)}</td>
                                             <td>{run.records_ingested.toLocaleString()}</td>
+                                            <td>{freshness.find(f => f.source === run.source)?.total_records?.toLocaleString() ?? '—'}</td>
                                             <td style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                 {run.error_message || '—'}
                                             </td>
