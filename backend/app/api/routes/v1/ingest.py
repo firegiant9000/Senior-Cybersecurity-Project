@@ -135,7 +135,7 @@ class IngestRunItem(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    id: str
+    id: str  # noqa: A003
     source: str
     started_at: str | None
     finished_at: str | None

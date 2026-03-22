@@ -95,7 +95,7 @@ async def upsert_normalized_cve(
                 )
                 await db.flush()
             return "inserted", True
-        except Exception:
+        except Exception:  # noqa: BLE001
             # Another ingestor inserted this CVE concurrently — fetch and update it.
             existing = (await db.execute(select(CVE).where(CVE.cve_id == cve_id))).scalar_one_or_none()
             if existing is None:

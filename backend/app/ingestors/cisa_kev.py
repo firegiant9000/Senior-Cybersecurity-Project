@@ -146,7 +146,7 @@ async def ingest_cisa_kev(db: AsyncSession) -> int:  # noqa: C901
                     )
                     await db.flush()
                 new_cve_ids.append(cve_id)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 # CVE was created by NVD between our SELECT and INSERT —
                 # the savepoint rolled back, so we can safely continue.
                 logger.debug("CVE %s already exists (concurrent insert) — skipping stub creation", cve_id)

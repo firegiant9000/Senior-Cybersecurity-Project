@@ -6,7 +6,6 @@ import pytest
 
 from app.services.risk_scoring import basic_vuln_risk_score, calculate_risk_score
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -18,7 +17,12 @@ def _cve(cvss: float) -> MagicMock:
 
 
 def _incidents(losses: list[float]) -> list[MagicMock]:
-    return [MagicMock(loss_amount=l) for l in losses]
+    return [MagicMock(loss_amount=amt) for amt in losses]
+
+
+def _kev() -> MagicMock:
+    """Return a truthy KEV-like mock."""
+    return MagicMock()
 
 
 def _econ(smb_count: int) -> MagicMock:
@@ -42,23 +46,23 @@ class TestCalculateRiskScore:
         assert calculate_risk_score(_cve(3.0), None, [], None) == pytest.approx(30.0)
 
     def test_cve_plus_kev(self):
-        assert calculate_risk_score(_cve(10.0), True, [], None) == pytest.approx(70.0)
+        assert calculate_risk_score(_cve(10.0), _kev(), [], None) == pytest.approx(70.0)
 
     def test_cve_kev_high_loss_incidents(self):
         incidents = _incidents([2_000_000, 3_000_000])
-        assert calculate_risk_score(_cve(10.0), True, incidents, None) == pytest.approx(90.0)
+        assert calculate_risk_score(_cve(10.0), _kev(), incidents, None) == pytest.approx(90.0)
 
     def test_cve_kev_medium_loss_incidents(self):
         incidents = _incidents([200_000, 300_000])
-        assert calculate_risk_score(_cve(10.0), True, incidents, None) == pytest.approx(80.0)
+        assert calculate_risk_score(_cve(10.0), _kev(), incidents, None) == pytest.approx(80.0)
 
     def test_all_factors_capped_at_100(self):
         incidents = _incidents([5_000_000])
         econ = _econ(100_000)
-        assert calculate_risk_score(_cve(10.0), True, incidents, econ) == pytest.approx(100.0)
+        assert calculate_risk_score(_cve(10.0), _kev(), incidents, econ) == pytest.approx(100.0)
 
     def test_kev_only_no_cve(self):
-        assert calculate_risk_score(None, True, [], None) == pytest.approx(30.0)
+        assert calculate_risk_score(None, _kev(), [], None) == pytest.approx(30.0)
 
     def test_incidents_exactly_100k_no_bonus(self):
         incidents = _incidents([100_000])

@@ -2,6 +2,7 @@
 
 import pytest
 from httpx import AsyncClient
+
 from tests.conftest import unique_email
 
 

@@ -70,6 +70,19 @@ class NvdRepository(Protocol):
         ...
 
 
+def _build_severity_clause(severity: str):  # type: ignore[no-untyped-def]
+    """Build a combined OR clause for severity filtering."""
+    sev_list = [s.strip().capitalize() for s in severity.split(",") if s.strip()]
+    clauses = []
+    for sev in sev_list:
+        if sev in _SEVERITY_SCORE_RANGES:
+            lo, hi = _SEVERITY_SCORE_RANGES[sev]
+            clauses.append((CVE.cvss_score >= lo) & (CVE.cvss_score <= hi))
+        elif sev == "Unknown":
+            clauses.append(CVE.cvss_score.is_(None))
+    return or_(*clauses) if clauses else None
+
+
 class SqlNvdRepository:
     """Queries CVEs from the database (populated from NVD)."""
 
@@ -118,16 +131,9 @@ class SqlNvdRepository:
         if date_to:
             conditions.append(CVE.published_date <= date_to)
         if severity:
-            sev_list = [s.strip().capitalize() for s in severity.split(",") if s.strip()]
-            sev_clauses = []
-            for sev in sev_list:
-                if sev in _SEVERITY_SCORE_RANGES:
-                    lo, hi = _SEVERITY_SCORE_RANGES[sev]
-                    sev_clauses.append((CVE.cvss_score >= lo) & (CVE.cvss_score <= hi))
-                elif sev == "Unknown":
-                    sev_clauses.append(CVE.cvss_score.is_(None))
-            if sev_clauses:
-                conditions.append(or_(*sev_clauses))
+            sev_clause = _build_severity_clause(severity)
+            if sev_clause is not None:
+                conditions.append(sev_clause)
 
         stmt = select(CVE)
         for cond in conditions:
