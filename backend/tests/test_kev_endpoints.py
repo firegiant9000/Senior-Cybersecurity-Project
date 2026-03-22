@@ -26,7 +26,9 @@ async def test_risk_scored_list(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_risk_scored_invalid_sort(client: AsyncClient):
-    resp = await client.get("/api/v1/vulnerabilities/risk-scored", params={"sort_by": "nonexistent"})
+    resp = await client.get(
+        "/api/v1/vulnerabilities/risk-scored", params={"sort_by": "nonexistent"}
+    )
     assert resp.status_code == 422
 
 
@@ -42,7 +44,9 @@ async def test_risk_scored_stats(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_risk_scored_stats_kev_filter(client: AsyncClient):
-    resp = await client.get("/api/v1/vulnerabilities/risk-scored/stats", params={"data_source": "kev"})
+    resp = await client.get(
+        "/api/v1/vulnerabilities/risk-scored/stats", params={"data_source": "kev"}
+    )
     assert resp.status_code in (200, 500)
 
 
@@ -58,5 +62,7 @@ async def test_exploited_list(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_exploited_invalid_sort(client: AsyncClient):
-    resp = await client.get("/api/v1/vulnerabilities/exploited", params={"sort_by": "invalid_field"})
+    resp = await client.get(
+        "/api/v1/vulnerabilities/exploited", params={"sort_by": "invalid_field"}
+    )
     assert resp.status_code == 422

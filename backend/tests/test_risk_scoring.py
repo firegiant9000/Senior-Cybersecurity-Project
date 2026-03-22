@@ -10,6 +10,7 @@ from app.services.risk_scoring import basic_vuln_risk_score, calculate_risk_scor
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _cve(cvss: float) -> MagicMock:
     m = MagicMock()
     m.cvss_score = cvss
@@ -34,6 +35,7 @@ def _econ(smb_count: int) -> MagicMock:
 # ---------------------------------------------------------------------------
 # calculate_risk_score
 # ---------------------------------------------------------------------------
+
 
 class TestCalculateRiskScore:
     def test_all_none_empty(self):
@@ -82,6 +84,7 @@ class TestCalculateRiskScore:
 # ---------------------------------------------------------------------------
 # basic_vuln_risk_score
 # ---------------------------------------------------------------------------
+
 
 class TestBasicVulnRiskScore:
     def test_none_not_exploited_returns_none(self):

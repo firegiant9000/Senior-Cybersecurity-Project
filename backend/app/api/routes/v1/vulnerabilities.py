@@ -161,7 +161,9 @@ async def list_risk_scored_vulnerabilities(
             description="Filter by source: all, kev, or nvd",
         ),
     ] = "all",
-    search: Annotated[str | None, Query(description="Search CVE IDs or descriptions (partial match)")] = None,
+    search: Annotated[
+        str | None, Query(description="Search CVE IDs or descriptions (partial match)")
+    ] = None,
     repo: JsonExploitedVulnRepository | SqlExploitedVulnRepository = Depends(get_exploited_repo),
 ) -> ExploitedVulnListResponse:
     """List risk-scored vulnerabilities using NVD CVSS + KEV exploitation context."""

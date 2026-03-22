@@ -21,6 +21,7 @@ router = APIRouter()
 # Response models
 # ---------------------------------------------------------------------------
 
+
 class SourceFreshness(BaseModel):
     """Freshness info for a single data source."""
 
@@ -49,6 +50,7 @@ class IngestTriggerResponse(BaseModel):
 # Background ingestion helpers
 # ---------------------------------------------------------------------------
 
+
 async def _run_ingestion(source: str, **kwargs: object) -> None:
     """Run an ingestion job and record the result in ingest_runs."""
     run = IngestRun(source=source, status="running", started_at=datetime.datetime.utcnow())
@@ -61,15 +63,19 @@ async def _run_ingestion(source: str, **kwargs: object) -> None:
             count = 0
             if source == "nvd":
                 from app.ingestors.nvd import ingest_nvd
+
                 count = await ingest_nvd(db, max_results=20000)
             elif source == "cisa_kev":
                 from app.ingestors.cisa_kev import ingest_cisa_kev
+
                 count = await ingest_cisa_kev(db)
             elif source == "ic3":
                 from app.ingestors.ic3_real import ingest_ic3_real
+
                 count = await ingest_ic3_real(db, use_pdf=False)
             elif source == "economics":
                 from app.ingestors.econ import ingest_region_economics
+
                 await ingest_region_economics(db)
                 count = -1
 
@@ -90,6 +96,7 @@ async def _run_ingestion(source: str, **kwargs: object) -> None:
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
 
 @router.get("/freshness", response_model=FreshnessResponse)
 async def get_ingest_freshness(
@@ -179,8 +186,7 @@ async def get_ingest_runs(
         total = int(total_result.scalar_one())
 
         stmt = (
-            base_stmt
-            .order_by(IngestRun.started_at.desc())
+            base_stmt.order_by(IngestRun.started_at.desc())
             .limit(page_size)
             .offset((page - 1) * page_size)
         )
@@ -191,8 +197,12 @@ async def get_ingest_runs(
             IngestRunItem(
                 id=str(run.id),
                 source=run.source,
-                started_at=run.started_at.replace(tzinfo=datetime.UTC).isoformat() if run.started_at else None,
-                finished_at=run.finished_at.replace(tzinfo=datetime.UTC).isoformat() if run.finished_at else None,
+                started_at=run.started_at.replace(tzinfo=datetime.UTC).isoformat()
+                if run.started_at
+                else None,
+                finished_at=run.finished_at.replace(tzinfo=datetime.UTC).isoformat()
+                if run.finished_at
+                else None,
                 status=run.status,
                 records_ingested=run.records_ingested,
                 error_message=run.error_message,
@@ -224,10 +234,12 @@ async def trigger_ingestion(
     results: list[IngestTriggerResponse] = []
     for src in sources:
         background_tasks.add_task(_run_ingestion, src)
-        results.append(IngestTriggerResponse(
-            source=src,
-            status="started",
-            message=f"{src} ingestion started in background. Check GET /ingest/freshness for status.",
-        ))
+        results.append(
+            IngestTriggerResponse(
+                source=src,
+                status="started",
+                message=f"{src} ingestion started in background. Check GET /ingest/freshness for status.",
+            )
+        )
 
     return results

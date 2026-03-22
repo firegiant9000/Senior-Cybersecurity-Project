@@ -45,7 +45,9 @@ async def test_temporal_trends(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_temporal_trends_invalid_range(client: AsyncClient):
-    resp = await client.get("/api/v1/ic3/analytics/temporal-trends", params={"year_from": 2025, "year_to": 2020})
+    resp = await client.get(
+        "/api/v1/ic3/analytics/temporal-trends", params={"year_from": 2025, "year_to": 2020}
+    )
     assert resp.status_code == 422
 
 
