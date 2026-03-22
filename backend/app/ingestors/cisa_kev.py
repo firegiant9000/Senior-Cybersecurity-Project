@@ -131,17 +131,25 @@ async def ingest_cisa_kev(db: AsyncSession) -> int:  # noqa: C901
                 or item.get("vulnerabilityName")
                 or "CISA known exploited vulnerability"
             )
-            db.add(
-                CVE(
-                    cve_id=cve_id,
-                    description=description,
-                    cvss_score=None,
-                    severity=None,
-                    published_date=None,
-                )
-            )
-            await db.flush()  # so KEV insert can satisfy FK to cves.cve_id
-            new_cve_ids.append(cve_id)
+            # Use a savepoint so a duplicate-key conflict doesn't poison
+            # the entire transaction (NVD may insert the same CVE concurrently).
+            try:
+                async with db.begin_nested():
+                    db.add(
+                        CVE(
+                            cve_id=cve_id,
+                            description=description,
+                            cvss_score=None,
+                            severity=None,
+                            published_date=None,
+                        )
+                    )
+                    await db.flush()
+                new_cve_ids.append(cve_id)
+            except Exception:
+                # CVE was created by NVD between our SELECT and INSERT —
+                # the savepoint rolled back, so we can safely continue.
+                logger.debug("CVE %s already exists (concurrent insert) — skipping stub creation", cve_id)
 
         # Upsert KEV: update if exists, else add.
         result = await db.execute(select(KEV).where(KEV.cve_id == cve_id))
