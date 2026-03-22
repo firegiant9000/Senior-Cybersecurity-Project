@@ -20,7 +20,6 @@ from app.schemas.validators import (
     validate_state_code,
 )
 
-
 # ---------------------------------------------------------------------------
 # validate_cvss_score
 # ---------------------------------------------------------------------------
@@ -281,9 +280,9 @@ class TestIC3IncidentValidationSchema:
     def test_valid(self):
         data = {
             "year": 2023,
+            "sector": "Finance",
             "state": "CA",
             "loss_amount": 50000.0,
-            "incident_count": 100,
         }
         obj = IC3IncidentValidationSchema(**data)
         assert obj.state == "CA"
@@ -291,9 +290,9 @@ class TestIC3IncidentValidationSchema:
     def test_year_out_of_range(self):
         data = {
             "year": 1999,
+            "sector": "Finance",
             "state": "CA",
             "loss_amount": 50000.0,
-            "incident_count": 100,
         }
         with pytest.raises(ValidationError):
             IC3IncidentValidationSchema(**data)
@@ -301,9 +300,9 @@ class TestIC3IncidentValidationSchema:
     def test_negative_loss(self):
         data = {
             "year": 2023,
+            "sector": "Finance",
             "state": "CA",
             "loss_amount": -1.0,
-            "incident_count": 100,
         }
         with pytest.raises(ValidationError):
             IC3IncidentValidationSchema(**data)
@@ -311,9 +310,9 @@ class TestIC3IncidentValidationSchema:
     def test_invalid_state(self):
         data = {
             "year": 2023,
+            "sector": "Finance",
             "state": "XYZ",
             "loss_amount": 50000.0,
-            "incident_count": 100,
         }
         with pytest.raises(ValidationError):
             IC3IncidentValidationSchema(**data)
@@ -328,7 +327,7 @@ class TestEconomicIndicatorValidationSchema:
         data = {
             "state": "TX",
             "smb_count": 100000,
-            "gdp": 1500000.0,
+            "avg_revenue": 1500000.0,
         }
         obj = EconomicIndicatorValidationSchema(**data)
         assert obj.state == "TX"
@@ -337,7 +336,7 @@ class TestEconomicIndicatorValidationSchema:
         data = {
             "state": "TX",
             "smb_count": -5,
-            "gdp": 1500000.0,
+            "avg_revenue": 1500000.0,
         }
         with pytest.raises(ValidationError):
             EconomicIndicatorValidationSchema(**data)
@@ -346,7 +345,7 @@ class TestEconomicIndicatorValidationSchema:
         data = {
             "state": "X",
             "smb_count": 100000,
-            "gdp": 1500000.0,
+            "avg_revenue": 1500000.0,
         }
         with pytest.raises(ValidationError):
             EconomicIndicatorValidationSchema(**data)

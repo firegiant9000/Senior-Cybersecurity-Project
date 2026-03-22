@@ -13,7 +13,7 @@ from app.api.routes import health, v1
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.db.engine import AsyncSessionLocal, init_db
-from app.db.models import CVE, IC3Incident, KEV
+from app.db.models import CVE, KEV, IC3Incident
 from app.integrations.cve_org import aclose_http_client
 
 _log = logging.getLogger(__name__)

@@ -3,7 +3,6 @@
 import logging
 from datetime import UTC, datetime
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ingest_run import IngestRun
