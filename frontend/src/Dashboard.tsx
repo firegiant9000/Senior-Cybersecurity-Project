@@ -25,6 +25,7 @@ const TrendsTab = lazy(() => import('./components/TrendsTab'));
 const AlertsFeedTab = lazy(() => import('./components/AlertsFeedTab'));
 const VictimProfileTab = lazy(() => import('./components/VictimProfileTab'));
 const PipelineHealthTab = lazy(() => import('./components/PipelineHealthTab'));
+const SmBAdvisorTab = lazy(() => import('./components/SmBAdvisorTab'));
 
 const API_BASE_URL =
     (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env
@@ -93,6 +94,12 @@ const Dashboard: React.FC = () => {
 
             {/* Tabs */}
             <div className="tabs-container">
+                <button
+                    className={`tab ${activeTab === 'smbAdvisor' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('smbAdvisor')}
+                >
+                    SMB Risk Advisor
+                </button>
                 <button
                     className={`tab ${activeTab === 'overview' ? 'active' : ''}`}
                     onClick={() => setActiveTab('overview')}
@@ -295,6 +302,7 @@ const Dashboard: React.FC = () => {
                 )}
 
                 <Suspense fallback={<WidgetSkeleton />}>
+                    {activeTab === 'smbAdvisor' && <SmBAdvisorTab />}
                     {activeTab === 'economics' && <EconomicsTable apiBaseUrl={API_BASE_URL} />}
                     {activeTab === 'riskScoring' && <RiskScoringTable apiBaseUrl={API_BASE_URL} />}
                     {activeTab === 'cisa' && <CisaKevTable apiBaseUrl={API_BASE_URL} />}
