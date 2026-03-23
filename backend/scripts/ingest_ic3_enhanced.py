@@ -33,7 +33,6 @@ try:
 except ImportError:
     HAS_PDF = False
     print("\u26a0\ufe0f  pdfplumber not installed. Install with: pip install pdfplumber")
-    sys.exit(1)
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
