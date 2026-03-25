@@ -4,10 +4,12 @@
 import logging
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
+from app.core.limiter import limiter
 from app.db.engine import get_session
 from app.repositories.ic3 import SqlIC3Repository
 from app.schemas.ic3 import ALLOWED_SORT_FIELDS, IC3FilterOptionsResponse, IC3IncidentListResponse
@@ -32,7 +34,9 @@ router = APIRouter()
 
 
 @router.get("/incidents", response_model=IC3IncidentListResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
 async def list_ic3_incidents(
+    request: Request,
     page: Annotated[int, Query(ge=1, description="Page number (1-based)")] = 1,
     page_size: Annotated[
         int, Query(ge=1, le=200, alias="page_size", description="Items per page (max 200)")
@@ -91,7 +95,9 @@ async def list_ic3_incidents(
 
 
 @router.get("/filter-options", response_model=IC3FilterOptionsResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
 async def get_ic3_filter_options(
+    request: Request,
     db: AsyncSession = Depends(get_session),
 ) -> IC3FilterOptionsResponse:
     """Return distinct values for IC3 filter dropdowns."""
@@ -105,7 +111,9 @@ async def get_ic3_filter_options(
 
 
 @router.get("/analytics/attack-types", response_model=AttackTypeListResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
 async def get_attack_types_analytics(
+    request: Request,
     year: Annotated[int | None, Query(description="Filter by year (optional)")] = None,
     db: AsyncSession = Depends(get_session),
 ) -> AttackTypeListResponse:
@@ -116,7 +124,9 @@ async def get_attack_types_analytics(
 
 
 @router.get("/analytics/industry-risk", response_model=IndustryRiskResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
 async def get_industry_risk_analytics(
+    request: Request,
     year: Annotated[int | None, Query(description="Filter by year (optional)")] = None,
     db: AsyncSession = Depends(get_session),
 ) -> IndustryRiskResponse:
@@ -127,7 +137,9 @@ async def get_industry_risk_analytics(
 
 
 @router.get("/analytics/geographic-heatmap", response_model=GeographicHeatmapResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
 async def get_geographic_heatmap_analytics(
+    request: Request,
     year: Annotated[int | None, Query(description="Filter by year (optional)")] = None,
     db: AsyncSession = Depends(get_session),
 ) -> GeographicHeatmapResponse:
@@ -138,7 +150,9 @@ async def get_geographic_heatmap_analytics(
 
 
 @router.get("/analytics/temporal-trends", response_model=TemporalTrendResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
 async def get_temporal_trends_analytics(
+    request: Request,
     attack_type: Annotated[
         str | None, Query(description="Filter by attack type (optional)")
     ] = None,
@@ -166,7 +180,9 @@ async def get_temporal_trends_analytics(
 
 
 @router.get("/analytics/sector-attack-matrix", response_model=SectorAttackMatrixResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
 async def get_sector_attack_matrix_analytics(
+    request: Request,
     year: Annotated[int | None, Query(description="Filter by year (optional)")] = None,
     db: AsyncSession = Depends(get_session),
 ) -> SectorAttackMatrixResponse:
@@ -180,7 +196,9 @@ async def get_sector_attack_matrix_analytics(
 
 
 @router.get("/analytics/dashboard-summary", response_model=DashboardSummary)
+@limiter.limit(settings.RATE_LIMIT_DATA)
 async def get_dashboard_summary_analytics(
+    request: Request,
     year: Annotated[int | None, Query(description="Filter by year (optional)")] = None,
     db: AsyncSession = Depends(get_session),
 ) -> DashboardSummary:
