@@ -2,8 +2,7 @@
 
 from collections.abc import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -22,8 +21,8 @@ engine = create_async_engine(
 )
 
 # Session factory
-AsyncSessionLocal = sessionmaker(  # pylint: disable=invalid-name
-    engine,  # type: ignore[arg-type]
+AsyncSessionLocal = async_sessionmaker(
+    engine,
     class_=AsyncSession,
     expire_on_commit=False,
     autoflush=False,
