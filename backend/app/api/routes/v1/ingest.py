@@ -4,11 +4,13 @@ import datetime
 import logging
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
+from app.core.limiter import limiter
 from app.db.engine import AsyncSessionLocal, get_session
 from app.db.models import CVE, KEV, IC3Incident
 from app.models.ingest_run import IngestRun
@@ -101,7 +103,9 @@ async def _run_ingestion(source: str, **kwargs: object) -> None:
 
 
 @router.get("/freshness", response_model=FreshnessResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
 async def get_ingest_freshness(
+    request: Request,
     db: AsyncSession = Depends(get_session),
 ) -> FreshnessResponse:
     """Return the latest ingest run info for each data source."""
@@ -175,7 +179,9 @@ class IngestRunsResponse(BaseModel):
 
 
 @router.get("/runs", response_model=IngestRunsResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
 async def get_ingest_runs(
+    request: Request,
     page: Annotated[int, Query(ge=1, description="Page number")] = 1,
     page_size: Annotated[int, Query(ge=1, le=100, description="Items per page")] = 20,
     source: Annotated[str | None, Query(description="Filter by source name")] = None,
@@ -230,7 +236,9 @@ async def get_ingest_runs(
 
 
 @router.post("/trigger", response_model=list[IngestTriggerResponse])
+@limiter.limit(settings.RATE_LIMIT_DATA)
 async def trigger_ingestion(
+    request: Request,
     background_tasks: BackgroundTasks,
     source: Literal["nvd", "cisa_kev", "ic3", "economics", "all"] = Query(
         default="all", description="Data source to ingest (or 'all')"

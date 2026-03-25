@@ -5,10 +5,12 @@ import logging
 from datetime import date
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
+from app.core.limiter import limiter
 from app.db.engine import get_session
 from app.repositories.nvd import NvdRepository, get_nvd_repo
 from app.schemas.nvd import ALLOWED_SORT_FIELDS, NvdCveListResponse
@@ -21,7 +23,9 @@ router = APIRouter()
 
 
 @router.get("/cves", response_model=NvdCveListResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
 async def list_nvd_cves(
+    request: Request,
     page: Annotated[int, Query(ge=1, description="Page number (1-based)")] = 1,
     page_size: Annotated[
         int, Query(ge=1, le=200, alias="page_size", description="Items per page (max 200)")
@@ -89,7 +93,9 @@ async def list_nvd_cves(
     "/analytics/severity-distribution",
     response_model=SeverityDistributionResponse,
 )
+@limiter.limit(settings.RATE_LIMIT_DATA)
 async def get_severity_distribution(
+    request: Request,
     date_from: Annotated[date | None, Query(description="Filter: start date (YYYY-MM-DD)")] = None,
     date_to: Annotated[date | None, Query(description="Filter: end date (YYYY-MM-DD)")] = None,
     search: Annotated[str | None, Query(description="Filter by CVE ID (partial match)")] = None,
@@ -121,7 +127,9 @@ async def get_severity_distribution(
 
 
 @router.get("/analytics/timeline", response_model=NvdTimelineResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
 async def get_nvd_timeline(
+    request: Request,
     db: AsyncSession = Depends(get_session),
 ) -> NvdTimelineResponse:
     """Get CVE publication counts grouped by year."""
