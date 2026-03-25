@@ -44,7 +44,9 @@ async def get_current_user(
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 @limiter.limit(settings.RATE_LIMIT_AUTH)
-async def register(request: Request, body: UserCreate, session: AsyncSession = Depends(get_session)) -> User:
+async def register(
+    request: Request, body: UserCreate, session: AsyncSession = Depends(get_session)
+) -> User:
     """Register a new user account."""
     result = await session.execute(select(User).where(User.email == body.email))
     if result.scalar_one_or_none() is not None:
