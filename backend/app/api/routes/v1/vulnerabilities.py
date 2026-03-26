@@ -3,9 +3,11 @@
 import logging
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.core.config import settings
+from app.core.limiter import limiter
 from app.repositories.exploited_vuln import (
     JsonExploitedVulnRepository,
     SqlExploitedVulnRepository,
@@ -24,7 +26,9 @@ router = APIRouter()
 
 
 @router.get("/exploited", response_model=ExploitedVulnListResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
 async def list_exploited_vulnerabilities(
+    request: Request,
     page: Annotated[int, Query(ge=1, description="Page number (1-based)")] = 1,
     page_size: Annotated[
         int, Query(ge=1, le=100, alias="page_size", description="Items per page (max 100)")
@@ -94,7 +98,9 @@ async def list_exploited_vulnerabilities(
 
 
 @router.get("/exploited/severity-summary", response_model=SeveritySummaryResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
 async def exploited_severity_summary(
+    request: Request,
     search: Annotated[str | None, Query(description="Search CVE IDs (partial match)")] = None,
     severity: Annotated[
         str | None,
@@ -120,7 +126,9 @@ async def exploited_severity_summary(
 
 
 @router.get("/risk-scored/stats", response_model=RiskScoreStatsResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
 async def get_risk_score_stats(
+    request: Request,
     data_source: Annotated[
         Literal["all", "kev", "nvd"],
         Query(
@@ -139,7 +147,9 @@ async def get_risk_score_stats(
 
 
 @router.get("/risk-scored", response_model=ExploitedVulnListResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
 async def list_risk_scored_vulnerabilities(
+    request: Request,
     page: Annotated[int, Query(ge=1, description="Page number (1-based)")] = 1,
     page_size: Annotated[
         int, Query(ge=1, le=100, alias="page_size", description="Items per page (max 100)")

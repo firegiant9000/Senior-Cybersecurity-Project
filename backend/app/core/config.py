@@ -61,6 +61,10 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     # Ingestion
     FORCE_SEED: bool = False
 
+    # Rate limiting
+    RATE_LIMIT_AUTH: str = "10/minute"
+    RATE_LIMIT_DATA: str = "60/minute"
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
