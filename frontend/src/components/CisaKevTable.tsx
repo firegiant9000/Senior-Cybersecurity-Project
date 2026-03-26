@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useDebounce } from '../hooks/useDebounce';
 import { SEVERITY_COLORS } from '../theme';
 import { downloadCsv } from '../utils/csvExport';
+import { fetchWithAuth } from '../api/fetchWithAuth';
 
 import { PieChart, Pie, Tooltip, Legend, ResponsiveContainer, Sector } from 'recharts';
 
@@ -77,7 +78,7 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
             if (search) params.set('search', search);
             if (sev !== 'All') params.set('severity', sev);
 
-            const response = await fetch(`${apiBaseUrl}/api/v1/vulnerabilities/exploited?${params}`, signal ? { signal } : undefined);
+            const response = await fetchWithAuth(`${apiBaseUrl}/api/v1/vulnerabilities/exploited?${params}`, signal ? { signal } : undefined);
             if (!response.ok) throw new Error(`Failed to fetch CISA KEV data: ${response.status}`);
             const result: ApiResponse = await response.json();
 
@@ -120,7 +121,7 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
         if (debouncedSearch) summaryParams.set('search', debouncedSearch);
         if (severity !== 'All') summaryParams.set('severity', severity);
 
-        fetch(`${apiBaseUrl}/api/v1/vulnerabilities/exploited/severity-summary?${summaryParams}`, { signal: controller.signal })
+        fetchWithAuth(`${apiBaseUrl}/api/v1/vulnerabilities/exploited/severity-summary?${summaryParams}`, { signal: controller.signal })
             .then(r => r.ok ? r.json() as Promise<SeveritySummaryResponse> : Promise.reject(r.status))
             .then(r => setSeveritySummary(r.items))
             .catch(() => { /* non-fatal */ });

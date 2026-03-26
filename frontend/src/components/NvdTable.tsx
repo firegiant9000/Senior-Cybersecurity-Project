@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { downloadCsv } from '../utils/csvExport';
 import { useDebounce } from '../hooks/useDebounce';
+import { fetchWithAuth } from '../api/fetchWithAuth';
 import SeverityDistributionChart from './SeverityDistributionChart';
 
 interface NVDCVEItem {
@@ -67,7 +68,7 @@ const NvdTable: React.FC<Props> = ({ apiBaseUrl }) => {
             if (sev) params.set('severity', sev);
 
             const url = `${apiBaseUrl}/api/v1/nvd/cves?${params}`;
-            const response = await fetch(url, signal ? { signal } : undefined);
+            const response = await fetchWithAuth(url, signal ? { signal } : undefined);
             if (!response.ok) {
                 const errorText = await response.text();
                 throw new Error(`Failed to fetch NVD data: ${response.status} - ${errorText}`);
