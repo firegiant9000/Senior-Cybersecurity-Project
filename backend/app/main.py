@@ -93,7 +93,7 @@ async def _auto_ingest() -> None:
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         init_firebase()
-    except Exception as exc:  # pragma: no cover - defensive startup guard
+    except (ValueError, OSError) as exc:  # pragma: no cover - defensive startup guard
         _log.error(
             "Failed to initialize Firebase SDK: %s. "
             "Ensure GOOGLE_APPLICATION_CREDENTIALS is set correctly.",
