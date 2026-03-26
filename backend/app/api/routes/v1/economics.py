@@ -5,13 +5,14 @@ import logging
 from typing import Annotated, Literal
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func as sql_func
 from sqlalchemy import select as sql_select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.limiter import limiter
 from app.db.engine import get_session
 from app.db.models import EconomicIndicator
 from app.schemas.economics import (
@@ -255,7 +256,9 @@ async def _query_economic_indicators_from_db(
 
 
 @router.get("/indicators", response_model=EconomicIndicatorListResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
 async def list_economic_indicators(
+    request: Request,
     page: Annotated[int, Query(ge=1, description="Page number (1-based)")] = 1,
     page_size: Annotated[
         int, Query(ge=1, le=200, alias="page_size", description="Items per page (max 200)")

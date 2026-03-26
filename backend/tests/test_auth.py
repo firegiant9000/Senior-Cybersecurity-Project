@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 import pytest
+from firebase_admin.exceptions import FirebaseError
 from httpx import AsyncClient
 
 FAKE_FIREBASE_TOKEN = {
@@ -27,7 +28,7 @@ def mock_firebase_verify_invalid():
     """Patch Firebase token verification to raise an error."""
     with patch(
         "firebase_admin.auth.verify_id_token",
-        side_effect=Exception("Invalid token"),
+        side_effect=FirebaseError(code="INVALID_ARGUMENT", message="Invalid token"),
     ) as mock:
         yield mock
 

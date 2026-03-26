@@ -1,11 +1,14 @@
 """Authentication routes: Firebase token verification."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth as firebase_auth
+from firebase_admin.exceptions import FirebaseError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
+from app.core.limiter import limiter
 from app.db.engine import get_session
 from app.db.user import User
 from app.schemas.user import UserRead
@@ -23,12 +26,7 @@ async def get_current_user(
     token = credentials.credentials
     try:
         decoded = firebase_auth.verify_id_token(token)
-    except (
-        ValueError,
-        firebase_auth.InvalidIdTokenError,
-        firebase_auth.ExpiredIdTokenError,
-        firebase_auth.CertificateFetchError,
-    ):
+    except (ValueError, FirebaseError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
@@ -38,9 +36,26 @@ async def get_current_user(
     firebase_uid: str = decoded["uid"]
     email: str = decoded.get("email", "")
 
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Firebase token missing email claim",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     # Look up existing user by firebase_uid
     result = await session.execute(select(User).where(User.firebase_uid == firebase_uid))
     user = result.scalar_one_or_none()
+
+    # Fallback: match by email for users migrating from old auth
+    if user is None:
+        result = await session.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+        if user is not None:
+            user.firebase_uid = firebase_uid
+            user.auth_provider = decoded.get("firebase", {}).get("sign_in_provider", "email")
+            await session.commit()
+            await session.refresh(user)
 
     # Auto-create on first login
     if user is None:
@@ -64,6 +79,7 @@ async def get_current_user(
 
 
 @router.get("/me", response_model=UserRead)
-async def get_me(current_user: User = Depends(get_current_user)) -> User:
+@limiter.limit(settings.RATE_LIMIT_AUTH)
+async def get_me(request: Request, current_user: User = Depends(get_current_user)) -> User:
     """Return profile information for the current authenticated user."""
     return current_user

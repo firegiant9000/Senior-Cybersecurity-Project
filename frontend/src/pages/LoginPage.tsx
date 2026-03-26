@@ -28,7 +28,7 @@ export default function LoginPage() {
       return;
     }
 
-    if (password.length < 6) {
+    if (isSignUp && password.length < 6) {
       setError("Password must be at least 6 characters");
       return;
     }

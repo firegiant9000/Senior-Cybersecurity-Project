@@ -5,19 +5,42 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy import func, select
 
 from app.api.routes import health, v1
 from app.core.config import settings
 from app.core.firebase import init_firebase
+from app.core.limiter import limiter
 from app.core.logging import setup_logging
 from app.db.engine import AsyncSessionLocal, init_db
 from app.db.models import CVE, KEV, IC3Incident
 from app.integrations.cve_org import aclose_http_client
 
 _log = logging.getLogger(__name__)
+
+
+def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    """Return 429 with a JSON body and a seconds-based Retry-After header.
+
+    exc.limit is a slowapi.wrappers.Limit; the underlying limits.RateLimitItem
+    lives at exc.limit.limit and exposes GRANULARITY.seconds + multiples.
+    """
+    try:
+        inner = exc.limit.limit
+        retry_after = str(inner.GRANULARITY.seconds * (inner.multiples or 1))
+    except (AttributeError, TypeError):
+        retry_after = "60"
+    response = JSONResponse(
+        status_code=429,
+        content={"error": "Too Many Requests", "detail": str(exc.detail)},
+    )
+    response.headers["Retry-After"] = retry_after
+    return response
 
 
 async def _run_sequential_ingest(sources: list[str]) -> None:
@@ -68,7 +91,24 @@ async def _auto_ingest() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
-    init_firebase()
+    try:
+        init_firebase()
+    except Exception as exc:  # pragma: no cover - defensive startup guard
+        _log.error(
+            "Failed to initialize Firebase SDK: %s. "
+            "Ensure GOOGLE_APPLICATION_CREDENTIALS is set correctly.",
+            exc,
+        )
+        if settings.APP_ENV not in ("development", "testing"):
+            raise SystemExit(
+                "FATAL: Firebase initialization failed. "
+                "See logs and verify your Google Cloud credentials."
+            ) from exc
+        _log.warning(
+            "Continuing without Firebase because APP_ENV=%r. "
+            "Auth-dependent features will not work.",
+            settings.APP_ENV,
+        )
     await init_db()
     await _auto_ingest()
     yield
@@ -100,6 +140,11 @@ def create_app() -> FastAPI:
     # Setup logging
     setup_logging(settings.LOG_LEVEL)
 
+    # Register rate limiter
+    fastapi_app.state.limiter = limiter
+    fastapi_app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    fastapi_app.add_middleware(SlowAPIMiddleware)
+
     # Add CORS middleware
     fastapi_app.add_middleware(
         CORSMiddleware,
@@ -107,6 +152,7 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["Retry-After"],
     )
 
     # Include routers

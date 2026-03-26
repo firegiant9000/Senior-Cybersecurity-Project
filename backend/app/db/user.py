@@ -12,7 +12,9 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)  # noqa: A003
-    firebase_uid: Mapped[str] = mapped_column(String(128), unique=True, index=True, nullable=False)
+    firebase_uid: Mapped[str | None] = mapped_column(
+        String(128), unique=True, index=True, nullable=True
+    )
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
