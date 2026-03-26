@@ -99,9 +99,16 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
 def create_app() -> FastAPI:
     """Create and configure FastAPI application."""
     if settings.SECRET_KEY == "change-me-in-production":
+        if settings.APP_ENV not in ("development", "testing"):
+            raise SystemExit(
+                "FATAL: SECRET_KEY is set to the default insecure value "
+                f"and APP_ENV={settings.APP_ENV!r}. "
+                "Set a strong SECRET_KEY (e.g., `openssl rand -hex 32`) "
+                "in your environment (for example via a .env file or deployment secrets) before running in production."
+            )
         _log.warning(
             "SECRET_KEY is set to the default insecure value. "
-            "Set a strong SECRET_KEY in your .env before deploying to production."
+            "Set a strong SECRET_KEY in your environment before deploying to production."
         )
 
     fastapi_app = FastAPI(
