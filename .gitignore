@@ -3,6 +3,10 @@
 **/.env
 **/.env.*
 
+# Firebase service account keys
+*firebase-adminsdk*
+*serviceAccountKey*.json
+
 # Python venv + caches
 .venv/
 venv/
@@ -30,3 +34,4 @@ dist/
 Thumbs.db
 .vscode/
 .idea/
+.claude/

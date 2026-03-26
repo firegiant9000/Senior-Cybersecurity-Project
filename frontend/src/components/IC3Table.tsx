@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDebounce } from '../hooks/useDebounce';
 import { downloadCsv } from '../utils/csvExport';
+import { fetchWithAuth } from '../api/fetchWithAuth';
 
 interface IC3IncidentItem {
     id: number;
@@ -54,7 +55,7 @@ const IC3Table: React.FC<Props> = ({ apiBaseUrl }) => {
         const controller = new AbortController();
         const loadOptions = async () => {
             try {
-                const response = await fetch(`${apiBaseUrl}/api/v1/ic3/filter-options`, {
+                const response = await fetchWithAuth(`${apiBaseUrl}/api/v1/ic3/filter-options`, {
                     signal: controller.signal,
                 });
                 if (response.ok) {
@@ -87,7 +88,7 @@ const IC3Table: React.FC<Props> = ({ apiBaseUrl }) => {
             if (st !== 'All') params.set('state', st);
             if (yr !== 'All') params.set('year', yr);
 
-            const response = await fetch(`${apiBaseUrl}/api/v1/ic3/incidents?${params}`, signal ? { signal } : undefined);
+            const response = await fetchWithAuth(`${apiBaseUrl}/api/v1/ic3/incidents?${params}`, signal ? { signal } : undefined);
             if (!response.ok) throw new Error(`Failed to fetch IC3 data: ${response.status}`);
             const result: ApiResponse = await response.json();
             setData(result.items);

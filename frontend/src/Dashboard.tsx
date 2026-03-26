@@ -1,5 +1,7 @@
 import React, { useState, useMemo, Suspense, lazy } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './Dashboard.css';
+import { useAuth } from './context/AuthContext';
 import { useDarkMode } from './hooks/useDarkMode';
 import StatCard from './components/StatCard';
 import ComplianceStatusBars from './components/ComplianceStatusBars';
@@ -27,9 +29,7 @@ const VictimProfileTab = lazy(() => import('./components/VictimProfileTab'));
 const PipelineHealthTab = lazy(() => import('./components/PipelineHealthTab'));
 const SmBAdvisorTab = lazy(() => import('./components/SmBAdvisorTab'));
 
-const API_BASE_URL =
-    (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env
-        .VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8000`;
+import { API_BASE_URL } from './api/fetchWithAuth';
 
 function yoyChange(curr: number | undefined, prev: number | undefined): string | undefined {
     if (!curr || !prev || prev === 0) return undefined;
@@ -48,6 +48,8 @@ function fmtLoss(v: number | undefined): string {
 const Dashboard: React.FC = () => {
     const [activeTab, setActiveTab] = useState('overview');
     const [dark, toggleDark] = useDarkMode();
+    const { user, logout } = useAuth();
+    const navigate = useNavigate();
     const { data: dashboardData, loading: dashboardLoading, loadingHeavy: dashboardLoadingHeavy, errors: dashboardErrors, lastUpdated, refresh } = useDashboardData();
 
     // ── Year-over-year change helpers ────────────────────────────────────────
@@ -86,9 +88,18 @@ const Dashboard: React.FC = () => {
                     <button className="dark-mode-btn" onClick={toggleDark} title="Toggle dark mode">
                         {dark ? '☀' : '🌙'}
                     </button>
-                    <button>Settings</button>
-                    <button>Log In</button>
-                    <button>Sign Up</button>
+                    {user ? (
+                        <>
+                            <span className="header-user-email">{user.email}</span>
+                            <button onClick={() => navigate('/settings')}>Settings</button>
+                            <button onClick={async () => { await logout(); navigate('/login'); }}>Log Out</button>
+                        </>
+                    ) : (
+                        <>
+                            <button onClick={() => navigate('/login')}>Log In</button>
+                            <button onClick={() => navigate('/login')}>Sign Up</button>
+                        </>
+                    )}
                 </div>
             </header>
 
