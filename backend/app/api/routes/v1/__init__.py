@@ -1,10 +1,9 @@
 """V1 API routes."""
 
-from fastapi import APIRouter, Depends, Depends
+from fastapi import APIRouter, Depends
 
 from app.api.routes.v1 import auth, economics, health, ic3, ingest, nvd, vulnerabilities
 from app.core.dependencies import require_role
-from app.api.routes.v1.auth import get_current_user
 
 router = APIRouter()
 
