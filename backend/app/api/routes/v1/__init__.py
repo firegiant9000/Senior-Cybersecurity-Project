@@ -22,7 +22,9 @@ router.include_router(
 )
 router.include_router(ic3.router, prefix="/ic3", tags=["ic3"], dependencies=_viewer)
 router.include_router(nvd.router, prefix="/nvd", tags=["nvd"], dependencies=_viewer)
-router.include_router(economics.router, prefix="/economics", tags=["economics"], dependencies=_viewer)
+router.include_router(
+    economics.router, prefix="/economics", tags=["economics"], dependencies=_viewer
+)
 
 # Ingest router: per-route auth (viewer for reads, admin for trigger).
 router.include_router(ingest.router, prefix="/ingest", tags=["ingest"])
