@@ -2,13 +2,16 @@
 
 import asyncio
 from collections.abc import AsyncGenerator
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
 
-from app.main import app
+# Patch Firebase init before importing the app so it doesn't require credentials
+with patch("app.core.firebase.init_firebase"):
+    from app.main import app
 
 
 @pytest.fixture(scope="session")

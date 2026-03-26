@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 
 from app.api.routes import health, v1
 from app.core.config import settings
+from app.core.firebase import init_firebase
 from app.core.logging import setup_logging
 from app.db.engine import AsyncSessionLocal, init_db
 from app.db.models import CVE, KEV, IC3Incident
@@ -67,6 +68,7 @@ async def _auto_ingest() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
+    init_firebase()
     await init_db()
     await _auto_ingest()
     yield
