@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDebounce } from '../hooks/useDebounce';
+import { fetchWithAuth } from '../api/fetchWithAuth';
 
 interface EconomicsItem {
     id: number;
@@ -69,7 +70,7 @@ const EconomicsTable: React.FC<Props> = ({ apiBaseUrl }) => {
             });
             if (search) params.set('search', search);
 
-            const response = await fetch(`${apiBaseUrl}/api/v1/economics/indicators?${params}`, signal ? { signal } : undefined);
+            const response = await fetchWithAuth(`${apiBaseUrl}/api/v1/economics/indicators?${params}`, signal ? { signal } : undefined);
             if (!response.ok) throw new Error(`Failed to fetch economics data: ${response.status}`);
             const result: ApiResponse = await response.json();
             setData(result.items);

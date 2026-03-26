@@ -2,7 +2,7 @@
  * Health check API client
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8000`
+import { API_BASE_URL, fetchWithAuth } from "./fetchWithAuth";
 
 export interface HealthResponse {
   status: string
@@ -12,7 +12,7 @@ export interface HealthResponse {
 }
 
 export async function checkHealth(): Promise<HealthResponse> {
-  const response = await fetch(`${API_BASE_URL}/health`)
+  const response = await fetchWithAuth(`${API_BASE_URL}/health`)
   if (!response.ok) {
     throw new Error(`Health check failed: ${response.statusText}`)
   }
@@ -20,7 +20,7 @@ export async function checkHealth(): Promise<HealthResponse> {
 }
 
 export async function checkHealthV1(): Promise<HealthResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/health`)
+  const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/health`)
   if (!response.ok) {
     throw new Error(`Health check failed: ${response.statusText}`)
   }

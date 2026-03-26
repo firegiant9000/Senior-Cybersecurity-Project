@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useDebounce } from '../hooks/useDebounce';
+import { fetchWithAuth } from '../api/fetchWithAuth';
 
 interface RiskScoredItem {
     id: string;
@@ -70,7 +71,7 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
                 data_source: source,
             });
             if (search) params.set('search', search);
-            const response = await fetch(
+            const response = await fetchWithAuth(
                 `${apiBaseUrl}/api/v1/vulnerabilities/risk-scored?${params}`,
                 signal ? { signal } : undefined
             );
@@ -90,7 +91,7 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
     const fetchStats = useCallback(async (source: DataSourceFilter, signal?: AbortSignal) => {
         try {
             const params = new URLSearchParams({ data_source: source });
-            const response = await fetch(
+            const response = await fetchWithAuth(
                 `${apiBaseUrl}/api/v1/vulnerabilities/risk-scored/stats?${params}`,
                 signal ? { signal } : undefined
             );

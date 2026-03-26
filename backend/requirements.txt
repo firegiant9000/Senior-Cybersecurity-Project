@@ -13,10 +13,8 @@ httpx==0.25.2
 pdfplumber==0.11.9
 ruff==0.1.11
 psycopg[binary]==3.3.2
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-bcrypt==4.0.1
 python-multipart==0.0.6
 email-validator==2.1.0
 cachetools==5.3.3
+firebase-admin==6.4.0
 slowapi==0.1.9

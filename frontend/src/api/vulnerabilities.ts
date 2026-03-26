@@ -1,11 +1,8 @@
 /**
  * Exploited vulnerabilities API client.
- * Mirrors the pattern in api/health.ts.
  */
 
-const API_BASE_URL =
-  (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env
-    .VITE_API_BASE_URL || `http://${window.location.hostname}:8000`
+import { API_BASE_URL, fetchWithAuth } from "./fetchWithAuth";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -63,12 +60,11 @@ export async function fetchExploitedVulns({
     sort_order: sortOrder,
   })
 
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE_URL}/api/v1/vulnerabilities/exploited?${params}`
   )
 
   if (!response.ok) {
-    // Surface the backend's detail message when available
     const body = await response.json().catch(() => ({}))
     throw new Error(
       (body as { detail?: string }).detail ??

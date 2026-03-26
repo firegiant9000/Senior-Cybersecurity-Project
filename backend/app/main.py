@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 
 from app.api.routes import health, v1
 from app.core.config import settings
+from app.core.firebase import init_firebase
 from app.core.limiter import limiter
 from app.core.logging import setup_logging
 from app.db.engine import AsyncSessionLocal, init_db
@@ -90,6 +91,24 @@ async def _auto_ingest() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
+    try:
+        init_firebase()
+    except (ValueError, OSError) as exc:  # pragma: no cover - defensive startup guard
+        _log.error(
+            "Failed to initialize Firebase SDK: %s. "
+            "Ensure GOOGLE_APPLICATION_CREDENTIALS is set correctly.",
+            exc,
+        )
+        if settings.APP_ENV not in ("development", "testing"):
+            raise SystemExit(
+                "FATAL: Firebase initialization failed. "
+                "See logs and verify your Google Cloud credentials."
+            ) from exc
+        _log.warning(
+            "Continuing without Firebase because APP_ENV=%r. "
+            "Auth-dependent features will not work.",
+            settings.APP_ENV,
+        )
     await init_db()
     await _auto_ingest()
     yield

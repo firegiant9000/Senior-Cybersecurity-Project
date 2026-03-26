@@ -2,9 +2,7 @@
  * NVD (National Vulnerability Database) API client.
  */
 
-const API_BASE_URL =
-  (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env
-    .VITE_API_BASE_URL || `http://${window.location.hostname}:8000`
+import { API_BASE_URL, fetchWithAuth } from "./fetchWithAuth";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -51,7 +49,7 @@ export async function fetchNvdCves({
     sort_order: sortOrder,
   })
 
-  const response = await fetch(
+  const response = await fetchWithAuth(
     `${API_BASE_URL}/api/v1/nvd/cves?${params}`
   )
 
