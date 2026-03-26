@@ -3,9 +3,7 @@
  * Fetches all data needed for the Overview tab widgets.
  */
 
-const API_BASE_URL =
-  (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env
-    .VITE_API_BASE_URL || `http://${window.location.hostname}:8000`
+import { API_BASE_URL, getJsonAuth } from "./fetchWithAuth";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -79,59 +77,45 @@ export interface SeverityDistributionResponse {
   date_to: string | null
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-async function getJson<T>(url: string, signal: AbortSignal): Promise<T> {
-  const response = await fetch(url, { signal })
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}))
-    throw new Error(
-      (body as { detail?: string }).detail ??
-        `Request failed: ${response.statusText}`
-    )
-  }
-  return response.json() as Promise<T>
-}
-
 // ─── API calls ────────────────────────────────────────────────────────────────
 
 export async function fetchDashboardSummary(signal: AbortSignal): Promise<DashboardSummary> {
-  return getJson<DashboardSummary>(
+  return getJsonAuth<DashboardSummary>(
     `${API_BASE_URL}/api/v1/ic3/analytics/dashboard-summary`,
     signal
   )
 }
 
 export async function fetchAttackTypes(signal: AbortSignal): Promise<AttackTypeListResponse> {
-  return getJson<AttackTypeListResponse>(
+  return getJsonAuth<AttackTypeListResponse>(
     `${API_BASE_URL}/api/v1/ic3/analytics/attack-types`,
     signal
   )
 }
 
 export async function fetchIndustryRisk(signal: AbortSignal): Promise<IndustryRiskResponse> {
-  return getJson<IndustryRiskResponse>(
+  return getJsonAuth<IndustryRiskResponse>(
     `${API_BASE_URL}/api/v1/ic3/analytics/industry-risk`,
     signal
   )
 }
 
 export async function fetchGeographicHeatmap(signal: AbortSignal): Promise<GeographicHeatmapResponse> {
-  return getJson<GeographicHeatmapResponse>(
+  return getJsonAuth<GeographicHeatmapResponse>(
     `${API_BASE_URL}/api/v1/ic3/analytics/geographic-heatmap`,
     signal
   )
 }
 
 export async function fetchSeverityDistribution(signal: AbortSignal): Promise<SeverityDistributionResponse> {
-  return getJson<SeverityDistributionResponse>(
+  return getJsonAuth<SeverityDistributionResponse>(
     `${API_BASE_URL}/api/v1/nvd/analytics/severity-distribution`,
     signal
   )
 }
 
 export async function fetchSectorAttackMatrix(signal: AbortSignal): Promise<SectorAttackMatrixResponse> {
-  return getJson<SectorAttackMatrixResponse>(
+  return getJsonAuth<SectorAttackMatrixResponse>(
     `${API_BASE_URL}/api/v1/ic3/analytics/sector-attack-matrix`,
     signal
   )

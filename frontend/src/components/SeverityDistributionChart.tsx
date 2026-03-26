@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SEVERITY_COLORS } from '../theme';
+import { fetchWithAuth } from '../api/fetchWithAuth';
 import {
     BarChart,
     Bar,
@@ -46,7 +47,7 @@ const SeverityDistributionChart: React.FC<Props> = ({ apiBaseUrl, search, severi
                 if (search) params.set('search', search);
                 if (severity) params.set('severity', severity);
                 const qs = params.toString();
-                const response = await fetch(
+                const response = await fetchWithAuth(
                     `${apiBaseUrl}/api/v1/nvd/analytics/severity-distribution${qs ? `?${qs}` : ''}`,
                     { signal: controller.signal }
                 );

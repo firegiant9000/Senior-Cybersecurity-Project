@@ -3,20 +3,7 @@
  * Threat Intelligence, Trends, Alerts Feed, Victim Profile.
  */
 
-const API_BASE_URL =
-  (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env
-    .VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:8000`
-
-async function getJson<T>(url: string, signal: AbortSignal): Promise<T> {
-  const response = await fetch(url, { signal })
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}))
-    throw new Error(
-      (body as { detail?: string }).detail ?? `Request failed: ${response.statusText}`
-    )
-  }
-  return response.json() as Promise<T>
-}
+import { API_BASE_URL, getJsonAuth } from "./fetchWithAuth";
 
 // ─── Threat Intelligence ──────────────────────────────────────────────────────
 
@@ -49,14 +36,14 @@ export interface KevListResponse {
 }
 
 export function fetchNvdTimeline(signal: AbortSignal): Promise<NvdTimelineResponse> {
-  return getJson<NvdTimelineResponse>(
+  return getJsonAuth<NvdTimelineResponse>(
     `${API_BASE_URL}/api/v1/nvd/analytics/timeline`,
     signal
   )
 }
 
 export function fetchRecentKev(signal: AbortSignal, pageSize = 50): Promise<KevListResponse> {
-  return getJson<KevListResponse>(
+  return getJsonAuth<KevListResponse>(
     `${API_BASE_URL}/api/v1/vulnerabilities/exploited?sort_by=kev_date_added&sort_order=desc&page_size=${pageSize}`,
     signal
   )
@@ -86,14 +73,14 @@ export function fetchTemporalTrends(
   if (yearFrom !== undefined) p.set('year_from', String(yearFrom))
   if (yearTo !== undefined) p.set('year_to', String(yearTo))
   const qs = p.toString() ? `?${p.toString()}` : ''
-  return getJson<TemporalTrendResponse>(
+  return getJsonAuth<TemporalTrendResponse>(
     `${API_BASE_URL}/api/v1/ic3/analytics/temporal-trends${qs}`,
     signal
   )
 }
 
 export function fetchAttackTypeOptions(signal: AbortSignal): Promise<{ attack_types: string[] }> {
-  return getJson<{ attack_types: string[]; states: string[]; years: number[] }>(
+  return getJsonAuth<{ attack_types: string[]; states: string[]; years: number[] }>(
     `${API_BASE_URL}/api/v1/ic3/filter-options`,
     signal
   )
@@ -101,7 +88,7 @@ export function fetchAttackTypeOptions(signal: AbortSignal): Promise<{ attack_ty
 
 /** Fetch just the total count of KEV entries (lightweight — page_size=1). */
 export async function fetchKevTotal(signal: AbortSignal): Promise<number> {
-  const r = await getJson<{ total: number }>(
+  const r = await getJsonAuth<{ total: number }>(
     `${API_BASE_URL}/api/v1/vulnerabilities/exploited?page_size=1`,
     signal
   )
@@ -126,7 +113,7 @@ export interface NvdCveListResponse {
 }
 
 export function fetchRecentNvdCves(signal: AbortSignal, pageSize = 20): Promise<NvdCveListResponse> {
-  return getJson<NvdCveListResponse>(
+  return getJsonAuth<NvdCveListResponse>(
     `${API_BASE_URL}/api/v1/nvd/cves?sort_by=published_date&sort_order=desc&page_size=${pageSize}`,
     signal
   )
