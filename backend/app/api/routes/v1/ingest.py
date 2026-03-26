@@ -10,9 +10,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.dependencies import require_role
 from app.core.limiter import limiter
 from app.db.engine import AsyncSessionLocal, get_session
 from app.db.models import CVE, KEV, IC3Incident
+from app.db.user import User
 from app.models.ingest_run import IngestRun
 
 logger = logging.getLogger(__name__)
@@ -107,6 +109,7 @@ async def _run_ingestion(source: str, **kwargs: object) -> None:
 async def get_ingest_freshness(
     request: Request,
     db: AsyncSession = Depends(get_session),
+    _: User = Depends(require_role("viewer")),
 ) -> FreshnessResponse:
     """Return the latest ingest run info for each data source."""
     try:
@@ -187,6 +190,7 @@ async def get_ingest_runs(
     source: Annotated[str | None, Query(description="Filter by source name")] = None,
     status: Annotated[str | None, Query(description="Filter by status")] = None,
     db: AsyncSession = Depends(get_session),
+    _: User = Depends(require_role("viewer")),
 ) -> IngestRunsResponse:
     """Return paginated historical ingest run records."""
     try:
@@ -243,6 +247,7 @@ async def trigger_ingestion(
     source: Literal["nvd", "cisa_kev", "ic3", "economics", "all"] = Query(
         default="all", description="Data source to ingest (or 'all')"
     ),
+    _: User = Depends(require_role("admin")),
 ) -> list[IngestTriggerResponse]:
     """Trigger data ingestion for one or all sources.
 
