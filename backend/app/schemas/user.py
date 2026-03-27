@@ -12,5 +12,7 @@ class UserRead(BaseModel):
     role: str
     auth_provider: str
     created_at: datetime
+    org_id: int | None = None
+    org_role: str | None = None
 
     model_config = {"from_attributes": True}
