@@ -14,6 +14,7 @@ import WidgetErrorBoundary from './components/WidgetErrorBoundary';
 import SectorAttackHeatmap from './components/SectorAttackHeatmap';
 import WidgetSkeleton from './components/WidgetSkeleton';
 import DataFreshness from './components/DataFreshness';
+import ExecutiveSummaryCard from './components/ExecutiveSummaryCard';
 import { useDashboardData } from './hooks/useDashboardData';
 
 // Tab components are lazy-loaded so they are excluded from the initial bundle
@@ -202,6 +203,12 @@ const Dashboard: React.FC = () => {
                                 ⚠ Some widgets failed to load: {dashboardErrors.join(' · ')}
                             </div>
                         )}
+
+                        {/* Executive Summary — prominent card at top of dashboard */}
+                        <ExecutiveSummaryCard
+                            data={dashboardData.executiveSummary}
+                            loading={dashboardLoading}
+                        />
 
                         <div className="dashboard-grid">
                             {/* Top Row */}

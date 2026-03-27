@@ -1,0 +1,241 @@
+/* ── Executive Summary Card ────────────────────────────────────────────────── */
+
+.exec-summary-card {
+    background: var(--card-bg);
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+/* ── Header band ─────────────────────────────────────────────────────────── */
+
+.exec-summary-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 16px 24px;
+    background: var(--header-bg);
+    color: #fff;
+}
+
+.exec-summary-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.exec-summary-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.75;
+}
+
+.exec-summary-subtitle {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+/* ── Risk badge ──────────────────────────────────────────────────────────── */
+
+.exec-summary-risk-badge {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.exec-risk-score {
+    font-size: 2.4rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.exec-risk-label-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 14px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.exec-risk-label-pill.Low      { background: #dcfce7; color: #166534; }
+.exec-risk-label-pill.Medium   { background: #fef9c3; color: #854d0e; }
+.exec-risk-label-pill.High     { background: #ffedd5; color: #9a3412; }
+.exec-risk-label-pill.Critical { background: #fee2e2; color: #991b1b; }
+
+/* ── Body ────────────────────────────────────────────────────────────────── */
+
+.exec-summary-body {
+    padding: 18px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* ── Metrics row ─────────────────────────────────────────────────────────── */
+
+.exec-metrics-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.exec-metric {
+    flex: 1 1 140px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+}
+
+.exec-metric-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.exec-metric-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* ── Top threats ─────────────────────────────────────────────────────────── */
+
+.exec-threats-section {}
+
+.exec-threats-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.exec-threats-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.exec-threat-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.82rem;
+}
+
+.exec-threat-rank {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 14px;
+}
+
+.exec-threat-name {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.exec-threat-loss {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+/* ── Confidence + metadata row ───────────────────────────────────────────── */
+
+.exec-meta-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+
+.exec-confidence-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 600;
+}
+
+.exec-confidence-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.exec-confidence-dot.High   { background: #22c55e; }
+.exec-confidence-dot.Medium { background: #f59e0b; }
+.exec-confidence-dot.Low    { background: #ef4444; }
+
+/* ── Methodology (collapsible) ───────────────────────────────────────────── */
+
+.exec-methodology-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--accent);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.exec-methodology-text {
+    margin-top: 8px;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    background: var(--bg);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+}
+
+/* ── Disclaimer ──────────────────────────────────────────────────────────── */
+
+.exec-disclaimer {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+}
+
+/* ── Skeleton ────────────────────────────────────────────────────────────── */
+
+.exec-summary-skeleton {
+    background: var(--card-bg);
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    height: 160px;
+    margin-bottom: 20px;
+    animation: exec-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes exec-pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.5; }
+}
