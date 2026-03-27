@@ -31,5 +31,5 @@ class ExecutiveSummaryResponse(BaseModel):
     disclaimer: str
 
     # Metadata
-    generated_at: str   # ISO 8601
+    generated_at: str  # ISO 8601
     data_year_range: str  # e.g. "2018–2023"
