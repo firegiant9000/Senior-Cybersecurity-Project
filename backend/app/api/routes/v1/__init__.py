@@ -8,7 +8,7 @@ from app.api.routes.v1 import (
     health,
     ic3,
     ingest,
-    nvd, organizations,
+    nvd,
     organizations,
     vulnerabilities,
 )
