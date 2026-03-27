@@ -31,4 +31,4 @@ class Organization(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
-    members: Mapped[list["User"]] = relationship(back_populates="organization")
+    members: Mapped[list[User]] = relationship(back_populates="organization")

@@ -34,4 +34,4 @@ class User(Base):
     )
     org_role: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
-    organization: Mapped["Organization"] = relationship(back_populates="members")
+    organization: Mapped[Organization] = relationship(back_populates="members")
