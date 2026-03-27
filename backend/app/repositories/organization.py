@@ -1,5 +1,7 @@
 """Repository abstraction for Organizations."""
 
+# pylint: disable=too-few-public-methods,duplicate-code
+
 import logging
 from typing import Protocol, runtime_checkable
 

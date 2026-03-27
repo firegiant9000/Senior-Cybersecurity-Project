@@ -1,6 +1,7 @@
 """Pydantic schemas for Organization endpoints."""
 
 from datetime import datetime
+from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -18,6 +19,10 @@ class OrganizationCreate(BaseModel):
     primary_state: str = Field(..., min_length=2, max_length=2, pattern=r"^[A-Z]{2}$")
     employee_range: EmployeeRange
     revenue_range: RevenueRange
+    ic3_sector: str = Field("", json_schema_extra={"hidden": True})
+
+    # Fields to exclude from the OpenAPI request schema.
+    _server_derived: ClassVar[set[str]] = {"ic3_sector"}
 
     @model_validator(mode="after")
     def _derive_ic3_sector(self):
@@ -25,8 +30,14 @@ class OrganizationCreate(BaseModel):
         self.ic3_sector = str(INDUSTRY_TO_IC3_SECTOR[self.industry_label])
         return self
 
-    # Populated by the validator; not required in the request body.
-    ic3_sector: str = ""
+    @classmethod
+    def model_json_schema(cls, **kwargs):
+        schema = super().model_json_schema(**kwargs)
+        for field in cls._server_derived:
+            schema.get("properties", {}).pop(field, None)
+            if field in schema.get("required", []):
+                schema["required"].remove(field)
+        return schema
 
 
 class OrganizationUpdate(BaseModel):
@@ -37,6 +48,9 @@ class OrganizationUpdate(BaseModel):
     )
     employee_range: EmployeeRange | None = None
     revenue_range: RevenueRange | None = None
+    ic3_sector: str | None = Field(None, json_schema_extra={"hidden": True})
+
+    _server_derived: ClassVar[set[str]] = {"ic3_sector"}
 
     @model_validator(mode="after")
     def _derive_ic3_sector(self):
@@ -45,13 +59,18 @@ class OrganizationUpdate(BaseModel):
             self.ic3_sector = str(INDUSTRY_TO_IC3_SECTOR[self.industry_label])
         return self
 
-    ic3_sector: str | None = None
+    @classmethod
+    def model_json_schema(cls, **kwargs):
+        schema = super().model_json_schema(**kwargs)
+        for field in cls._server_derived:
+            schema.get("properties", {}).pop(field, None)
+        return schema
 
 
 class OrganizationRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
+    id: int  # noqa: A003
     name: str
     industry_label: str
     ic3_sector: str
