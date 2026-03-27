@@ -12,6 +12,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import { useAuth } from '../context/AuthContext'
 import {
   fetchDashboardSummary,
   fetchAttackTypes,
@@ -31,9 +32,14 @@ import {
   fetchKevTotal,
   type TemporalTrend,
 } from '../api/tabsApi'
+import {
+  fetchExecutiveSummary,
+  type ExecutiveSummary,
+} from '../api/executiveSummary'
 
 export interface DashboardData {
   summary:              DashboardSummary | null
+  executiveSummary:     ExecutiveSummary | null
   attackTypes:          AttackTypeStats[]
   industryRisk:         IndustryRiskProfile[]
   geographicThreats:    GeographicThreat[]
@@ -54,6 +60,7 @@ export interface UseDashboardDataResult {
 
 const EMPTY_DATA: DashboardData = {
   summary:              null,
+  executiveSummary:     null,
   attackTypes:          [],
   industryRisk:         [],
   geographicThreats:    [],
@@ -85,6 +92,7 @@ function extract<T>(result: PromiseSettledResult<T>, fallback: T): T {
 }
 
 export function useDashboardData(): UseDashboardDataResult {
+  const { user } = useAuth()
   const [data,         setData]         = useState<DashboardData>(EMPTY_DATA)
   const [loading,      setLoading]      = useState(true)
   const [loadingHeavy, setLoadingHeavy] = useState(true)
@@ -125,23 +133,26 @@ export function useDashboardData(): UseDashboardDataResult {
       t(fetchSeverityDistribution(signal), 'Severity distribution'),
       t(fetchTemporalTrends(signal),       'Temporal trends'),
       t(fetchKevTotal(signal),             'KEV total'),
-    ]).then(([summaryR, attackR, severityR, trendsR, kevR]) => {
+      t(fetchExecutiveSummary(signal),     'Executive summary'),
+    ]).then(([summaryR, attackR, severityR, trendsR, kevR, execR]) => {
       if (signal.aborted) return
 
       type SummaryResult  = PromiseSettledResult<DashboardSummary>
+      type ExecResult     = PromiseSettledResult<ExecutiveSummary>
       type AttackResult   = PromiseSettledResult<{ items: AttackTypeStats[] }>
       type SeverityResult = PromiseSettledResult<{ items: SeverityCount[] }>
       type TrendsResult   = PromiseSettledResult<{ items: TemporalTrend[] }>
       type KevTotalResult = PromiseSettledResult<number>
 
       const wave1Errors = collectErrors(
-        [summaryR, attackR, severityR, trendsR, kevR],
-        ['Summary', 'Attack types', 'Severity data', 'Temporal trends', 'KEV total'],
+        [summaryR, attackR, severityR, trendsR, kevR, execR],
+        ['Summary', 'Attack types', 'Severity data', 'Temporal trends', 'KEV total', 'Executive summary'],
       )
 
       setData(prev => ({
         ...prev,
         summary:              extract(summaryR  as SummaryResult,  null),
+        executiveSummary:     extract(execR     as ExecResult,     null),
         attackTypes:          extract(attackR   as AttackResult,   { items: [] }).items,
         severityDistribution: extract(severityR as SeverityResult, { items: [] }).items,
         temporalTrends:       extract(trendsR   as TrendsResult,   { items: [] }).items,
@@ -184,7 +195,7 @@ export function useDashboardData(): UseDashboardDataResult {
     })
 
     return () => controller.abort()
-  }, [refreshKey])
+  }, [refreshKey, user?.uid])
 
   return { data, loading, loadingHeavy, errors, lastUpdated, refresh }
 }
