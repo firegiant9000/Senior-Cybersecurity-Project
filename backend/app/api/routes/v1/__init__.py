@@ -36,9 +36,7 @@ router.include_router(
 )
 
 # Organizations router: per-route auth handles access control.
-router.include_router(
-    organizations.router, prefix="/organizations", tags=["organizations"]
-)
+router.include_router(organizations.router, prefix="/organizations", tags=["organizations"])
 
 # Ingest router: per-route auth (viewer for reads, admin for trigger).
 router.include_router(ingest.router, prefix="/ingest", tags=["ingest"])

@@ -43,9 +43,7 @@ class OrganizationCreate(BaseModel):
 class OrganizationUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
     industry_label: IndustryLabel | None = None
-    primary_state: str | None = Field(
-        None, min_length=2, max_length=2, pattern=r"^[A-Z]{2}$"
-    )
+    primary_state: str | None = Field(None, min_length=2, max_length=2, pattern=r"^[A-Z]{2}$")
     employee_range: EmployeeRange | None = None
     revenue_range: RevenueRange | None = None
     ic3_sector: str | None = Field(None, json_schema_extra={"hidden": True})
