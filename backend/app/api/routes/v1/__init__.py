@@ -8,7 +8,7 @@ from app.api.routes.v1 import (
     health,
     ic3,
     ingest,
-    nvd,
+    nvd, organizations,
     organizations,
     vulnerabilities,
 )
@@ -35,8 +35,12 @@ router.include_router(
     economics.router, prefix="/economics", tags=["economics"], dependencies=_viewer
 )
 
-# Organizations router: per-route auth handles access control.
-router.include_router(organizations.router, prefix="/organizations", tags=["organizations"])
+router.include_router(
+    organizations.router,
+    prefix="/organizations",
+    tags=["organizations"],
+    dependencies=_viewer,
+)
 
 # Ingest router: per-route auth (viewer for reads, admin for trigger).
 router.include_router(ingest.router, prefix="/ingest", tags=["ingest"])

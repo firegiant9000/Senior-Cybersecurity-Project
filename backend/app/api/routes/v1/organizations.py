@@ -5,18 +5,22 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.dependencies import require_role
 from app.core.limiter import limiter
+from app.db.engine import get_session
 from app.db.user import User
 from app.repositories.organization import SqlOrganizationRepository, get_org_repo
+from app.schemas.executive_summary import ExecutiveSummaryResponse
 from app.schemas.organization import (
     OrganizationCreate,
     OrganizationListResponse,
     OrganizationRead,
     OrganizationUpdate,
 )
+from app.services.executive_summary import ExecutiveSummaryService
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +65,17 @@ async def list_organizations(
         page_size=page_size,
         items=[OrganizationRead.model_validate(item) for item in items],
     )
+
+
+@router.get("/mine/executive-summary", response_model=ExecutiveSummaryResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def get_executive_summary(
+    request: Request,  # noqa: ARG001
+    current_user: User = Depends(require_role("viewer")),  # noqa: ARG001
+    db: AsyncSession = Depends(get_session),
+):
+    """Return an executive summary of the current threat landscape."""
+    return await ExecutiveSummaryService(db).build()
 
 
 @router.get("/{org_id}", response_model=OrganizationRead)
