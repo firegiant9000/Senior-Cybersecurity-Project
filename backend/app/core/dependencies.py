@@ -80,9 +80,7 @@ def require_org_or_admin():
         if current_user.role == "admin":
             if current_user.org_id is not None:
                 result = await session.execute(
-                    select(Organization).where(
-                        Organization.id == current_user.org_id
-                    )
+                    select(Organization).where(Organization.id == current_user.org_id)
                 )
                 return result.scalar_one_or_none()
             return None

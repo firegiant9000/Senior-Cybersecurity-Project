@@ -29,13 +29,9 @@ class OrganizationRepository(Protocol):
 
     async def get_by_id(self, org_id: int) -> Organization | None: ...
 
-    async def list_orgs(
-        self, page: int, page_size: int
-    ) -> tuple[list[Organization], int]: ...
+    async def list_orgs(self, page: int, page_size: int) -> tuple[list[Organization], int]: ...
 
-    async def update(
-        self, org_id: int, data: OrganizationUpdate
-    ) -> Organization | None: ...
+    async def update(self, org_id: int, data: OrganizationUpdate) -> Organization | None: ...
 
     async def delete(self, org_id: int) -> bool: ...
 
@@ -54,14 +50,10 @@ class SqlOrganizationRepository:
         return org
 
     async def get_by_id(self, org_id: int) -> Organization | None:
-        result = await self._session.execute(
-            select(Organization).where(Organization.id == org_id)
-        )
+        result = await self._session.execute(select(Organization).where(Organization.id == org_id))
         return result.scalar_one_or_none()
 
-    async def list_orgs(
-        self, page: int, page_size: int
-    ) -> tuple[list[Organization], int]:
+    async def list_orgs(self, page: int, page_size: int) -> tuple[list[Organization], int]:
         stmt = (
             select(Organization)
             .order_by(Organization.created_at.desc())
@@ -71,16 +63,12 @@ class SqlOrganizationRepository:
         result = await self._session.execute(stmt)
         rows = list(result.scalars().all())
 
-        total_result = await self._session.execute(
-            select(func.count(Organization.id))
-        )
+        total_result = await self._session.execute(select(func.count(Organization.id)))
         total = int(total_result.scalar_one())
 
         return rows, total
 
-    async def update(
-        self, org_id: int, data: OrganizationUpdate
-    ) -> Organization | None:
+    async def update(self, org_id: int, data: OrganizationUpdate) -> Organization | None:
         org = await self.get_by_id(org_id)
         if org is None:
             return None
