@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -98,11 +98,13 @@ class ExecutiveSummaryService:
         )
 
         # Confidence: High if all three sources have data, Medium if two, Low if one.
-        sources_populated = sum([
-            kev_count > 0,
-            total_loss > 0,
-            total_cve_count > 0,
-        ])
+        sources_populated = sum(
+            [
+                kev_count > 0,
+                total_loss > 0,
+                total_cve_count > 0,
+            ]
+        )
         if sources_populated == 3:
             confidence = "High"
         elif sources_populated == 2:
@@ -110,9 +112,7 @@ class ExecutiveSummaryService:
         else:
             confidence = "Low"
 
-        year_range = (
-            f"{year_min}–{year_max}" if year_min and year_max else "N/A"
-        )
+        year_range = f"{year_min}–{year_max}" if year_min and year_max else "N/A"
 
         top_threats = [
             TopThreat(
@@ -134,7 +134,7 @@ class ExecutiveSummaryService:
             methodology=_METHODOLOGY,
             confidence_level=confidence,
             disclaimer=_DISCLAIMER,
-            generated_at=datetime.now(timezone.utc).isoformat(),
+            generated_at=datetime.now(UTC).isoformat(),
             data_year_range=year_range,
         )
 
@@ -145,9 +145,7 @@ class ExecutiveSummaryService:
         kev_result = await self.db.execute(select(func.count(KEV.id)))
         kev_count = kev_result.scalar() or 0
 
-        crit_result = await self.db.execute(
-            select(func.count(CVE.id)).where(CVE.cvss_score >= 9.0)
-        )
+        crit_result = await self.db.execute(select(func.count(CVE.id)).where(CVE.cvss_score >= 9.0))
         critical_cve_count = crit_result.scalar() or 0
 
         total_result = await self.db.execute(select(func.count(CVE.id)))
@@ -159,9 +157,7 @@ class ExecutiveSummaryService:
         self,
     ) -> tuple[float, list[dict], int | None, int | None]:
         """Return (total_loss, top_3_attack_types, year_min, year_max)."""
-        loss_result = await self.db.execute(
-            select(func.sum(IC3Incident.loss_amount))
-        )
+        loss_result = await self.db.execute(select(func.sum(IC3Incident.loss_amount)))
         total_loss = float(loss_result.scalar() or 0.0)
 
         top_stmt = (
