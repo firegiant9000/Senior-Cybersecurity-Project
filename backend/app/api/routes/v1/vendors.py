@@ -63,20 +63,17 @@ def _parse_csv_rows(
     return rows, errors
 
 
-async def _check_org_access(
-    current_user: User, org_id: int, session: AsyncSession
-) -> None:
+async def _check_org_access(current_user: User, org_id: int, session: AsyncSession) -> None:
     """Raise 403/404 if user can't access the org or the org doesn't exist."""
     if current_user.role != "admin" and current_user.org_id != org_id:
         raise HTTPException(status_code=403, detail="Access denied")
-    result = await session.execute(
-        select(Organization).where(Organization.id == org_id)
-    )
+    result = await session.execute(select(Organization).where(Organization.id == org_id))
     if result.scalar_one_or_none() is None:
         raise HTTPException(status_code=404, detail="Organization not found")
 
 
 # ---- KEV autocomplete (not org-scoped) ----
+
 
 @router.get("/vendors/autocomplete")
 @limiter.limit(settings.RATE_LIMIT_DATA)
@@ -104,6 +101,7 @@ async def autocomplete_vendors(
 
 
 # ---- Org-scoped vendor CRUD ----
+
 
 @router.get("/organizations/{org_id}/vendors", response_model=OrgVendorListResponse)
 @limiter.limit(settings.RATE_LIMIT_DATA)
