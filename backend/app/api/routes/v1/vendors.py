@@ -33,6 +33,36 @@ router = APIRouter()
 MAX_CSV_ROWS = 500
 
 
+def _parse_csv_rows(
+    reader: csv.DictReader,  # type: ignore[type-arg]
+) -> tuple[list[dict[str, str]], list[str]]:
+    """Validate and extract rows from a CSV DictReader.
+
+    Returns (valid_rows, errors).
+    """
+    rows: list[dict[str, str]] = []
+    errors: list[str] = []
+    for i, row in enumerate(reader, start=2):  # row 1 is header
+        if len(rows) >= MAX_CSV_ROWS:
+            errors.append(
+                f"Row {i}: exceeded maximum of {MAX_CSV_ROWS} rows — remaining rows skipped"
+            )
+            break
+        vendor_name = (row.get("vendor_name") or "").strip()
+        if not vendor_name:
+            errors.append(f"Row {i}: missing vendor_name")
+            continue
+        if len(vendor_name) > 255:
+            errors.append(f"Row {i}: vendor_name exceeds 255 characters")
+            continue
+        product_name = (row.get("product_name") or "").strip()
+        if len(product_name) > 255:
+            errors.append(f"Row {i}: product_name exceeds 255 characters")
+            continue
+        rows.append({"vendor_name": vendor_name, "product_name": product_name})
+    return rows, errors
+
+
 async def _check_org_access(
     current_user: User, org_id: int, session: AsyncSession
 ) -> None:
@@ -52,7 +82,7 @@ async def _check_org_access(
 @limiter.limit(settings.RATE_LIMIT_DATA)
 async def autocomplete_vendors(
     request: Request,  # noqa: ARG001
-    q: Annotated[str, Query(min_length=1, max_length=255)] = "",
+    q: Annotated[str, Query(min_length=1, max_length=255)],
     field: Annotated[str, Query(pattern=r"^(vendor|product)$")] = "vendor",
     vendor: Annotated[str | None, Query(max_length=255)] = None,
     current_user: User = Depends(get_current_user),  # noqa: ARG001
@@ -209,24 +239,7 @@ async def import_vendors_csv(
             detail="CSV must contain a 'vendor_name' column",
         )
 
-    rows: list[dict[str, str]] = []
-    errors: list[str] = []
-    for i, row in enumerate(reader, start=2):  # row 1 is header
-        if len(rows) >= MAX_CSV_ROWS:
-            errors.append(f"Row {i}: exceeded maximum of {MAX_CSV_ROWS} rows — remaining rows skipped")
-            break
-        vendor_name = (row.get("vendor_name") or "").strip()
-        if not vendor_name:
-            errors.append(f"Row {i}: missing vendor_name")
-            continue
-        if len(vendor_name) > 255:
-            errors.append(f"Row {i}: vendor_name exceeds 255 characters")
-            continue
-        product_name = (row.get("product_name") or "").strip()
-        if len(product_name) > 255:
-            errors.append(f"Row {i}: product_name exceeds 255 characters")
-            continue
-        rows.append({"vendor_name": vendor_name, "product_name": product_name})
+    rows, errors = _parse_csv_rows(reader)
 
     if not rows:
         return OrgVendorImportResponse(imported=0, skipped=0, errors=errors)

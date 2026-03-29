@@ -131,10 +131,14 @@ export default function SettingsPage() {
     if (newVendor.length < 2) { setVendorSuggestions([]); setShowVendorSuggestions(false); return; }
     let cancelled = false;
     const timer = setTimeout(async () => {
-      const results = await autocompleteVendors(newVendor, "vendor");
-      if (!cancelled) {
-        setVendorSuggestions(results);
-        setShowVendorSuggestions(results.length > 0);
+      try {
+        const results = await autocompleteVendors(newVendor, "vendor");
+        if (!cancelled) {
+          setVendorSuggestions(results);
+          setShowVendorSuggestions(results.length > 0);
+        }
+      } catch {
+        if (!cancelled) { setVendorSuggestions([]); setShowVendorSuggestions(false); }
       }
     }, 300);
     return () => { cancelled = true; clearTimeout(timer); };
@@ -145,10 +149,14 @@ export default function SettingsPage() {
     if (newProduct.length < 2) { setProductSuggestions([]); setShowProductSuggestions(false); return; }
     let cancelled = false;
     const timer = setTimeout(async () => {
-      const results = await autocompleteVendors(newProduct, "product", newVendor || undefined);
-      if (!cancelled) {
-        setProductSuggestions(results);
-        setShowProductSuggestions(results.length > 0);
+      try {
+        const results = await autocompleteVendors(newProduct, "product", newVendor || undefined);
+        if (!cancelled) {
+          setProductSuggestions(results);
+          setShowProductSuggestions(results.length > 0);
+        }
+      } catch {
+        if (!cancelled) { setProductSuggestions([]); setShowProductSuggestions(false); }
       }
     }, 300);
     return () => { cancelled = true; clearTimeout(timer); };

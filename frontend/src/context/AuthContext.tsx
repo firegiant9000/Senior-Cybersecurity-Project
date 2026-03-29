@@ -7,10 +7,7 @@ import {
   signOut,
 } from "firebase/auth";
 import { auth } from "../firebase";
-
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  `${window.location.protocol}//${window.location.hostname}:8000`;
+import { API_BASE_URL } from "../api/fetchWithAuth";
 
 interface AuthContextType {
   user: User | null;
@@ -35,31 +32,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const [profileError, setProfileError] = useState(false);
 
-  const fetchProfile = useCallback(async (firebaseUser: User, retries = 1) => {
+  const fetchProfile = useCallback(async (firebaseUser: User, maxRetries = 1) => {
     setProfileError(false);
-    try {
-      const token = await firebaseUser.getIdToken();
-      const resp = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        setOrgId(data.org_id ?? null);
-      } else if (retries > 0) {
-        await new Promise((r) => setTimeout(r, 1000));
-        return fetchProfile(firebaseUser, retries - 1);
-      } else {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const token = await firebaseUser.getIdToken();
+        const resp = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          setOrgId(data.org_id ?? null);
+          setOrgLoading(false);
+          return;
+        }
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 1000));
+          continue;
+        }
+        setProfileError(true);
+      } catch {
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 1000));
+          continue;
+        }
         setProfileError(true);
       }
-    } catch {
-      if (retries > 0) {
-        await new Promise((r) => setTimeout(r, 1000));
-        return fetchProfile(firebaseUser, retries - 1);
-      }
-      setProfileError(true);
-    } finally {
-      setOrgLoading(false);
     }
+    setOrgLoading(false);
   }, []);
 
   useEffect(() => {

@@ -125,12 +125,12 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
     setSubmitting(true);
     setError("");
 
-    const payload: Record<string, string> = {
+    const payload: Record<string, string | null> = {
       name: form.name.trim(),
       industry_label: form.industry_label,
       primary_state: form.primary_state,
       employee_range: form.employee_range,
-      revenue_range: form.revenue_range || "Under $1M",
+      revenue_range: form.revenue_range || null,
     };
 
     try {
