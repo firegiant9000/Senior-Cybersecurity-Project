@@ -9,7 +9,9 @@ from app.api.routes.v1 import (
     ic3,
     ingest,
     nvd,
+    onboarding,
     organizations,
+    vendors,
     vulnerabilities,
 )
 from app.core.dependencies import require_role
@@ -41,6 +43,12 @@ router.include_router(
     tags=["organizations"],
     dependencies=_viewer,
 )
+
+# Onboarding: self-service org creation (auth required, no role gate).
+router.include_router(onboarding.router)
+
+# Vendors: org tech stack + KEV autocomplete (per-route auth).
+router.include_router(vendors.router, tags=["vendors"])
 
 # Ingest router: per-route auth (viewer for reads, admin for trigger).
 router.include_router(ingest.router, prefix="/ingest", tags=["ingest"])

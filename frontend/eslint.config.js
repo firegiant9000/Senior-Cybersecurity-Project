@@ -33,6 +33,10 @@ export default [
         URL: 'readonly',
         Element: 'readonly',
         SVGElement: 'readonly',
+        File: 'readonly',
+        FormData: 'readonly',
+        HTMLInputElement: 'readonly',
+        React: 'readonly',
       },
     },
     plugins: {
