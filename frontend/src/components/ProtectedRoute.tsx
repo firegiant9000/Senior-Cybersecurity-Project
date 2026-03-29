@@ -1,11 +1,12 @@
 import React from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+export default function ProtectedRoute({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
+  const { user, loading, orgId, orgLoading, profileError, refreshProfile } = useAuth();
+  const location = useLocation();
 
-  if (loading) {
+  if (loading || orgLoading) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}>
         <p>Loading...</p>
@@ -15,6 +16,23 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  // If profile fetch failed, show error instead of wrongly redirecting
+  if (profileError) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", flexDirection: "column", gap: "1rem" }}>
+        <p>Failed to load your profile. Please check your connection.</p>
+        <button onClick={() => refreshProfile()} style={{ padding: "0.5rem 1rem", cursor: "pointer" }}>
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  // Redirect users without an org to onboarding (unless already there)
+  if (requireOrg && orgId === null && location.pathname !== "/onboarding") {
+    return <Navigate to="/onboarding" replace />;
   }
 
   return <>{children}</>;
