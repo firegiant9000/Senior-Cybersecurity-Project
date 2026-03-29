@@ -1,5 +1,7 @@
 """Repository abstraction for OrgVendors."""
 
+# pylint: disable=too-few-public-methods,duplicate-code
+
 import logging
 
 from fastapi import Depends
@@ -57,7 +59,7 @@ class SqlOrgVendorRepository:
         vendor = await self.get_by_id(vendor_id, org_id)
         if vendor is None:
             return None
-        for field, value in data.model_dump(exclude_unset=True).items():
+        for field, value in data.model_dump(exclude_unset=True, exclude_none=True).items():
             setattr(vendor, field, value)
         await self._session.commit()
         await self._session.refresh(vendor)

@@ -18,7 +18,7 @@ class OrganizationCreate(BaseModel):
     industry_label: IndustryLabel
     primary_state: str = Field(..., min_length=2, max_length=2, pattern=r"^[A-Z]{2}$")
     employee_range: EmployeeRange
-    revenue_range: RevenueRange
+    revenue_range: RevenueRange | None = None
     ic3_sector: str = Field("", json_schema_extra={"hidden": True})
 
     # Fields to exclude from the OpenAPI request schema.
@@ -74,7 +74,7 @@ class OrganizationRead(BaseModel):
     ic3_sector: str
     primary_state: str
     employee_range: str
-    revenue_range: str
+    revenue_range: str | None = None
     created_at: datetime
     updated_at: datetime
 
