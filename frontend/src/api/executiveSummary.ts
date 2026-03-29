@@ -21,6 +21,7 @@ export interface ExecutiveSummary {
   methodology: string;
   confidence_level: "High" | "Medium" | "Low";
   disclaimer: string;
+  has_data: boolean;
   generated_at: string;
   data_year_range: string;
 }

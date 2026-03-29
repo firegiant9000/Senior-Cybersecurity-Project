@@ -71,11 +71,14 @@ async def list_organizations(
 @limiter.limit(settings.RATE_LIMIT_DATA)
 async def get_executive_summary(
     request: Request,  # noqa: ARG001
-    current_user: User = Depends(require_role("viewer")),  # noqa: ARG001
     db: AsyncSession = Depends(get_session),
 ):
     """Return an executive summary of the current threat landscape."""
-    return await ExecutiveSummaryService(db).build()
+    try:
+        return await ExecutiveSummaryService(db).build()
+    except SQLAlchemyError:
+        logger.exception("Failed to build executive summary")
+        raise HTTPException(status_code=500, detail="Failed to build executive summary")
 
 
 @router.get("/{org_id}", response_model=OrganizationRead)

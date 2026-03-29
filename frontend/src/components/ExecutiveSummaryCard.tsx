@@ -1,18 +1,12 @@
 import React, { useState } from 'react';
 import './ExecutiveSummaryCard.css';
 import type { ExecutiveSummary } from '../api/executiveSummary';
+import { fmtLoss } from '../utils/fmtLoss';
 
 interface Props {
     data: ExecutiveSummary | null;
     loading: boolean;
     error?: string;
-}
-
-function fmtLoss(v: number): string {
-    if (v >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(1)}B`;
-    if (v >= 1_000_000)     return `$${(v / 1_000_000).toFixed(1)}M`;
-    if (v >= 1_000)         return `$${Math.round(v / 1_000)}k`;
-    return `$${v}`;
 }
 
 const ExecutiveSummaryCard: React.FC<Props> = ({ data, loading, error }) => {
@@ -22,8 +16,30 @@ const ExecutiveSummaryCard: React.FC<Props> = ({ data, loading, error }) => {
         return <div className="exec-summary-skeleton" aria-label="Loading executive summary" />;
     }
 
-    if (error || !data) {
+    if (error) {
+        return (
+            <div className="exec-summary-card" role="region" aria-label="Executive Summary">
+                <div className="exec-summary-body">
+                    <p className="exec-disclaimer">Failed to load executive summary: {error}</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!data) {
         return null;
+    }
+
+    if (!data.has_data) {
+        return (
+            <div className="exec-summary-card" role="region" aria-label="Executive Summary">
+                <div className="exec-summary-body">
+                    <p className="exec-disclaimer">
+                        No threat intelligence data has been ingested yet. Run the data pipeline to populate the executive summary.
+                    </p>
+                </div>
+            </div>
+        );
     }
 
     const generatedDate = new Date(data.generated_at).toLocaleDateString('en-US', {
