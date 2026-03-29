@@ -48,7 +48,12 @@ def upgrade() -> None:
         op.create_table(
             "org_vendors",
             sa.Column("id", sa.Integer(), nullable=False),
-            sa.Column("org_id", sa.Integer(), sa.ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False),
+            sa.Column(
+                "org_id",
+                sa.Integer(),
+                sa.ForeignKey("organizations.id", ondelete="CASCADE"),
+                nullable=False,
+            ),
             sa.Column("vendor_name", sa.String(255), nullable=False),
             sa.Column("product_name", sa.String(255), nullable=False, server_default=""),
             sa.Column(
@@ -64,7 +69,9 @@ def upgrade() -> None:
                 nullable=False,
             ),
             sa.PrimaryKeyConstraint("id"),
-            sa.UniqueConstraint("org_id", "vendor_name", "product_name", name="uq_org_vendor_product"),
+            sa.UniqueConstraint(
+                "org_id", "vendor_name", "product_name", name="uq_org_vendor_product"
+            ),
         )
 
     if not _index_exists("ix_org_vendors_org_id"):

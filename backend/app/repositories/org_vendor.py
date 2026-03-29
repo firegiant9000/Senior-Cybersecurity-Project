@@ -73,9 +73,7 @@ class SqlOrgVendorRepository:
         await self._session.commit()
         return True
 
-    async def bulk_import(
-        self, org_id: int, rows: list[dict[str, str]]
-    ) -> tuple[int, int]:
+    async def bulk_import(self, org_id: int, rows: list[dict[str, str]]) -> tuple[int, int]:
         """Import vendors in bulk, skipping duplicates.
 
         Returns (imported_count, skipped_count).
