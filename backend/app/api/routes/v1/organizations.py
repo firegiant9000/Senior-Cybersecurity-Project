@@ -75,7 +75,11 @@ async def get_executive_summary(
     db: AsyncSession = Depends(get_session),
 ):
     """Return an executive summary of the current threat landscape."""
-    return await ExecutiveSummaryService(db).build()
+    try:
+        return await ExecutiveSummaryService(db).build()
+    except SQLAlchemyError:
+        logger.exception("Failed to build executive summary")
+        raise HTTPException(status_code=500, detail="Failed to build executive summary")
 
 
 @router.get("/{org_id}", response_model=OrganizationRead)
