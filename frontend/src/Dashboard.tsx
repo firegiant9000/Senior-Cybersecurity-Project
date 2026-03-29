@@ -31,19 +31,12 @@ const PipelineHealthTab = lazy(() => import('./components/PipelineHealthTab'));
 const SmBAdvisorTab = lazy(() => import('./components/SmBAdvisorTab'));
 
 import { API_BASE_URL } from './api/fetchWithAuth';
+import { fmtLoss } from './utils/fmtLoss';
 
 function yoyChange(curr: number | undefined, prev: number | undefined): string | undefined {
     if (!curr || !prev || prev === 0) return undefined;
     const pct = ((curr - prev) / prev) * 100;
     return `${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%`;
-}
-
-function fmtLoss(v: number | undefined): string {
-    if (v === undefined) return '—';
-    if (v >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(1)}B`;
-    if (v >= 1_000_000)     return `$${(v / 1_000_000).toFixed(1)}M`;
-    if (v >= 1_000)         return `$${Math.round(v / 1_000)}k`;
-    return `$${v}`;
 }
 
 const Dashboard: React.FC = () => {
@@ -208,6 +201,7 @@ const Dashboard: React.FC = () => {
                         <ExecutiveSummaryCard
                             data={dashboardData.executiveSummary}
                             loading={dashboardLoading}
+                            error={dashboardErrors.find(e => e.startsWith('Executive summary:'))}
                         />
 
                         <div className="dashboard-grid">
