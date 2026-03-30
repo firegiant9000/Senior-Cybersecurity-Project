@@ -65,6 +65,15 @@ async def get_current_org(
     return org
 
 
+async def check_org_access(current_user: User, org_id: int, session: AsyncSession) -> None:
+    """Raise 403/404 if user can't access the org or the org doesn't exist."""
+    if current_user.role != "admin" and current_user.org_id != org_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    result = await session.execute(select(Organization).where(Organization.id == org_id))
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+
+
 def require_org_or_admin():
     """Return a dependency that resolves the user's org or allows global admins through.
 
