@@ -1,0 +1,173 @@
+import React, { useEffect, useState, useCallback } from 'react';
+import { fetchVendorAlerts, VendorAlertsResponse } from '../api/vendorAlerts';
+import { SEVERITY_COLORS } from '../theme';
+import { useAuth } from '../context/AuthContext';
+
+function SeverityBadge({ label }: { label: string }) {
+  const color = SEVERITY_COLORS[label as keyof typeof SEVERITY_COLORS] ?? '#9e9e9e';
+  return (
+    <span
+      style={{
+        background: color,
+        color: '#fff',
+        borderRadius: 3,
+        padding: '2px 8px',
+        fontSize: 12,
+        fontWeight: 700,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+const VendorAlertsTab: React.FC = () => {
+  const { user } = useAuth();
+  const [data, setData] = useState<VendorAlertsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
+
+  const load = useCallback(async (p: number) => {
+    if (!user) return;
+    setLoading(true);
+    setError('');
+    try {
+      const result = await fetchVendorAlerts(p, pageSize);
+      setData(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load');
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    load(page);
+  }, [page, load]);
+
+  if (!user) {
+    return <div className="tab-page"><p>Please log in to view vendor alerts.</p></div>;
+  }
+
+  if (loading && !data) {
+    return <div className="tab-page"><p>Loading vendor alerts...</p></div>;
+  }
+
+  if (error) {
+    return (
+      <div className="tab-page">
+        <p style={{ color: '#d32f2f' }}>{error}</p>
+        <button className="overview-refresh-btn" onClick={() => load(page)}>Retry</button>
+      </div>
+    );
+  }
+
+  if (!data || data.reason === 'no_vendors') {
+    return (
+      <div className="tab-page">
+        <p>Add your technology vendors in Settings to see matched vulnerability alerts.</p>
+      </div>
+    );
+  }
+
+  if (data.reason === 'no_matches') {
+    return (
+      <div className="tab-page">
+        <p style={{ color: '#2e7d32' }}>
+          No known exploited vulnerabilities match your vendor stack.
+        </p>
+        {data.unmatched_vendors.length > 0 && (
+          <p style={{ color: '#6b7280', fontSize: 13 }}>
+            Vendors with no KEV matches: {data.unmatched_vendors.join(', ')}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  const { severity_breakdown: sb } = data;
+  const totalPages = Math.ceil(data.total_matched / pageSize);
+
+  return (
+    <div className="tab-page">
+      <div className="overview-toolbar">
+        <button className="overview-refresh-btn" onClick={() => load(page)} disabled={loading}>
+          {loading ? 'Refreshing...' : 'Refresh'}
+        </button>
+        {data.kev_last_ingest_at && (
+          <span className="overview-last-updated">
+            KEV data as of: {new Date(data.kev_last_ingest_at).toLocaleDateString()}
+          </span>
+        )}
+      </div>
+
+      {/* Severity summary */}
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <strong>{data.total_matched} matched vulnerabilities</strong>
+        {sb.critical > 0 && <span><SeverityBadge label="Critical" /> {sb.critical}</span>}
+        {sb.high > 0 && <span><SeverityBadge label="High" /> {sb.high}</span>}
+        {sb.medium > 0 && <span><SeverityBadge label="Medium" /> {sb.medium}</span>}
+        {sb.low > 0 && <span><SeverityBadge label="Low" /> {sb.low}</span>}
+        {sb.unknown > 0 && <span><SeverityBadge label="Unknown" /> {sb.unknown}</span>}
+      </div>
+
+      {data.unmatched_vendors.length > 0 && (
+        <p style={{ color: '#6b7280', fontSize: 13, marginBottom: '0.75rem' }}>
+          Vendors with no KEV matches: {data.unmatched_vendors.join(', ')}
+        </p>
+      )}
+
+      {/* Full alerts table */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr style={{ borderBottom: '2px solid #e5e7eb', textAlign: 'left' }}>
+            <th style={{ padding: '6px 8px' }}>CVE ID</th>
+            <th style={{ padding: '6px 8px' }}>Vendor</th>
+            <th style={{ padding: '6px 8px' }}>Product</th>
+            <th style={{ padding: '6px 8px' }}>Severity</th>
+            <th style={{ padding: '6px 8px' }}>CVSS</th>
+            <th style={{ padding: '6px 8px' }}>Risk Score</th>
+            <th style={{ padding: '6px 8px' }}>Date Added</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.items.map((item) => (
+            <tr key={`${item.cve_id}-${item.vendor_name}-${item.kev_product}`} style={{ borderBottom: '1px solid #f3f4f6' }}>
+              <td style={{ padding: '6px 8px', fontFamily: 'monospace' }}>{item.cve_id}</td>
+              <td style={{ padding: '6px 8px' }}>{item.vendor_name}</td>
+              <td style={{ padding: '6px 8px' }}>{item.kev_product}</td>
+              <td style={{ padding: '6px 8px' }}><SeverityBadge label={item.severity_label} /></td>
+              <td style={{ padding: '6px 8px', fontWeight: 700 }}>
+                {item.cvss_score !== null ? item.cvss_score.toFixed(1) : '—'}
+              </td>
+              <td style={{ padding: '6px 8px' }}>
+                {item.risk_score !== null ? item.risk_score.toFixed(0) : '—'}
+              </td>
+              <td style={{ padding: '6px 8px' }}>
+                {item.due_date ? new Date(item.due_date).toLocaleDateString() : '—'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.75rem', justifyContent: 'center' }}>
+          <button className="action-btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            Previous
+          </button>
+          <span style={{ fontSize: 13 }}>Page {page} of {totalPages}</span>
+          <button className="action-btn" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+            Next
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default VendorAlertsTab;
