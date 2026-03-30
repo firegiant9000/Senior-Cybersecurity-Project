@@ -40,11 +40,11 @@ async def save_upload(
     Returns (original_filename, stored_filename, file_size_bytes).
     Raises HTTPException on validation failure.
     """
-    # Validate content type
-    if file.content_type and file.content_type not in settings.ALLOWED_UPLOAD_TYPES:
+    # Validate content type (reject missing or disallowed types)
+    if not file.content_type or file.content_type not in settings.ALLOWED_UPLOAD_TYPES:
         raise HTTPException(
             status_code=400,
-            detail=f"File type '{file.content_type}' not allowed. "
+            detail=f"File type '{file.content_type or 'unknown'}' not allowed. "
             f"Accepted: {', '.join(settings.ALLOWED_UPLOAD_TYPES)}",
         )
 

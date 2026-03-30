@@ -1,7 +1,5 @@
 """Service for vendor-matched vulnerability alerts."""
 
-import logging
-
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,8 +12,6 @@ from app.schemas.vendor_alert import (
     VendorAlertsResponse,
 )
 from app.services.risk_scoring import basic_vuln_risk_score
-
-logger = logging.getLogger(__name__)
 
 
 def _normalize_severity(severity: str | None, cvss: float | None) -> str:

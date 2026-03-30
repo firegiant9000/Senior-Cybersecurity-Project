@@ -97,13 +97,19 @@ async def delete_upload(
     """Delete an uploaded file and its record."""
     await check_org_access(current_user, org_id, session)
     try:
-        upload = await repo.delete(upload_id, org_id)
+        upload = await repo.get_by_id(upload_id, org_id)
     except SQLAlchemyError:
-        logger.exception("Failed to delete upload %s", upload_id)
+        logger.exception("Failed to fetch upload %s for delete", upload_id)
         raise HTTPException(status_code=500, detail="Failed to delete upload")
     if upload is None:
         raise HTTPException(status_code=404, detail="Upload not found")
+    # Delete file from disk first to avoid orphaning if DB delete fails
     delete_upload_file(org_id, upload.stored_filename)
+    try:
+        await repo.delete(upload_id, org_id)
+    except SQLAlchemyError:
+        logger.exception("Failed to delete upload record %s", upload_id)
+        raise HTTPException(status_code=500, detail="Failed to delete upload")
     return None
 
 
