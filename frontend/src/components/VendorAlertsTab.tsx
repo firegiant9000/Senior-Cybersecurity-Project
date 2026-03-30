@@ -1,26 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { fetchVendorAlerts, VendorAlertsResponse } from '../api/vendorAlerts';
-import { SEVERITY_COLORS } from '../theme';
 import { useAuth } from '../context/AuthContext';
-
-function SeverityBadge({ label }: { label: string }) {
-  const color = SEVERITY_COLORS[label as keyof typeof SEVERITY_COLORS] ?? '#9e9e9e';
-  return (
-    <span
-      style={{
-        background: color,
-        color: '#fff',
-        borderRadius: 3,
-        padding: '2px 8px',
-        fontSize: 12,
-        fontWeight: 700,
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {label}
-    </span>
-  );
-}
+import SeverityBadge from './SeverityBadge';
 
 const VendorAlertsTab: React.FC = () => {
   const { user } = useAuth();

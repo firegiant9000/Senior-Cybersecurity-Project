@@ -1,26 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchVendorAlerts, VendorAlertsResponse } from '../api/vendorAlerts';
-import { SEVERITY_COLORS } from '../theme';
 import { useAuth } from '../context/AuthContext';
-
-function SeverityBadge({ label }: { label: string }) {
-  const color = SEVERITY_COLORS[label as keyof typeof SEVERITY_COLORS] ?? '#9e9e9e';
-  return (
-    <span
-      style={{
-        background: color,
-        color: '#fff',
-        borderRadius: 3,
-        padding: '1px 6px',
-        fontSize: 11,
-        fontWeight: 700,
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {label}
-    </span>
-  );
-}
+import SeverityBadge from './SeverityBadge';
 
 const VendorAlertsCard: React.FC = () => {
   const { user } = useAuth();
@@ -136,7 +117,7 @@ const VendorAlertsCard: React.FC = () => {
           </thead>
           <tbody>
             {data.items.map((item) => (
-              <tr key={`${item.cve_id}-${item.vendor_name}`} style={{ borderBottom: '1px solid #f3f4f6' }}>
+              <tr key={`${item.cve_id}-${item.vendor_name}-${item.kev_product}`} style={{ borderBottom: '1px solid #f3f4f6' }}>
                 <td style={{ padding: '4px 8px', fontFamily: 'monospace' }}>{item.cve_id}</td>
                 <td style={{ padding: '4px 8px' }}>{item.vendor_name}</td>
                 <td style={{ padding: '4px 8px' }}>{item.kev_product}</td>

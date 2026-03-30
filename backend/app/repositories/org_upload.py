@@ -1,5 +1,7 @@
 """Repository abstraction for OrgUploads."""
 
+# pylint: disable=too-few-public-methods,duplicate-code
+
 import logging
 
 from fastapi import Depends
