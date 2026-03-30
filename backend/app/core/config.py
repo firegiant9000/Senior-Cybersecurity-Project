@@ -65,6 +65,18 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     RATE_LIMIT_AUTH: str = "10/minute"
     RATE_LIMIT_DATA: str = "60/minute"
 
+    # File uploads
+    UPLOAD_DIR: str = "./uploads"
+    MAX_UPLOAD_SIZE_BYTES: int = 10 * 1024 * 1024  # 10 MB
+    ALLOWED_UPLOAD_TYPES: list[str] = [
+        "text/csv",
+        "application/pdf",
+        "text/plain",
+        "application/json",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ]
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

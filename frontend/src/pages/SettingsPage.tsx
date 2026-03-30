@@ -12,6 +12,19 @@ import {
   importVendorsCsv,
   autocompleteVendors,
 } from "../api/vendors";
+import {
+  OrgDomain,
+  listDomains,
+  addDomain,
+  deleteDomain,
+} from "../api/domains";
+import {
+  OrgUpload,
+  listUploads,
+  uploadFile,
+  deleteUpload,
+  downloadUpload,
+} from "../api/uploads";
 import "./SettingsPage.css";
 
 interface UserProfile {
@@ -49,7 +62,26 @@ export default function SettingsPage() {
   const vendorInputRef = useRef<HTMLInputElement>(null);
   const productInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadFileInputRef = useRef<HTMLInputElement>(null);
   const vendorPageSize = 20;
+
+  // Domain state
+  const [domains, setDomains] = useState<OrgDomain[]>([]);
+  const [domainTotal, setDomainTotal] = useState(0);
+  const [domainPage, setDomainPage] = useState(1);
+  const [domainLoading, setDomainLoading] = useState(false);
+  const [domainError, setDomainError] = useState("");
+  const [domainMsg, setDomainMsg] = useState("");
+  const [newDomain, setNewDomain] = useState("");
+  const domainPageSize = 20;
+
+  // Upload state
+  const [uploads, setUploads] = useState<OrgUpload[]>([]);
+  const [uploadTotal, setUploadTotal] = useState(0);
+  const [uploadPage, setUploadPage] = useState(1);
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [uploadMsg, setUploadMsg] = useState("");
 
   const loadVendors = useCallback(async (orgId: number, page: number) => {
     setVendorLoading(true);
@@ -124,6 +156,113 @@ export default function SettingsPage() {
     }
     // Reset file input so same file can be re-selected
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  // ── Domain handlers ──────────────────────────────────────────────────
+  const loadDomains = useCallback(async (orgId: number, page: number) => {
+    setDomainLoading(true);
+    setDomainError("");
+    try {
+      const data = await listDomains(orgId, page, domainPageSize);
+      setDomains(data.items);
+      setDomainTotal(data.total);
+    } catch {
+      setDomainError("Failed to load domains");
+    } finally {
+      setDomainLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (profile?.org_id) loadDomains(profile.org_id, domainPage);
+  }, [profile?.org_id, domainPage, loadDomains]);
+
+  const handleAddDomain = async () => {
+    if (!profile?.org_id || !newDomain.trim()) return;
+    setDomainError("");
+    try {
+      await addDomain(profile.org_id, newDomain.trim());
+      setNewDomain("");
+      setDomainMsg("Domain added");
+      setDomainPage(1);
+      loadDomains(profile.org_id, 1);
+    } catch (err) {
+      setDomainError(err instanceof Error ? err.message : "Failed to add domain");
+    }
+  };
+
+  const handleDeleteDomain = async (domainId: number) => {
+    if (!profile?.org_id) return;
+    setDomainError("");
+    try {
+      await deleteDomain(profile.org_id, domainId);
+      setDomainPage(1);
+      loadDomains(profile.org_id, 1);
+    } catch {
+      setDomainError("Failed to remove domain");
+    }
+  };
+
+  // ── Upload handlers ─────────────────────────────────────────────────
+  const loadUploads = useCallback(async (orgId: number, page: number) => {
+    setUploadLoading(true);
+    setUploadError("");
+    try {
+      const data = await listUploads(orgId, page);
+      setUploads(data.items);
+      setUploadTotal(data.total);
+    } catch {
+      setUploadError("Failed to load uploads");
+    } finally {
+      setUploadLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (profile?.org_id) loadUploads(profile.org_id, uploadPage);
+  }, [profile?.org_id, uploadPage, loadUploads]);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !profile?.org_id) return;
+    setUploadError("");
+    setUploadMsg("");
+    try {
+      await uploadFile(profile.org_id, file);
+      setUploadMsg(`"${file.name}" uploaded successfully`);
+      loadUploads(profile.org_id, 1);
+      setUploadPage(1);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
+    }
+    if (uploadFileInputRef.current) uploadFileInputRef.current.value = "";
+  };
+
+  const handleDeleteUpload = async (uploadId: number) => {
+    if (!profile?.org_id) return;
+    setUploadError("");
+    try {
+      await deleteUpload(profile.org_id, uploadId);
+      setUploadPage(1);
+      loadUploads(profile.org_id, 1);
+    } catch {
+      setUploadError("Failed to delete upload");
+    }
+  };
+
+  const handleDownloadUpload = async (uploadId: number, filename: string) => {
+    if (!profile?.org_id) return;
+    try {
+      await downloadUpload(profile.org_id, uploadId, filename);
+    } catch {
+      setUploadError("Failed to download file");
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   // Debounced autocomplete for vendor name
@@ -402,6 +541,164 @@ export default function SettingsPage() {
                           disabled={vendorPage >= Math.ceil(vendorTotal / vendorPageSize)}
                           onClick={() => setVendorPage((p) => p + 1)}
                         >
+                          Next
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </section>
+            )}
+
+            {profile.org_id && (
+              <section className="settings-section">
+                <h2>Organization Domains</h2>
+                <p className="tech-stack-description">
+                  Track domains your organization owns or monitors.
+                </p>
+
+                {domainMsg && <div className="settings-action-msg">{domainMsg}</div>}
+                {domainError && <div className="settings-error" style={{ whiteSpace: "pre-line", marginBottom: "0.75rem" }}>{domainError}</div>}
+
+                {/* Add domain form */}
+                <div className="vendor-add-form">
+                  <div className="vendor-input-wrapper">
+                    <input
+                      type="text"
+                      placeholder="example.com"
+                      value={newDomain}
+                      onChange={(e) => setNewDomain(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleAddDomain()}
+                    />
+                  </div>
+                  <button className="action-btn" onClick={handleAddDomain} disabled={!newDomain.trim()}>
+                    Add Domain
+                  </button>
+                </div>
+
+                {/* Domain table */}
+                {domainLoading ? (
+                  <p className="settings-loading">Loading domains...</p>
+                ) : domains.length === 0 ? (
+                  <p className="vendor-empty">No domains added yet.</p>
+                ) : (
+                  <>
+                    <table className="vendor-table">
+                      <thead>
+                        <tr>
+                          <th>Domain</th>
+                          <th>Added</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {domains.map((d) => (
+                          <tr key={d.id}>
+                            <td>{d.domain_name}</td>
+                            <td>{new Date(d.created_at).toLocaleDateString()}</td>
+                            <td>
+                              <button className="vendor-delete-btn" onClick={() => handleDeleteDomain(d.id)} title="Remove">
+                                &times;
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {domainTotal > domainPageSize && (
+                      <div className="vendor-pagination">
+                        <button className="action-btn" disabled={domainPage <= 1} onClick={() => setDomainPage((p) => p - 1)}>
+                          Previous
+                        </button>
+                        <span className="vendor-page-info">
+                          Page {domainPage} of {Math.ceil(domainTotal / domainPageSize)}
+                        </span>
+                        <button className="action-btn" disabled={domainPage >= Math.ceil(domainTotal / domainPageSize)} onClick={() => setDomainPage((p) => p + 1)}>
+                          Next
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </section>
+            )}
+
+            {profile.org_id && (
+              <section className="settings-section">
+                <h2>File Uploads</h2>
+                <p className="tech-stack-description">
+                  Upload files for your organization (CSV, PDF, TXT, JSON — max 10 MB).
+                </p>
+
+                {uploadMsg && <div className="settings-action-msg">{uploadMsg}</div>}
+                {uploadError && <div className="settings-error" style={{ whiteSpace: "pre-line", marginBottom: "0.75rem" }}>{uploadError}</div>}
+
+                {/* Upload button */}
+                <div className="vendor-import-row">
+                  <input
+                    ref={uploadFileInputRef}
+                    type="file"
+                    accept=".csv,.pdf,.txt,.json"
+                    style={{ display: "none" }}
+                    onChange={handleFileUpload}
+                  />
+                  <button className="action-btn" onClick={() => uploadFileInputRef.current?.click()}>
+                    Upload File
+                  </button>
+                  <span className="vendor-import-hint">Accepted: CSV, PDF, TXT, JSON (max 10 MB)</span>
+                </div>
+
+                {/* Uploads table */}
+                {uploadLoading ? (
+                  <p className="settings-loading">Loading uploads...</p>
+                ) : uploads.length === 0 ? (
+                  <p className="vendor-empty">No files uploaded yet.</p>
+                ) : (
+                  <>
+                    <table className="vendor-table">
+                      <thead>
+                        <tr>
+                          <th>Filename</th>
+                          <th>Type</th>
+                          <th>Size</th>
+                          <th>Uploaded</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {uploads.map((u) => (
+                          <tr key={u.id}>
+                            <td>
+                              <button
+                                className="vendor-delete-btn"
+                                style={{ color: "#1565c0", textDecoration: "underline", cursor: "pointer", background: "none", border: "none", font: "inherit" }}
+                                onClick={() => handleDownloadUpload(u.id, u.original_filename)}
+                                title="Download"
+                              >
+                                {u.original_filename}
+                              </button>
+                            </td>
+                            <td>{u.content_type}</td>
+                            <td>{formatFileSize(u.file_size_bytes)}</td>
+                            <td>{new Date(u.created_at).toLocaleDateString()}</td>
+                            <td>
+                              <button className="vendor-delete-btn" onClick={() => handleDeleteUpload(u.id)} title="Delete">
+                                &times;
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {uploadTotal > 20 && (
+                      <div className="vendor-pagination">
+                        <button className="action-btn" disabled={uploadPage <= 1} onClick={() => setUploadPage((p) => p - 1)}>
+                          Previous
+                        </button>
+                        <span className="vendor-page-info">
+                          Page {uploadPage} of {Math.ceil(uploadTotal / 20)}
+                        </span>
+                        <button className="action-btn" disabled={uploadPage >= Math.ceil(uploadTotal / 20)} onClick={() => setUploadPage((p) => p + 1)}>
                           Next
                         </button>
                       </div>

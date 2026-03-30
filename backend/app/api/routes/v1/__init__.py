@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 
 from app.api.routes.v1 import (
     auth,
+    domains,
     economics,
     health,
     ic3,
@@ -11,6 +12,7 @@ from app.api.routes.v1 import (
     nvd,
     onboarding,
     organizations,
+    uploads,
     vendors,
     vulnerabilities,
 )
@@ -49,6 +51,12 @@ router.include_router(onboarding.router)
 
 # Vendors: org tech stack + KEV autocomplete (per-route auth).
 router.include_router(vendors.router, tags=["vendors"])
+
+# Uploads: org file upload management (per-route auth).
+router.include_router(uploads.router, tags=["uploads"])
+
+# Domains: org domain management (per-route auth).
+router.include_router(domains.router, tags=["domains"])
 
 # Ingest router: per-route auth (viewer for reads, admin for trigger).
 router.include_router(ingest.router, prefix="/ingest", tags=["ingest"])
