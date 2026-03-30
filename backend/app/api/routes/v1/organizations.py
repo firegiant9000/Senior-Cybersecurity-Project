@@ -7,10 +7,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.routes.v1.auth import get_current_user
 from app.core.config import settings
-from app.core.dependencies import require_role
+from app.core.dependencies import get_current_org, require_role
 from app.core.limiter import limiter
 from app.db.engine import get_session
+from app.db.organization import Organization
 from app.db.user import User
 from app.repositories.organization import SqlOrganizationRepository, get_org_repo
 from app.schemas.executive_summary import ExecutiveSummaryResponse
@@ -20,7 +22,9 @@ from app.schemas.organization import (
     OrganizationRead,
     OrganizationUpdate,
 )
+from app.schemas.vendor_alert import VendorAlertsResponse
 from app.services.executive_summary import ExecutiveSummaryService
+from app.services.vendor_alerts import VendorAlertService
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +83,24 @@ async def get_executive_summary(
     except SQLAlchemyError:
         logger.exception("Failed to build executive summary")
         raise HTTPException(status_code=500, detail="Failed to build executive summary")
+
+
+@router.get("/mine/vendor-alerts", response_model=VendorAlertsResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def get_vendor_alerts(
+    request: Request,  # noqa: ARG001
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+    current_user: User = Depends(get_current_user),
+    org: Organization = Depends(get_current_org),
+    db: AsyncSession = Depends(get_session),
+):
+    """Return exploited vulnerabilities matching the org's vendor stack."""
+    try:
+        return await VendorAlertService(db).get_alerts(org.id, page, page_size)
+    except SQLAlchemyError:
+        logger.exception("Failed to fetch vendor alerts for org %s", org.id)
+        raise HTTPException(status_code=500, detail="Failed to fetch vendor alerts")
 
 
 @router.get("/{org_id}", response_model=OrganizationRead)
