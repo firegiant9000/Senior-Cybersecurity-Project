@@ -12,10 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.routes.v1.auth import get_current_user
 from app.core.config import settings
+from app.core.dependencies import check_org_access
 from app.core.limiter import limiter
 from app.db.engine import get_session
 from app.db.models import KEV
-from app.db.organization import Organization
 from app.db.user import User
 from app.repositories.org_vendor import SqlOrgVendorRepository, get_vendor_repo
 from app.schemas.org_vendor import (
@@ -63,13 +63,7 @@ def _parse_csv_rows(
     return rows, errors
 
 
-async def _check_org_access(current_user: User, org_id: int, session: AsyncSession) -> None:
-    """Raise 403/404 if user can't access the org or the org doesn't exist."""
-    if current_user.role != "admin" and current_user.org_id != org_id:
-        raise HTTPException(status_code=403, detail="Access denied")
-    result = await session.execute(select(Organization).where(Organization.id == org_id))
-    if result.scalar_one_or_none() is None:
-        raise HTTPException(status_code=404, detail="Organization not found")
+_check_org_access = check_org_access  # backward-compat alias
 
 
 # ---- KEV autocomplete (not org-scoped) ----
