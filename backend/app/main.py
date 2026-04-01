@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -89,8 +90,32 @@ async def _auto_ingest() -> None:
     asyncio.create_task(_run_sequential_ingest(sources_to_ingest))
 
 
+def _ensure_firebase_credentials() -> None:
+    """Write FIREBASE_SERVICE_ACCOUNT_JSON env var to a file if present.
+
+    Render (and similar hosts) don't support mounting secret files directly,
+    so the service-account JSON is passed as an env var and written to disk
+    at startup so the Firebase Admin SDK can read it via
+    GOOGLE_APPLICATION_CREDENTIALS.
+    """
+    import json
+    import tempfile
+
+    sa_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
+    if not sa_json:
+        return
+    # Validate it's real JSON before writing
+    json.loads(sa_json)
+    cred_path = os.path.join(tempfile.gettempdir(), "firebase-service-account.json")
+    with open(cred_path, "w") as f:
+        f.write(sa_json)
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = cred_path
+    _log.info("Wrote Firebase credentials to %s", cred_path)
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
+    _ensure_firebase_credentials()
     try:
         init_firebase()
     except (ValueError, OSError) as exc:  # pragma: no cover - defensive startup guard
