@@ -30,6 +30,18 @@ const ExecutiveSummaryCard: React.FC<Props> = ({ data, loading, error }) => {
         return null;
     }
 
+    if (!data.has_data) {
+        return (
+            <div className="exec-summary-card" role="region" aria-label="Executive Summary">
+                <div className="exec-summary-body">
+                    <p className="exec-disclaimer">
+                        No threat intelligence data has been ingested yet. Run the data pipeline to populate the executive summary.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
     const generatedDate = new Date(data.generated_at).toLocaleDateString('en-US', {
         month: 'short', day: 'numeric', year: 'numeric',
     });

@@ -16,6 +16,9 @@ from sqlalchemy import (  # type: ignore[import-not-found]  # pylint: disable=im
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 import app.db.models  # noqa: E402, F401  # register ORM models with Base.metadata
+import app.db.org_domain  # noqa: E402, F401  # register OrgDomain with Base.metadata
+import app.db.org_upload  # noqa: E402, F401  # register OrgUpload with Base.metadata
+import app.db.org_vendor  # noqa: E402, F401  # register OrgVendor with Base.metadata
 import app.db.organization  # noqa: E402, F401  # register Organization with Base.metadata
 import app.db.user  # noqa: E402, F401  # register User (with org FK) with Base.metadata
 from app.core.config import settings  # noqa: E402

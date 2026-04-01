@@ -31,5 +31,6 @@ class ExecutiveSummaryResponse(BaseModel):
     disclaimer: str
 
     # Metadata
+    has_data: bool  # False when all source tables are empty
     generated_at: str  # ISO 8601
     data_year_range: str  # e.g. "2018–2023"

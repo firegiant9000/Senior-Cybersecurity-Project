@@ -29,7 +29,9 @@ const AlertsFeedTab = lazy(() => import('./components/AlertsFeedTab'));
 const VictimProfileTab = lazy(() => import('./components/VictimProfileTab'));
 const PipelineHealthTab = lazy(() => import('./components/PipelineHealthTab'));
 const SmBAdvisorTab = lazy(() => import('./components/SmBAdvisorTab'));
+const VendorAlertsTab = lazy(() => import('./components/VendorAlertsTab'));
 
+import VendorAlertsCard from './components/VendorAlertsCard';
 import { API_BASE_URL } from './api/fetchWithAuth';
 import { fmtLoss } from './utils/fmtLoss';
 
@@ -160,6 +162,12 @@ const Dashboard: React.FC = () => {
                     Alerts Feed
                 </button>
                 <button
+                    className={`tab ${activeTab === 'vendorAlerts' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('vendorAlerts')}
+                >
+                    Vendor Alerts
+                </button>
+                <button
                     className={`tab ${activeTab === 'victimProfile' ? 'active' : ''}`}
                     onClick={() => setActiveTab('victimProfile')}
                 >
@@ -203,6 +211,11 @@ const Dashboard: React.FC = () => {
                             loading={dashboardLoading}
                             error={dashboardErrors.find(e => e.startsWith('Executive summary:'))}
                         />
+
+                        {/* Vendor Alerts summary card */}
+                        <WidgetErrorBoundary title="Vendor Alerts">
+                            <VendorAlertsCard />
+                        </WidgetErrorBoundary>
 
                         <div className="dashboard-grid">
                             {/* Top Row */}
@@ -323,6 +336,7 @@ const Dashboard: React.FC = () => {
                     {activeTab === 'threatIntel' && <ThreatIntelTab />}
                     {activeTab === 'trends' && <TrendsTab />}
                     {activeTab === 'alerts' && <AlertsFeedTab />}
+                    {activeTab === 'vendorAlerts' && <VendorAlertsTab />}
                     {activeTab === 'victimProfile' && <VictimProfileTab />}
                     {activeTab === 'pipelineHealth' && <PipelineHealthTab />}
                 </Suspense>

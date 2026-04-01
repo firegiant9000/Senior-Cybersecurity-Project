@@ -23,7 +23,7 @@ class Organization(Base):
     ic3_sector: Mapped[str] = mapped_column(String(100), nullable=False)
     primary_state: Mapped[str] = mapped_column(String(2), nullable=False)
     employee_range: Mapped[str] = mapped_column(String(50), nullable=False)
-    revenue_range: Mapped[str] = mapped_column(String(50), nullable=False)
+    revenue_range: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

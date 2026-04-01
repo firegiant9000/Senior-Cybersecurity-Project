@@ -169,3 +169,143 @@
   font-size: 0.85rem;
   margin-bottom: 0.75rem;
 }
+
+/* Technology Stack / Vendor section */
+
+.tech-stack-description {
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.85rem;
+  margin: 0 0 1rem;
+}
+
+.vendor-add-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  align-items: flex-start;
+}
+
+.vendor-input-wrapper {
+  flex: 1;
+  position: relative;
+}
+
+.vendor-input-wrapper input {
+  width: 100%;
+  background: var(--bg, #0f172a);
+  border: 1px solid var(--border, #334155);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  color: var(--text-primary, #e2e8f0);
+  font-size: 0.9rem;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.vendor-input-wrapper input:focus {
+  border-color: var(--accent, #3b82f6);
+}
+
+.vendor-input-wrapper input::placeholder {
+  color: var(--text-muted, #64748b);
+}
+
+.autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--card-bg, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 0 0 8px 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.autocomplete-dropdown li {
+  padding: 0.5rem 0.75rem;
+  color: var(--text-primary, #e2e8f0);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.autocomplete-dropdown li:hover {
+  background: var(--accent, #3b82f6);
+  color: #fff;
+}
+
+.vendor-import-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.vendor-import-hint {
+  color: var(--text-muted, #64748b);
+  font-size: 0.8rem;
+}
+
+.vendor-empty {
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 1.5rem 0;
+}
+
+.vendor-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.75rem;
+}
+
+.vendor-table th {
+  text-align: left;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 0.5rem 0.5rem;
+  border-bottom: 1px solid var(--border, #334155);
+}
+
+.vendor-table td {
+  color: var(--text-primary, #e2e8f0);
+  font-size: 0.85rem;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border, #334155);
+}
+
+.vendor-table tr:last-child td {
+  border-bottom: none;
+}
+
+.vendor-delete-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted, #64748b);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0 0.3rem;
+  line-height: 1;
+}
+
+.vendor-delete-btn:hover {
+  color: #ef4444;
+}
+
+.vendor-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.vendor-page-info {
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.85rem;
+}

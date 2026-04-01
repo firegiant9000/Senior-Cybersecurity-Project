@@ -109,6 +109,7 @@ class ExecutiveSummaryService:
         else:
             confidence = "Low"
 
+        has_data = kev_count > 0 or total_loss > 0 or total_cve_count > 0
         year_range = f"{year_min}–{year_max}" if year_min and year_max else "N/A"
 
         top_threats = [
@@ -131,6 +132,7 @@ class ExecutiveSummaryService:
             methodology=_METHODOLOGY,
             confidence_level=confidence,
             disclaimer=_DISCLAIMER,
+            has_data=has_data,
             generated_at=datetime.now(UTC).isoformat(),
             data_year_range=year_range,
         )
