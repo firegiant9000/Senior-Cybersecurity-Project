@@ -33,6 +33,6 @@ services:
 
 databases:
   - name: hacker-tracker-db
-    plan: starter
+    plan: free
     databaseName: cyber_threat_db
     postgresMajorVersion: "15"
