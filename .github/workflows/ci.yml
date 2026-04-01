@@ -177,10 +177,9 @@ jobs:
       cancel-in-progress: true
     steps:
       - name: Trigger Render deploy
-        # Uncomment the curl command once RENDER_DEPLOY_HOOK_URL is configured
-        # run: |
-        #   curl -s "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
-        run: echo "Render deploy hook not yet configured — skipping"
+        run: |
+          curl -sf "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" \
+            || (echo "Render deploy hook failed — is RENDER_DEPLOY_HOOK_URL set?" && exit 1)
 
   post-deploy-healthcheck:
     name: Post-Deploy Health Check
@@ -188,8 +187,8 @@ jobs:
     needs: [deploy-frontend, deploy-backend]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
-      - name: Wait for deployment to propagate
-        run: sleep 30
+      - name: Wait for deployments to propagate
+        run: sleep 60
 
       - name: Check frontend is reachable
         run: |
@@ -200,12 +199,11 @@ jobs:
             exit 1
           fi
 
-      # Uncomment once backend is deployed to a public URL
-      # - name: Check backend health
-      #   run: |
-      #     STATUS=$(curl -s -o /dev/null -w "%{http_code}" ${{ secrets.BACKEND_URL }}/health)
-      #     echo "Backend status: $STATUS"
-      #     if [ "$STATUS" -ne 200 ]; then
-      #       echo "Backend health check failed!"
-      #       exit 1
-      #     fi
+      - name: Check backend health
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.BACKEND_URL }}/health")
+          echo "Backend status: $STATUS"
+          if [ "$STATUS" -ne 200 ]; then
+            echo "Backend health check failed!"
+            exit 1
+          fi

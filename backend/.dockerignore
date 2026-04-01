@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+.git/
+.env
+data/
+docs/
+fixtures/
+tests/
+*.md
+*.sh
