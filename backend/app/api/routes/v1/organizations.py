@@ -7,12 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.routes.v1.auth import get_current_user
+
 from app.core.config import settings
-from app.core.dependencies import get_current_org, require_role
 from app.core.limiter import limiter
 from app.db.engine import get_session
-from app.db.organization import Organization
+
 from app.db.user import User
 from app.repositories.organization import SqlOrganizationRepository, get_org_repo
 from app.schemas.executive_summary import ExecutiveSummaryResponse
@@ -22,9 +21,7 @@ from app.schemas.organization import (
     OrganizationRead,
     OrganizationUpdate,
 )
-from app.schemas.vendor_alert import VendorAlertsResponse
 from app.services.executive_summary import ExecutiveSummaryService
-from app.services.vendor_alerts import VendorAlertService
 
 logger = logging.getLogger(__name__)
 
