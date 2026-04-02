@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
@@ -10,8 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import CVE, KEV, IC3Incident
 from app.schemas.executive_summary import ExecutiveSummaryResponse, TopThreat
-
-logger = logging.getLogger(__name__)
 
 _METHODOLOGY = (
     "This risk score combines three public threat-intelligence sources: "

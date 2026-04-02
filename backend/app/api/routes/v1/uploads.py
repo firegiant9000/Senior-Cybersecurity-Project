@@ -103,13 +103,13 @@ async def delete_upload(
         raise HTTPException(status_code=500, detail="Failed to delete upload")
     if upload is None:
         raise HTTPException(status_code=404, detail="Upload not found")
-    # Delete file from disk first to avoid orphaning if DB delete fails
-    delete_upload_file(org_id, upload.stored_filename)
     try:
         await repo.delete(upload_id, org_id)
     except SQLAlchemyError:
         logger.exception("Failed to delete upload record %s", upload_id)
         raise HTTPException(status_code=500, detail="Failed to delete upload")
+    # Delete file from disk after DB record is removed to avoid orphaned records
+    delete_upload_file(org_id, upload.stored_filename)
     return None
 
 
