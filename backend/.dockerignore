@@ -8,4 +8,6 @@ docs/
 fixtures/
 tests/
 *.md
-*.sh
+# Allow scripts/ dir but exclude other .sh files
+!scripts/
+
