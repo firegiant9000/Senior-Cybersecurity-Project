@@ -3,6 +3,8 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import model_validator
+
 try:
     from pydantic_settings import (
         BaseSettings,  # type: ignore[import-not-found]  # pylint: disable=import-error
@@ -34,6 +36,20 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
 
     # Database
     DATABASE_URL: str
+
+    @model_validator(mode="after")
+    def _normalize_database_url(self) -> "Settings":
+        """Render (and some other hosts) provide postgres:// which SQLAlchemy
+        does not accept.  Normalise to the required postgresql+asyncpg:// scheme."""
+        url = self.DATABASE_URL
+        if url.startswith("postgresql+asyncpg://"):
+            pass  # already correct
+        elif url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+        elif url.startswith("postgresql://"):
+            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        self.DATABASE_URL = url
+        return self
 
     # Logging
     LOG_LEVEL: str = "DEBUG"
