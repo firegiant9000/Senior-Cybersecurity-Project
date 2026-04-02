@@ -10,7 +10,7 @@ services:
     region: oregon
     plan: starter
     healthCheckPath: /health
-    preDeployCommand: "sh -c 'cd /app && alembic -c app/db/alembic.ini upgrade head'"
+    preDeployCommand: alembic -c /app/app/db/alembic.ini upgrade head
     envVars:
       - key: APP_ENV
         value: production
