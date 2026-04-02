@@ -66,7 +66,10 @@ async def get_current_org(
 
 
 async def check_org_access(current_user: User, org_id: int, session: AsyncSession) -> None:
-    """Raise 403/404 if user can't access the org or the org doesn't exist."""
+    """Raise 403/404 if user can't access the org or the org doesn't exist.
+
+    Global admins are allowed to access any organization's data by design.
+    """
     if current_user.role != "admin" and current_user.org_id != org_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     result = await session.execute(select(Organization).where(Organization.id == org_id))
