@@ -82,6 +82,24 @@
     cursor: pointer;
 }
 
+.header-nav-link {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 16px;
+    background: transparent;
+    color: white;
+    border: 1px solid white;
+    border-radius: 20px;
+    cursor: pointer;
+    font: inherit;
+    text-decoration: none;
+}
+
+.header-nav-link:hover {
+    color: rgba(255, 255, 255, 0.92);
+    border-color: rgba(255, 255, 255, 0.85);
+}
+
 .header-user-email {
     color: rgba(255, 255, 255, 0.8);
     font-size: 0.85rem;
