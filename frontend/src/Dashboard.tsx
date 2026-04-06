@@ -285,6 +285,14 @@ const Dashboard: React.FC = () => {
                                     changeNote={totalNvdCves > 0 ? `${dashboardData.kevTotal.toLocaleString()} of ${totalNvdCves.toLocaleString()} CVEs` : undefined}
                                 />
                             </WidgetErrorBoundary>
+                            <WidgetErrorBoundary title="Projected Annual Loss">
+                                <StatCard
+                                    title="Projected Annual Loss"
+                                    value={dashboardLoading ? '—' : (dashboardData.lossProjection?.has_data ? dashboardData.lossProjection.projected_annual_loss_formatted : '—')}
+                                    valueColor="#7b1fa2"
+                                    changeNote={dashboardData.lossProjection ? `${dashboardData.lossProjection.confidence_level} confidence · ${dashboardData.lossProjection.sector}` : undefined}
+                                />
+                            </WidgetErrorBoundary>
 
                             {/* Bottom Row */}
                             <WidgetErrorBoundary title="Incident Management">
