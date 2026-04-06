@@ -24,6 +24,7 @@ class OrgVendorRead(BaseModel):
     product_name: str
     created_at: datetime
     updated_at: datetime
+    matched_kev_count: int = 0
 
 
 class OrgVendorListResponse(BaseModel):

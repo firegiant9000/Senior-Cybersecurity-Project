@@ -10,8 +10,9 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.engine import get_session
+from app.db.models import KEV
 from app.db.org_vendor import OrgVendor
-from app.schemas.org_vendor import OrgVendorCreate, OrgVendorUpdate
+from app.schemas.org_vendor import OrgVendorCreate, OrgVendorRead, OrgVendorUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -37,16 +38,28 @@ class SqlOrgVendorRepository:
 
     async def list_vendors(
         self, org_id: int, page: int, page_size: int
-    ) -> tuple[list[OrgVendor], int]:
+    ) -> tuple[list[OrgVendorRead], int]:
+        # Subquery: count KEV entries matching each vendor name (case-insensitive)
+        kev_count = (
+            select(func.count(KEV.id))
+            .where(func.lower(KEV.vendor) == func.lower(OrgVendor.vendor_name))
+            .correlate(OrgVendor)
+            .scalar_subquery()
+        )
+
         stmt = (
-            select(OrgVendor)
+            select(OrgVendor, kev_count.label("matched_kev_count"))
             .where(OrgVendor.org_id == org_id)
             .order_by(OrgVendor.vendor_name, OrgVendor.product_name)
             .limit(page_size)
             .offset((page - 1) * page_size)
         )
         result = await self._session.execute(stmt)
-        rows = list(result.scalars().all())
+        rows: list[OrgVendorRead] = []
+        for vendor, kev_cnt in result.all():
+            read = OrgVendorRead.model_validate(vendor)
+            read.matched_kev_count = kev_cnt or 0
+            rows.append(read)
 
         total_result = await self._session.execute(
             select(func.count(OrgVendor.id)).where(OrgVendor.org_id == org_id)
