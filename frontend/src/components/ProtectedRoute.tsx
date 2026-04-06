@@ -3,15 +3,16 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 /**
- * Returns true if the user's global role + org role allows editing
- * the organization profile (name, logo, domain).
+ * Aligns with backend ``PUT /organizations/{org_id}``: global ``role === "admin"``
+ * or org-level ``org_role`` of ``owner`` / ``admin`` (API uses lowercase strings).
  */
 export function canEditOrganizationProfile(
-  globalRole: string | null | undefined,
+  userRole: string | null | undefined,
   orgRole: string | null | undefined,
 ): boolean {
-  if (globalRole === "admin") return true;
-  return orgRole === "owner" || orgRole === "admin";
+  if ((userRole ?? "").toLowerCase() === "admin") return true;
+  const r = (orgRole ?? "").toLowerCase();
+  return r === "admin" || r === "owner";
 }
 
 export default function ProtectedRoute({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
