@@ -6,13 +6,13 @@ import { API_BASE_URL, fetchWithAuth } from "../api/fetchWithAuth";
 export interface OrganizationProfile {
   id: number;
   name: string;
-  logo_url?: string | null;
-  primary_domain?: string | null;
   industry_label: string;
   ic3_sector: string;
   primary_state: string;
   employee_range: string;
   revenue_range: string | null;
+  logo_url: string | null;
+  primary_domain: string | null;
 }
 
 interface UserContextType {

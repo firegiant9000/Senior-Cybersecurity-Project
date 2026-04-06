@@ -27,6 +27,7 @@ import {
   deleteUpload,
   downloadUpload,
 } from "../api/uploads";
+import "../Dashboard.css";
 import "./SettingsPage.css";
 
 interface UserProfile {
@@ -311,6 +312,7 @@ export default function SettingsPage() {
     return () => { cancelled = true; clearTimeout(timer); };
   }, [newProduct, newVendor]);
 
+  // Sync company profile fields when organization data loads
   useEffect(() => {
     if (!organization) return;
     setCompanyNameField(organization.name);
@@ -399,15 +401,18 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="settings-page">
-      <div className="settings-card">
-        <div className="settings-header">
-          <h1>Account Settings</h1>
-          <button className="back-btn" onClick={() => navigate("/")}>
+    <div className="dashboard-container">
+      <header className="dashboard-header">
+        <h1>Settings</h1>
+        <div className="header-buttons">
+          <button type="button" onClick={() => navigate("/")}>
             Back to Dashboard
           </button>
         </div>
+      </header>
 
+      <div className="settings-page settings-page--embedded">
+        <div className="settings-card settings-card--wide">
         {loading && <p className="settings-loading">Loading profile...</p>}
         {error && <div className="settings-error">{error}</div>}
 
@@ -505,7 +510,7 @@ export default function SettingsPage() {
             )}
 
             <section className="settings-section">
-              <h2>Profile</h2>
+              <h2>Your account</h2>
               <div className="settings-field">
                 <label>Email</label>
                 <span>{profile.email}</span>
@@ -653,7 +658,12 @@ export default function SettingsPage() {
                       <tbody>
                         {vendors.map((v) => (
                           <tr key={v.id}>
-                            <td>{v.vendor_name}</td>
+                            <td>
+                              {v.vendor_name}
+                              <span className="matched-count-badge">
+                                {v.matched_kev_count} KEV
+                              </span>
+                            </td>
                             <td>{v.product_name || "-"}</td>
                             <td>{new Date(v.created_at).toLocaleDateString()}</td>
                             <td>
@@ -850,6 +860,7 @@ export default function SettingsPage() {
             )}
           </div>
         )}
+        </div>
       </div>
     </div>
   );
