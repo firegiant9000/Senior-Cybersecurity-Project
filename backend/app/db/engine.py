@@ -19,12 +19,12 @@ def _import_all_orm_models() -> None:
     Ensures ``create_all`` sees the full schema regardless of import order.
     """
     import app.db.models  # noqa: F401
-    import app.db.organization  # noqa: F401
-    import app.db.user  # noqa: F401
-    import app.db.org_vendor  # noqa: F401
-    import app.db.technology_vendor  # noqa: F401
     import app.db.org_domain  # noqa: F401
     import app.db.org_upload  # noqa: F401
+    import app.db.org_vendor  # noqa: F401
+    import app.db.organization  # noqa: F401
+    import app.db.technology_vendor  # noqa: F401
+    import app.db.user  # noqa: F401
 
 
 def _ensure_organization_profile_columns(connection: Connection) -> None:
