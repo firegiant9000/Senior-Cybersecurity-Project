@@ -354,6 +354,46 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
+    if (!organization) return;
+    setCompanyNameField(organization.name);
+    setLogoUrlField(organization.logo_url ?? "");
+    setPrimaryDomainField(organization.primary_domain ?? "");
+  }, [organization]);
+
+  const canEditOrgProfile =
+    profile != null && canEditOrganizationProfile(profile.role, profile.org_role);
+  const companyFieldsDisabled = orgLoading || !organization || !canEditOrgProfile;
+
+  const handleSaveCompanyProfile = async () => {
+    if (!profile?.org_id || !canEditOrgProfile) return;
+    setCompanySaveMsg("");
+    setCompanySaveErr("");
+    setCompanySaving(true);
+    try {
+      const body = {
+        name: companyNameField.trim(),
+        logo_url: logoUrlField.trim() || null,
+        primary_domain: primaryDomainField.trim() || null,
+      };
+      const resp = await fetchWithAuth(`${API_BASE_URL}/api/v1/organizations/${profile.org_id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) {
+        const detail = await resp.text();
+        throw new Error(detail || "Failed to save company profile");
+      }
+      setCompanySaveMsg("Company profile saved.");
+      await refreshOrganization();
+    } catch (err) {
+      setCompanySaveErr(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setCompanySaving(false);
+    }
+  };
+
+  useEffect(() => {
     let cancelled = false;
     const loadProfile = async () => {
       try {
