@@ -11,6 +11,8 @@ export interface OrganizationProfile {
   primary_state: string;
   employee_range: string;
   revenue_range: string | null;
+  logo_url: string | null;
+  primary_domain: string | null;
 }
 
 interface UserContextType {
