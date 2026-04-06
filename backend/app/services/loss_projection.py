@@ -32,11 +32,11 @@ from app.schemas.loss_projection import LossProjectionResponse
 # broader attack surfaces and appear in IC3 reports at higher rates.
 # ---------------------------------------------------------------------------
 _INCIDENT_RATE: dict[str, float] = {
-    EmployeeRange.SOLO:             0.3,   # <1 incident every 3 years
-    EmployeeRange.SMALL:            0.8,   # ~1 incident per year
-    EmployeeRange.MEDIUM:           1.5,
-    EmployeeRange.LARGE:            3.0,
-    EmployeeRange.ENTERPRISE:       5.0,
+    EmployeeRange.SOLO: 0.3,  # <1 incident every 3 years
+    EmployeeRange.SMALL: 0.8,  # ~1 incident per year
+    EmployeeRange.MEDIUM: 1.5,
+    EmployeeRange.LARGE: 3.0,
+    EmployeeRange.ENTERPRISE: 5.0,
     EmployeeRange.LARGE_ENTERPRISE: 9.0,
 }
 
@@ -75,20 +75,18 @@ class LossProjectionService:
         incident_rate = _INCIDENT_RATE.get(org.employee_range, 1.0)
 
         # Try sector + state first, then sector-only, then all data.
-        avg_loss, complaint_count, year_min, year_max, confidence = (
-            await self._query(org.ic3_sector, org.primary_state)
+        avg_loss, complaint_count, year_min, year_max, confidence = await self._query(
+            org.ic3_sector, org.primary_state
         )
 
         if avg_loss is None:
-            avg_loss, complaint_count, year_min, year_max, _ = (
-                await self._query(org.ic3_sector, None)
+            avg_loss, complaint_count, year_min, year_max, _ = await self._query(
+                org.ic3_sector, None
             )
             confidence = "Medium"
 
         if avg_loss is None:
-            avg_loss, complaint_count, year_min, year_max, _ = (
-                await self._query(None, None)
-            )
+            avg_loss, complaint_count, year_min, year_max, _ = await self._query(None, None)
             confidence = "Low"
 
         has_data = avg_loss is not None
@@ -142,15 +140,12 @@ class LossProjectionService:
             return None, None, None, None, "Low"
 
         # Aggregate over those years.
-        stmt = (
-            select(
-                func.avg(IC3Incident.avg_loss_per_incident).label("avg_loss"),
-                func.sum(IC3Incident.complaint_count).label("total_complaints"),
-                func.min(IC3Incident.year).label("year_min"),
-                func.max(IC3Incident.year).label("year_max"),
-            )
-            .where(IC3Incident.year.in_(years))
-        )
+        stmt = select(
+            func.avg(IC3Incident.avg_loss_per_incident).label("avg_loss"),
+            func.sum(IC3Incident.complaint_count).label("total_complaints"),
+            func.min(IC3Incident.year).label("year_min"),
+            func.max(IC3Incident.year).label("year_max"),
+        ).where(IC3Incident.year.in_(years))
         if sector is not None:
             stmt = stmt.where(IC3Incident.sector == sector)
         if state is not None:
