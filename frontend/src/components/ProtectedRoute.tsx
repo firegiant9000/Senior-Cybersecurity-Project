@@ -2,6 +2,19 @@ import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
+/**
+ * Aligns with backend ``PUT /organizations/{org_id}``: global ``role === "admin"``
+ * or org-level ``org_role`` of ``owner`` / ``admin`` (API uses lowercase strings).
+ */
+export function canEditOrganizationProfile(
+  userRole: string | null | undefined,
+  orgRole: string | null | undefined,
+): boolean {
+  if ((userRole ?? "").toLowerCase() === "admin") return true;
+  const r = (orgRole ?? "").toLowerCase();
+  return r === "admin" || r === "owner";
+}
+
 export default function ProtectedRoute({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
   const { user, loading, orgId, orgLoading, profileError, refreshProfile } = useAuth();
   const location = useLocation();
