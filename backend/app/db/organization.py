@@ -24,6 +24,8 @@ class Organization(Base):
     primary_state: Mapped[str] = mapped_column(String(2), nullable=False)
     employee_range: Mapped[str] = mapped_column(String(50), nullable=False)
     revenue_range: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    logo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    primary_domain: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
