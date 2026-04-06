@@ -40,9 +40,7 @@ class SqlTechnologyVendorRepository:
         )
         return list(result.scalars().all())
 
-    async def update(
-        self, vendor_id: int, data: TechnologyVendorUpdate
-    ) -> TechnologyVendor | None:
+    async def update(self, vendor_id: int, data: TechnologyVendorUpdate) -> TechnologyVendor | None:
         vendor = await self.get_by_id(vendor_id)
         if vendor is None:
             return None

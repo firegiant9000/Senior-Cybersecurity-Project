@@ -95,7 +95,9 @@ def _parse_technology_vendor_csv(
         if not name:
             raise HTTPException(status_code=400, detail=f"Row {i}: missing Vendor Name")
         if len(name) > 255:
-            raise HTTPException(status_code=400, detail=f"Row {i}: Vendor Name exceeds 255 characters")
+            raise HTTPException(
+                status_code=400, detail=f"Row {i}: Vendor Name exceeds 255 characters"
+            )
         if len(version) > 255:
             raise HTTPException(status_code=400, detail=f"Row {i}: Version exceeds 255 characters")
         if len(category) > 255:
