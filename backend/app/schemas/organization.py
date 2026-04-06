@@ -46,6 +46,8 @@ class OrganizationUpdate(BaseModel):
     primary_state: str | None = Field(None, min_length=2, max_length=2, pattern=r"^[A-Z]{2}$")
     employee_range: EmployeeRange | None = None
     revenue_range: RevenueRange | None = None
+    logo_url: str | None = Field(None, max_length=500)
+    primary_domain: str | None = Field(None, max_length=255)
     ic3_sector: str | None = Field(None, json_schema_extra={"hidden": True})
 
     _server_derived: ClassVar[set[str]] = {"ic3_sector"}
@@ -75,6 +77,8 @@ class OrganizationRead(BaseModel):
     primary_state: str
     employee_range: str
     revenue_range: str | None = None
+    logo_url: str | None = None
+    primary_domain: str | None = None
     created_at: datetime
     updated_at: datetime
 
