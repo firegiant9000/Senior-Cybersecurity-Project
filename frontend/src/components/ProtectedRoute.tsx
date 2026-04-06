@@ -2,6 +2,18 @@ import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
+/**
+ * Returns true if the user's global role + org role allows editing
+ * the organization profile (name, logo, domain).
+ */
+export function canEditOrganizationProfile(
+  globalRole: string | null | undefined,
+  orgRole: string | null | undefined,
+): boolean {
+  if (globalRole === "admin") return true;
+  return orgRole === "owner" || orgRole === "admin";
+}
+
 export default function ProtectedRoute({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
   const { user, loading, orgId, orgLoading, profileError, refreshProfile } = useAuth();
   const location = useLocation();

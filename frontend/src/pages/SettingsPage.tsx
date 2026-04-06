@@ -3,7 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { sendEmailVerification, sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "../firebase";
 import { useAuth } from "../context/AuthContext";
+import { useUserContext } from "../context/UserContext";
 import { API_BASE_URL, fetchWithAuth } from "../api/fetchWithAuth";
+import { canEditOrganizationProfile } from "../components/ProtectedRoute";
 import {
   OrgVendor,
   listVendors,
@@ -25,6 +27,7 @@ import {
   deleteUpload,
   downloadUpload,
 } from "../api/uploads";
+import "../Dashboard.css";
 import "./SettingsPage.css";
 
 interface UserProfile {
@@ -40,11 +43,19 @@ interface UserProfile {
 
 export default function SettingsPage() {
   const { user, logout } = useAuth();
+  const { organization, refreshOrganization, loading: orgLoading, error: orgError } = useUserContext();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionMsg, setActionMsg] = useState("");
+
+  const [companyNameField, setCompanyNameField] = useState("");
+  const [logoUrlField, setLogoUrlField] = useState("");
+  const [primaryDomainField, setPrimaryDomainField] = useState("");
+  const [companySaveMsg, setCompanySaveMsg] = useState("");
+  const [companySaveErr, setCompanySaveErr] = useState("");
+  const [companySaving, setCompanySaving] = useState(false);
 
   // Vendor / Tech Stack state
   const [vendors, setVendors] = useState<OrgVendor[]>([]);
@@ -301,6 +312,47 @@ export default function SettingsPage() {
     return () => { cancelled = true; clearTimeout(timer); };
   }, [newProduct, newVendor]);
 
+  // Sync company profile fields when organization data loads
+  useEffect(() => {
+    if (!organization) return;
+    setCompanyNameField(organization.name);
+    setLogoUrlField(organization.logo_url ?? "");
+    setPrimaryDomainField(organization.primary_domain ?? "");
+  }, [organization]);
+
+  const canEditOrgProfile =
+    profile != null && canEditOrganizationProfile(profile.role, profile.org_role);
+  const companyFieldsDisabled = orgLoading || !organization || !canEditOrgProfile;
+
+  const handleSaveCompanyProfile = async () => {
+    if (!profile?.org_id || !canEditOrgProfile) return;
+    setCompanySaveMsg("");
+    setCompanySaveErr("");
+    setCompanySaving(true);
+    try {
+      const body = {
+        name: companyNameField.trim(),
+        logo_url: logoUrlField.trim() || null,
+        primary_domain: primaryDomainField.trim() || null,
+      };
+      const resp = await fetchWithAuth(`${API_BASE_URL}/api/v1/organizations/${profile.org_id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) {
+        const detail = await resp.text();
+        throw new Error(detail || "Failed to save company profile");
+      }
+      setCompanySaveMsg("Company profile saved.");
+      await refreshOrganization();
+    } catch (err) {
+      setCompanySaveErr(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setCompanySaving(false);
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     const loadProfile = async () => {
@@ -349,22 +401,116 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="settings-page">
-      <div className="settings-card">
-        <div className="settings-header">
-          <h1>Account Settings</h1>
-          <button className="back-btn" onClick={() => navigate("/")}>
+    <div className="dashboard-container">
+      <header className="dashboard-header">
+        <h1>Settings</h1>
+        <div className="header-buttons">
+          <button type="button" onClick={() => navigate("/")}>
             Back to Dashboard
           </button>
         </div>
+      </header>
 
+      <div className="settings-page settings-page--embedded">
+        <div className="settings-card settings-card--wide">
         {loading && <p className="settings-loading">Loading profile...</p>}
         {error && <div className="settings-error">{error}</div>}
 
         {!loading && !error && profile && (
           <div className="settings-sections">
+            {profile.org_id != null && (
+              <section className="settings-section">
+                <h2>Company profile</h2>
+                <p className="tech-stack-description">
+                  Name, logo URL, and primary domain for your organization. These align with dashboard branding where shown.
+                </p>
+                {!canEditOrgProfile && (
+                  <p className="settings-readonly-hint">
+                    Only organization owners, organization admins, or platform admins can edit these fields.
+                  </p>
+                )}
+                {orgLoading && !organization && (
+                  <p className="settings-loading">Loading organization…</p>
+                )}
+                {orgError && (
+                  <div className="settings-error">Could not load organization profile.</div>
+                )}
+                {organization && (
+                  <>
+                    {companySaveMsg && <div className="settings-action-msg">{companySaveMsg}</div>}
+                    {companySaveErr && (
+                      <div className="settings-error" style={{ marginBottom: "0.75rem" }}>
+                        {companySaveErr}
+                      </div>
+                    )}
+                    <div className="settings-field company-profile-field">
+                      <label htmlFor="company-name">Name</label>
+                      <input
+                        id="company-name"
+                        className="company-profile-input"
+                        type="text"
+                        value={companyNameField}
+                        onChange={(e) => setCompanyNameField(e.target.value)}
+                        disabled={companyFieldsDisabled}
+                        autoComplete="organization"
+                      />
+                    </div>
+                    <div className="settings-field company-profile-field">
+                      <label htmlFor="company-logo">Logo</label>
+                      <div className="company-logo-input-col">
+                        <input
+                          id="company-logo"
+                          className="company-profile-input"
+                          type="url"
+                          placeholder="https://…"
+                          value={logoUrlField}
+                          onChange={(e) => setLogoUrlField(e.target.value)}
+                          disabled={companyFieldsDisabled}
+                        />
+                        {logoUrlField.trim() !== "" && (
+                          <img
+                            className="company-logo-preview"
+                            src={logoUrlField.trim()}
+                            alt=""
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                            }}
+                          />
+                        )}
+                      </div>
+                    </div>
+                    <div className="settings-field company-profile-field">
+                      <label htmlFor="company-domain">Domain</label>
+                      <input
+                        id="company-domain"
+                        className="company-profile-input"
+                        type="text"
+                        placeholder="example.com"
+                        value={primaryDomainField}
+                        onChange={(e) => setPrimaryDomainField(e.target.value)}
+                        disabled={companyFieldsDisabled}
+                        autoCapitalize="none"
+                      />
+                    </div>
+                    {canEditOrgProfile && (
+                      <div className="settings-actions" style={{ marginTop: "1rem" }}>
+                        <button
+                          type="button"
+                          className="action-btn"
+                          disabled={companySaving || !companyNameField.trim()}
+                          onClick={() => void handleSaveCompanyProfile()}
+                        >
+                          {companySaving ? "Saving…" : "Save company profile"}
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </section>
+            )}
+
             <section className="settings-section">
-              <h2>Profile</h2>
+              <h2>Your account</h2>
               <div className="settings-field">
                 <label>Email</label>
                 <span>{profile.email}</span>
@@ -512,7 +658,12 @@ export default function SettingsPage() {
                       <tbody>
                         {vendors.map((v) => (
                           <tr key={v.id}>
-                            <td>{v.vendor_name}</td>
+                            <td>
+                              {v.vendor_name}
+                              <span className="matched-count-badge">
+                                {v.matched_kev_count} KEV
+                              </span>
+                            </td>
                             <td>{v.product_name || "-"}</td>
                             <td>{new Date(v.created_at).toLocaleDateString()}</td>
                             <td>
@@ -709,6 +860,7 @@ export default function SettingsPage() {
             )}
           </div>
         )}
+        </div>
       </div>
     </div>
   );

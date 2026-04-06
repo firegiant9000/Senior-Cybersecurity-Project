@@ -11,6 +11,7 @@ export interface OrgVendor {
   product_name: string;
   created_at: string;
   updated_at: string;
+  matched_kev_count: number;
 }
 
 export interface OrgVendorListResponse {
