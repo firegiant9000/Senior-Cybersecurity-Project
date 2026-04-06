@@ -468,7 +468,7 @@ export default function SettingsPage() {
                             src={logoUrlField.trim()}
                             alt=""
                             onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = "none";
+                              e.currentTarget.style.display = "none";
                             }}
                           />
                         )}
