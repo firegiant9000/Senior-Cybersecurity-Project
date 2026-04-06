@@ -72,13 +72,13 @@ class OrganizationRead(BaseModel):
 
     id: int  # noqa: A003
     name: str
-    logo_url: str | None = None
-    primary_domain: str | None = None
     industry_label: str
     ic3_sector: str
     primary_state: str
     employee_range: str
     revenue_range: str | None = None
+    logo_url: str | None = None
+    primary_domain: str | None = None
     created_at: datetime
     updated_at: datetime
 
