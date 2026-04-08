@@ -16,6 +16,7 @@ from app.db.organization import Organization
 from app.db.user import User
 from app.repositories.organization import SqlOrganizationRepository, get_org_repo
 from app.schemas.executive_summary import ExecutiveSummaryResponse
+from app.schemas.loss_projection import LossProjectionResponse
 from app.schemas.organization import (
     OrganizationCreate,
     OrganizationListResponse,
@@ -24,6 +25,7 @@ from app.schemas.organization import (
 )
 from app.schemas.vendor_alert import VendorAlertsResponse
 from app.services.executive_summary import ExecutiveSummaryService
+from app.services.loss_projection import LossProjectionService
 from app.services.vendor_alerts import VendorAlertService
 
 logger = logging.getLogger(__name__)
@@ -83,6 +85,26 @@ async def get_executive_summary(
     except SQLAlchemyError:
         logger.exception("Failed to build executive summary")
         raise HTTPException(status_code=500, detail="Failed to build executive summary")
+
+
+@router.get("/mine/loss-projection", response_model=LossProjectionResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def get_loss_projection(
+    request: Request,  # noqa: ARG001
+    current_user: User = Depends(get_current_user),  # noqa: ARG001
+    org: Organization = Depends(get_current_org),
+    db: AsyncSession = Depends(get_session),
+):
+    """Return a projected annual cyber-loss estimate for the current org.
+
+    Uses IC3 avg_loss_per_incident filtered by the org's sector and state,
+    scaled by an employee-range incident-rate factor.
+    """
+    try:
+        return await LossProjectionService(db).build(org)
+    except SQLAlchemyError:
+        logger.exception("Failed to build loss projection for org %s", org.id)
+        raise HTTPException(status_code=500, detail="Failed to build loss projection")
 
 
 @router.get("/mine/vendor-alerts", response_model=VendorAlertsResponse)
