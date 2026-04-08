@@ -59,6 +59,7 @@ class IC3Incident(Base):
         Index("ix_ic3_attack_type", "attack_type"),
         Index("ix_ic3_state", "state"),
         Index("ix_ic3_year", "year"),
+        Index("ix_ic3_sector_state_year", "sector", "state", "year"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)  # noqa: A003

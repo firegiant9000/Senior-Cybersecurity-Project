@@ -290,7 +290,7 @@ const Dashboard: React.FC = () => {
                                     title="Projected Annual Loss"
                                     value={dashboardLoading ? '—' : (dashboardData.lossProjection?.has_data ? dashboardData.lossProjection.projected_annual_loss_formatted : '—')}
                                     valueColor="#7b1fa2"
-                                    changeNote={dashboardData.lossProjection ? `${dashboardData.lossProjection.confidence_level} confidence · ${dashboardData.lossProjection.sector}` : undefined}
+                                    changeNote={dashboardData.lossProjection?.has_data ? `${dashboardData.lossProjection.confidence_level} confidence · ${dashboardData.lossProjection.sector}` : undefined}
                                 />
                             </WidgetErrorBoundary>
 
