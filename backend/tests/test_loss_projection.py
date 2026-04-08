@@ -3,7 +3,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-import pytest_asyncio
 
 from app.services.loss_projection import LossProjectionService, _fmt_loss
 
