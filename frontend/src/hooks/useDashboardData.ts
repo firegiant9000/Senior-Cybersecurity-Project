@@ -36,10 +36,15 @@ import {
   fetchExecutiveSummary,
   type ExecutiveSummary,
 } from '../api/executiveSummary'
+import {
+  fetchLossProjection,
+  type LossProjection,
+} from '../api/lossProjection'
 
 export interface DashboardData {
   summary:              DashboardSummary | null
   executiveSummary:     ExecutiveSummary | null
+  lossProjection:       LossProjection | null
   attackTypes:          AttackTypeStats[]
   industryRisk:         IndustryRiskProfile[]
   geographicThreats:    GeographicThreat[]
@@ -61,6 +66,7 @@ export interface UseDashboardDataResult {
 const EMPTY_DATA: DashboardData = {
   summary:              null,
   executiveSummary:     null,
+  lossProjection:       null,
   attackTypes:          [],
   industryRisk:         [],
   geographicThreats:    [],
@@ -134,29 +140,32 @@ export function useDashboardData(): UseDashboardDataResult {
       t(fetchTemporalTrends(signal),       'Temporal trends'),
       t(fetchKevTotal(signal),             'KEV total'),
       t(fetchExecutiveSummary(signal),     'Executive summary'),
-    ]).then(([summaryR, attackR, severityR, trendsR, kevR, execR]) => {
+      t(fetchLossProjection(signal),       'Loss projection'),
+    ]).then(([summaryR, attackR, severityR, trendsR, kevR, execR, lossR]) => {
       if (signal.aborted) return
 
-      type SummaryResult  = PromiseSettledResult<DashboardSummary>
-      type ExecResult     = PromiseSettledResult<ExecutiveSummary>
-      type AttackResult   = PromiseSettledResult<{ items: AttackTypeStats[] }>
-      type SeverityResult = PromiseSettledResult<{ items: SeverityCount[] }>
-      type TrendsResult   = PromiseSettledResult<{ items: TemporalTrend[] }>
-      type KevTotalResult = PromiseSettledResult<number>
+      type SummaryResult        = PromiseSettledResult<DashboardSummary>
+      type ExecResult           = PromiseSettledResult<ExecutiveSummary>
+      type LossProjectionResult = PromiseSettledResult<LossProjection>
+      type AttackResult         = PromiseSettledResult<{ items: AttackTypeStats[] }>
+      type SeverityResult       = PromiseSettledResult<{ items: SeverityCount[] }>
+      type TrendsResult         = PromiseSettledResult<{ items: TemporalTrend[] }>
+      type KevTotalResult       = PromiseSettledResult<number>
 
       const wave1Errors = collectErrors(
-        [summaryR, attackR, severityR, trendsR, kevR, execR],
-        ['Summary', 'Attack types', 'Severity data', 'Temporal trends', 'KEV total', 'Executive summary'],
+        [summaryR, attackR, severityR, trendsR, kevR, execR, lossR],
+        ['Summary', 'Attack types', 'Severity data', 'Temporal trends', 'KEV total', 'Executive summary', 'Loss projection'],
       )
 
       setData(prev => ({
         ...prev,
-        summary:              extract(summaryR  as SummaryResult,  null),
-        executiveSummary:     extract(execR     as ExecResult,     null),
-        attackTypes:          extract(attackR   as AttackResult,   { items: [] }).items,
-        severityDistribution: extract(severityR as SeverityResult, { items: [] }).items,
-        temporalTrends:       extract(trendsR   as TrendsResult,   { items: [] }).items,
-        kevTotal:             extract(kevR      as KevTotalResult, 0),
+        summary:              extract(summaryR  as SummaryResult,        null),
+        executiveSummary:     extract(execR     as ExecResult,           null),
+        lossProjection:       extract(lossR     as LossProjectionResult, null),
+        attackTypes:          extract(attackR   as AttackResult,         { items: [] }).items,
+        severityDistribution: extract(severityR as SeverityResult,       { items: [] }).items,
+        temporalTrends:       extract(trendsR   as TrendsResult,         { items: [] }).items,
+        kevTotal:             extract(kevR      as KevTotalResult,       0),
       }))
       setErrors(wave1Errors)
       setLastUpdated(new Date())
