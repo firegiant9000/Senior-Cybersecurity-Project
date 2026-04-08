@@ -90,14 +90,10 @@ class LossProjectionService:
         state = org.primary_state or None
 
         # Try sector + state first, then sector-only, then all data.
-        avg_loss, complaint_count, year_min, year_max, confidence = await self._query(
-            sector, state
-        )
+        avg_loss, complaint_count, year_min, year_max, confidence = await self._query(sector, state)
 
         if avg_loss is None:
-            avg_loss, complaint_count, year_min, year_max, _ = await self._query(
-                sector, None
-            )
+            avg_loss, complaint_count, year_min, year_max, _ = await self._query(sector, None)
             confidence = "Medium"
 
         if avg_loss is None:
