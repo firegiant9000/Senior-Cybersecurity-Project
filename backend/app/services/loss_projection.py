@@ -5,7 +5,7 @@ Methodology
 1. Query IC3 historical incidents filtered by the org's ic3_sector and primary_state
    (last 3 available years).  If no rows match sector+state, fall back to sector-only,
    then to all-sector.
-2. Compute a weighted average of avg_loss_per_incident across matched rows.
+2. Compute a complaint-weighted average loss per incident across matched rows.
 3. Multiply by an employee-range incident-rate factor that approximates how many
    cyber incidents a company of that size expects per year (derived from Verizon DBIR
    and NIST SMB guidance).
@@ -16,6 +16,7 @@ All inputs are aggregate public data (FBI IC3); no proprietary telemetry is used
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
@@ -25,6 +26,8 @@ from app.db.enums import EmployeeRange
 from app.db.models import IC3Incident
 from app.db.organization import Organization
 from app.schemas.loss_projection import LossProjectionResponse
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Employee-range → estimated incidents per year
@@ -42,8 +45,9 @@ _INCIDENT_RATE: dict[str, float] = {
 
 _METHODOLOGY = (
     "Projected annual loss is estimated by combining three inputs: "
-    "(1) FBI IC3 historical avg_loss_per_incident filtered to your organization's "
-    "industry sector and state (most recent three available years); "
+    "(1) FBI IC3 historical loss data filtered to your organization's "
+    "industry sector and state (most recent three available years), using a "
+    "complaint-weighted average loss per incident; "
     "(2) an employee-range incident-rate factor derived from Verizon DBIR and NIST "
     "SMB guidance, representing expected cyber incidents per year for a company of "
     "your size; and (3) a fallback hierarchy — sector + state → sector-only → "
@@ -73,15 +77,26 @@ class LossProjectionService:
 
     async def build(self, org: Organization) -> LossProjectionResponse:
         incident_rate = _INCIDENT_RATE.get(org.employee_range, 1.0)
+        if org.employee_range not in _INCIDENT_RATE:
+            logger.warning(
+                "Unknown employee_range %r for org %s — defaulting incident rate to 1.0",
+                org.employee_range,
+                org.id,
+            )
+
+        # Normalise empty strings to None so the fallback hierarchy works
+        # without wasting queries that filter on "".
+        sector = org.ic3_sector or None
+        state = org.primary_state or None
 
         # Try sector + state first, then sector-only, then all data.
         avg_loss, complaint_count, year_min, year_max, confidence = await self._query(
-            org.ic3_sector, org.primary_state
+            sector, state
         )
 
         if avg_loss is None:
             avg_loss, complaint_count, year_min, year_max, _ = await self._query(
-                org.ic3_sector, None
+                sector, None
             )
             confidence = "Medium"
 
@@ -139,9 +154,14 @@ class LossProjectionService:
         if not years:
             return None, None, None, None, "Low"
 
-        # Aggregate over those years.
+        # Aggregate over those years using complaint-weighted average:
+        # total_loss / total_complaints gives rows with more complaints
+        # proportionally more influence than a naive avg().
         stmt = select(
-            func.avg(IC3Incident.avg_loss_per_incident).label("avg_loss"),
+            (
+                func.sum(IC3Incident.loss_amount)
+                / func.nullif(func.sum(IC3Incident.complaint_count), 0)
+            ).label("avg_loss"),
             func.sum(IC3Incident.complaint_count).label("total_complaints"),
             func.min(IC3Incident.year).label("year_min"),
             func.max(IC3Incident.year).label("year_max"),
