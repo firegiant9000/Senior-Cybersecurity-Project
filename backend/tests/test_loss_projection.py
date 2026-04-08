@@ -6,7 +6,6 @@ import pytest
 
 from app.services.loss_projection import LossProjectionService, _fmt_loss
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
