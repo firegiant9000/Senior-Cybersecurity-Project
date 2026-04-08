@@ -15,7 +15,6 @@ vi.mock("firebase/app", () => ({
 vi.mock("firebase/auth", () => ({
   getAuth: vi.fn(() => ({
     currentUser: { getIdToken: mockGetIdToken },
-    signOut: mockSignOut,
   })),
   signOut: mockSignOut,
 }));
@@ -108,7 +107,7 @@ describe("fetchWithAuth", () => {
 
       await fetchWithAuth("https://api.test/endpoint");
 
-      expect(auth.signOut).toHaveBeenCalled();
+      expect(mockSignOut).toHaveBeenCalledWith(auth);
       expect(window.location.href).toBe("/login");
     });
 
@@ -119,23 +118,21 @@ describe("fetchWithAuth", () => {
 
       // First 401
       await fetchWithAuth("https://api.test/first");
-      expect(auth.signOut).toHaveBeenCalledTimes(1);
+      expect(mockSignOut).toHaveBeenCalledTimes(1);
 
       // Reset location to simulate user navigating back
       window.location.href = "/";
 
       // Second 401 should still trigger sign-out
       await fetchWithAuth("https://api.test/second");
-      expect(auth.signOut).toHaveBeenCalledTimes(2);
+      expect(mockSignOut).toHaveBeenCalledTimes(2);
     });
 
     it("resets isLoggingOut flag even if signOut throws", async () => {
       vi.spyOn(globalThis, "fetch").mockImplementation(
         mockFetchResponse(401, {}),
       );
-      (auth.signOut as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-        new Error("network error"),
-      );
+      mockSignOut.mockRejectedValueOnce(new Error("network error"));
 
       // Should not throw
       await fetchWithAuth("https://api.test/endpoint");
@@ -144,7 +141,25 @@ describe("fetchWithAuth", () => {
       // Should still work on next 401
       window.location.href = "/";
       await fetchWithAuth("https://api.test/endpoint2");
-      expect(auth.signOut).toHaveBeenCalledTimes(2);
+      expect(mockSignOut).toHaveBeenCalledTimes(2);
+    });
+
+    it("still redirects to /login even during concurrent logout", async () => {
+      vi.spyOn(globalThis, "fetch").mockImplementation(
+        mockFetchResponse(401, {}),
+      );
+
+      // First call signs out + redirects
+      await fetchWithAuth("https://api.test/first");
+      expect(mockSignOut).toHaveBeenCalledTimes(1);
+      expect(window.location.href).toBe("/login");
+
+      // Simulate user somehow still on a page — second 401 should still redirect
+      window.location.href = "/dashboard";
+      await fetchWithAuth("https://api.test/second");
+
+      // Both calls redirect (signOut called twice since flag resets)
+      expect(window.location.href).toBe("/login");
     });
   });
 

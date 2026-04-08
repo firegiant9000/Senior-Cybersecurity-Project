@@ -3,6 +3,7 @@
  * Automatically attaches the Firebase ID token as a Bearer header.
  */
 
+import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
 
 export const API_BASE_URL =
@@ -39,14 +40,16 @@ export async function fetchWithAuth(
     },
   });
 
-  if (response.status === 401 && !isLoggingOut) {
-    isLoggingOut = true;
-    try {
-      await auth.signOut();
-    } catch {
-      // Sign-out failed (e.g. network error); reset so future 401s can retry
-    } finally {
-      isLoggingOut = false;
+  if (response.status === 401) {
+    if (!isLoggingOut) {
+      isLoggingOut = true;
+      try {
+        await signOut(auth);
+      } catch {
+        // Sign-out failed (e.g. network error); reset so future 401s can retry
+      } finally {
+        isLoggingOut = false;
+      }
     }
     window.location.href = "/login";
     return response;
