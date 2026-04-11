@@ -74,7 +74,7 @@ const TOTAL_STEPS = 5;
 
 export default function OnboardingPage({ onComplete }: { onComplete: () => void }) {
   const navigate = useNavigate();
-  const { orgId } = useAuth();
+  const { orgId, logout } = useAuth();
 
   // Redirect users who already have an org back to dashboard
   useEffect(() => {
@@ -260,12 +260,20 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
     }
   };
 
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login");
+  };
+
   return (
     <div className="onboarding-page">
       <div className="onboarding-card">
         <div className="onboarding-header">
           <h1>Set Up Your Organization</h1>
           <p>Step {step} of {TOTAL_STEPS}</p>
+          <button type="button" className="onboarding-logout-btn" onClick={handleLogout}>
+            Sign out
+          </button>
         </div>
 
         <div className="onboarding-progress">
