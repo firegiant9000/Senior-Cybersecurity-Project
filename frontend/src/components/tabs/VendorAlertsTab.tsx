@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { fetchVendorAlerts, VendorAlertsResponse } from '../api/vendorAlerts';
-import { useAuth } from '../context/AuthContext';
-import SeverityBadge from './SeverityBadge';
+import { fetchVendorAlerts, VendorAlertsResponse } from '../../api/vendorAlerts';
+import { useAuth } from '../../context/AuthContext';
+import SeverityBadge from '../shared/SeverityBadge';
 
 const VendorAlertsTab: React.FC = () => {
   const { user } = useAuth();
@@ -102,7 +102,8 @@ const VendorAlertsTab: React.FC = () => {
       )}
 
       {/* Full alerts table */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+      <div className="table-scroll-wrapper">
+      <table className="tab-table">
         <thead>
           <tr style={{ borderBottom: '2px solid #e5e7eb', textAlign: 'left' }}>
             <th style={{ padding: '6px 8px' }}>CVE ID</th>
@@ -134,6 +135,7 @@ const VendorAlertsTab: React.FC = () => {
           ))}
         </tbody>
       </table>
+      </div>
 
       {/* Pagination */}
       {totalPages > 1 && (

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { fetchVendorAlerts, VendorAlertsResponse } from '../api/vendorAlerts';
-import { useAuth } from '../context/AuthContext';
+import { fetchVendorAlerts, VendorAlertsResponse } from '../../api/vendorAlerts';
+import { useAuth } from '../../context/AuthContext';
 import SeverityBadge from './SeverityBadge';
 
 const VendorAlertsCard: React.FC = () => {

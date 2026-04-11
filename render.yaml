@@ -26,7 +26,10 @@ services:
       - key: FRONTEND_URL
         sync: false          # set manually to your Firebase Hosting URL
       - key: CORS_ORIGINS
-        sync: false          # set manually, e.g. https://hacker-tracker-75f91.web.app
+        sync: false
+        # REQUIRED: JSON array of allowed origins. Example:
+        # ["https://hacker-tracker-75f91.web.app"]
+        # App will refuse to start if this contains localhost in production.
       - key: GOOGLE_APPLICATION_CREDENTIALS
         value: /app/service-account.json
       - key: FIREBASE_SERVICE_ACCOUNT_JSON

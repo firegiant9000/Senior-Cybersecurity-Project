@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useDebounce } from '../hooks/useDebounce';
-import { fetchWithAuth } from '../api/fetchWithAuth';
+import { useDebounce } from '../../hooks/useDebounce';
+import { fetchWithAuth } from '../../api/fetchWithAuth';
 
 interface EconomicsItem {
     id: number;

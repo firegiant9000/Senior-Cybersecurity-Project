@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useDebounce } from '../hooks/useDebounce';
-import { SEVERITY_COLORS } from '../theme';
-import { downloadCsv } from '../utils/csvExport';
-import { fetchWithAuth } from '../api/fetchWithAuth';
+import { useDebounce } from '../../hooks/useDebounce';
+import { SEVERITY_COLORS } from '../../theme';
+import { downloadCsv } from '../../utils/csvExport';
+import { fetchWithAuth } from '../../api/fetchWithAuth';
 
 import { PieChart, Pie, Tooltip, Legend, ResponsiveContainer, Sector } from 'recharts';
 
@@ -202,7 +202,7 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
                     <div className=" severity-chart-container">
                         <h3>Severity Distribution (All Results)</h3>
                         <p className="severity-chart-total">Showing severity breakdown across all {total} matching vulnerabilities.</p>
-                        <div style={{ width: '100%', height: 300}}>
+                        <div className="chart-aspect-box">
                             <ResponsiveContainer>
                                 <PieChart>
                                     <Tooltip />

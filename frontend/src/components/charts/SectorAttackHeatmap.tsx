@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
-import type { SectorAttackCombination } from '../api/dashboardSummary';
-import WidgetSkeleton from './WidgetSkeleton';
+import type { SectorAttackCombination } from '../../api/dashboardSummary';
+import WidgetSkeleton from '../shared/WidgetSkeleton';
 
 interface Props {
     data: SectorAttackCombination[];

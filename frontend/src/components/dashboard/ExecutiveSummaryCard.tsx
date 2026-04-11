@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './ExecutiveSummaryCard.css';
-import type { ExecutiveSummary } from '../api/executiveSummary';
-import { fmtLoss } from '../utils/fmtLoss';
+import type { ExecutiveSummary } from '../../api/executiveSummary';
+import { fmtLoss } from '../../utils/fmtLoss';
 
 interface Props {
     data: ExecutiveSummary | null;

@@ -36,7 +36,8 @@ services:
       LOG_LEVEL: DEBUG
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8000
-      FRONTEND_URL: http://localhost:5173
+      FRONTEND_URL: http://localhost:5174
+      CORS_ORIGINS: '["http://localhost:5174"]'
       GOOGLE_APPLICATION_CREDENTIALS: /app/service-account.json
     ports:
       - "8000:8000"
@@ -64,7 +65,7 @@ services:
       VITE_FIREBASE_APP_ID: "1:954812460719:web:f0a085c739bc66902fae5a"
       VITE_FIREBASE_MEASUREMENT_ID: "G-CD425EPQBH"
     ports:
-      - "5173:5173"
+      - "5174:5174"
     volumes:
       - ./frontend/.env:/app/.env
       - ./frontend/public:/app/public
