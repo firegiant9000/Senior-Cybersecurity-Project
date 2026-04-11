@@ -13,6 +13,7 @@ import {
   type SectorAttackCombination,
   type GeographicThreat,
 } from '../../api/dashboardSummary';
+import { fetchSmbRiskScore, type SmbRiskScore } from '../../api/smbRiskScore';
 import WidgetSkeleton from '../shared/WidgetSkeleton';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -593,6 +594,113 @@ function ActionPlanCard({ topThreats, loading }: {
   );
 }
 
+// ─── Org Risk Score ───────────────────────────────────────────────────────────
+
+function useOrgRiskScore() {
+  const [data, setData] = useState<SmbRiskScore | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setError(null);
+    fetchSmbRiskScore(controller.signal)
+      .then(setData)
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        setError(err instanceof Error ? err.message : 'Failed to load org risk score');
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, []);
+
+  return { data, loading, error };
+}
+
+function scoreColor(score: number): string {
+  if (score >= 75) return '#b71c1c';
+  if (score >= 55) return '#d32f2f';
+  if (score >= 40) return '#f57c00';
+  if (score >= 25) return '#fbc02d';
+  return '#388e3c';
+}
+
+function scoreLabel(score: number): string {
+  if (score >= 75) return 'Critical';
+  if (score >= 55) return 'High';
+  if (score >= 40) return 'Elevated';
+  if (score >= 25) return 'Moderate';
+  return 'Low';
+}
+
+function OrgRiskScoreCard() {
+  const { data, loading, error } = useOrgRiskScore();
+
+  if (error) {
+    // If 404 (no org) or other error, render nothing — org may not be set up yet
+    return null;
+  }
+
+  return (
+    <div className="card smb-org-risk-card">
+      <h3 className="smb-section-title">🎯 Your Organization's Risk Score</h3>
+      <p className="smb-section-sub">Calculated from your org's industry and employee range</p>
+      {loading ? (
+        <WidgetSkeleton />
+      ) : !data ? null : (
+        <div className="smb-org-risk-body">
+          <div className="smb-org-risk-gauge">
+            <div
+              className="smb-org-risk-score"
+              style={{ background: scoreColor(data.score), color: '#fff' }}
+            >
+              {data.score.toFixed(0)}
+            </div>
+            <div className="smb-org-risk-label" style={{ color: scoreColor(data.score) }}>
+              {scoreLabel(data.score)} Risk
+            </div>
+            <div className="smb-org-risk-scale">out of 100</div>
+          </div>
+
+          <div className="smb-org-risk-breakdown">
+            {data.breakdown.map(c => (
+              <div key={c.name} className="smb-org-risk-component">
+                <div className="smb-org-risk-comp-header">
+                  <span className="smb-org-risk-comp-name">{c.name}</span>
+                  <span className="smb-org-risk-comp-score">{c.score.toFixed(1)}/100</span>
+                </div>
+                <div className="smb-org-risk-bar-bg">
+                  <div
+                    className="smb-org-risk-bar-fill"
+                    style={{ width: `${c.score}%`, background: scoreColor(c.score) }}
+                  />
+                </div>
+                <div className="smb-org-risk-comp-meta">
+                  {(c.weight * 100).toFixed(0)}% weight → contributes {c.weighted_score.toFixed(1)} pts
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {data.industry_exposure.sector && (
+            <div className="smb-org-risk-top-threats">
+              <div className="smb-org-risk-top-label">Top attack types by industry exposure:</div>
+              <div className="smb-org-risk-threat-pills">
+                {data.industry_exposure.items.slice(0, 3).map(item => (
+                  <span key={item.attack_type} className="smb-org-risk-pill">
+                    {item.attack_type} ({(item.sector_weight * 100).toFixed(0)}%)
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 const SmBAdvisorTab: React.FC = () => {
@@ -686,6 +794,9 @@ const SmBAdvisorTab: React.FC = () => {
           <p className="smb-profile-hint">👆 Select your industry above to unlock your personalized risk profile.</p>
         )}
       </div>
+
+      {/* Org-level parameterized risk score */}
+      <OrgRiskScoreCard />
 
       {/* Risk Grade */}
       <RiskGradeCard grade={riskGrade} sectorProfile={sectorProfile} loading={loading} />

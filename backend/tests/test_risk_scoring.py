@@ -4,7 +4,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.services.risk_scoring import basic_vuln_risk_score, calculate_risk_score
+from app.services.risk_scoring import (
+    basic_vuln_risk_score,
+    calculate_risk_score,
+    calculate_smb_risk_score,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -109,3 +113,72 @@ class TestBasicVulnRiskScore:
     def test_negative_clamped_exploited(self):
         # -5.0 clamped to 0.0 -> 0*7 + 30 = 30
         assert basic_vuln_risk_score(-5.0, exploited=True) == pytest.approx(30.0)
+
+
+# ---------------------------------------------------------------------------
+# calculate_smb_risk_score
+# ---------------------------------------------------------------------------
+
+
+class TestCalculateSmbRiskScore:
+    def test_returns_response_object(self):
+        result = calculate_smb_risk_score("Healthcare", "11-50")
+        assert result.score >= 0.0
+        assert result.score <= 100.0
+
+    def test_known_industry_produces_nonzero_industry_score(self):
+        result = calculate_smb_risk_score("Healthcare", "11-50")
+        assert result.industry_exposure.industry_score > 0.0
+
+    def test_unknown_industry_yields_zero_industry_score(self):
+        result = calculate_smb_risk_score("Underwater Basket Weaving", "11-50")
+        assert result.industry_exposure.industry_score == pytest.approx(0.0)
+
+    def test_none_industry_yields_zero_industry_score(self):
+        result = calculate_smb_risk_score(None, "11-50")
+        assert result.industry_exposure.industry_score == pytest.approx(0.0)
+
+    def test_employee_range_solo_gives_low_size_score(self):
+        result = calculate_smb_risk_score(None, "1-10")
+        assert result.size_factor.size_score == pytest.approx(10.0)
+
+    def test_employee_range_large_enterprise_gives_high_size_score(self):
+        result = calculate_smb_risk_score(None, "1001+")
+        assert result.size_factor.size_score == pytest.approx(90.0)
+
+    def test_none_employee_range_uses_default(self):
+        result = calculate_smb_risk_score(None, None)
+        assert result.size_factor.employee_range == "unknown"
+        assert result.size_factor.size_score > 0.0
+
+    def test_score_is_weighted_sum(self):
+        result = calculate_smb_risk_score(None, "1-10")
+        expected = round(
+            result.industry_exposure.industry_score * 0.60 + result.size_factor.size_score * 0.40,
+            2,
+        )
+        assert result.score == pytest.approx(expected)
+
+    def test_breakdown_has_two_components(self):
+        result = calculate_smb_risk_score("Finance & Insurance", "201-500")
+        assert len(result.breakdown) == 2
+        names = {c.name for c in result.breakdown}
+        assert "Industry Exposure" in names
+        assert "Size Factor" in names
+
+    def test_score_never_exceeds_100(self):
+        result = calculate_smb_risk_score("Finance & Insurance", "1001+")
+        assert result.score <= 100.0
+
+    def test_industry_exposure_items_sorted_descending(self):
+        result = calculate_smb_risk_score("Healthcare", "51-200")
+        contributions = [i.contribution for i in result.industry_exposure.items]
+        assert contributions == sorted(contributions, reverse=True)
+
+    def test_methodology_field_present(self):
+        result = calculate_smb_risk_score("Healthcare", "11-50")
+        assert len(result.methodology) > 50
+
+    def test_generated_at_is_iso_string(self):
+        result = calculate_smb_risk_score(None, None)
+        assert "T" in result.generated_at  # basic ISO 8601 check
