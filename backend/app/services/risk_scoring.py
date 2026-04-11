@@ -15,6 +15,12 @@ from app.schemas.smb_risk_score import (
     SizeFactorDetail,
 )
 
+# Pre-build {attack_type: {sector: weight}} so we don't reconstruct dicts
+# on every request.
+_SECTOR_WEIGHT_DICTS: dict[str, dict[str, float]] = {
+    attack_type: dict(sector_list) for attack_type, sector_list in ATTACK_SECTOR_WEIGHTS.items()
+}
+
 # ---------------------------------------------------------------------------
 # Employee-range → size score (0-100 scale for risk contribution)
 # Mirrors the incident-rate logic in loss_projection.py but normalized to a
@@ -124,8 +130,7 @@ def calculate_smb_risk_score(
     total_weight_sum = 0.0
     count = 0
 
-    for attack_type, sector_list in ATTACK_SECTOR_WEIGHTS.items():
-        sector_dict = dict(sector_list)
+    for attack_type, sector_dict in _SECTOR_WEIGHT_DICTS.items():
         weight = sector_dict.get(sector, 0.0) if sector else 0.0
         contribution = weight * 100.0
         total_weight_sum += contribution
