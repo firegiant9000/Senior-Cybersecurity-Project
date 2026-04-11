@@ -2,10 +2,10 @@ import React from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { useTrendsData } from '../hooks/useTrendsData';
-import WidgetSkeleton from './WidgetSkeleton';
-import WidgetErrorBoundary from './WidgetErrorBoundary';
-import { COLORS } from '../theme';
+import { useTrendsData } from '../../hooks/useTrendsData';
+import WidgetSkeleton from '../shared/WidgetSkeleton';
+import WidgetErrorBoundary from '../shared/WidgetErrorBoundary';
+import { COLORS } from '../../theme';
 
 function fmtBillion(v: number): string {
   if (v >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(1)}B`;

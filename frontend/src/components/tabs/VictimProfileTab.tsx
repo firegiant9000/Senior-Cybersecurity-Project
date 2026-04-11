@@ -2,10 +2,10 @@ import React from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList,
 } from 'recharts';
-import { useVictimData } from '../hooks/useVictimData';
-import WidgetSkeleton from './WidgetSkeleton';
-import WidgetErrorBoundary from './WidgetErrorBoundary';
-import { COLORS } from '../theme';
+import { useVictimData } from '../../hooks/useVictimData';
+import WidgetSkeleton from '../shared/WidgetSkeleton';
+import WidgetErrorBoundary from '../shared/WidgetErrorBoundary';
+import { COLORS } from '../../theme';
 
 function fmtMoney(v: number): string {
   if (v >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(1)}B`;

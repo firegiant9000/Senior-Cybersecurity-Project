@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useDebounce } from '../hooks/useDebounce';
-import { downloadCsv } from '../utils/csvExport';
-import { fetchWithAuth } from '../api/fetchWithAuth';
+import { useDebounce } from '../../hooks/useDebounce';
+import { downloadCsv } from '../../utils/csvExport';
+import { fetchWithAuth } from '../../api/fetchWithAuth';
 
 interface IC3IncidentItem {
     id: number;

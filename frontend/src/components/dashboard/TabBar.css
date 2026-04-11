@@ -1,0 +1,75 @@
+/* TabBar styles — tokens defined in src/Dashboard.css */
+
+/* Desktop/tablet: horizontal scrolling tab strip */
+.tabs-container {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0;
+    margin-bottom: 20px;
+    background-color: var(--tabs-bg);
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    /* Fade indicators on edges when content overflows */
+    -webkit-mask-image: linear-gradient(to right, transparent 0, black 16px, black calc(100% - 16px), transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, black 16px, black calc(100% - 16px), transparent 100%);
+}
+
+.tab {
+    flex: 0 0 auto;
+    min-width: 80px;
+    padding: 16px 20px;
+    background-color: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    transition: all 0.25s ease;
+    white-space: nowrap;
+    text-align: center;
+    letter-spacing: 0.3px;
+    /* Minimum 44px touch target */
+    min-height: 44px;
+}
+
+.tab:hover {
+    color: var(--tab-active-color);
+    background-color: var(--tab-hover-bg);
+}
+
+.tab.active {
+    color: var(--tab-active-color);
+    border-bottom-color: var(--accent);
+    background-color: var(--tab-active-bg);
+}
+
+/* Mobile: hide tab strip, show native select */
+.tabs-select {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .tabs-container {
+        display: none;
+    }
+
+    .tabs-select {
+        display: block;
+        width: 100%;
+        margin-bottom: 16px;
+        padding: 10px 14px;
+        font-size: 15px;
+        font-weight: 600;
+        background-color: var(--tabs-bg);
+        color: var(--text-primary);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+        cursor: pointer;
+        appearance: auto;
+    }
+}

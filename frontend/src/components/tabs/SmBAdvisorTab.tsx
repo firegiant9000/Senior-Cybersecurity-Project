@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import './SmBAdvisorTab.css';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
@@ -11,8 +12,8 @@ import {
   type AttackTypeStats,
   type SectorAttackCombination,
   type GeographicThreat,
-} from '../api/dashboardSummary';
-import WidgetSkeleton from './WidgetSkeleton';
+} from '../../api/dashboardSummary';
+import WidgetSkeleton from '../shared/WidgetSkeleton';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

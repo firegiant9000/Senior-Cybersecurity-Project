@@ -9,7 +9,7 @@ import {
     Legend,
     ResponsiveContainer,
 } from 'recharts';
-import type { SectorAttackCombination } from '../api/dashboardSummary';
+import type { SectorAttackCombination } from '../../api/dashboardSummary';
 
 interface Props {
     data: SectorAttackCombination[];

@@ -3,10 +3,10 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList,
   LineChart, Line, PieChart, Pie, Cell, Legend,
 } from 'recharts';
-import { useThreatIntelData } from '../hooks/useThreatIntelData';
-import WidgetSkeleton from './WidgetSkeleton';
-import WidgetErrorBoundary from './WidgetErrorBoundary';
-import { COLORS, RISK_COLORS, SEVERITY_COLORS } from '../theme';
+import { useThreatIntelData } from '../../hooks/useThreatIntelData';
+import WidgetSkeleton from '../shared/WidgetSkeleton';
+import WidgetErrorBoundary from '../shared/WidgetErrorBoundary';
+import { COLORS, RISK_COLORS, SEVERITY_COLORS } from '../../theme';
 
 const SEVERITY_ORDER = ['Critical', 'High', 'Medium', 'Low', 'Unknown'];
 

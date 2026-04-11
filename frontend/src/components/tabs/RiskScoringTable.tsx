@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { useDebounce } from '../hooks/useDebounce';
-import { fetchWithAuth } from '../api/fetchWithAuth';
+import { useDebounce } from '../../hooks/useDebounce';
+import { fetchWithAuth } from '../../api/fetchWithAuth';
 
 interface RiskScoredItem {
     id: string;
