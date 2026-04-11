@@ -171,12 +171,20 @@ def create_app() -> FastAPI:
     fastapi_app.add_middleware(SlowAPIMiddleware)
 
     # Add CORS middleware
+    if settings.APP_ENV in ("development", "testing"):
+        allowed_methods = ["*"]
+        allowed_headers = ["*"]
+    else:
+        allowed_methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+        allowed_headers = ["Authorization", "Content-Type", "X-Requested-With"]
+
+    _log.info("CORS allowed origins: %s", settings.CORS_ORIGINS)
     fastapi_app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=allowed_methods,
+        allow_headers=allowed_headers,
         expose_headers=["Retry-After"],
     )
 
