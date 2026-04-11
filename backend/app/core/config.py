@@ -55,13 +55,20 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     LOG_LEVEL: str = "DEBUG"
 
     # Frontend
-    FRONTEND_URL: str = "http://localhost:5174"
-    CORS_ORIGINS: list[str] = [
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:5175",
-        "http://localhost:5176",
-    ]
+    FRONTEND_URL: str = ""  # must be set explicitly per environment
+    CORS_ORIGINS: list[str] = []  # must be set explicitly per environment
+
+    @model_validator(mode="after")
+    def _validate_production_cors(self) -> "Settings":
+        if self.APP_ENV not in ("development", "testing"):
+            localhost_origins = [o for o in self.CORS_ORIGINS if "localhost" in o]
+            if localhost_origins:
+                raise ValueError(
+                    f"CORS_ORIGINS contains localhost entries {localhost_origins} "
+                    f"but APP_ENV={self.APP_ENV!r}. "
+                    "Set CORS_ORIGINS to production domains only."
+                )
+        return self
 
     # Auth (Firebase — service account key path is set via GOOGLE_APPLICATION_CREDENTIALS env var)
     SECRET_KEY: str = "change-me-in-production"  # retained for non-auth signing if needed

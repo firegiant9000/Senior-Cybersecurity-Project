@@ -6,7 +6,6 @@ __pycache__/
 data/
 docs/
 fixtures/
-tests/
 *.md
 # Allow scripts/ dir but exclude other .sh files
 !scripts/
