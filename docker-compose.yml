@@ -37,6 +37,7 @@ services:
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8000
       FRONTEND_URL: http://localhost:5174
+      CORS_ORIGINS: '["http://localhost:5174"]'
       GOOGLE_APPLICATION_CREDENTIALS: /app/service-account.json
     ports:
       - "8000:8000"

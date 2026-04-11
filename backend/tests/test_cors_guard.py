@@ -20,7 +20,7 @@ def test_cors_localhost_blocked_in_production():
     with pytest.raises((ValueError, ValidationError)):
         _make_settings(
             APP_ENV="production",
-            CORS_ORIGINS=["http://localhost:5173"],
+            CORS_ORIGINS=["http://localhost:5174"],
         )
 
 
