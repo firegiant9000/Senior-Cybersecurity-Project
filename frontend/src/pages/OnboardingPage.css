@@ -33,6 +33,21 @@
   font-size: 0.95rem;
 }
 
+.onboarding-logout-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.8rem;
+  cursor: pointer;
+  margin-top: 0.5rem;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.onboarding-logout-btn:hover {
+  color: var(--text-primary, #f8fafc);
+}
+
 .onboarding-progress {
   display: flex;
   gap: 0.5rem;

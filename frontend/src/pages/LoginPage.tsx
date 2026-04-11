@@ -5,11 +5,11 @@ import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import "./LoginPage.css";
 
-export default function LoginPage() {
+export default function LoginPage({ defaultSignUp = false }: { defaultSignUp?: boolean }) {
   const { login, signup } = useAuth();
   const navigate = useNavigate();
 
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(defaultSignUp);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

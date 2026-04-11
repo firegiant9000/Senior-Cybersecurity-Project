@@ -23,9 +23,11 @@ from app.schemas.organization import (
     OrganizationRead,
     OrganizationUpdate,
 )
+from app.schemas.smb_risk_score import RiskScoreResponse
 from app.schemas.vendor_alert import VendorAlertsResponse
 from app.services.executive_summary import ExecutiveSummaryService
 from app.services.loss_projection import LossProjectionService
+from app.services.risk_scoring import calculate_smb_risk_score
 from app.services.vendor_alerts import VendorAlertService
 
 logger = logging.getLogger(__name__)
@@ -105,6 +107,24 @@ async def get_loss_projection(
     except SQLAlchemyError:
         logger.exception("Failed to build loss projection for org %s", org.id)
         raise HTTPException(status_code=500, detail="Failed to build loss projection")
+
+
+@router.get("/mine/risk", response_model=RiskScoreResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def get_smb_risk_score(
+    request: Request,  # noqa: ARG001
+    current_user: User = Depends(get_current_user),  # noqa: ARG001
+    org: Organization = Depends(get_current_org),
+):
+    """Return a parameterized SMB risk score for the current org.
+
+    Combines industry exposure (from IC3 sector-attack weights) and
+    employee size factor to produce a 0-100 composite risk score.
+    """
+    return calculate_smb_risk_score(
+        industry_label=org.industry_label,
+        employee_range=org.employee_range,
+    )
 
 
 @router.get("/mine/vendor-alerts", response_model=VendorAlertsResponse)
