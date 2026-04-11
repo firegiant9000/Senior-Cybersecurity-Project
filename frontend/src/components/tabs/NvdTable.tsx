@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { downloadCsv } from '../utils/csvExport';
-import { useDebounce } from '../hooks/useDebounce';
-import { fetchWithAuth } from '../api/fetchWithAuth';
-import SeverityDistributionChart from './SeverityDistributionChart';
+import { downloadCsv } from '../../utils/csvExport';
+import { useDebounce } from '../../hooks/useDebounce';
+import { fetchWithAuth } from '../../api/fetchWithAuth';
+import SeverityDistributionChart from '../charts/SeverityDistributionChart';
 
 interface NVDCVEItem {
     id: string;

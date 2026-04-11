@@ -1,8 +1,8 @@
 import React from 'react';
-import { useAlertsData } from '../hooks/useAlertsData';
-import WidgetSkeleton from './WidgetSkeleton';
-import WidgetErrorBoundary from './WidgetErrorBoundary';
-import { RISK_COLORS } from '../theme';
+import { useAlertsData } from '../../hooks/useAlertsData';
+import WidgetSkeleton from '../shared/WidgetSkeleton';
+import WidgetErrorBoundary from '../shared/WidgetErrorBoundary';
+import { RISK_COLORS } from '../../theme';
 
 function SeverityBadge({ label }: { label: string }) {
   const color = RISK_COLORS[label as keyof typeof RISK_COLORS] ?? '#9e9e9e';

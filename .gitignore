@@ -2,6 +2,7 @@
 .env
 **/.env
 **/.env.*
+!frontend/.env.production
 
 # Firebase service account keys
 *firebase-adminsdk*
@@ -35,3 +36,4 @@ Thumbs.db
 .vscode/
 .idea/
 .claude/
+CLAUDE.md

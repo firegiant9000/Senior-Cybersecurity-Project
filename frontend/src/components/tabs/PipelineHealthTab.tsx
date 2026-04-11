@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { fetchIngestRuns, fetchIngestFreshness, type IngestRunItem, type SourceFreshness } from '../api/ingest';
+import { fetchIngestRuns, fetchIngestFreshness, type IngestRunItem, type SourceFreshness } from '../../api/ingest';
 
 const PAGE_SIZE = 15;
 

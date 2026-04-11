@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { SEVERITY_COLORS } from '../theme';
-import { fetchWithAuth } from '../api/fetchWithAuth';
+import { SEVERITY_COLORS } from '../../theme';
+import { fetchWithAuth } from '../../api/fetchWithAuth';
 import {
     BarChart,
     Bar,
@@ -76,24 +76,26 @@ const SeverityDistributionChart: React.FC<Props> = ({ apiBaseUrl, search, severi
         <div className="severity-chart-container">
             <h3>CVE Severity Distribution</h3>
             <p className="severity-chart-total">Total CVEs: {totalCves.toLocaleString()}</p>
-            <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="severity" />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip
-                        formatter={(value) => [Number(value).toLocaleString(), 'CVEs']}
-                    />
-                    <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                        {data.map((entry) => (
-                            <Cell
-                                key={entry.severity}
-                                fill={SEVERITY_COLORS[entry.severity as keyof typeof SEVERITY_COLORS] ?? '#9e9e9e'}
-                            />
-                        ))}
-                    </Bar>
-                </BarChart>
-            </ResponsiveContainer>
+            <div className="chart-aspect-box">
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="severity" />
+                        <YAxis allowDecimals={false} />
+                        <Tooltip
+                            formatter={(value) => [Number(value).toLocaleString(), 'CVEs']}
+                        />
+                        <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                            {data.map((entry) => (
+                                <Cell
+                                    key={entry.severity}
+                                    fill={SEVERITY_COLORS[entry.severity as keyof typeof SEVERITY_COLORS] ?? '#9e9e9e'}
+                                />
+                            ))}
+                        </Bar>
+                    </BarChart>
+                </ResponsiveContainer>
+            </div>
         </div>
     );
 };

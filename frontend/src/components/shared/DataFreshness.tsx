@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchIngestFreshness, type SourceFreshness } from '../api/ingest';
+import { fetchIngestFreshness, type SourceFreshness } from '../../api/ingest';
 
 const SOURCE_LABELS: Record<string, string> = {
   cisa_kev: 'CISA KEV',

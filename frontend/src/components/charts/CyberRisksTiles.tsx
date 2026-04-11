@@ -1,7 +1,7 @@
 import React from 'react';
-import type { AttackTypeStats } from '../api/dashboardSummary';
-import { TILE_PALETTE } from '../theme';
-import WidgetSkeleton from './WidgetSkeleton';
+import type { AttackTypeStats } from '../../api/dashboardSummary';
+import { TILE_PALETTE } from '../../theme';
+import WidgetSkeleton from '../shared/WidgetSkeleton';
 
 interface Props {
     data: AttackTypeStats[];
