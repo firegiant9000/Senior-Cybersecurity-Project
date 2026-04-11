@@ -154,8 +154,7 @@ class TestCalculateSmbRiskScore:
     def test_score_is_weighted_sum(self):
         result = calculate_smb_risk_score(None, "1-10")
         expected = round(
-            result.industry_exposure.industry_score * 0.60
-            + result.size_factor.size_score * 0.40,
+            result.industry_exposure.industry_score * 0.60 + result.size_factor.size_score * 0.40,
             2,
         )
         assert result.score == pytest.approx(expected)
