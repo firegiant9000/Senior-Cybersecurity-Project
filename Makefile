@@ -17,7 +17,7 @@ help:
 
 up:
 	docker compose up -d
-	@echo "Services started. Backend: http://localhost:8000, Frontend: http://localhost:5173"
+	@echo "Services started. Backend: http://localhost:8000, Frontend: http://localhost:5174"
 
 down:
 	docker compose down
