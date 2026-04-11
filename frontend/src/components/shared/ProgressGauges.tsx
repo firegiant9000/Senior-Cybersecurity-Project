@@ -4,7 +4,7 @@ import {
     RadialBar,
     ResponsiveContainer,
 } from 'recharts';
-import type { SeverityCount } from '../api/dashboardSummary';
+import type { SeverityCount } from '../../api/dashboardSummary';
 import WidgetSkeleton from './WidgetSkeleton';
 
 interface Props {

@@ -5,7 +5,7 @@ import {
     Geography,
     Annotation,
 } from 'react-simple-maps';
-import type { GeographicThreat } from '../api/dashboardSummary';
+import type { GeographicThreat } from '../../api/dashboardSummary';
 
 interface Props {
     data: GeographicThreat[];

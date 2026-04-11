@@ -1,6 +1,6 @@
 import React from 'react';
 import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
-import type { IndustryRiskProfile } from '../api/dashboardSummary';
+import type { IndustryRiskProfile } from '../../api/dashboardSummary';
 
 interface Props {
     data: IndustryRiskProfile[];

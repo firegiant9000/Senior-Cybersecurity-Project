@@ -1,5 +1,5 @@
 import React from 'react';
-import { SEVERITY_COLORS } from '../theme';
+import { SEVERITY_COLORS } from '../../theme';
 
 interface SeverityBadgeProps {
   label: string;
