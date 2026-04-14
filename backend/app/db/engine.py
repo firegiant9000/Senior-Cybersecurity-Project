@@ -20,11 +20,11 @@ def _import_all_orm_models() -> None:
     """
     import app.db.models  # noqa: F401
     import app.db.org_domain  # noqa: F401
+    import app.db.org_invite  # noqa: F401
     import app.db.org_upload  # noqa: F401
     import app.db.org_vendor  # noqa: F401
     import app.db.organization  # noqa: F401
     import app.db.technology_vendor  # noqa: F401
-    import app.db.org_invite  # noqa: F401
     import app.db.user  # noqa: F401
 
 

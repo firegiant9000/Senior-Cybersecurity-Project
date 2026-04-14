@@ -19,7 +19,7 @@ export default function AcceptInvitePage() {
   const [error, setError] = useState("");
   const [accepting, setAccepting] = useState(false);
   const [accepted, setAccepted] = useState(false);
-  const redirectTimer = useRef<ReturnType<typeof setTimeout>>(null);
+  const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     return () => {
