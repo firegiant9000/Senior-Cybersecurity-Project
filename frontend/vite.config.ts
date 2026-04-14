@@ -13,6 +13,10 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5174,
     strictPort: false,
+    watch: {
+      usePolling: true,   // required for HMR on Windows + Docker volume mounts (inotify not forwarded)
+      interval: 300,
+    },
   },
   build: {
     outDir: 'dist',
