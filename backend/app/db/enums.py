@@ -75,3 +75,10 @@ class OrgRole(StrEnum):
     MEMBER = "member"
     ADMIN = "admin"
     OWNER = "owner"
+
+
+class InviteStatus(StrEnum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    EXPIRED = "expired"
+    REVOKED = "revoked"

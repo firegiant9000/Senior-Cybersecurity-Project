@@ -381,3 +381,18 @@
   color: var(--text-secondary, #94a3b8);
   font-size: 0.85rem;
 }
+
+.member-role-select {
+  background: var(--bg, #0f172a);
+  border: 1px solid var(--border, #334155);
+  border-radius: 6px;
+  padding: 0.35rem 0.5rem;
+  color: var(--text-primary, #e2e8f0);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.member-role-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

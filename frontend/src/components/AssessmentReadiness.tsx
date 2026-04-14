@@ -1,0 +1,144 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  fetchAssessmentReadiness,
+  type AssessmentReadiness,
+} from "../api/assessmentReadiness";
+import "./AssessmentReadiness.css";
+
+const TIER_LABEL: Record<string, string> = {
+  comprehensive: "Comprehensive",
+  good: "Good",
+  minimal: "Incomplete",
+};
+
+const TIER_CLASS: Record<string, string> = {
+  comprehensive: "readiness-tier--comprehensive",
+  good: "readiness-tier--good",
+  minimal: "readiness-tier--minimal",
+};
+
+const SETTINGS_ANCHOR: Record<string, string> = {
+  org_name: "/settings",
+  industry: "/settings",
+  state: "/settings",
+  employee_range: "/settings",
+  vendors: "/settings",
+  domains: "/settings",
+  revenue: "/settings",
+  uploads: "/settings",
+};
+
+export default function AssessmentReadinessWidget() {
+  const navigate = useNavigate();
+  const [data, setData] = useState<AssessmentReadiness | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const ac = new AbortController();
+    setLoading(true);
+    fetchAssessmentReadiness(ac.signal)
+      .then((d) => {
+        setData(d);
+        setError("");
+      })
+      .catch((err) => {
+        if (!ac.signal.aborted)
+          setError(err instanceof Error ? err.message : "Failed to load");
+      })
+      .finally(() => setLoading(false));
+    return () => ac.abort();
+  }, []);
+
+  if (loading)
+    return (
+      <div className="readiness-widget readiness-loading">
+        Loading readiness...
+      </div>
+    );
+  if (error)
+    return <div className="readiness-widget readiness-error">{error}</div>;
+  if (!data) return null;
+
+  const requiredItems = data.items.filter((i) => i.required);
+  const optionalItems = data.items.filter((i) => !i.required);
+
+  return (
+    <div className="readiness-widget">
+      <div className="readiness-header">
+        <h3>Assessment Readiness</h3>
+        <span className={`readiness-tier ${TIER_CLASS[data.tier] ?? ""}`}>
+          {TIER_LABEL[data.tier] ?? data.tier}
+        </span>
+      </div>
+
+      <div className="readiness-bar-container">
+        <div
+          className="readiness-bar"
+          style={{ width: `${data.readiness_pct}%` }}
+        />
+      </div>
+      <p className="readiness-pct-label">{data.readiness_pct}% complete</p>
+
+      <div className="readiness-checklist">
+        <h4>Required</h4>
+        {requiredItems.map((item) => (
+          <div key={item.key} className="readiness-item">
+            <span
+              className={`readiness-check ${item.complete ? "done" : "pending"}`}
+            >
+              {item.complete ? "\u2713" : "\u2012"}
+            </span>
+            <span className="readiness-label">{item.label}</span>
+            <span className="readiness-detail">{item.detail}</span>
+            {!item.complete && SETTINGS_ANCHOR[item.key] && (
+              <button
+                className="readiness-fix-btn"
+                onClick={() => navigate(SETTINGS_ANCHOR[item.key])}
+              >
+                Fix
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {optionalItems.length > 0 && (
+        <div className="readiness-checklist">
+          <h4>Optional</h4>
+          {optionalItems.map((item) => (
+            <div key={item.key} className="readiness-item">
+              <span
+                className={`readiness-check ${item.complete ? "done" : "pending"}`}
+              >
+                {item.complete ? "\u2713" : "\u2012"}
+              </span>
+              <span className="readiness-label">{item.label}</span>
+              <span className="readiness-detail">{item.detail}</span>
+              {!item.complete && SETTINGS_ANCHOR[item.key] && (
+                <button
+                  className="readiness-fix-btn"
+                  onClick={() => navigate(SETTINGS_ANCHOR[item.key])}
+                >
+                  Fix
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {data.next_steps.length > 0 && (
+        <div className="readiness-next-steps">
+          <h4>Next Steps</h4>
+          <ul>
+            {data.next_steps.map((step, i) => (
+              <li key={i}>{step}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
