@@ -65,6 +65,8 @@ async def create_invite(
     ):
         raise HTTPException(status_code=403, detail="Only owners can invite admins")
 
+    await repo.expire_stale()
+
     try:
         invite = await repo.create(
             org_id=org_id,
@@ -73,6 +75,7 @@ async def create_invite(
             invited_by=current_user.id,
         )
     except IntegrityError:
+        await session.rollback()
         logger.warning("Duplicate invite attempt for %s in org %s", body.email, org_id)
         raise HTTPException(
             status_code=409, detail="A pending invite for this email already exists"
