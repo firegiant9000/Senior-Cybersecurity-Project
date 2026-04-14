@@ -47,7 +47,9 @@ export default function AssessmentReadinessWidget() {
         if (!ac.signal.aborted)
           setError(err instanceof Error ? err.message : "Failed to load");
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!ac.signal.aborted) setLoading(false);
+      });
     return () => ac.abort();
   }, []);
 

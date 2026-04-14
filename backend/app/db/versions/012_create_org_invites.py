@@ -23,14 +23,26 @@ def upgrade() -> None:
     op.create_table(
         "org_invites",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("org_id", sa.Integer(), sa.ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "org_id",
+            sa.Integer(),
+            sa.ForeignKey("organizations.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("invited_email", sa.String(255), nullable=False),
         sa.Column("invite_token", sa.String(128), nullable=False),
         sa.Column("org_role", sa.String(50), nullable=False, server_default="member"),
         sa.Column("status", sa.String(50), nullable=False, server_default="pending"),
-        sa.Column("invited_by", sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "invited_by",
+            sa.Integer(),
+            sa.ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
     )
     op.create_index("ix_org_invites_org_id", "org_invites", ["org_id"])
     op.create_index("ix_org_invites_invite_token", "org_invites", ["invite_token"], unique=True)

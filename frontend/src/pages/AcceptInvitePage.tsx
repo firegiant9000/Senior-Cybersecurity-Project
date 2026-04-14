@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -19,6 +19,13 @@ export default function AcceptInvitePage() {
   const [error, setError] = useState("");
   const [accepting, setAccepting] = useState(false);
   const [accepted, setAccepted] = useState(false);
+  const redirectTimer = useRef<ReturnType<typeof setTimeout>>(null);
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimer.current) clearTimeout(redirectTimer.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!token) {
@@ -26,12 +33,21 @@ export default function AcceptInvitePage() {
       setLoading(false);
       return;
     }
+    let cancelled = false;
     getInviteByToken(token)
-      .then((data) => setInvite(data))
-      .catch((err) =>
-        setError(err instanceof Error ? err.message : "Invite not found"),
-      )
-      .finally(() => setLoading(false));
+      .then((data) => {
+        if (!cancelled) setInvite(data);
+      })
+      .catch((err) => {
+        if (!cancelled)
+          setError(err instanceof Error ? err.message : "Invite not found");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [token]);
 
   const handleAccept = async () => {
@@ -42,7 +58,7 @@ export default function AcceptInvitePage() {
       await acceptInvite(token);
       setAccepted(true);
       await refreshProfile();
-      setTimeout(() => navigate("/"), 1500);
+      redirectTimer.current = setTimeout(() => navigate("/"), 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to accept invite");
     } finally {

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, func
+from sqlalchemy import DateTime, ForeignKey, Index, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -35,6 +35,6 @@ class OrgInvite(Base):
             "org_id",
             "invited_email",
             unique=True,
-            postgresql_where="status = 'pending'",
+            postgresql_where=text("status = 'pending'"),
         ),
     )
