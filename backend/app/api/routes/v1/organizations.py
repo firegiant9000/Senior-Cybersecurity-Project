@@ -15,6 +15,7 @@ from app.db.engine import get_session
 from app.db.organization import Organization
 from app.db.user import User
 from app.repositories.organization import SqlOrganizationRepository, get_org_repo
+from app.schemas.assessment_readiness import AssessmentReadinessResponse
 from app.schemas.executive_summary import ExecutiveSummaryResponse
 from app.schemas.loss_projection import LossProjectionResponse
 from app.schemas.organization import (
@@ -25,6 +26,7 @@ from app.schemas.organization import (
 )
 from app.schemas.smb_risk_score import RiskScoreResponse
 from app.schemas.vendor_alert import VendorAlertsResponse
+from app.services.assessment_readiness import evaluate_readiness
 from app.services.executive_summary import ExecutiveSummaryService
 from app.services.loss_projection import LossProjectionService
 from app.services.risk_scoring import calculate_smb_risk_score
@@ -107,6 +109,22 @@ async def get_loss_projection(
     except SQLAlchemyError:
         logger.exception("Failed to build loss projection for org %s", org.id)
         raise HTTPException(status_code=500, detail="Failed to build loss projection")
+
+
+@router.get("/mine/readiness", response_model=AssessmentReadinessResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def get_assessment_readiness(
+    request: Request,  # noqa: ARG001
+    current_user: User = Depends(get_current_user),  # noqa: ARG001
+    org: Organization = Depends(get_current_org),
+    db: AsyncSession = Depends(get_session),
+):
+    """Return assessment readiness status for the current org.
+
+    Checks profile completeness across org fields, vendors, domains, and
+    uploads to determine whether the org has enough data for evaluation.
+    """
+    return await evaluate_readiness(org, db)
 
 
 @router.get("/mine/risk", response_model=RiskScoreResponse)
