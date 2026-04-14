@@ -793,6 +793,15 @@ const SmBAdvisorTab: React.FC = () => {
         {!selectedSector && !loading && (
           <p className="smb-profile-hint">👆 Select your industry above to unlock your personalized risk profile.</p>
         )}
+        {!loading && (
+          <p className="smb-profile-hint" style={{ marginTop: 6 }}>
+            💡 Set your industry and state in{' '}
+            <a href="/settings" style={{ color: 'var(--accent, #3b82f6)', textDecoration: 'underline' }}>
+              Organization Settings
+            </a>{' '}
+            so your risk score is always pre-calculated against your actual profile.
+          </p>
+        )}
       </div>
 
       {/* Org-level parameterized risk score */}

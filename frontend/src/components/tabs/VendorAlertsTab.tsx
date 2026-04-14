@@ -49,7 +49,35 @@ const VendorAlertsTab: React.FC = () => {
   if (!data || data.reason === 'no_vendors') {
     return (
       <div className="tab-page">
-        <p>Add your technology vendors in Settings to see matched vulnerability alerts.</p>
+        <div style={{
+          background: 'var(--card-bg, #1e293b)',
+          border: '1px solid var(--border, #334155)',
+          borderRadius: 8,
+          padding: '20px 24px',
+          maxWidth: 480,
+        }}>
+          <p style={{ fontWeight: 700, color: 'var(--text-primary, #e2e8f0)', marginBottom: 8 }}>
+            No vendors configured
+          </p>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary, #94a3b8)', marginBottom: 16 }}>
+            Add your technology stack in Organization Settings. We'll match your vendors against the CISA Known Exploited Vulnerabilities catalog and alert you to active threats.
+          </p>
+          <a
+            href="/settings"
+            style={{
+              display: 'inline-block',
+              background: 'var(--accent, #3b82f6)',
+              color: '#fff',
+              borderRadius: 6,
+              padding: '7px 16px',
+              fontSize: 13,
+              fontWeight: 600,
+              textDecoration: 'none',
+            }}
+          >
+            Add Vendors in Settings
+          </a>
+        </div>
       </div>
     );
   }
