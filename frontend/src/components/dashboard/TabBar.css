@@ -4,6 +4,7 @@
 .tabs-container {
     display: flex;
     flex-wrap: nowrap;
+    justify-content: center;
     gap: 0;
     margin-bottom: 20px;
     background-color: var(--tabs-bg);
