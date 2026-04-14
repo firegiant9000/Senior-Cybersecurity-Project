@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import './SmBAdvisorTab.css';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
@@ -792,6 +793,15 @@ const SmBAdvisorTab: React.FC = () => {
         </div>
         {!selectedSector && !loading && (
           <p className="smb-profile-hint">👆 Select your industry above to unlock your personalized risk profile.</p>
+        )}
+        {!loading && (
+          <p className="smb-profile-hint" style={{ marginTop: 6 }}>
+            💡 Set your industry and state in{' '}
+            <Link to="/settings" style={{ color: 'var(--accent, #3b82f6)', textDecoration: 'underline' }}>
+              Organization Settings
+            </Link>{' '}
+            so your risk score is always pre-calculated against your actual profile.
+          </p>
         )}
       </div>
 
