@@ -9,6 +9,7 @@ from app.api.routes.v1 import (
     health,
     ic3,
     ingest,
+    members,
     nvd,
     onboarding,
     organizations,
@@ -57,6 +58,9 @@ router.include_router(uploads.router, tags=["uploads"])
 
 # Domains: org domain management (per-route auth).
 router.include_router(domains.router, tags=["domains"])
+
+# Members & Invites: org membership and invite management (per-route auth).
+router.include_router(members.router, tags=["members"])
 
 # Ingest router: per-route auth (viewer for reads, admin for trigger).
 router.include_router(ingest.router, prefix="/ingest", tags=["ingest"])

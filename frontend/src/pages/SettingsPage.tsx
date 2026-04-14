@@ -21,12 +21,23 @@ import {
   deleteDomain,
 } from "../api/domains";
 import {
+  OrgMember,
+  OrgInvite,
+  listMembers,
+  listInvites,
+  createInvite,
+  revokeInvite,
+  updateMemberRole,
+  removeMember,
+} from "../api/members";
+import {
   OrgUpload,
   listUploads,
   uploadFile,
   deleteUpload,
   downloadUpload,
 } from "../api/uploads";
+import AssessmentReadinessWidget from "../components/AssessmentReadiness";
 import "../Dashboard.css";
 import "./SettingsPage.css";
 
@@ -43,7 +54,12 @@ interface UserProfile {
 
 export default function SettingsPage() {
   const { user, logout } = useAuth();
-  const { organization, refreshOrganization, loading: orgLoading, error: orgError } = useUserContext();
+  const {
+    organization,
+    refreshOrganization,
+    loading: orgLoading,
+    error: orgError,
+  } = useUserContext();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -94,6 +110,126 @@ export default function SettingsPage() {
   const [uploadError, setUploadError] = useState("");
   const [uploadMsg, setUploadMsg] = useState("");
 
+  // Members & invites state
+  const [membersList, setMembersList] = useState<OrgMember[]>([]);
+  const [membersTotal, setMembersTotal] = useState(0);
+  const [membersPage, setMembersPage] = useState(1);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [membersError, setMembersError] = useState("");
+  const [membersMsg, setMembersMsg] = useState("");
+  const [invitesList, setInvitesList] = useState<OrgInvite[]>([]);
+  const [invitesTotal, setInvitesTotal] = useState(0);
+  const [invitesPage, setInvitesPage] = useState(1);
+  const [invitesLoading, setInvitesLoading] = useState(false);
+  const [invitesError, setInvitesError] = useState("");
+  const [invitesMsg, setInvitesMsg] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("member");
+  const membersPageSize = 20;
+
+  const loadMembers = useCallback(async (orgId: number, page: number) => {
+    setMembersLoading(true);
+    setMembersError("");
+    try {
+      const data = await listMembers(orgId, page, membersPageSize);
+      setMembersList(data.items);
+      setMembersTotal(data.total);
+    } catch {
+      setMembersError("Failed to load members");
+    } finally {
+      setMembersLoading(false);
+    }
+  }, []);
+
+  const loadInvites = useCallback(async (orgId: number, page: number) => {
+    setInvitesLoading(true);
+    setInvitesError("");
+    try {
+      const data = await listInvites(orgId, page, membersPageSize);
+      setInvitesList(data.items);
+      setInvitesTotal(data.total);
+    } catch {
+      setInvitesError("Failed to load invites");
+    } finally {
+      setInvitesLoading(false);
+    }
+  }, []);
+
+  const canManageMembers =
+    profile != null &&
+    (profile.role === "admin" ||
+      profile.org_role === "admin" ||
+      profile.org_role === "owner");
+
+  useEffect(() => {
+    if (profile?.org_id && canManageMembers) {
+      loadMembers(profile.org_id, membersPage);
+    }
+  }, [profile?.org_id, membersPage, loadMembers, canManageMembers]);
+
+  useEffect(() => {
+    if (profile?.org_id && canManageMembers) {
+      loadInvites(profile.org_id, invitesPage);
+    }
+  }, [profile?.org_id, invitesPage, loadInvites, canManageMembers]);
+
+  const handleSendInvite = async () => {
+    if (!profile?.org_id || !inviteEmail.trim()) return;
+    setInvitesError("");
+    setInvitesMsg("");
+    try {
+      await createInvite(profile.org_id, inviteEmail.trim(), inviteRole);
+      setInviteEmail("");
+      setInviteRole("member");
+      setInvitesMsg("Invite sent");
+      loadInvites(profile.org_id, 1);
+      setInvitesPage(1);
+    } catch (err) {
+      setInvitesError(
+        err instanceof Error ? err.message : "Failed to send invite",
+      );
+    }
+  };
+
+  const handleRevokeInvite = async (inviteId: number) => {
+    if (!profile?.org_id) return;
+    setInvitesError("");
+    try {
+      await revokeInvite(profile.org_id, inviteId);
+      loadInvites(profile.org_id, invitesPage);
+    } catch {
+      setInvitesError("Failed to revoke invite");
+    }
+  };
+
+  const handleUpdateMemberRole = async (userId: number, newRole: string) => {
+    if (!profile?.org_id) return;
+    setMembersError("");
+    try {
+      await updateMemberRole(profile.org_id, userId, newRole);
+      setMembersMsg("Role updated");
+      loadMembers(profile.org_id, membersPage);
+    } catch (err) {
+      setMembersError(
+        err instanceof Error ? err.message : "Failed to update role",
+      );
+    }
+  };
+
+  const handleRemoveMember = async (userId: number) => {
+    if (!profile?.org_id) return;
+    setMembersError("");
+    try {
+      await removeMember(profile.org_id, userId);
+      setMembersMsg("Member removed");
+      loadMembers(profile.org_id, membersPage);
+    } catch (err) {
+      setMembersError(
+        err instanceof Error ? err.message : "Failed to remove member",
+      );
+    }
+  };
+
   const loadVendors = useCallback(async (orgId: number, page: number) => {
     setVendorLoading(true);
     setVendorError("");
@@ -125,7 +261,9 @@ export default function SettingsPage() {
       setVendorPage(1);
       loadVendors(profile.org_id, 1);
     } catch (err) {
-      setVendorError(err instanceof Error ? err.message : "Failed to add vendor");
+      setVendorError(
+        err instanceof Error ? err.message : "Failed to add vendor",
+      );
     }
   };
 
@@ -198,7 +336,9 @@ export default function SettingsPage() {
       setDomainPage(1);
       loadDomains(profile.org_id, 1);
     } catch (err) {
-      setDomainError(err instanceof Error ? err.message : "Failed to add domain");
+      setDomainError(
+        err instanceof Error ? err.message : "Failed to add domain",
+      );
     }
   };
 
@@ -278,7 +418,11 @@ export default function SettingsPage() {
 
   // Debounced autocomplete for vendor name
   useEffect(() => {
-    if (newVendor.length < 2) { setVendorSuggestions([]); setShowVendorSuggestions(false); return; }
+    if (newVendor.length < 2) {
+      setVendorSuggestions([]);
+      setShowVendorSuggestions(false);
+      return;
+    }
     let cancelled = false;
     const timer = setTimeout(async () => {
       try {
@@ -288,28 +432,48 @@ export default function SettingsPage() {
           setShowVendorSuggestions(results.length > 0);
         }
       } catch {
-        if (!cancelled) { setVendorSuggestions([]); setShowVendorSuggestions(false); }
+        if (!cancelled) {
+          setVendorSuggestions([]);
+          setShowVendorSuggestions(false);
+        }
       }
     }, 300);
-    return () => { cancelled = true; clearTimeout(timer); };
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [newVendor]);
 
   // Debounced autocomplete for product name
   useEffect(() => {
-    if (newProduct.length < 2) { setProductSuggestions([]); setShowProductSuggestions(false); return; }
+    if (newProduct.length < 2) {
+      setProductSuggestions([]);
+      setShowProductSuggestions(false);
+      return;
+    }
     let cancelled = false;
     const timer = setTimeout(async () => {
       try {
-        const results = await autocompleteVendors(newProduct, "product", newVendor || undefined);
+        const results = await autocompleteVendors(
+          newProduct,
+          "product",
+          newVendor || undefined,
+        );
         if (!cancelled) {
           setProductSuggestions(results);
           setShowProductSuggestions(results.length > 0);
         }
       } catch {
-        if (!cancelled) { setProductSuggestions([]); setShowProductSuggestions(false); }
+        if (!cancelled) {
+          setProductSuggestions([]);
+          setShowProductSuggestions(false);
+        }
       }
     }, 300);
-    return () => { cancelled = true; clearTimeout(timer); };
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [newProduct, newVendor]);
 
   // Sync company profile fields when organization data loads
@@ -321,8 +485,10 @@ export default function SettingsPage() {
   }, [organization]);
 
   const canEditOrgProfile =
-    profile != null && canEditOrganizationProfile(profile.role, profile.org_role);
-  const companyFieldsDisabled = orgLoading || !organization || !canEditOrgProfile;
+    profile != null &&
+    canEditOrganizationProfile(profile.role, profile.org_role);
+  const companyFieldsDisabled =
+    orgLoading || !organization || !canEditOrgProfile;
 
   const handleSaveCompanyProfile = async () => {
     if (!profile?.org_id || !canEditOrgProfile) return;
@@ -335,11 +501,14 @@ export default function SettingsPage() {
         logo_url: logoUrlField.trim() || null,
         primary_domain: primaryDomainField.trim() || null,
       };
-      const resp = await fetchWithAuth(`${API_BASE_URL}/api/v1/organizations/${profile.org_id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      const resp = await fetchWithAuth(
+        `${API_BASE_URL}/api/v1/organizations/${profile.org_id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
       if (!resp.ok) {
         const detail = await resp.text();
         throw new Error(detail || "Failed to save company profile");
@@ -362,13 +531,18 @@ export default function SettingsPage() {
         const data: UserProfile = await resp.json();
         if (!cancelled) setProfile(data);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load profile");
+        if (!cancelled)
+          setError(
+            err instanceof Error ? err.message : "Failed to load profile",
+          );
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
     loadProfile();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -413,453 +587,870 @@ export default function SettingsPage() {
 
       <div className="settings-page settings-page--embedded">
         <div className="settings-card settings-card--wide">
-        {loading && <p className="settings-loading">Loading profile...</p>}
-        {error && <div className="settings-error">{error}</div>}
+          {loading && <p className="settings-loading">Loading profile...</p>}
+          {error && <div className="settings-error">{error}</div>}
 
-        {!loading && !error && profile && (
-          <div className="settings-sections">
-            {profile.org_id != null && (
-              <section className="settings-section">
-                <h2>Company profile</h2>
-                <p className="tech-stack-description">
-                  Name, logo URL, and primary domain for your organization. These align with dashboard branding where shown.
-                </p>
-                {!canEditOrgProfile && (
-                  <p className="settings-readonly-hint">
-                    Only organization owners, organization admins, or platform admins can edit these fields.
+          {!loading && !error && profile && (
+            <div className="settings-sections">
+              {profile.org_id != null && <AssessmentReadinessWidget />}
+
+              {profile.org_id != null && (
+                <section className="settings-section">
+                  <h2>Company profile</h2>
+                  <p className="tech-stack-description">
+                    Name, logo URL, and primary domain for your organization.
+                    These align with dashboard branding where shown.
                   </p>
-                )}
-                {orgLoading && !organization && (
-                  <p className="settings-loading">Loading organization…</p>
-                )}
-                {orgError && (
-                  <div className="settings-error">Could not load organization profile.</div>
-                )}
-                {organization && (
-                  <>
-                    {companySaveMsg && <div className="settings-action-msg">{companySaveMsg}</div>}
-                    {companySaveErr && (
-                      <div className="settings-error" style={{ marginBottom: "0.75rem" }}>
-                        {companySaveErr}
+                  {!canEditOrgProfile && (
+                    <p className="settings-readonly-hint">
+                      Only organization owners, organization admins, or platform
+                      admins can edit these fields.
+                    </p>
+                  )}
+                  {orgLoading && !organization && (
+                    <p className="settings-loading">Loading organization…</p>
+                  )}
+                  {orgError && (
+                    <div className="settings-error">
+                      Could not load organization profile.
+                    </div>
+                  )}
+                  {organization && (
+                    <>
+                      {companySaveMsg && (
+                        <div className="settings-action-msg">
+                          {companySaveMsg}
+                        </div>
+                      )}
+                      {companySaveErr && (
+                        <div
+                          className="settings-error"
+                          style={{ marginBottom: "0.75rem" }}
+                        >
+                          {companySaveErr}
+                        </div>
+                      )}
+                      <div className="settings-field company-profile-field">
+                        <label htmlFor="company-name">Name</label>
+                        <input
+                          id="company-name"
+                          className="company-profile-input"
+                          type="text"
+                          value={companyNameField}
+                          onChange={(e) => setCompanyNameField(e.target.value)}
+                          disabled={companyFieldsDisabled}
+                          autoComplete="organization"
+                        />
                       </div>
-                    )}
-                    <div className="settings-field company-profile-field">
-                      <label htmlFor="company-name">Name</label>
+                      <div className="settings-field company-profile-field">
+                        <label htmlFor="company-logo">Logo</label>
+                        <div className="company-logo-input-col">
+                          <input
+                            id="company-logo"
+                            className="company-profile-input"
+                            type="url"
+                            placeholder="https://…"
+                            value={logoUrlField}
+                            onChange={(e) => setLogoUrlField(e.target.value)}
+                            disabled={companyFieldsDisabled}
+                          />
+                          {logoUrlField.trim() !== "" && (
+                            <img
+                              className="company-logo-preview"
+                              src={logoUrlField.trim()}
+                              alt=""
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                              }}
+                            />
+                          )}
+                        </div>
+                      </div>
+                      <div className="settings-field company-profile-field">
+                        <label htmlFor="company-domain">Domain</label>
+                        <input
+                          id="company-domain"
+                          className="company-profile-input"
+                          type="text"
+                          placeholder="example.com"
+                          value={primaryDomainField}
+                          onChange={(e) =>
+                            setPrimaryDomainField(e.target.value)
+                          }
+                          disabled={companyFieldsDisabled}
+                          autoCapitalize="none"
+                        />
+                      </div>
+                      {canEditOrgProfile && (
+                        <div
+                          className="settings-actions"
+                          style={{ marginTop: "1rem" }}
+                        >
+                          <button
+                            type="button"
+                            className="action-btn"
+                            disabled={companySaving || !companyNameField.trim()}
+                            onClick={() => void handleSaveCompanyProfile()}
+                          >
+                            {companySaving ? "Saving…" : "Save company profile"}
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </section>
+              )}
+
+              {profile.org_id != null && canManageMembers && (
+                <section className="settings-section">
+                  <h2>Members</h2>
+                  <p className="tech-stack-description">
+                    Manage who belongs to your organization and their roles.
+                  </p>
+
+                  {membersMsg && (
+                    <div className="settings-action-msg">{membersMsg}</div>
+                  )}
+                  {membersError && (
+                    <div
+                      className="settings-error"
+                      style={{
+                        whiteSpace: "pre-line",
+                        marginBottom: "0.75rem",
+                      }}
+                    >
+                      {membersError}
+                    </div>
+                  )}
+
+                  {membersLoading ? (
+                    <p className="settings-loading">Loading members...</p>
+                  ) : membersList.length === 0 ? (
+                    <p className="vendor-empty">No members found.</p>
+                  ) : (
+                    <>
+                      <table className="vendor-table">
+                        <thead>
+                          <tr>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Joined</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {membersList.map((m) => (
+                            <tr key={m.id}>
+                              <td>{m.email}</td>
+                              <td>
+                                {m.org_role === "owner" ? (
+                                  <span className="role-badge">
+                                    {m.org_role}
+                                  </span>
+                                ) : (
+                                  <select
+                                    className="member-role-select"
+                                    value={m.org_role ?? "member"}
+                                    onChange={(e) =>
+                                      handleUpdateMemberRole(
+                                        m.id,
+                                        e.target.value,
+                                      )
+                                    }
+                                    disabled={
+                                      m.id === profile.id ||
+                                      profile.org_role !== "owner" && profile.role !== "admin"
+                                    }
+                                  >
+                                    <option value="member">member</option>
+                                    <option value="admin">admin</option>
+                                  </select>
+                                )}
+                              </td>
+                              <td>
+                                {new Date(m.created_at).toLocaleDateString()}
+                              </td>
+                              <td>
+                                {m.org_role !== "owner" &&
+                                  m.id !== profile.id && (
+                                    <button
+                                      className="vendor-delete-btn"
+                                      onClick={() => handleRemoveMember(m.id)}
+                                      title="Remove member"
+                                    >
+                                      &times;
+                                    </button>
+                                  )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {membersTotal > membersPageSize && (
+                        <div className="vendor-pagination">
+                          <button
+                            className="action-btn"
+                            disabled={membersPage <= 1}
+                            onClick={() => setMembersPage((p) => p - 1)}
+                          >
+                            Previous
+                          </button>
+                          <span className="vendor-page-info">
+                            Page {membersPage} of{" "}
+                            {Math.ceil(membersTotal / membersPageSize)}
+                          </span>
+                          <button
+                            className="action-btn"
+                            disabled={
+                              membersPage >=
+                              Math.ceil(membersTotal / membersPageSize)
+                            }
+                            onClick={() => setMembersPage((p) => p + 1)}
+                          >
+                            Next
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </section>
+              )}
+
+              {profile.org_id != null && canManageMembers && (
+                <section className="settings-section">
+                  <h2>Invitations</h2>
+                  <p className="tech-stack-description">
+                    Invite users to join your organization. They will need to
+                    create an account with the invited email and accept the
+                    invite.
+                  </p>
+
+                  {invitesMsg && (
+                    <div className="settings-action-msg">{invitesMsg}</div>
+                  )}
+                  {invitesError && (
+                    <div
+                      className="settings-error"
+                      style={{
+                        whiteSpace: "pre-line",
+                        marginBottom: "0.75rem",
+                      }}
+                    >
+                      {invitesError}
+                    </div>
+                  )}
+
+                  <div className="vendor-add-form">
+                    <div className="vendor-input-wrapper">
                       <input
-                        id="company-name"
-                        className="company-profile-input"
-                        type="text"
-                        value={companyNameField}
-                        onChange={(e) => setCompanyNameField(e.target.value)}
-                        disabled={companyFieldsDisabled}
-                        autoComplete="organization"
+                        type="email"
+                        placeholder="user@example.com"
+                        value={inviteEmail}
+                        onChange={(e) => setInviteEmail(e.target.value)}
+                        onKeyDown={(e) =>
+                          e.key === "Enter" && handleSendInvite()
+                        }
                       />
                     </div>
-                    <div className="settings-field company-profile-field">
-                      <label htmlFor="company-logo">Logo</label>
-                      <div className="company-logo-input-col">
-                        <input
-                          id="company-logo"
-                          className="company-profile-input"
-                          type="url"
-                          placeholder="https://…"
-                          value={logoUrlField}
-                          onChange={(e) => setLogoUrlField(e.target.value)}
-                          disabled={companyFieldsDisabled}
-                        />
-                        {logoUrlField.trim() !== "" && (
-                          <img
-                            className="company-logo-preview"
-                            src={logoUrlField.trim()}
-                            alt=""
-                            onError={(e) => {
-                              e.currentTarget.style.display = "none";
-                            }}
-                          />
-                        )}
-                      </div>
+                    <select
+                      className="member-role-select"
+                      value={inviteRole}
+                      onChange={(e) => setInviteRole(e.target.value)}
+                    >
+                      <option value="member">member</option>
+                      <option value="admin">admin</option>
+                    </select>
+                    <button
+                      className="action-btn"
+                      onClick={handleSendInvite}
+                      disabled={!inviteEmail.trim()}
+                    >
+                      Send Invite
+                    </button>
+                  </div>
+
+                  {invitesLoading ? (
+                    <p className="settings-loading">Loading invites...</p>
+                  ) : invitesList.length === 0 ? (
+                    <p className="vendor-empty">No pending invitations.</p>
+                  ) : (
+                    <>
+                      <table className="vendor-table">
+                        <thead>
+                          <tr>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Expires</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {invitesList.map((inv) => (
+                            <tr key={inv.id}>
+                              <td>{inv.invited_email}</td>
+                              <td>{inv.org_role}</td>
+                              <td>
+                                <span
+                                  className={`status-badge ${inv.status === "pending" ? "active" : "inactive"}`}
+                                >
+                                  {inv.status}
+                                </span>
+                              </td>
+                              <td>
+                                {new Date(inv.expires_at).toLocaleDateString()}
+                              </td>
+                              <td>
+                                {inv.status === "pending" && (
+                                  <button
+                                    className="vendor-delete-btn"
+                                    onClick={() => handleRevokeInvite(inv.id)}
+                                    title="Revoke invite"
+                                  >
+                                    &times;
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {invitesTotal > membersPageSize && (
+                        <div className="vendor-pagination">
+                          <button
+                            className="action-btn"
+                            disabled={invitesPage <= 1}
+                            onClick={() => setInvitesPage((p) => p - 1)}
+                          >
+                            Previous
+                          </button>
+                          <span className="vendor-page-info">
+                            Page {invitesPage} of{" "}
+                            {Math.ceil(invitesTotal / membersPageSize)}
+                          </span>
+                          <button
+                            className="action-btn"
+                            disabled={
+                              invitesPage >=
+                              Math.ceil(invitesTotal / membersPageSize)
+                            }
+                            onClick={() => setInvitesPage((p) => p + 1)}
+                          >
+                            Next
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </section>
+              )}
+
+              <section className="settings-section">
+                <h2>Your account</h2>
+                <div className="settings-field">
+                  <label>Email</label>
+                  <span>{profile.email}</span>
+                </div>
+                <div className="settings-field">
+                  <label>Role</label>
+                  <span className="role-badge">{profile.role}</span>
+                </div>
+                <div className="settings-field">
+                  <label>Auth Provider</label>
+                  <span>{profile.auth_provider}</span>
+                </div>
+                <div className="settings-field">
+                  <label>Account Created</label>
+                  <span>
+                    {new Date(profile.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="settings-field">
+                  <label>Status</label>
+                  <span
+                    className={`status-badge ${profile.is_active ? "active" : "inactive"}`}
+                  >
+                    {profile.is_active ? "Active" : "Inactive"}
+                  </span>
+                </div>
+              </section>
+
+              <section className="settings-section">
+                <h2>Firebase Account</h2>
+                <div className="settings-field">
+                  <label>Firebase UID</label>
+                  <span className="uid-text">{user?.uid}</span>
+                </div>
+                <div className="settings-field">
+                  <label>Email Verified</label>
+                  <span
+                    className={`status-badge ${user?.emailVerified ? "active" : "inactive"}`}
+                  >
+                    {user?.emailVerified ? "Yes" : "No"}
+                  </span>
+                </div>
+                <div className="settings-field">
+                  <label>Last Sign-In</label>
+                  <span>{user?.metadata.lastSignInTime ?? "Unknown"}</span>
+                </div>
+              </section>
+
+              <section className="settings-section">
+                <h2>Actions</h2>
+                {actionMsg && (
+                  <div className="settings-action-msg">{actionMsg}</div>
+                )}
+                <div className="settings-actions">
+                  {!user?.emailVerified && (
+                    <button
+                      className="action-btn"
+                      onClick={handleResendVerification}
+                    >
+                      Resend Verification Email
+                    </button>
+                  )}
+                  <button className="action-btn" onClick={handlePasswordReset}>
+                    Reset Password
+                  </button>
+                  <button className="logout-btn" onClick={handleLogout}>
+                    Log Out
+                  </button>
+                </div>
+              </section>
+
+              {profile.org_id && (
+                <section className="settings-section">
+                  <h2>Your Technology Stack</h2>
+                  <p className="tech-stack-description">
+                    Track the vendors and products your organization uses. We'll
+                    highlight relevant vulnerabilities from the KEV catalog.
+                  </p>
+
+                  {vendorMsg && (
+                    <div className="settings-action-msg">{vendorMsg}</div>
+                  )}
+                  {vendorError && (
+                    <div
+                      className="settings-error"
+                      style={{
+                        whiteSpace: "pre-line",
+                        marginBottom: "0.75rem",
+                      }}
+                    >
+                      {vendorError}
                     </div>
-                    <div className="settings-field company-profile-field">
-                      <label htmlFor="company-domain">Domain</label>
+                  )}
+
+                  {/* Add vendor form */}
+                  <div className="vendor-add-form">
+                    <div className="vendor-input-wrapper">
                       <input
-                        id="company-domain"
-                        className="company-profile-input"
+                        ref={vendorInputRef}
+                        type="text"
+                        placeholder="Vendor name"
+                        value={newVendor}
+                        onChange={(e) => setNewVendor(e.target.value)}
+                        onFocus={() =>
+                          vendorSuggestions.length > 0 &&
+                          setShowVendorSuggestions(true)
+                        }
+                        onBlur={() =>
+                          setTimeout(() => setShowVendorSuggestions(false), 200)
+                        }
+                      />
+                      {showVendorSuggestions && (
+                        <ul className="autocomplete-dropdown">
+                          {vendorSuggestions.map((s) => (
+                            <li
+                              key={s}
+                              onMouseDown={() => {
+                                setNewVendor(s);
+                                setShowVendorSuggestions(false);
+                              }}
+                            >
+                              {s}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <div className="vendor-input-wrapper">
+                      <input
+                        ref={productInputRef}
+                        type="text"
+                        placeholder="Product name (optional)"
+                        value={newProduct}
+                        onChange={(e) => setNewProduct(e.target.value)}
+                        onFocus={() =>
+                          productSuggestions.length > 0 &&
+                          setShowProductSuggestions(true)
+                        }
+                        onBlur={() =>
+                          setTimeout(
+                            () => setShowProductSuggestions(false),
+                            200,
+                          )
+                        }
+                      />
+                      {showProductSuggestions && (
+                        <ul className="autocomplete-dropdown">
+                          {productSuggestions.map((s) => (
+                            <li
+                              key={s}
+                              onMouseDown={() => {
+                                setNewProduct(s);
+                                setShowProductSuggestions(false);
+                              }}
+                            >
+                              {s}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <button
+                      className="action-btn"
+                      onClick={handleAddVendor}
+                      disabled={!newVendor.trim()}
+                    >
+                      Add
+                    </button>
+                  </div>
+
+                  {/* CSV import */}
+                  <div className="vendor-import-row">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".csv"
+                      style={{ display: "none" }}
+                      onChange={handleCsvImport}
+                    />
+                    <button
+                      className="action-btn"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      Import CSV
+                    </button>
+                    <span className="vendor-import-hint">
+                      CSV with vendor_name column (max 500 rows)
+                    </span>
+                  </div>
+
+                  {/* Vendor table */}
+                  {vendorLoading ? (
+                    <p className="settings-loading">Loading vendors...</p>
+                  ) : vendors.length === 0 ? (
+                    <p className="vendor-empty">
+                      No vendors added yet. Add your first vendor above or
+                      import a CSV.
+                    </p>
+                  ) : (
+                    <>
+                      <table className="vendor-table">
+                        <thead>
+                          <tr>
+                            <th>Vendor</th>
+                            <th>Product</th>
+                            <th>Added</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {vendors.map((v) => (
+                            <tr key={v.id}>
+                              <td>
+                                {v.vendor_name}
+                                <span className="matched-count-badge">
+                                  {v.matched_kev_count} KEV
+                                </span>
+                              </td>
+                              <td>{v.product_name || "-"}</td>
+                              <td>
+                                {new Date(v.created_at).toLocaleDateString()}
+                              </td>
+                              <td>
+                                <button
+                                  className="vendor-delete-btn"
+                                  onClick={() => handleDeleteVendor(v.id)}
+                                  title="Remove"
+                                >
+                                  &times;
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {vendorTotal > vendorPageSize && (
+                        <div className="vendor-pagination">
+                          <button
+                            className="action-btn"
+                            disabled={vendorPage <= 1}
+                            onClick={() => setVendorPage((p) => p - 1)}
+                          >
+                            Previous
+                          </button>
+                          <span className="vendor-page-info">
+                            Page {vendorPage} of{" "}
+                            {Math.ceil(vendorTotal / vendorPageSize)}
+                          </span>
+                          <button
+                            className="action-btn"
+                            disabled={
+                              vendorPage >=
+                              Math.ceil(vendorTotal / vendorPageSize)
+                            }
+                            onClick={() => setVendorPage((p) => p + 1)}
+                          >
+                            Next
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </section>
+              )}
+
+              {profile.org_id && (
+                <section className="settings-section">
+                  <h2>Organization Domains</h2>
+                  <p className="tech-stack-description">
+                    Track domains your organization owns or monitors.
+                  </p>
+
+                  {domainMsg && (
+                    <div className="settings-action-msg">{domainMsg}</div>
+                  )}
+                  {domainError && (
+                    <div
+                      className="settings-error"
+                      style={{
+                        whiteSpace: "pre-line",
+                        marginBottom: "0.75rem",
+                      }}
+                    >
+                      {domainError}
+                    </div>
+                  )}
+
+                  {/* Add domain form */}
+                  <div className="vendor-add-form">
+                    <div className="vendor-input-wrapper">
+                      <input
                         type="text"
                         placeholder="example.com"
-                        value={primaryDomainField}
-                        onChange={(e) => setPrimaryDomainField(e.target.value)}
-                        disabled={companyFieldsDisabled}
-                        autoCapitalize="none"
+                        value={newDomain}
+                        onChange={(e) => setNewDomain(e.target.value)}
+                        onKeyDown={(e) =>
+                          e.key === "Enter" && handleAddDomain()
+                        }
                       />
                     </div>
-                    {canEditOrgProfile && (
-                      <div className="settings-actions" style={{ marginTop: "1rem" }}>
-                        <button
-                          type="button"
-                          className="action-btn"
-                          disabled={companySaving || !companyNameField.trim()}
-                          onClick={() => void handleSaveCompanyProfile()}
-                        >
-                          {companySaving ? "Saving…" : "Save company profile"}
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
-              </section>
-            )}
-
-            <section className="settings-section">
-              <h2>Your account</h2>
-              <div className="settings-field">
-                <label>Email</label>
-                <span>{profile.email}</span>
-              </div>
-              <div className="settings-field">
-                <label>Role</label>
-                <span className="role-badge">{profile.role}</span>
-              </div>
-              <div className="settings-field">
-                <label>Auth Provider</label>
-                <span>{profile.auth_provider}</span>
-              </div>
-              <div className="settings-field">
-                <label>Account Created</label>
-                <span>{new Date(profile.created_at).toLocaleDateString()}</span>
-              </div>
-              <div className="settings-field">
-                <label>Status</label>
-                <span className={`status-badge ${profile.is_active ? "active" : "inactive"}`}>
-                  {profile.is_active ? "Active" : "Inactive"}
-                </span>
-              </div>
-            </section>
-
-            <section className="settings-section">
-              <h2>Firebase Account</h2>
-              <div className="settings-field">
-                <label>Firebase UID</label>
-                <span className="uid-text">{user?.uid}</span>
-              </div>
-              <div className="settings-field">
-                <label>Email Verified</label>
-                <span className={`status-badge ${user?.emailVerified ? "active" : "inactive"}`}>
-                  {user?.emailVerified ? "Yes" : "No"}
-                </span>
-              </div>
-              <div className="settings-field">
-                <label>Last Sign-In</label>
-                <span>{user?.metadata.lastSignInTime ?? "Unknown"}</span>
-              </div>
-            </section>
-
-            <section className="settings-section">
-              <h2>Actions</h2>
-              {actionMsg && <div className="settings-action-msg">{actionMsg}</div>}
-              <div className="settings-actions">
-                {!user?.emailVerified && (
-                  <button className="action-btn" onClick={handleResendVerification}>
-                    Resend Verification Email
-                  </button>
-                )}
-                <button className="action-btn" onClick={handlePasswordReset}>
-                  Reset Password
-                </button>
-                <button className="logout-btn" onClick={handleLogout}>
-                  Log Out
-                </button>
-              </div>
-            </section>
-
-            {profile.org_id && (
-              <section className="settings-section">
-                <h2>Your Technology Stack</h2>
-                <p className="tech-stack-description">
-                  Track the vendors and products your organization uses. We'll highlight relevant vulnerabilities from the KEV catalog.
-                </p>
-
-                {vendorMsg && <div className="settings-action-msg">{vendorMsg}</div>}
-                {vendorError && <div className="settings-error" style={{ whiteSpace: "pre-line", marginBottom: "0.75rem" }}>{vendorError}</div>}
-
-                {/* Add vendor form */}
-                <div className="vendor-add-form">
-                  <div className="vendor-input-wrapper">
-                    <input
-                      ref={vendorInputRef}
-                      type="text"
-                      placeholder="Vendor name"
-                      value={newVendor}
-                      onChange={(e) => setNewVendor(e.target.value)}
-                      onFocus={() => vendorSuggestions.length > 0 && setShowVendorSuggestions(true)}
-                      onBlur={() => setTimeout(() => setShowVendorSuggestions(false), 200)}
-                    />
-                    {showVendorSuggestions && (
-                      <ul className="autocomplete-dropdown">
-                        {vendorSuggestions.map((s) => (
-                          <li key={s} onMouseDown={() => { setNewVendor(s); setShowVendorSuggestions(false); }}>{s}</li>
-                        ))}
-                      </ul>
-                    )}
+                    <button
+                      className="action-btn"
+                      onClick={handleAddDomain}
+                      disabled={!newDomain.trim()}
+                    >
+                      Add Domain
+                    </button>
                   </div>
-                  <div className="vendor-input-wrapper">
+
+                  {/* Domain table */}
+                  {domainLoading ? (
+                    <p className="settings-loading">Loading domains...</p>
+                  ) : domains.length === 0 ? (
+                    <p className="vendor-empty">No domains added yet.</p>
+                  ) : (
+                    <>
+                      <table className="vendor-table">
+                        <thead>
+                          <tr>
+                            <th>Domain</th>
+                            <th>Added</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {domains.map((d) => (
+                            <tr key={d.id}>
+                              <td>{d.domain_name}</td>
+                              <td>
+                                {new Date(d.created_at).toLocaleDateString()}
+                              </td>
+                              <td>
+                                <button
+                                  className="vendor-delete-btn"
+                                  onClick={() => handleDeleteDomain(d.id)}
+                                  title="Remove"
+                                >
+                                  &times;
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {domainTotal > domainPageSize && (
+                        <div className="vendor-pagination">
+                          <button
+                            className="action-btn"
+                            disabled={domainPage <= 1}
+                            onClick={() => setDomainPage((p) => p - 1)}
+                          >
+                            Previous
+                          </button>
+                          <span className="vendor-page-info">
+                            Page {domainPage} of{" "}
+                            {Math.ceil(domainTotal / domainPageSize)}
+                          </span>
+                          <button
+                            className="action-btn"
+                            disabled={
+                              domainPage >=
+                              Math.ceil(domainTotal / domainPageSize)
+                            }
+                            onClick={() => setDomainPage((p) => p + 1)}
+                          >
+                            Next
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </section>
+              )}
+
+              {profile.org_id && (
+                <section className="settings-section">
+                  <h2>File Uploads</h2>
+                  <p className="tech-stack-description">
+                    Upload files for your organization (CSV, PDF, TXT, JSON —
+                    max 10 MB).
+                  </p>
+
+                  {uploadMsg && (
+                    <div className="settings-action-msg">{uploadMsg}</div>
+                  )}
+                  {uploadError && (
+                    <div
+                      className="settings-error"
+                      style={{
+                        whiteSpace: "pre-line",
+                        marginBottom: "0.75rem",
+                      }}
+                    >
+                      {uploadError}
+                    </div>
+                  )}
+
+                  {/* Upload button */}
+                  <div className="vendor-import-row">
                     <input
-                      ref={productInputRef}
-                      type="text"
-                      placeholder="Product name (optional)"
-                      value={newProduct}
-                      onChange={(e) => setNewProduct(e.target.value)}
-                      onFocus={() => productSuggestions.length > 0 && setShowProductSuggestions(true)}
-                      onBlur={() => setTimeout(() => setShowProductSuggestions(false), 200)}
+                      ref={uploadFileInputRef}
+                      type="file"
+                      accept=".csv,.pdf,.txt,.json"
+                      style={{ display: "none" }}
+                      onChange={handleFileUpload}
                     />
-                    {showProductSuggestions && (
-                      <ul className="autocomplete-dropdown">
-                        {productSuggestions.map((s) => (
-                          <li key={s} onMouseDown={() => { setNewProduct(s); setShowProductSuggestions(false); }}>{s}</li>
-                        ))}
-                      </ul>
-                    )}
+                    <button
+                      className="action-btn"
+                      onClick={() => uploadFileInputRef.current?.click()}
+                    >
+                      Upload File
+                    </button>
+                    <span className="vendor-import-hint">
+                      Accepted: CSV, PDF, TXT, JSON (max 10 MB)
+                    </span>
                   </div>
-                  <button className="action-btn" onClick={handleAddVendor} disabled={!newVendor.trim()}>
-                    Add
-                  </button>
-                </div>
 
-                {/* CSV import */}
-                <div className="vendor-import-row">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".csv"
-                    style={{ display: "none" }}
-                    onChange={handleCsvImport}
-                  />
-                  <button className="action-btn" onClick={() => fileInputRef.current?.click()}>
-                    Import CSV
-                  </button>
-                  <span className="vendor-import-hint">CSV with vendor_name column (max 500 rows)</span>
-                </div>
-
-                {/* Vendor table */}
-                {vendorLoading ? (
-                  <p className="settings-loading">Loading vendors...</p>
-                ) : vendors.length === 0 ? (
-                  <p className="vendor-empty">No vendors added yet. Add your first vendor above or import a CSV.</p>
-                ) : (
-                  <>
-                    <table className="vendor-table">
-                      <thead>
-                        <tr>
-                          <th>Vendor</th>
-                          <th>Product</th>
-                          <th>Added</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {vendors.map((v) => (
-                          <tr key={v.id}>
-                            <td>
-                              {v.vendor_name}
-                              <span className="matched-count-badge">
-                                {v.matched_kev_count} KEV
-                              </span>
-                            </td>
-                            <td>{v.product_name || "-"}</td>
-                            <td>{new Date(v.created_at).toLocaleDateString()}</td>
-                            <td>
-                              <button className="vendor-delete-btn" onClick={() => handleDeleteVendor(v.id)} title="Remove">
-                                &times;
-                              </button>
-                            </td>
+                  {/* Uploads table */}
+                  {uploadLoading ? (
+                    <p className="settings-loading">Loading uploads...</p>
+                  ) : uploads.length === 0 ? (
+                    <p className="vendor-empty">No files uploaded yet.</p>
+                  ) : (
+                    <>
+                      <table className="vendor-table">
+                        <thead>
+                          <tr>
+                            <th>Filename</th>
+                            <th>Type</th>
+                            <th>Size</th>
+                            <th>Uploaded</th>
+                            <th></th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {vendorTotal > vendorPageSize && (
-                      <div className="vendor-pagination">
-                        <button
-                          className="action-btn"
-                          disabled={vendorPage <= 1}
-                          onClick={() => setVendorPage((p) => p - 1)}
-                        >
-                          Previous
-                        </button>
-                        <span className="vendor-page-info">
-                          Page {vendorPage} of {Math.ceil(vendorTotal / vendorPageSize)}
-                        </span>
-                        <button
-                          className="action-btn"
-                          disabled={vendorPage >= Math.ceil(vendorTotal / vendorPageSize)}
-                          onClick={() => setVendorPage((p) => p + 1)}
-                        >
-                          Next
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
-              </section>
-            )}
-
-            {profile.org_id && (
-              <section className="settings-section">
-                <h2>Organization Domains</h2>
-                <p className="tech-stack-description">
-                  Track domains your organization owns or monitors.
-                </p>
-
-                {domainMsg && <div className="settings-action-msg">{domainMsg}</div>}
-                {domainError && <div className="settings-error" style={{ whiteSpace: "pre-line", marginBottom: "0.75rem" }}>{domainError}</div>}
-
-                {/* Add domain form */}
-                <div className="vendor-add-form">
-                  <div className="vendor-input-wrapper">
-                    <input
-                      type="text"
-                      placeholder="example.com"
-                      value={newDomain}
-                      onChange={(e) => setNewDomain(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleAddDomain()}
-                    />
-                  </div>
-                  <button className="action-btn" onClick={handleAddDomain} disabled={!newDomain.trim()}>
-                    Add Domain
-                  </button>
-                </div>
-
-                {/* Domain table */}
-                {domainLoading ? (
-                  <p className="settings-loading">Loading domains...</p>
-                ) : domains.length === 0 ? (
-                  <p className="vendor-empty">No domains added yet.</p>
-                ) : (
-                  <>
-                    <table className="vendor-table">
-                      <thead>
-                        <tr>
-                          <th>Domain</th>
-                          <th>Added</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {domains.map((d) => (
-                          <tr key={d.id}>
-                            <td>{d.domain_name}</td>
-                            <td>{new Date(d.created_at).toLocaleDateString()}</td>
-                            <td>
-                              <button className="vendor-delete-btn" onClick={() => handleDeleteDomain(d.id)} title="Remove">
-                                &times;
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {domainTotal > domainPageSize && (
-                      <div className="vendor-pagination">
-                        <button className="action-btn" disabled={domainPage <= 1} onClick={() => setDomainPage((p) => p - 1)}>
-                          Previous
-                        </button>
-                        <span className="vendor-page-info">
-                          Page {domainPage} of {Math.ceil(domainTotal / domainPageSize)}
-                        </span>
-                        <button className="action-btn" disabled={domainPage >= Math.ceil(domainTotal / domainPageSize)} onClick={() => setDomainPage((p) => p + 1)}>
-                          Next
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
-              </section>
-            )}
-
-            {profile.org_id && (
-              <section className="settings-section">
-                <h2>File Uploads</h2>
-                <p className="tech-stack-description">
-                  Upload files for your organization (CSV, PDF, TXT, JSON — max 10 MB).
-                </p>
-
-                {uploadMsg && <div className="settings-action-msg">{uploadMsg}</div>}
-                {uploadError && <div className="settings-error" style={{ whiteSpace: "pre-line", marginBottom: "0.75rem" }}>{uploadError}</div>}
-
-                {/* Upload button */}
-                <div className="vendor-import-row">
-                  <input
-                    ref={uploadFileInputRef}
-                    type="file"
-                    accept=".csv,.pdf,.txt,.json"
-                    style={{ display: "none" }}
-                    onChange={handleFileUpload}
-                  />
-                  <button className="action-btn" onClick={() => uploadFileInputRef.current?.click()}>
-                    Upload File
-                  </button>
-                  <span className="vendor-import-hint">Accepted: CSV, PDF, TXT, JSON (max 10 MB)</span>
-                </div>
-
-                {/* Uploads table */}
-                {uploadLoading ? (
-                  <p className="settings-loading">Loading uploads...</p>
-                ) : uploads.length === 0 ? (
-                  <p className="vendor-empty">No files uploaded yet.</p>
-                ) : (
-                  <>
-                    <table className="vendor-table">
-                      <thead>
-                        <tr>
-                          <th>Filename</th>
-                          <th>Type</th>
-                          <th>Size</th>
-                          <th>Uploaded</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {uploads.map((u) => (
-                          <tr key={u.id}>
-                            <td>
-                              <button
-                                className="vendor-delete-btn"
-                                style={{ color: "#1565c0", textDecoration: "underline", cursor: "pointer", background: "none", border: "none", font: "inherit" }}
-                                onClick={() => handleDownloadUpload(u.id, u.original_filename)}
-                                title="Download"
-                              >
-                                {u.original_filename}
-                              </button>
-                            </td>
-                            <td>{u.content_type}</td>
-                            <td>{formatFileSize(u.file_size_bytes)}</td>
-                            <td>{new Date(u.created_at).toLocaleDateString()}</td>
-                            <td>
-                              <button className="vendor-delete-btn" onClick={() => handleDeleteUpload(u.id)} title="Delete">
-                                &times;
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {uploadTotal > 20 && (
-                      <div className="vendor-pagination">
-                        <button className="action-btn" disabled={uploadPage <= 1} onClick={() => setUploadPage((p) => p - 1)}>
-                          Previous
-                        </button>
-                        <span className="vendor-page-info">
-                          Page {uploadPage} of {Math.ceil(uploadTotal / 20)}
-                        </span>
-                        <button className="action-btn" disabled={uploadPage >= Math.ceil(uploadTotal / 20)} onClick={() => setUploadPage((p) => p + 1)}>
-                          Next
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
-              </section>
-            )}
-          </div>
-        )}
+                        </thead>
+                        <tbody>
+                          {uploads.map((u) => (
+                            <tr key={u.id}>
+                              <td>
+                                <button
+                                  className="vendor-delete-btn"
+                                  style={{
+                                    color: "#1565c0",
+                                    textDecoration: "underline",
+                                    cursor: "pointer",
+                                    background: "none",
+                                    border: "none",
+                                    font: "inherit",
+                                  }}
+                                  onClick={() =>
+                                    handleDownloadUpload(
+                                      u.id,
+                                      u.original_filename,
+                                    )
+                                  }
+                                  title="Download"
+                                >
+                                  {u.original_filename}
+                                </button>
+                              </td>
+                              <td>{u.content_type}</td>
+                              <td>{formatFileSize(u.file_size_bytes)}</td>
+                              <td>
+                                {new Date(u.created_at).toLocaleDateString()}
+                              </td>
+                              <td>
+                                <button
+                                  className="vendor-delete-btn"
+                                  onClick={() => handleDeleteUpload(u.id)}
+                                  title="Delete"
+                                >
+                                  &times;
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {uploadTotal > 20 && (
+                        <div className="vendor-pagination">
+                          <button
+                            className="action-btn"
+                            disabled={uploadPage <= 1}
+                            onClick={() => setUploadPage((p) => p - 1)}
+                          >
+                            Previous
+                          </button>
+                          <span className="vendor-page-info">
+                            Page {uploadPage} of {Math.ceil(uploadTotal / 20)}
+                          </span>
+                          <button
+                            className="action-btn"
+                            disabled={uploadPage >= Math.ceil(uploadTotal / 20)}
+                            onClick={() => setUploadPage((p) => p + 1)}
+                          >
+                            Next
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </section>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
