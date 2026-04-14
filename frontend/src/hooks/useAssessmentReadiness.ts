@@ -18,6 +18,7 @@ export function useAssessmentReadiness(): UseAssessmentReadinessResult {
 
   useEffect(() => {
     if (!user) {
+      setData(null)
       setLoading(false)
       return
     }
@@ -25,7 +26,7 @@ export function useAssessmentReadiness(): UseAssessmentReadinessResult {
     setLoading(true)
     fetchAssessmentReadiness(ac.signal)
       .then(d => { if (!ac.signal.aborted) setData(d) })
-      .catch(() => {})
+      .catch(() => { if (!ac.signal.aborted) setData(null) })
       .finally(() => { if (!ac.signal.aborted) setLoading(false) })
     return () => ac.abort()
   }, [user, refreshKey])

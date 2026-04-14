@@ -14,7 +14,7 @@ export default defineConfig({
     port: 5174,
     strictPort: false,
     watch: {
-      usePolling: true,   // required for HMR on Windows + Docker volume mounts (inotify not forwarded)
+      usePolling: process.env.VITE_USE_POLLING === 'true',  // set in .env or docker-compose for Windows/Docker HMR
       interval: 300,
     },
   },

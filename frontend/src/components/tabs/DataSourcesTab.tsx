@@ -23,16 +23,24 @@ const DataSourcesTab: React.FC = () => {
   return (
     <div className="tab-page">
       {/* Sub-tab bar */}
-      <div style={{
-        display: 'flex',
-        gap: 4,
-        borderBottom: '1px solid var(--border, #334155)',
-        marginBottom: 20,
-        overflowX: 'auto',
-      }}>
+      <div
+        role="tablist"
+        aria-label="Data source tabs"
+        style={{
+          display: 'flex',
+          gap: 4,
+          borderBottom: '1px solid var(--border, #334155)',
+          marginBottom: 20,
+          overflowX: 'auto',
+        }}
+      >
         {SUB_TABS.map(tab => (
           <button
             key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={active === tab.id}
+            tabIndex={active === tab.id ? 0 : -1}
             onClick={() => setActive(tab.id)}
             style={{
               background: 'transparent',
