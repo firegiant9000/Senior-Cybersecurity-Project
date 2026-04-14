@@ -65,6 +65,40 @@ async def get_current_org(
     return org
 
 
+_ORG_ROLE_LEVELS: dict[str, int] = {
+    "member": 0,
+    "admin": 1,
+    "owner": 2,
+}
+
+
+def require_org_role(minimum_role: str):
+    """Return a dependency that enforces a minimum org-level role.
+
+    Org role hierarchy: member < admin < owner.
+    Global admins bypass this check.
+    """
+    min_level = _ORG_ROLE_LEVELS[minimum_role]
+
+    async def _check_org_role(current_user: User = Depends(get_current_user)) -> User:
+        if current_user.role == "admin":
+            return current_user
+        if current_user.org_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User is not associated with an organization",
+            )
+        user_level = _ORG_ROLE_LEVELS.get(current_user.org_role or "", -1)
+        if user_level < min_level:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient organization role",
+            )
+        return current_user
+
+    return _check_org_role
+
+
 async def check_org_access(current_user: User, org_id: int, session: AsyncSession) -> None:
     """Raise 403/404 if user can't access the org or the org doesn't exist.
 

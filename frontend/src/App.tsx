@@ -1,10 +1,11 @@
-import { Routes, Route } from 'react-router-dom';
-import Dashboard from './Dashboard.tsx';
-import LoginPage from './pages/LoginPage.tsx';
-import OnboardingPage from './pages/OnboardingPage.tsx';
-import SettingsPage from './pages/SettingsPage.tsx';
-import ProtectedRoute from './components/ProtectedRoute.tsx';
-import { useAuth } from './context/AuthContext.tsx';
+import { Routes, Route } from "react-router-dom";
+import Dashboard from "./Dashboard.tsx";
+import LoginPage from "./pages/LoginPage.tsx";
+import OnboardingPage from "./pages/OnboardingPage.tsx";
+import SettingsPage from "./pages/SettingsPage.tsx";
+import AcceptInvitePage from "./pages/AcceptInvitePage.tsx";
+import ProtectedRoute from "./components/ProtectedRoute.tsx";
+import { useAuth } from "./context/AuthContext.tsx";
 
 function App() {
   const { refreshProfile } = useAuth();
@@ -18,6 +19,14 @@ function App() {
         element={
           <ProtectedRoute requireOrg={false}>
             <OnboardingPage onComplete={refreshProfile} />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/invites/:token"
+        element={
+          <ProtectedRoute requireOrg={false}>
+            <AcceptInvitePage />
           </ProtectedRoute>
         }
       />
