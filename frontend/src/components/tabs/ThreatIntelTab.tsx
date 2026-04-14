@@ -212,6 +212,119 @@ const ThreatIntelTab: React.FC = () => {
           </div>
         </WidgetErrorBoundary>
       </div>
+
+      {/* ── Live Alerts Feed (merged from Alerts Feed tab) ── */}
+      <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary, #94a3b8)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '24px 0 12px' }}>
+        Live Alerts Feed
+      </h3>
+      <div className="alerts-grid">
+        {/* CISA KEV Recent Additions */}
+        <WidgetErrorBoundary title="CISA KEV Alerts">
+          <div className="card alerts-card">
+            <span className="widget-title">
+              🔴 CISA Known Exploited Vulnerabilities — Most Recent
+            </span>
+            <div className="tab-table-scroll">
+              {loading ? <WidgetSkeleton variant="chart" /> : data.recentKev.length === 0 ? (
+                <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>
+              ) : (
+                <table className="tab-table">
+                  <thead>
+                    <tr>
+                      <th>CVE ID</th>
+                      <th>Vulnerability</th>
+                      <th>Vendor / Product</th>
+                      <th>Severity</th>
+                      <th>CVSS</th>
+                      <th>Date Added</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.recentKev.slice(0, 20).map(entry => (
+                      <tr key={`alert-kev-${entry.id}`}>
+                        <td><code style={{ fontSize: 11 }}>{entry.id}</code></td>
+                        <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.vulnerability_name}>
+                          {entry.vulnerability_name}
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          {entry.vendor ?? '—'}
+                          {entry.product ? ` / ${entry.product}` : ''}
+                        </td>
+                        <td>{severityBadge(entry.severity_label)}</td>
+                        <td>
+                          {entry.severity_score === null ? (
+                            <span style={{ color: '#aaa' }}>—</span>
+                          ) : (
+                            <span style={{
+                              color: entry.severity_score >= 9 ? '#d32f2f' : entry.severity_score >= 7 ? '#e65100' : entry.severity_score >= 4 ? '#00bcd4' : '#2e7d32',
+                              fontWeight: 700,
+                              fontSize: 13,
+                            }}>
+                              {entry.severity_score.toFixed(1)}
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{entry.kev_date_added ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </WidgetErrorBoundary>
+
+        {/* Recent NVD CVEs */}
+        <WidgetErrorBoundary title="Recent NVD CVEs">
+          <div className="card alerts-card">
+            <span className="widget-title">
+              🔵 Recently Published NVD CVEs
+            </span>
+            <div className="tab-table-scroll">
+              {loading ? <WidgetSkeleton variant="chart" /> : data.recentCves.length === 0 ? (
+                <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>
+              ) : (
+                <table className="tab-table">
+                  <thead>
+                    <tr>
+                      <th>CVE ID</th>
+                      <th>Description</th>
+                      <th>Severity</th>
+                      <th>CVSS</th>
+                      <th>Published</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.recentCves.map(cve => (
+                      <tr key={cve.id}>
+                        <td><code style={{ fontSize: 11 }}>{cve.id}</code></td>
+                        <td style={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={cve.description}>
+                          {cve.description}
+                        </td>
+                        <td>{severityBadge(cve.severity_label)}</td>
+                        <td>
+                          {cve.severity_score === null ? (
+                            <span style={{ color: '#aaa' }}>—</span>
+                          ) : (
+                            <span style={{
+                              color: cve.severity_score >= 9 ? '#d32f2f' : cve.severity_score >= 7 ? '#e65100' : cve.severity_score >= 4 ? '#00bcd4' : '#2e7d32',
+                              fontWeight: 700,
+                              fontSize: 13,
+                            }}>
+                              {cve.severity_score.toFixed(1)}
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{cve.published_date ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </WidgetErrorBoundary>
+      </div>
     </div>
   );
 };

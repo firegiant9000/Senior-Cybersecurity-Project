@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   fetchNvdTimeline,
   fetchRecentKev,
+  fetchRecentNvdCves,
   type NvdTimelinePoint,
   type KevEntry,
+  type NvdCveItem,
 } from '../api/tabsApi'
 import { fetchSeverityDistribution, type SeverityCount } from '../api/dashboardSummary'
 
@@ -11,6 +13,7 @@ export interface ThreatIntelData {
   nvdTimeline: NvdTimelinePoint[]
   severityDistribution: SeverityCount[]
   recentKev: KevEntry[]
+  recentCves: NvdCveItem[]
 }
 
 export interface UseThreatIntelResult {
@@ -20,7 +23,7 @@ export interface UseThreatIntelResult {
   refresh: () => void
 }
 
-const EMPTY: ThreatIntelData = { nvdTimeline: [], severityDistribution: [], recentKev: [] }
+const EMPTY: ThreatIntelData = { nvdTimeline: [], severityDistribution: [], recentKev: [], recentCves: [] }
 
 function settled<T>(p: Promise<T>): Promise<PromiseSettledResult<T>> {
   return p.then(
@@ -46,7 +49,8 @@ export function useThreatIntelData(): UseThreatIntelResult {
       settled(fetchNvdTimeline(signal)),
       settled(fetchSeverityDistribution(signal)),
       settled(fetchRecentKev(signal, 50)),
-    ]).then(([timelineR, severityR, kevR]) => {
+      settled(fetchRecentNvdCves(signal, 20)),
+    ]).then(([timelineR, severityR, kevR, cveR]) => {
       if (signal.aborted) return
       const errs: string[] = []
       const warn = (r: PromiseSettledResult<unknown>, label: string) => {
@@ -60,11 +64,13 @@ export function useThreatIntelData(): UseThreatIntelResult {
       warn(timelineR, 'CVE timeline')
       warn(severityR, 'Severity distribution')
       warn(kevR, 'Recent KEV')
+      warn(cveR, 'Recent CVEs')
 
       setData({
         nvdTimeline: timelineR.status === 'fulfilled' ? timelineR.value.items : [],
         severityDistribution: severityR.status === 'fulfilled' ? severityR.value.items : [],
         recentKev: kevR.status === 'fulfilled' ? kevR.value.items : [],
+        recentCves: cveR.status === 'fulfilled' ? cveR.value.items : [],
       })
       setErrors(errs)
     }).finally(() => { if (!signal.aborted) setLoading(false) })
