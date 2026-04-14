@@ -36,7 +36,7 @@ const AssessmentBanner: React.FC = () => {
         <button className="assessment-banner-cta" onClick={() => navigate('/settings')}>
           Complete Setup
         </button>
-        <button className="assessment-banner-dismiss" onClick={() => setDismissed(true)}>
+        <button className="assessment-banner-dismiss" onClick={() => setDismissed(true)} aria-label="Dismiss profile completeness banner">
           ✕
         </button>
       </div>

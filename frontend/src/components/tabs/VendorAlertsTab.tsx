@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { fetchVendorAlerts, VendorAlertsResponse } from '../../api/vendorAlerts';
 import { useAuth } from '../../context/AuthContext';
 import SeverityBadge from '../shared/SeverityBadge';
@@ -62,8 +63,8 @@ const VendorAlertsTab: React.FC = () => {
           <p style={{ fontSize: 13, color: 'var(--text-secondary, #94a3b8)', marginBottom: 16 }}>
             Add your technology stack in Organization Settings. We'll match your vendors against the CISA Known Exploited Vulnerabilities catalog and alert you to active threats.
           </p>
-          <a
-            href="/settings"
+          <Link
+            to="/settings"
             style={{
               display: 'inline-block',
               background: 'var(--accent, #3b82f6)',
@@ -76,7 +77,7 @@ const VendorAlertsTab: React.FC = () => {
             }}
           >
             Add Vendors in Settings
-          </a>
+          </Link>
         </div>
       </div>
     );

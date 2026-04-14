@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import './SmBAdvisorTab.css';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
@@ -796,9 +797,9 @@ const SmBAdvisorTab: React.FC = () => {
         {!loading && (
           <p className="smb-profile-hint" style={{ marginTop: 6 }}>
             💡 Set your industry and state in{' '}
-            <a href="/settings" style={{ color: 'var(--accent, #3b82f6)', textDecoration: 'underline' }}>
+            <Link to="/settings" style={{ color: 'var(--accent, #3b82f6)', textDecoration: 'underline' }}>
               Organization Settings
-            </a>{' '}
+            </Link>{' '}
             so your risk score is always pre-calculated against your actual profile.
           </p>
         )}
