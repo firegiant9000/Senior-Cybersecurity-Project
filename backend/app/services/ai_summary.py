@@ -146,7 +146,9 @@ def _build_fallback(org: Organization, report: FindingsReport, risk_score: float
     total = report.summary.total
 
     threat_findings = [
-        f for f in report.findings if f.finding_type == "threat_exposure" and f.severity in ("critical", "high")
+        f
+        for f in report.findings
+        if f.finding_type == "threat_exposure" and f.severity in ("critical", "high")
     ]
     top_threats = [f.title for f in threat_findings[:2]]
     threats_text = (
@@ -155,7 +157,11 @@ def _build_fallback(org: Organization, report: FindingsReport, risk_score: float
         else "No high-severity threat exposures were identified at this time."
     )
 
-    vendor_findings = [f for f in report.findings if f.finding_type == "vendor_exposure" and f.severity == "critical"]
+    vendor_findings = [
+        f
+        for f in report.findings
+        if f.finding_type == "vendor_exposure" and f.severity == "critical"
+    ]
     vendor_text = (
         f"Your technology stack has {critical_count} critical known-exploited "
         "vulnerabilities requiring immediate attention."
@@ -163,7 +169,9 @@ def _build_fallback(org: Organization, report: FindingsReport, risk_score: float
         else "No critical vendor vulnerabilities were matched at this time."
     )
 
-    data_gaps = [f for f in report.findings if f.finding_type == "data_gap" and f.evidence.get("required")]
+    data_gaps = [
+        f for f in report.findings if f.finding_type == "data_gap" and f.evidence.get("required")
+    ]
     gap_text = (
         f"Completing {len(data_gaps)} required profile field(s) would significantly "
         "improve assessment accuracy and enable additional analysis."
@@ -257,11 +265,17 @@ async def _get_feedback_meta(db: AsyncSession, org_id: int) -> str | None:
     if avg_rating < 3.0:
         hints.append("Previous summaries were rated below average.")
     if "too_vague" in top_flags:
-        hints.append("Users report summaries are too vague — be more specific about remediation steps and affected systems.")
+        hints.append(
+            "Users report summaries are too vague — be more specific about remediation steps and affected systems."
+        )
     if "inaccurate" in top_flags:
-        hints.append("Users have flagged inaccuracies — double-check claims against the structured findings data.")
+        hints.append(
+            "Users have flagged inaccuracies — double-check claims against the structured findings data."
+        )
     if "helpful" in top_flags and avg_rating >= 4.0:
-        hints.append("Users find summaries helpful — maintain current level of detail and actionability.")
+        hints.append(
+            "Users find summaries helpful — maintain current level of detail and actionability."
+        )
 
     return " ".join(hints) if hints else None
 

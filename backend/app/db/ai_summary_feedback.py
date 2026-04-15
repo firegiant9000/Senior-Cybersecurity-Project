@@ -21,7 +21,9 @@ class AISummaryFeedback(Base):
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     rating: Mapped[int] = mapped_column(Integer, nullable=False)  # 1-5
-    flag: Mapped[str] = mapped_column(String(50), nullable=False)  # helpful | inaccurate | too_vague | other
+    flag: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # helpful | inaccurate | too_vague | other
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     summary_snapshot_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("findings_snapshots.id", ondelete="SET NULL"), nullable=True

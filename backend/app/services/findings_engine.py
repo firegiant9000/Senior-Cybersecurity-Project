@@ -110,9 +110,7 @@ def _threat_exposure_from_sector(
                 sector_weights[attack_type] = weight
                 break
 
-    high_exposure = [
-        (a, w) for a, w in sector_weights.items() if w >= _SECTOR_EXPOSURE_THRESHOLD
-    ]
+    high_exposure = [(a, w) for a, w in sector_weights.items() if w >= _SECTOR_EXPOSURE_THRESHOLD]
     high_exposure.sort(key=lambda x: x[1], reverse=True)
 
     for attack_type, weight in high_exposure:
@@ -452,10 +450,7 @@ def _data_gap_findings(readiness_data: dict) -> list[Finding]:
                 severity="low",
                 severity_score=_severity_score("low", 0.4),
                 title=f"Optional profile field missing: {label}",
-                description=(
-                    f"'{label}' is not provided. "
-                    f"Adding it improves {impact}."
-                ),
+                description=(f"'{label}' is not provided. " f"Adding it improves {impact}."),
                 evidence={"key": key, "label": label, "required": False},
                 source="assessment_readiness",
                 affected_assets=[],
@@ -603,7 +598,11 @@ def _recommended_from_crtsh(domain: str, crt: CrtShResult) -> list[Finding]:  # 
                 f"Certificate Transparency logs (crt.sh) reveal {count} subdomain(s) "
                 f"associated with {domain}. {desc_extra}"
             ),
-            evidence={"domain": domain, "subdomain_count": count, "subdomains": crt.subdomains[:20]},
+            evidence={
+                "domain": domain,
+                "subdomain_count": count,
+                "subdomains": crt.subdomains[:20],
+            },
             source="crtsh",
             affected_assets=crt.subdomains[:10],
         )
@@ -721,8 +720,10 @@ def _analyze_security_profile(org: Organization) -> list[Finding]:  # noqa: F821
         for key, (label, category, severity) in _CONTROL_KEY_TO_META.items():
             value = controls.get(key, "unsure")
             if value in ("no", "unsure"):
-                finding_severity = severity if value == "no" else (
-                    "medium" if severity in ("critical", "high") else "low"
+                finding_severity = (
+                    severity
+                    if value == "no"
+                    else ("medium" if severity in ("critical", "high") else "low")
                 )
                 # "no" is more severe than "unsure" within the same label range
                 control_weight = 0.7 if value == "no" else 0.3
@@ -911,9 +912,7 @@ def _enrich_finding_with_mitre(finding: Finding, attack_type: str) -> None:
         return
     finding.evidence["mitre_techniques"] = techniques
     top_mitigations = [
-        _MITRE_MITIGATIONS[t["id"]]
-        for t in techniques[:3]
-        if t["id"] in _MITRE_MITIGATIONS
+        _MITRE_MITIGATIONS[t["id"]] for t in techniques[:3] if t["id"] in _MITRE_MITIGATIONS
     ]
     if top_mitigations:
         finding.evidence["mitre_mitigations"] = top_mitigations
@@ -958,7 +957,13 @@ _RISKY_TECH_PATTERNS: list[dict] = [
 ]
 
 # Category-level tech inventory signals (info-only, no risk finding)
-_INTERESTING_CATEGORIES = {"CMS", "E-commerce", "Web Framework", "Web Server", "Programming Language"}
+_INTERESTING_CATEGORIES = {
+    "CMS",
+    "E-commerce",
+    "Web Framework",
+    "Web Server",
+    "Programming Language",
+}
 
 
 def _tech_fingerprint_findings(domain: str, tech: TechFingerprintResult) -> list[Finding]:
@@ -979,7 +984,9 @@ def _tech_fingerprint_findings(domain: str, tech: TechFingerprintResult) -> list
     if detected_names:
         findings.append(
             Finding(
-                id=_finding_id("tech_fingerprint_inventory", domain, ",".join(sorted(detected_names))),
+                id=_finding_id(
+                    "tech_fingerprint_inventory", domain, ",".join(sorted(detected_names))
+                ),
                 finding_type="threat_exposure",
                 severity="info",
                 severity_score=_severity_score("info", 0.5),
@@ -1056,9 +1063,7 @@ def _shodan_findings(domain: str, shodan: ShodanHostResult) -> list[Finding]:
 
     # Risky open ports
     risky = [
-        (port, *_HIGH_RISK_PORTS[port])
-        for port in shodan.open_ports
-        if port in _HIGH_RISK_PORTS
+        (port, *_HIGH_RISK_PORTS[port]) for port in shodan.open_ports if port in _HIGH_RISK_PORTS
     ]
 
     for port, service_name, severity in risky:
@@ -1100,7 +1105,12 @@ def _shodan_findings(domain: str, shodan: ShodanHostResult) -> list[Finding]:
                     "These vulnerabilities are visible to any attacker scanning the internet. "
                     "Apply patches immediately and consider blocking unnecessary ports at the firewall."
                 ),
-                evidence={"domain": domain, "ip": shodan.ip, "cves": shodan.vulns, "isp": shodan.isp},
+                evidence={
+                    "domain": domain,
+                    "ip": shodan.ip,
+                    "cves": shodan.vulns,
+                    "isp": shodan.isp,
+                },
                 source="shodan",
                 affected_assets=[domain],
             )
@@ -1191,7 +1201,9 @@ def _synthesize_recommendations(all_findings: list[Finding]) -> list[Finding]:
 
     # Collect existing rec IDs and keywords to avoid semantic overlap
     existing_rec_ids = {f.id for f in all_findings if f.finding_type == "recommended_action"}
-    existing_rec_titles = {f.title.lower() for f in all_findings if f.finding_type == "recommended_action"}
+    existing_rec_titles = {
+        f.title.lower() for f in all_findings if f.finding_type == "recommended_action"
+    }
 
     def _is_duplicate(rec: Finding) -> bool:
         if rec.id in existing_rec_ids:
@@ -1200,7 +1212,18 @@ def _synthesize_recommendations(all_findings: list[Finding]) -> list[Finding]:
         rec_words = set(rec.title.lower().split())
         for title in existing_rec_titles:
             title_words = set(title.split())
-            overlap = rec_words & title_words - {"to", "the", "a", "and", "or", "for", "your", "is", "in", "on"}
+            overlap = rec_words & title_words - {
+                "to",
+                "the",
+                "a",
+                "and",
+                "or",
+                "for",
+                "your",
+                "is",
+                "in",
+                "on",
+            }
             if len(overlap) >= 3:
                 return True
         return False
@@ -1258,10 +1281,7 @@ def _synthesize_recommendations(all_findings: list[Finding]) -> list[Finding]:
 
     # Profile completion recommendation
     data_gap_required = [
-        f
-        for f in all_findings
-        if f.finding_type == "data_gap"
-        and f.evidence.get("required")
+        f for f in all_findings if f.finding_type == "data_gap" and f.evidence.get("required")
     ]
     if data_gap_required:
         recs.append(
@@ -1357,9 +1377,7 @@ class FindingsEngine:
             otx_api_key = getattr(settings, "OTX_API_KEY", "") or None
 
             tier1_task = run_tier1_checks(primary_domain)
-            tier2_task = run_tier2_checks(
-                primary_domain, hibp_api_key, shodan_api_key, otx_api_key
-            )
+            tier2_task = run_tier2_checks(primary_domain, hibp_api_key, shodan_api_key, otx_api_key)
 
             (
                 (dns_result, http_result, ssl_result, tech_result),
@@ -1384,7 +1402,9 @@ class FindingsEngine:
                 data_sources_used.append("otx")
 
         # ── Always-active sources ────────────────────────────────────────────
-        data_sources_used.extend(["ic3_sector_weights", "kev_vendor_match", "assessment_readiness", "mitre_attack"])
+        data_sources_used.extend(
+            ["ic3_sector_weights", "kev_vendor_match", "assessment_readiness", "mitre_attack"]
+        )
 
         # ── Generate findings ────────────────────────────────────────────────
         findings: list[Finding] = []

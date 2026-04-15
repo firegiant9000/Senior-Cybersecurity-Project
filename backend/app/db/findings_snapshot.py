@@ -17,7 +17,9 @@ class FindingsSnapshot(Base):
     org_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
     findings: Mapped[dict] = mapped_column(JSON, nullable=False)
     summary: Mapped[dict] = mapped_column(JSON, nullable=False)
     assessment_tier: Mapped[str] = mapped_column(String(50), nullable=False)

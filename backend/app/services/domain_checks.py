@@ -258,20 +258,16 @@ async def check_ssl(domain: str) -> SslCheckResult:
                         # Expiry
                         not_after = cert.get("notAfter")
                         if not_after:
-                            expiry_dt = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z").replace(
-                                tzinfo=UTC
-                            )
+                            expiry_dt = datetime.strptime(
+                                not_after, "%b %d %H:%M:%S %Y %Z"
+                            ).replace(tzinfo=UTC)
                             result.expiry = expiry_dt
-                            result.days_until_expiry = (
-                                expiry_dt - datetime.now(UTC)
-                            ).days
+                            result.days_until_expiry = (expiry_dt - datetime.now(UTC)).days
 
                         # Issuer — check for self-signed (issuer == subject)
                         subject = dict(x[0] for x in cert.get("subject", []))
                         issuer = dict(x[0] for x in cert.get("issuer", []))
-                        result.issuer = issuer.get("organizationName") or issuer.get(
-                            "commonName"
-                        )
+                        result.issuer = issuer.get("organizationName") or issuer.get("commonName")
                         result.self_signed = subject == issuer
         except ssl.SSLCertVerificationError:
             # Connect again without verification to inspect the cert anyway
@@ -316,14 +312,16 @@ def _sig(
     body: list[str] | None = None,
     cookies: list[str] | None = None,
 ) -> None:
-    _TECH_SIGNATURES.append({
-        "name": name,
-        "categories": categories,
-        "headers": {k.lower(): re.compile(v, re.I) for k, v in (headers or {}).items()},
-        "meta": {k.lower(): re.compile(v, re.I) for k, v in (meta or {}).items()},
-        "body": [re.compile(p, re.I) for p in (body or [])],
-        "cookies": [c.lower() for c in (cookies or [])],
-    })
+    _TECH_SIGNATURES.append(
+        {
+            "name": name,
+            "categories": categories,
+            "headers": {k.lower(): re.compile(v, re.I) for k, v in (headers or {}).items()},
+            "meta": {k.lower(): re.compile(v, re.I) for k, v in (meta or {}).items()},
+            "body": [re.compile(p, re.I) for p in (body or [])],
+            "cookies": [c.lower() for c in (cookies or [])],
+        }
+    )
 
 
 # --- Web servers ---
@@ -335,25 +333,59 @@ _sig("Caddy", ["Web Server"], headers={"server": r"Caddy"})
 
 # --- Language / Runtime ---
 _sig("PHP", ["Programming Language"], headers={"x-powered-by": r"PHP"}, cookies=["PHPSESSID"])
-_sig("ASP.NET", ["Web Framework"], headers={"x-powered-by": r"ASP\.NET"}, cookies=["ASP.NET_SessionId"])
+_sig(
+    "ASP.NET",
+    ["Web Framework"],
+    headers={"x-powered-by": r"ASP\.NET"},
+    cookies=["ASP.NET_SessionId"],
+)
 _sig("Express", ["Web Framework"], headers={"x-powered-by": r"Express"})
 _sig("Node.js", ["Runtime"], headers={"x-powered-by": r"(?:Express|Node)"})
-_sig("Python", ["Programming Language"], headers={"server": r"(?:gunicorn|uvicorn|waitress|daphne)"})
-_sig("Java", ["Programming Language"], headers={"x-powered-by": r"(?:Servlet|JSP|JSF)"}, cookies=["JSESSIONID"])
+_sig(
+    "Python", ["Programming Language"], headers={"server": r"(?:gunicorn|uvicorn|waitress|daphne)"}
+)
+_sig(
+    "Java",
+    ["Programming Language"],
+    headers={"x-powered-by": r"(?:Servlet|JSP|JSF)"},
+    cookies=["JSESSIONID"],
+)
 
 # --- CMS ---
-_sig("WordPress", ["CMS"], meta={"generator": r"WordPress"}, body=[r"/wp-content/", r"/wp-includes/"])
-_sig("Drupal", ["CMS"], meta={"generator": r"Drupal"}, headers={"x-drupal-cache": r"."}, body=[r"/sites/default/files/"])
+_sig(
+    "WordPress", ["CMS"], meta={"generator": r"WordPress"}, body=[r"/wp-content/", r"/wp-includes/"]
+)
+_sig(
+    "Drupal",
+    ["CMS"],
+    meta={"generator": r"Drupal"},
+    headers={"x-drupal-cache": r"."},
+    body=[r"/sites/default/files/"],
+)
 _sig("Joomla", ["CMS"], meta={"generator": r"Joomla"}, body=[r"/media/jui/", r"/templates/joomla"])
 _sig("Squarespace", ["CMS"], body=[r"squarespace\.com", r"static\.squarespace\.com"])
 _sig("Wix", ["CMS"], body=[r"wix\.com", r"static\.wixstatic\.com"])
-_sig("Shopify", ["E-commerce"], body=[r"cdn\.shopify\.com", r"Shopify\.theme"], cookies=["_shopify_s"])
+_sig(
+    "Shopify",
+    ["E-commerce"],
+    body=[r"cdn\.shopify\.com", r"Shopify\.theme"],
+    cookies=["_shopify_s"],
+)
 _sig("Magento", ["E-commerce"], body=[r"/static/version", r"mage/cookies"], cookies=["PHPSESSID"])
 _sig("Ghost", ["CMS"], meta={"generator": r"Ghost"})
 
 # --- JavaScript frameworks ---
-_sig("React", ["JavaScript Framework"], body=[r"react(?:\.production|\.development|DOM)", r"__NEXT_DATA__"])
-_sig("Next.js", ["JavaScript Framework"], headers={"x-powered-by": r"Next\.js"}, body=[r"__NEXT_DATA__", r"/_next/"])
+_sig(
+    "React",
+    ["JavaScript Framework"],
+    body=[r"react(?:\.production|\.development|DOM)", r"__NEXT_DATA__"],
+)
+_sig(
+    "Next.js",
+    ["JavaScript Framework"],
+    headers={"x-powered-by": r"Next\.js"},
+    body=[r"__NEXT_DATA__", r"/_next/"],
+)
 _sig("Vue.js", ["JavaScript Framework"], body=[r"vue(?:\.runtime|\.global)", r"__vue__"])
 _sig("Nuxt.js", ["JavaScript Framework"], body=[r"__NUXT__", r"/_nuxt/"])
 _sig("Angular", ["JavaScript Framework"], body=[r"ng-version=", r"angular(?:\.min)?\.js"])
@@ -371,7 +403,11 @@ _sig("Netlify", ["PaaS"], headers={"server": r"Netlify", "x-nf-request-id": r"."
 _sig("Heroku", ["PaaS"], headers={"via": r"vegur"})
 
 # --- Analytics / Marketing ---
-_sig("Google Analytics", ["Analytics"], body=[r"google-analytics\.com/(?:analytics|ga)\.js", r"googletagmanager\.com", r"gtag\("])
+_sig(
+    "Google Analytics",
+    ["Analytics"],
+    body=[r"google-analytics\.com/(?:analytics|ga)\.js", r"googletagmanager\.com", r"gtag\("],
+)
 _sig("Google Tag Manager", ["Tag Manager"], body=[r"googletagmanager\.com/gtm\.js"])
 _sig("Hotjar", ["Analytics"], body=[r"static\.hotjar\.com", r"hotjar\.com"])
 _sig("Segment", ["Analytics"], body=[r"cdn\.segment\.com", r"analytics\.js"])
