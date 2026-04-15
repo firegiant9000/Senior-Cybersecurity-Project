@@ -20,6 +20,12 @@ class OrganizationCreate(BaseModel):
     employee_range: EmployeeRange
     revenue_range: RevenueRange | None = None
     ic3_sector: str = Field("", json_schema_extra={"hidden": True})
+    security_controls: dict[str, str] | None = None
+    cloud_providers: list[str] | None = None
+    compliance_frameworks: list[str] | None = None
+    data_types: list[str] | None = None
+    device_count_range: str | None = None
+    incident_history: str | None = None
 
     # Fields to exclude from the OpenAPI request schema.
     _server_derived: ClassVar[set[str]] = {"ic3_sector"}
@@ -49,6 +55,12 @@ class OrganizationUpdate(BaseModel):
     logo_url: str | None = Field(None, max_length=500)
     primary_domain: str | None = Field(None, max_length=255)
     ic3_sector: str | None = Field(None, json_schema_extra={"hidden": True})
+    security_controls: dict[str, str] | None = None
+    cloud_providers: list[str] | None = None
+    compliance_frameworks: list[str] | None = None
+    data_types: list[str] | None = None
+    device_count_range: str | None = None
+    incident_history: str | None = None
 
     _server_derived: ClassVar[set[str]] = {"ic3_sector"}
 
@@ -79,6 +91,12 @@ class OrganizationRead(BaseModel):
     revenue_range: str | None = None
     logo_url: str | None = None
     primary_domain: str | None = None
+    security_controls: dict[str, str] | None = None
+    cloud_providers: list[str] | None = None
+    compliance_frameworks: list[str] | None = None
+    data_types: list[str] | None = None
+    device_count_range: str | None = None
+    incident_history: str | None = None
     created_at: datetime
     updated_at: datetime
 

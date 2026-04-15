@@ -188,3 +188,84 @@
   color: var(--accent, #3b82f6);
   text-decoration: underline;
 }
+
+/* Security controls checklist */
+.onboarding-control-group {
+  margin-bottom: 1.25rem;
+}
+
+.control-category {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted, #9ca3af);
+  margin: 0 0 0.5rem 0;
+}
+
+.onboarding-control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border, #1f2937);
+  gap: 0.75rem;
+}
+
+.control-label {
+  font-size: 0.875rem;
+  flex: 1;
+}
+
+.control-toggle {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.control-option {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  border: 1px solid var(--border, #374151);
+  background: transparent;
+  color: var(--text-muted, #9ca3af);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.control-option.selected {
+  background: var(--accent, #3b82f6);
+  color: #fff;
+  border-color: var(--accent, #3b82f6);
+}
+
+/* Multi-select checklist (cloud, compliance, data types) */
+.onboarding-checklist {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.onboarding-check-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--border, #374151);
+  transition: background 0.15s;
+}
+
+.onboarding-check-item:has(input:checked) {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: var(--accent, #3b82f6);
+}
+
+.onboarding-check-item input[type="checkbox"] {
+  accent-color: var(--accent, #3b82f6);
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}

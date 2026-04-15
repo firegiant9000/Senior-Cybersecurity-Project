@@ -22,6 +22,7 @@ const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout }
                 {user ? (
                     <>
                         <span className="header-user-email">{user.email}</span>
+                        <button onClick={() => navigate('/org-profile')}>Organization</button>
                         <button onClick={() => navigate('/settings')}>Settings</button>
                         <button onClick={async () => { await onLogout(); navigate('/login'); }}>Log Out</button>
                     </>

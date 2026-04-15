@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import DateTime, JSON, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -26,6 +26,12 @@ class Organization(Base):
     revenue_range: Mapped[str | None] = mapped_column(String(50), nullable=True)
     logo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     primary_domain: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    security_controls: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    cloud_providers: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    compliance_frameworks: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    data_types: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    device_count_range: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    incident_history: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

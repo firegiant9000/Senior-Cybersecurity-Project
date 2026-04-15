@@ -3,6 +3,7 @@ import Dashboard from "./Dashboard.tsx";
 import LoginPage from "./pages/LoginPage.tsx";
 import OnboardingPage from "./pages/OnboardingPage.tsx";
 import SettingsPage from "./pages/SettingsPage.tsx";
+import OrgProfilePage from "./pages/OrgProfilePage.tsx";
 import AcceptInvitePage from "./pages/AcceptInvitePage.tsx";
 import ProtectedRoute from "./components/ProtectedRoute.tsx";
 import { useAuth } from "./context/AuthContext.tsx";
@@ -35,6 +36,14 @@ function App() {
         element={
           <ProtectedRoute>
             <SettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/org-profile"
+        element={
+          <ProtectedRoute>
+            <OrgProfilePage />
           </ProtectedRoute>
         }
       />
