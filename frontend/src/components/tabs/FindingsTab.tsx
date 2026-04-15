@@ -152,7 +152,7 @@ const FindingsTab: React.FC = () => {
           <p className="findings-empty-title">No Findings</p>
           <p className="findings-empty-detail">
             No findings were generated for your organization. This could mean your
-            profile data is limited — try adding more vendors and domains in Settings.
+            profile data is limited — try adding more vendors and domains in Organization Profile.
           </p>
           <Link to="/org-profile" className="findings-empty-action">
             Update Profile

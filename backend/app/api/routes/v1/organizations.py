@@ -16,10 +16,10 @@ from app.db.engine import get_session
 from app.db.organization import Organization
 from app.db.user import User
 from app.repositories.organization import SqlOrganizationRepository, get_org_repo
-from app.schemas.assessment_readiness import AssessmentReadinessResponse
-from app.schemas.executive_summary import ExecutiveSummaryResponse
 from app.schemas.ai_summary import AISummaryResponse
 from app.schemas.ai_summary_feedback import FeedbackCreate, FeedbackResponse
+from app.schemas.assessment_readiness import AssessmentReadinessResponse
+from app.schemas.executive_summary import ExecutiveSummaryResponse
 from app.schemas.findings import FindingsReport
 from app.schemas.findings_snapshot import SnapshotDetail, SnapshotListItem, SnapshotListResponse
 from app.schemas.loss_projection import LossProjectionResponse
@@ -31,9 +31,9 @@ from app.schemas.organization import (
 )
 from app.schemas.smb_risk_score import RiskScoreResponse
 from app.schemas.vendor_alert import VendorAlertsResponse
+from app.services.ai_summary import AISummaryService
 from app.services.assessment_readiness import evaluate_readiness
 from app.services.executive_summary import ExecutiveSummaryService
-from app.services.ai_summary import AISummaryService
 from app.services.findings_engine import FindingsEngine
 from app.services.loss_projection import LossProjectionService
 from app.services.risk_scoring import calculate_smb_risk_score
@@ -242,7 +242,7 @@ async def submit_ai_summary_feedback(
     db: AsyncSession = Depends(get_session),
 ):
     """Submit feedback on an AI-generated summary. One per user per day."""
-    from datetime import UTC, datetime, timedelta
+    from datetime import UTC, datetime
 
     from app.db.ai_summary_feedback import AISummaryFeedback
 

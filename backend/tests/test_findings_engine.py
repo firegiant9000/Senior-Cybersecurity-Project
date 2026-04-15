@@ -49,7 +49,6 @@ from app.services.findings_engine import (
     _vendor_exposure_findings,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -933,7 +932,7 @@ class TestFindingsEngineIntegration:
         from app.schemas.assessment_readiness import AssessmentReadinessResponse, ReadinessItem
         from app.schemas.vendor_alert import SeverityBreakdown, VendorAlertsResponse
 
-        _SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+        severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 
         org = MagicMock()
         org.id = 1
@@ -980,5 +979,5 @@ class TestFindingsEngineIntegration:
         ):
             report = await FindingsEngine(mock_session).build(org)
 
-        severities = [_SEVERITY_ORDER.get(f.severity, 99) for f in report.findings]
+        severities = [severity_order.get(f.severity, 99) for f in report.findings]
         assert severities == sorted(severities), "Findings are not sorted by severity"

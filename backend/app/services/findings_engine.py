@@ -265,7 +265,7 @@ def _threat_exposure_from_ssl(domain: str, ssl_result: SslCheckResult) -> list[F
 # ---------------------------------------------------------------------------
 
 
-def _vendor_exposure_findings(
+def _vendor_exposure_findings(  # noqa: C901
     vendor_alerts_data: dict,
 ) -> list[Finding]:
     findings: list[Finding] = []
@@ -402,7 +402,7 @@ def _data_gap_findings(readiness_data: dict) -> list[Finding]:
     items = readiness_data.get("items", [])
     tier = readiness_data.get("tier", "minimal")
 
-    _ITEM_IMPACT: dict[str, str] = {
+    item_impact: dict[str, str] = {
         "org_name": "accurate org identification in reports",
         "industry": "sector-specific threat exposure analysis",
         "state": "geographic IC3 loss projection data",
@@ -422,7 +422,7 @@ def _data_gap_findings(readiness_data: dict) -> list[Finding]:
     for item in incomplete_required:
         key = item.get("key", "")
         label = item.get("label", key)
-        impact = _ITEM_IMPACT.get(key, "complete risk assessment")
+        impact = item_impact.get(key, "complete risk assessment")
         findings.append(
             Finding(
                 id=_finding_id("data_gap_required", key),
@@ -444,7 +444,7 @@ def _data_gap_findings(readiness_data: dict) -> list[Finding]:
     for item in incomplete_optional:
         key = item.get("key", "")
         label = item.get("label", key)
-        impact = _ITEM_IMPACT.get(key, "assessment accuracy")
+        impact = item_impact.get(key, "assessment accuracy")
         findings.append(
             Finding(
                 id=_finding_id("data_gap_optional", key),
@@ -577,7 +577,7 @@ def _recommended_from_http_headers(domain: str, http: HttpHeaderResult) -> list[
 # ---------------------------------------------------------------------------
 
 
-def _recommended_from_crtsh(domain: str, crt: "CrtShResult") -> list[Finding]:  # noqa: F821
+def _recommended_from_crtsh(domain: str, crt: CrtShResult) -> list[Finding]:  # noqa: F821
     findings: list[Finding] = []
     if crt.error or not crt.subdomains:
         return findings
@@ -617,7 +617,7 @@ def _recommended_from_crtsh(domain: str, crt: "CrtShResult") -> list[Finding]:  
 # ---------------------------------------------------------------------------
 
 
-def _threat_from_hibp(domain: str, hibp: "HibpResult") -> list[Finding]:  # noqa: F821
+def _threat_from_hibp(domain: str, hibp: HibpResult) -> list[Finding]:  # noqa: F821
     findings: list[Finding] = []
     if hibp.skipped or hibp.error or hibp.breaches_found == 0:
         return findings
@@ -691,7 +691,7 @@ _DATA_TYPE_COMPLIANCE_MAP: dict[str, tuple[str, str]] = {
 }
 
 
-def _analyze_security_profile(org: "Organization") -> list[Finding]:  # noqa: F821
+def _analyze_security_profile(org: Organization) -> list[Finding]:  # noqa: F821
     """Generate findings from the org's security controls, compliance, and data type fields."""
     findings: list[Finding] = []
 
@@ -1217,7 +1217,7 @@ def _synthesize_recommendations(all_findings: list[Finding]) -> list[Finding]:
                 finding_type="recommended_action",
                 severity="high",
                 severity_score=_severity_score("high", 0.6),
-                title=f"Configure email security records (SPF/DMARC) to prevent spoofing",
+                title="Configure email security records (SPF/DMARC) to prevent spoofing",
                 description=(
                     f"Your domain has {len(dns_findings)} email security gap(s). "
                     "Add SPF to authorize legitimate mail servers, and set DMARC to "
@@ -1315,7 +1315,7 @@ class FindingsEngine:
     def __init__(self, db: AsyncSession) -> None:
         self._db = db
 
-    async def build(self, org: Organization, *, persist: bool = False) -> FindingsReport:
+    async def build(self, org: Organization, *, persist: bool = False) -> FindingsReport:  # noqa: C901
         """Build a findings report for the given organization."""
         data_sources_used: list[str] = []
 
@@ -1336,7 +1336,7 @@ class FindingsEngine:
         )
 
         # ── Risk score (synchronous) ─────────────────────────────────────────
-        risk_resp = calculate_smb_risk_score(org.industry_label, org.employee_range)
+        calculate_smb_risk_score(org.industry_label, org.employee_range)
 
         # ── IC3 sector mapping ───────────────────────────────────────────────
         ic3_sector: str | None = None
