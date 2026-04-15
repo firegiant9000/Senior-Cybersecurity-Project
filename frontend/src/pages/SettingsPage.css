@@ -396,3 +396,109 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Security Profile section */
+
+.sec-profile-subsection {
+  margin-bottom: 1.5rem;
+}
+
+.sec-profile-subtitle {
+  font-size: 0.95rem;
+  color: var(--text-primary, #e2e8f0);
+  margin: 0 0 0.75rem;
+  font-weight: 600;
+}
+
+.sec-control-group {
+  margin-bottom: 1rem;
+}
+
+.sec-control-category {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted, #9ca3af);
+  margin: 0 0 0.4rem 0;
+  font-weight: 600;
+}
+
+.sec-control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border, #1f2937);
+  gap: 0.75rem;
+}
+
+.sec-control-label {
+  font-size: 0.85rem;
+  color: var(--text-primary, #e2e8f0);
+  flex: 1;
+}
+
+.sec-control-toggle {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.sec-control-option {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  border: 1px solid var(--border, #374151);
+  background: transparent;
+  color: var(--text-muted, #9ca3af);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sec-control-option.selected {
+  background: var(--accent, #3b82f6);
+  color: #fff;
+  border-color: var(--accent, #3b82f6);
+}
+
+.sec-checklist {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.sec-check-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-primary, #e2e8f0);
+  cursor: pointer;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--border, #374151);
+  transition: background 0.15s;
+}
+
+.sec-check-item:has(input:checked) {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: var(--accent, #3b82f6);
+}
+
+.sec-check-item input[type="checkbox"] {
+  accent-color: var(--accent, #3b82f6);
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+.sec-profile-field-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0;
+}
+
+.sec-profile-field-row label {
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.85rem;
+}
