@@ -63,7 +63,12 @@ def _readiness_items(
     required_keys = required_keys or all_keys
     missing_keys = missing_keys or []
     return [
-        {"key": k, "label": k.replace("_", " ").title(), "complete": k not in missing_keys, "required": k in required_keys}
+        {
+            "key": k,
+            "label": k.replace("_", " ").title(),
+            "complete": k not in missing_keys,
+            "required": k in required_keys,
+        }
         for k in all_keys
     ]
 
@@ -130,7 +135,9 @@ class TestThreatExposureSector:
 
 class TestThreatExposureDns:
     def test_no_spf_produces_finding(self):
-        dns = DnsCheckResult(domain="example.com", spf_found=False, dmarc_found=True, dmarc_policy="reject")
+        dns = DnsCheckResult(
+            domain="example.com", spf_found=False, dmarc_found=True, dmarc_policy="reject"
+        )
         findings = _threat_exposure_from_dns("example.com", dns)
         assert any("SPF" in f.title for f in findings)
 
@@ -140,14 +147,18 @@ class TestThreatExposureDns:
         assert any("DMARC" in f.title for f in findings)
 
     def test_dmarc_policy_none_produces_medium(self):
-        dns = DnsCheckResult(domain="example.com", spf_found=True, dmarc_found=True, dmarc_policy="none")
+        dns = DnsCheckResult(
+            domain="example.com", spf_found=True, dmarc_found=True, dmarc_policy="none"
+        )
         findings = _threat_exposure_from_dns("example.com", dns)
         dmarc_finding = next((f for f in findings if "DMARC" in f.title), None)
         assert dmarc_finding is not None
         assert dmarc_finding.severity == "medium"
 
     def test_dmarc_reject_no_finding(self):
-        dns = DnsCheckResult(domain="example.com", spf_found=True, dmarc_found=True, dmarc_policy="reject")
+        dns = DnsCheckResult(
+            domain="example.com", spf_found=True, dmarc_found=True, dmarc_policy="reject"
+        )
         findings = _threat_exposure_from_dns("example.com", dns)
         assert not any("DMARC" in f.title for f in findings)
 
@@ -156,7 +167,9 @@ class TestThreatExposureDns:
         assert _threat_exposure_from_dns("example.com", dns) == []
 
     def test_no_spf_finding_is_high_severity(self):
-        dns = DnsCheckResult(domain="example.com", spf_found=False, dmarc_found=True, dmarc_policy="reject")
+        dns = DnsCheckResult(
+            domain="example.com", spf_found=False, dmarc_found=True, dmarc_policy="reject"
+        )
         findings = _threat_exposure_from_dns("example.com", dns)
         spf_finding = next((f for f in findings if "SPF" in f.title), None)
         assert spf_finding is not None
@@ -186,6 +199,7 @@ class TestThreatExposureSsl:
 
     def test_cert_expiring_7_days_is_critical(self):
         from datetime import UTC, datetime, timedelta
+
         ssl_r = SslCheckResult(
             domain="example.com",
             reachable=True,
@@ -198,6 +212,7 @@ class TestThreatExposureSsl:
 
     def test_cert_expiring_20_days_is_high(self):
         from datetime import UTC, datetime, timedelta
+
         ssl_r = SslCheckResult(
             domain="example.com",
             reachable=True,
@@ -210,6 +225,7 @@ class TestThreatExposureSsl:
 
     def test_cert_healthy_no_findings(self):
         from datetime import UTC, datetime, timedelta
+
         ssl_r = SslCheckResult(
             domain="example.com",
             reachable=True,
@@ -238,7 +254,9 @@ class TestVendorExposure:
 
     def test_critical_cves_produce_critical_finding(self):
         findings = _vendor_exposure_findings(_vendor_dict(total_matched=5, critical=3))
-        assert any(f.severity == "critical" and f.finding_type == "vendor_exposure" for f in findings)
+        assert any(
+            f.severity == "critical" and f.finding_type == "vendor_exposure" for f in findings
+        )
 
     def test_high_cves_produce_high_finding(self):
         findings = _vendor_exposure_findings(_vendor_dict(total_matched=5, high=4))
@@ -254,6 +272,7 @@ class TestVendorExposure:
 
     def test_upcoming_deadline_produces_high_finding(self):
         from datetime import UTC, datetime, timedelta
+
         due = (datetime.now(UTC) + timedelta(days=10)).isoformat()
         items = [{"vendor_name": "Microsoft", "due_date": due, "severity_label": "Critical"}]
         findings = _vendor_exposure_findings(_vendor_dict(total_matched=1, critical=1, items=items))
@@ -277,9 +296,7 @@ class TestDataGapFindings:
 
     def test_missing_optional_produces_low(self):
         all_keys = ["org_name", "industry", "state", "employee_range", "vendors", "domains"]
-        items = [
-            {"key": k, "label": k, "complete": True, "required": True} for k in all_keys
-        ] + [
+        items = [{"key": k, "label": k, "complete": True, "required": True} for k in all_keys] + [
             {"key": "revenue", "label": "Revenue range", "complete": False, "required": False}
         ]
         readiness = {"tier": "good", "items": items}
@@ -435,9 +452,7 @@ class TestSynthesizeRecommendations:
         assert _synthesize_recommendations([]) == []
 
     def test_critical_vendor_triggers_patch_rec(self):
-        vendor_findings = _vendor_exposure_findings(
-            _vendor_dict(total_matched=3, critical=2)
-        )
+        vendor_findings = _vendor_exposure_findings(_vendor_dict(total_matched=3, critical=2))
         recs = _synthesize_recommendations(vendor_findings)
         assert any("patch" in r.title.lower() for r in recs)
 
@@ -482,7 +497,10 @@ class TestSecurityProfileFindings:
     def test_no_controls_produces_data_gap(self):
         org = _make_org()
         findings = _analyze_security_profile(org)
-        assert any(f.finding_type == "data_gap" and "security controls" in f.title.lower() for f in findings)
+        assert any(
+            f.finding_type == "data_gap" and "security controls" in f.title.lower()
+            for f in findings
+        )
 
     def test_no_controls_data_gap_is_medium(self):
         org = _make_org()
@@ -493,7 +511,9 @@ class TestSecurityProfileFindings:
     def test_control_no_produces_recommended_action(self):
         org = _make_org(security_controls={"mfa_enabled": "no"})
         findings = _analyze_security_profile(org)
-        assert any(f.finding_type == "recommended_action" and "mfa" in f.title.lower() for f in findings)
+        assert any(
+            f.finding_type == "recommended_action" and "mfa" in f.title.lower() for f in findings
+        )
 
     def test_control_no_preserves_severity(self):
         # mfa_enabled is "high" severity if "no"
@@ -511,10 +531,15 @@ class TestSecurityProfileFindings:
 
     def test_control_yes_produces_no_finding(self):
         from app.services.findings_engine import _SECURITY_CONTROLS_META
+
         all_yes = {key: "yes" for key, *_ in _SECURITY_CONTROLS_META}
         org = _make_org(security_controls=all_yes)
         findings = _analyze_security_profile(org)
-        control_findings = [f for f in findings if f.source == "security_controls" and f.finding_type == "recommended_action"]
+        control_findings = [
+            f
+            for f in findings
+            if f.source == "security_controls" and f.finding_type == "recommended_action"
+        ]
         assert control_findings == []
 
     def test_healthcare_without_hipaa_is_high(self):
@@ -540,7 +565,10 @@ class TestSecurityProfileFindings:
     def test_incident_history_produces_threat_exposure(self):
         org = _make_org(incident_history="ransomware")
         findings = _analyze_security_profile(org)
-        assert any(f.finding_type == "threat_exposure" and "ransomware" in f.title.lower() for f in findings)
+        assert any(
+            f.finding_type == "threat_exposure" and "ransomware" in f.title.lower()
+            for f in findings
+        )
 
     def test_incident_history_none_no_finding(self):
         org = _make_org(incident_history="none")
@@ -731,16 +759,18 @@ class TestShodanFindings:
         assert mysql.severity == "high"
 
     def test_multiple_risky_ports(self):
-        shodan = ShodanHostResult(
-            domain="example.com", ip="1.2.3.4", open_ports=[23, 3389, 445]
-        )
+        shodan = ShodanHostResult(domain="example.com", ip="1.2.3.4", open_ports=[23, 3389, 445])
         findings = _shodan_findings("example.com", shodan)
-        port_findings = [f for f in findings if f.finding_type == "threat_exposure" and f.severity != "info"]
+        port_findings = [
+            f for f in findings if f.finding_type == "threat_exposure" and f.severity != "info"
+        ]
         assert len(port_findings) == 3
 
     def test_vulns_produce_vendor_exposure(self):
         shodan = ShodanHostResult(
-            domain="example.com", ip="1.2.3.4", open_ports=[80],
+            domain="example.com",
+            ip="1.2.3.4",
+            open_ports=[80],
             vulns=["CVE-2024-1234", "CVE-2024-5678"],
         )
         findings = _shodan_findings("example.com", shodan)
@@ -751,7 +781,10 @@ class TestShodanFindings:
     def test_many_vulns_is_critical(self):
         cves = [f"CVE-2024-{i}" for i in range(7)]
         shodan = ShodanHostResult(
-            domain="example.com", ip="1.2.3.4", open_ports=[80], vulns=cves,
+            domain="example.com",
+            ip="1.2.3.4",
+            open_ports=[80],
+            vulns=cves,
         )
         findings = _shodan_findings("example.com", shodan)
         vuln_findings = [f for f in findings if f.finding_type == "vendor_exposure"]
@@ -759,7 +792,9 @@ class TestShodanFindings:
 
     def test_safe_ports_produce_info_inventory(self):
         shodan = ShodanHostResult(
-            domain="example.com", ip="1.2.3.4", open_ports=[80, 443],
+            domain="example.com",
+            ip="1.2.3.4",
+            open_ports=[80, 443],
         )
         findings = _shodan_findings("example.com", shodan)
         assert len(findings) == 1
@@ -768,14 +803,18 @@ class TestShodanFindings:
 
     def test_source_is_shodan(self):
         shodan = ShodanHostResult(
-            domain="example.com", ip="1.2.3.4", open_ports=[3389],
+            domain="example.com",
+            ip="1.2.3.4",
+            open_ports=[3389],
         )
         findings = _shodan_findings("example.com", shodan)
         assert all(f.source == "shodan" for f in findings)
 
     def test_finding_ids_are_deterministic(self):
         shodan = ShodanHostResult(
-            domain="example.com", ip="1.2.3.4", open_ports=[3389],
+            domain="example.com",
+            ip="1.2.3.4",
+            open_ports=[3389],
         )
         f1 = _shodan_findings("example.com", shodan)
         f2 = _shodan_findings("example.com", shodan)
@@ -818,7 +857,8 @@ class TestOtxFindings:
 
     def test_malware_families_in_description(self):
         otx = OtxResult(
-            domain="example.com", pulse_count=3,
+            domain="example.com",
+            pulse_count=3,
             malware_families=["Emotet", "TrickBot"],
         )
         findings = _otx_findings("example.com", otx)
@@ -887,12 +927,44 @@ class TestFindingsEngineIntegration:
             readiness_pct=100.0,
             tier="good",
             items=[
-                ReadinessItem(key="org_name", label="Org Name", complete=True, required=True, detail="Test Corp"),
-                ReadinessItem(key="industry", label="Industry", complete=True, required=True, detail="Healthcare"),
-                ReadinessItem(key="state", label="State", complete=True, required=True, detail="CA"),
-                ReadinessItem(key="employee_range", label="Employees", complete=True, required=True, detail="11-50"),
-                ReadinessItem(key="vendors", label="Vendors", complete=True, required=True, detail="2 vendor(s)"),
-                ReadinessItem(key="domains", label="Domains", complete=True, required=True, detail="1 domain(s)"),
+                ReadinessItem(
+                    key="org_name",
+                    label="Org Name",
+                    complete=True,
+                    required=True,
+                    detail="Test Corp",
+                ),
+                ReadinessItem(
+                    key="industry",
+                    label="Industry",
+                    complete=True,
+                    required=True,
+                    detail="Healthcare",
+                ),
+                ReadinessItem(
+                    key="state", label="State", complete=True, required=True, detail="CA"
+                ),
+                ReadinessItem(
+                    key="employee_range",
+                    label="Employees",
+                    complete=True,
+                    required=True,
+                    detail="11-50",
+                ),
+                ReadinessItem(
+                    key="vendors",
+                    label="Vendors",
+                    complete=True,
+                    required=True,
+                    detail="2 vendor(s)",
+                ),
+                ReadinessItem(
+                    key="domains",
+                    label="Domains",
+                    complete=True,
+                    required=True,
+                    detail="1 domain(s)",
+                ),
             ],
             next_steps=[],
         )
@@ -974,8 +1046,14 @@ class TestFindingsEngineIntegration:
         )
 
         with (
-            patch("app.services.findings_engine.evaluate_readiness", new=AsyncMock(return_value=readiness_response)),
-            patch("app.services.findings_engine.VendorAlertService.get_alerts", new=AsyncMock(return_value=vendor_response)),
+            patch(
+                "app.services.findings_engine.evaluate_readiness",
+                new=AsyncMock(return_value=readiness_response),
+            ),
+            patch(
+                "app.services.findings_engine.VendorAlertService.get_alerts",
+                new=AsyncMock(return_value=vendor_response),
+            ),
         ):
             report = await FindingsEngine(mock_session).build(org)
 

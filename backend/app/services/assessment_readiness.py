@@ -43,9 +43,10 @@ async def evaluate_readiness(
     vendor_count, domain_count, upload_count = await _fetch_counts(session, org_id)
 
     # Security profile completeness checks
-    has_controls = bool(org.security_controls and any(
-        v in ("yes", "no", "unsure") for v in org.security_controls.values()
-    ))
+    has_controls = bool(
+        org.security_controls
+        and any(v in ("yes", "no", "unsure") for v in org.security_controls.values())
+    )
     controls_answered = sum(
         1 for v in (org.security_controls or {}).values() if v in ("yes", "no", "unsure")
     )

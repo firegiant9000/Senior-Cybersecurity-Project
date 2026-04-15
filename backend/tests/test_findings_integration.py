@@ -123,49 +123,81 @@ def _vendor_alerts_response(total=5, critical=2, high=1, medium=1, low=1, items=
 
 def _dns_ok():
     return DnsCheckResult(
-        domain="acme.com", spf_found=True, spf_record="v=spf1 include:_spf.google.com ~all",
-        dmarc_found=True, dmarc_policy="reject", dmarc_record="v=DMARC1; p=reject",
-        dkim_selector_found=True, error=None,
+        domain="acme.com",
+        spf_found=True,
+        spf_record="v=spf1 include:_spf.google.com ~all",
+        dmarc_found=True,
+        dmarc_policy="reject",
+        dmarc_record="v=DMARC1; p=reject",
+        dkim_selector_found=True,
+        error=None,
     )
 
 
 def _dns_missing_all():
     return DnsCheckResult(
-        domain="acme.com", spf_found=False, spf_record=None,
-        dmarc_found=False, dmarc_policy=None, dmarc_record=None,
-        dkim_selector_found=False, error=None,
+        domain="acme.com",
+        spf_found=False,
+        spf_record=None,
+        dmarc_found=False,
+        dmarc_policy=None,
+        dmarc_record=None,
+        dkim_selector_found=False,
+        error=None,
     )
 
 
 def _http_ok():
     return HttpHeaderResult(
-        domain="acme.com", reachable=True, has_hsts=True, has_csp=True,
-        has_x_frame_options=True, has_x_content_type=True, has_permissions_policy=True,
-        status_code=200, error=None,
+        domain="acme.com",
+        reachable=True,
+        has_hsts=True,
+        has_csp=True,
+        has_x_frame_options=True,
+        has_x_content_type=True,
+        has_permissions_policy=True,
+        status_code=200,
+        error=None,
     )
 
 
 def _http_missing_headers():
     return HttpHeaderResult(
-        domain="acme.com", reachable=True, has_hsts=False, has_csp=False,
-        has_x_frame_options=False, has_x_content_type=False, has_permissions_policy=False,
-        status_code=200, error=None,
+        domain="acme.com",
+        reachable=True,
+        has_hsts=False,
+        has_csp=False,
+        has_x_frame_options=False,
+        has_x_content_type=False,
+        has_permissions_policy=False,
+        status_code=200,
+        error=None,
     )
 
 
 def _ssl_ok():
     return SslCheckResult(
-        domain="acme.com", reachable=True, issuer="Let's Encrypt",
-        expiry=datetime(2025, 6, 1, tzinfo=UTC), days_until_expiry=90,
-        self_signed=False, tls_version="TLSv1.3", error=None,
+        domain="acme.com",
+        reachable=True,
+        issuer="Let's Encrypt",
+        expiry=datetime(2025, 6, 1, tzinfo=UTC),
+        days_until_expiry=90,
+        self_signed=False,
+        tls_version="TLSv1.3",
+        error=None,
     )
 
 
 def _ssl_expiring():
     return SslCheckResult(
-        domain="acme.com", reachable=True, issuer="Let's Encrypt",
-        expiry=datetime(2024, 5, 1, tzinfo=UTC), days_until_expiry=10,
-        self_signed=False, tls_version="TLSv1.2", error=None,
+        domain="acme.com",
+        reachable=True,
+        issuer="Let's Encrypt",
+        expiry=datetime(2024, 5, 1, tzinfo=UTC),
+        days_until_expiry=10,
+        self_signed=False,
+        tls_version="TLSv1.2",
+        error=None,
     )
 
 
@@ -174,7 +206,9 @@ def _crtsh_empty():
 
 
 def _hibp_clean():
-    return HibpResult(domain="acme.com", breaches_found=0, breach_names=[], error=None, skipped=False)
+    return HibpResult(
+        domain="acme.com", breaches_found=0, breach_names=[], error=None, skipped=False
+    )
 
 
 def _tech_clean():
@@ -198,7 +232,8 @@ def _shodan_clean():
 
 def _shodan_risky():
     return ShodanHostResult(
-        domain="acme.com", ip="93.184.216.34",
+        domain="acme.com",
+        ip="93.184.216.34",
         open_ports=[22, 80, 443, 3389, 27017],
         vulns=["CVE-2024-1234", "CVE-2024-5678"],
         isp="Edgecast",
@@ -211,8 +246,10 @@ def _otx_clean():
 
 def _otx_flagged():
     return OtxResult(
-        domain="acme.com", pulse_count=5,
-        malware_families=["Emotet"], reputation_score=30,
+        domain="acme.com",
+        pulse_count=5,
+        malware_families=["Emotet"],
+        reputation_score=30,
     )
 
 
@@ -226,22 +263,43 @@ def _risk_score():
 class _PatchCtx:
     """Context manager that patches all FindingsEngine upstream dependencies."""
 
-    def __init__(self, *, readiness=None, risk_score=None, vendor_resp=None,
-                 tier1=None, tier2=None):
+    def __init__(
+        self, *, readiness=None, risk_score=None, vendor_resp=None, tier1=None, tier2=None
+    ):
         self._readiness = readiness or _good_readiness()
         self._risk_score = risk_score or _risk_score()
         self._vendor_resp = vendor_resp or _vendor_alerts_response()
-        self._tier1 = tier1 or (_dns_missing_all(), _http_missing_headers(), _ssl_ok(), _tech_clean())
+        self._tier1 = tier1 or (
+            _dns_missing_all(),
+            _http_missing_headers(),
+            _ssl_ok(),
+            _tech_clean(),
+        )
         self._tier2 = tier2 or (_crtsh_empty(), _hibp_clean(), _shodan_clean(), _otx_clean())
         self._patches = []
 
     def __enter__(self):
         self._patches = [
-            patch("app.services.findings_engine.evaluate_readiness", new_callable=AsyncMock, return_value=self._readiness),
-            patch("app.services.findings_engine.calculate_smb_risk_score", return_value=self._risk_score),
+            patch(
+                "app.services.findings_engine.evaluate_readiness",
+                new_callable=AsyncMock,
+                return_value=self._readiness,
+            ),
+            patch(
+                "app.services.findings_engine.calculate_smb_risk_score",
+                return_value=self._risk_score,
+            ),
             patch("app.services.findings_engine.VendorAlertService"),
-            patch("app.services.findings_engine.run_tier1_checks", new_callable=AsyncMock, return_value=self._tier1),
-            patch("app.services.findings_engine.run_tier2_checks", new_callable=AsyncMock, return_value=self._tier2),
+            patch(
+                "app.services.findings_engine.run_tier1_checks",
+                new_callable=AsyncMock,
+                return_value=self._tier1,
+            ),
+            patch(
+                "app.services.findings_engine.run_tier2_checks",
+                new_callable=AsyncMock,
+                return_value=self._tier2,
+            ),
         ]
         self._mocks = [p.__enter__() for p in self._patches]
         self._mocks[2].return_value.get_alerts = AsyncMock(return_value=self._vendor_resp)
@@ -309,7 +367,9 @@ class TestFindingsEnginePipeline:
         db = _mock_db()
         org = _mock_org()
 
-        with _patch_engine(tier1=(_dns_missing_all(), _http_missing_headers(), _ssl_expiring(), _tech_clean())):
+        with _patch_engine(
+            tier1=(_dns_missing_all(), _http_missing_headers(), _ssl_expiring(), _tech_clean())
+        ):
             report = await FindingsEngine(db).build(org)
 
         assert sum(report.summary.by_type.values()) == report.summary.total
@@ -352,9 +412,12 @@ class TestFindingsEnginePipeline:
             report = await FindingsEngine(db).build(org)
 
         ssl_findings = [
-            f for f in report.findings
-            if "ssl" in f.source.lower() or "cert" in f.title.lower()
-            or "tls" in f.title.lower() or "expir" in f.title.lower()
+            f
+            for f in report.findings
+            if "ssl" in f.source.lower()
+            or "cert" in f.title.lower()
+            or "tls" in f.title.lower()
+            or "expir" in f.title.lower()
         ]
         assert len(ssl_findings) > 0, "Expected SSL/cert finding for expiring certificate"
 
@@ -381,7 +444,8 @@ class TestFindingsEnginePipeline:
             report = await FindingsEngine(db).build(org)
 
         dns_findings = [
-            f for f in report.findings
+            f
+            for f in report.findings
             if "spf" in f.title.lower() or "dmarc" in f.title.lower() or "dns" in f.source.lower()
         ]
         assert len(dns_findings) > 0, "Expected DNS findings for missing records"
@@ -395,7 +459,8 @@ class TestFindingsEnginePipeline:
             report = await FindingsEngine(db).build(org)
 
         http_findings = [
-            f for f in report.findings
+            f
+            for f in report.findings
             if "header" in f.source.lower() or "hsts" in f.title.lower() or "csp" in f.title.lower()
         ]
         assert len(http_findings) > 0, "Expected HTTP header findings for missing headers"
@@ -486,7 +551,8 @@ class TestPhase6Integration:
             report = await FindingsEngine(db).build(org)
 
         sector_threats = [
-            f for f in report.findings
+            f
+            for f in report.findings
             if f.source == "ic3_sector_weights" and f.finding_type == "threat_exposure"
         ]
         enriched = [f for f in sector_threats if "mitre_techniques" in f.evidence]
@@ -548,12 +614,19 @@ class TestAISummaryPipeline:
             org_id=1,
             findings=[
                 Finding(
-                    id="abc123", finding_type="threat_exposure", severity="high",
-                    title="BEC exposure", description="Your sector is targeted by BEC.",
-                    evidence={"weight": 0.3}, source="ic3", affected_assets=["Information"],
+                    id="abc123",
+                    finding_type="threat_exposure",
+                    severity="high",
+                    title="BEC exposure",
+                    description="Your sector is targeted by BEC.",
+                    evidence={"weight": 0.3},
+                    source="ic3",
+                    affected_assets=["Information"],
                 ),
             ],
-            summary=FindingsSummary(total=1, by_type={"threat_exposure": 1}, by_severity={"high": 1}),
+            summary=FindingsSummary(
+                total=1, by_type={"threat_exposure": 1}, by_severity={"high": 1}
+            ),
             generated_at=datetime.utcnow().isoformat(),
             data_sources_used=["ic3"],
             assessment_tier="good",
@@ -587,10 +660,12 @@ class TestAISummaryPipeline:
         db = _mock_db()
         org = _mock_org()
         report = FindingsReport(
-            org_id=1, findings=[],
+            org_id=1,
+            findings=[],
             summary=FindingsSummary(total=0, by_type={}, by_severity={}),
             generated_at=datetime.utcnow().isoformat(),
-            data_sources_used=[], assessment_tier="good",
+            data_sources_used=[],
+            assessment_tier="good",
         )
 
         with (
@@ -628,10 +703,12 @@ class TestAISummaryPipeline:
         db = _mock_db()
         org = _mock_org()
         report = FindingsReport(
-            org_id=1, findings=[],
+            org_id=1,
+            findings=[],
             summary=FindingsSummary(total=0, by_type={}, by_severity={}),
             generated_at=datetime.utcnow().isoformat(),
-            data_sources_used=[], assessment_tier="good",
+            data_sources_used=[],
+            assessment_tier="good",
         )
 
         with (
@@ -669,21 +746,33 @@ class TestAISummaryPipeline:
             org_id=1,
             findings=[
                 Finding(
-                    id="test1", finding_type="threat_exposure", severity="critical",
-                    title="Critical threat", description="A critical threat.",
-                    evidence={}, source="test", affected_assets=[],
+                    id="test1",
+                    finding_type="threat_exposure",
+                    severity="critical",
+                    title="Critical threat",
+                    description="A critical threat.",
+                    evidence={},
+                    source="test",
+                    affected_assets=[],
                 ),
             ],
-            summary=FindingsSummary(total=1, by_type={"threat_exposure": 1}, by_severity={"critical": 1}),
+            summary=FindingsSummary(
+                total=1, by_type={"threat_exposure": 1}, by_severity={"critical": 1}
+            ),
             generated_at=datetime.utcnow().isoformat(),
-            data_sources_used=["test"], assessment_tier="good",
+            data_sources_used=["test"],
+            assessment_tier="good",
         )
 
         with (
             patch("app.services.ai_summary.FindingsEngine") as mock_engine_cls,
             patch("app.services.ai_summary.calculate_smb_risk_score", return_value=_risk_score()),
             patch("app.services.ai_summary.settings") as mock_settings,
-            patch("app.services.ai_summary._call_gemini", new_callable=AsyncMock, side_effect=RuntimeError("API down")),
+            patch(
+                "app.services.ai_summary._call_gemini",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("API down"),
+            ),
         ):
             mock_settings.GEMINI_API_KEY = "fake-key"
             mock_settings.GEMINI_MODEL = "gemini-2.5-flash"
@@ -712,10 +801,12 @@ class TestAISummaryPipeline:
         db = _mock_db()
         org = _mock_org()
         report = FindingsReport(
-            org_id=1, findings=[],
+            org_id=1,
+            findings=[],
             summary=FindingsSummary(total=0, by_type={}, by_severity={}),
             generated_at=datetime.utcnow().isoformat(),
-            data_sources_used=[], assessment_tier="good",
+            data_sources_used=[],
+            assessment_tier="good",
         )
 
         with (
@@ -748,17 +839,23 @@ class TestAISummaryPipeline:
         db = _mock_db()
         org = _mock_org()
         report = FindingsReport(
-            org_id=1, findings=[],
+            org_id=1,
+            findings=[],
             summary=FindingsSummary(total=0, by_type={}, by_severity={}),
             generated_at=datetime.utcnow().isoformat(),
-            data_sources_used=[], assessment_tier="good",
+            data_sources_used=[],
+            assessment_tier="good",
         )
 
         with (
             patch("app.services.ai_summary.FindingsEngine") as mock_engine_cls,
             patch("app.services.ai_summary.calculate_smb_risk_score", return_value=_risk_score()),
             patch("app.services.ai_summary.settings") as mock_settings,
-            patch("app.services.ai_summary._call_gemini", new_callable=AsyncMock, return_value="AI-generated summary text here."),
+            patch(
+                "app.services.ai_summary._call_gemini",
+                new_callable=AsyncMock,
+                return_value="AI-generated summary text here.",
+            ),
         ):
             mock_settings.GEMINI_API_KEY = "fake-key"
             mock_settings.GEMINI_MODEL = "gemini-2.5-flash"
@@ -786,10 +883,12 @@ class TestAISummaryPipeline:
         db = _mock_db()
         org = _mock_org()
         report = FindingsReport(
-            org_id=1, findings=[],
+            org_id=1,
+            findings=[],
             summary=FindingsSummary(total=0, by_type={}, by_severity={}),
             generated_at=datetime.utcnow().isoformat(),
-            data_sources_used=[], assessment_tier="good",
+            data_sources_used=[],
+            assessment_tier="good",
         )
 
         with (
@@ -832,14 +931,22 @@ class TestAISummaryPromptBuilding:
             org_id=1,
             findings=[
                 Finding(
-                    id="f1", finding_type="threat_exposure", severity="high",
-                    title="BEC threat", description="Business email compromise risk.",
-                    evidence={}, source="ic3", affected_assets=[],
+                    id="f1",
+                    finding_type="threat_exposure",
+                    severity="high",
+                    title="BEC threat",
+                    description="Business email compromise risk.",
+                    evidence={},
+                    source="ic3",
+                    affected_assets=[],
                 ),
             ],
-            summary=FindingsSummary(total=1, by_type={"threat_exposure": 1}, by_severity={"high": 1}),
+            summary=FindingsSummary(
+                total=1, by_type={"threat_exposure": 1}, by_severity={"high": 1}
+            ),
             generated_at="2024-01-01T00:00:00",
-            data_sources_used=["ic3"], assessment_tier="good",
+            data_sources_used=["ic3"],
+            assessment_tier="good",
         )
         prompt = _build_prompt(org, report, 65.0)
 
@@ -855,17 +962,26 @@ class TestAISummaryPromptBuilding:
         org = _mock_org()
         findings = [
             Finding(
-                id=f"f{i}", finding_type="threat_exposure", severity="medium",
-                title=f"Finding {i}", description=f"Description {i}.",
-                evidence={}, source="test", affected_assets=[],
+                id=f"f{i}",
+                finding_type="threat_exposure",
+                severity="medium",
+                title=f"Finding {i}",
+                description=f"Description {i}.",
+                evidence={},
+                source="test",
+                affected_assets=[],
             )
             for i in range(30)
         ]
         report = FindingsReport(
-            org_id=1, findings=findings,
-            summary=FindingsSummary(total=30, by_type={"threat_exposure": 30}, by_severity={"medium": 30}),
+            org_id=1,
+            findings=findings,
+            summary=FindingsSummary(
+                total=30, by_type={"threat_exposure": 30}, by_severity={"medium": 30}
+            ),
             generated_at="2024-01-01T00:00:00",
-            data_sources_used=["test"], assessment_tier="good",
+            data_sources_used=["test"],
+            assessment_tier="good",
         )
         prompt = _build_prompt(org, report, 50.0)
 
@@ -880,14 +996,22 @@ class TestAISummaryPromptBuilding:
             org_id=1,
             findings=[
                 Finding(
-                    id="f1", finding_type="threat_exposure", severity="critical",
-                    title="Critical exposure", description="Critical desc.",
-                    evidence={}, source="test", affected_assets=[],
+                    id="f1",
+                    finding_type="threat_exposure",
+                    severity="critical",
+                    title="Critical exposure",
+                    description="Critical desc.",
+                    evidence={},
+                    source="test",
+                    affected_assets=[],
                 ),
             ],
-            summary=FindingsSummary(total=1, by_type={"threat_exposure": 1}, by_severity={"critical": 1}),
+            summary=FindingsSummary(
+                total=1, by_type={"threat_exposure": 1}, by_severity={"critical": 1}
+            ),
             generated_at="2024-01-01T00:00:00",
-            data_sources_used=["test"], assessment_tier="good",
+            data_sources_used=["test"],
+            assessment_tier="good",
         )
         narrative = _build_fallback(org, report, 72.0)
 
@@ -900,10 +1024,12 @@ class TestAISummaryPromptBuilding:
 
         org = _mock_org()
         report = FindingsReport(
-            org_id=1, findings=[],
+            org_id=1,
+            findings=[],
             summary=FindingsSummary(total=0, by_type={}, by_severity={}),
             generated_at="2024-01-01T00:00:00",
-            data_sources_used=[], assessment_tier="good",
+            data_sources_used=[],
+            assessment_tier="good",
         )
         narrative = _build_fallback(org, report, 30.0)
 
@@ -921,28 +1047,40 @@ class TestSchemaValidation:
 
     def test_finding_schema_roundtrip(self):
         f = Finding(
-            id="abc123def456", finding_type="threat_exposure", severity="high",
-            title="Test finding", description="Test description",
-            evidence={"key": "value"}, source="test", affected_assets=["asset1"],
+            id="abc123def456",
+            finding_type="threat_exposure",
+            severity="high",
+            title="Test finding",
+            description="Test description",
+            evidence={"key": "value"},
+            source="test",
+            affected_assets=["asset1"],
         )
         data = f.model_dump()
         assert Finding(**data) == f
 
     def test_findings_report_schema_roundtrip(self):
         report = FindingsReport(
-            org_id=1, findings=[],
+            org_id=1,
+            findings=[],
             summary=FindingsSummary(total=0, by_type={}, by_severity={}),
             generated_at="2024-01-01T00:00:00",
-            data_sources_used=["test"], assessment_tier="good",
+            data_sources_used=["test"],
+            assessment_tier="good",
         )
         data = report.model_dump()
         assert FindingsReport(**data) == report
 
     def test_ai_summary_schema_roundtrip(self):
         summary = AISummaryResponse(
-            narrative="Test narrative", ai_generated=False, model_used=None,
-            findings_count=0, risk_score=50.0, risk_label="Moderate",
-            generated_at="2024-01-01T00:00:00", cached=False,
+            narrative="Test narrative",
+            ai_generated=False,
+            model_used=None,
+            findings_count=0,
+            risk_score=50.0,
+            risk_label="Moderate",
+            generated_at="2024-01-01T00:00:00",
+            cached=False,
             disclaimer="Test disclaimer",
         )
         data = summary.model_dump()

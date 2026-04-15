@@ -22,7 +22,8 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     # Use raw DDL with IF NOT EXISTS — the table may already exist if
     # Base.metadata.create_all() ran at startup before Alembic.
-    op.execute("""
+    op.execute(
+        """
         CREATE TABLE IF NOT EXISTS findings_snapshots (
             id SERIAL PRIMARY KEY,
             org_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -32,9 +33,14 @@ def upgrade() -> None:
             assessment_tier VARCHAR(50) NOT NULL,
             data_sources_used JSON NOT NULL
         )
-    """)
-    op.execute("CREATE INDEX IF NOT EXISTS ix_findings_snapshots_org_id ON findings_snapshots (org_id)")
-    op.execute("CREATE INDEX IF NOT EXISTS ix_findings_snapshots_generated_at ON findings_snapshots (generated_at)")
+    """
+    )
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_findings_snapshots_org_id ON findings_snapshots (org_id)"
+    )
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_findings_snapshots_generated_at ON findings_snapshots (generated_at)"
+    )
 
 
 def downgrade() -> None:
