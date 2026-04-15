@@ -64,7 +64,7 @@ const VendorAlertsTab: React.FC = () => {
             Add your technology stack in Organization Settings. We'll match your vendors against the CISA Known Exploited Vulnerabilities catalog and alert you to active threats.
           </p>
           <Link
-            to="/settings"
+            to="/org-profile"
             style={{
               display: 'inline-block',
               background: 'var(--accent, #3b82f6)',

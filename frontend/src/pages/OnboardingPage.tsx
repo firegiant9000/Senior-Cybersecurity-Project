@@ -62,15 +62,56 @@ const US_STATES = [
   { code: "WI", name: "Wisconsin" }, { code: "WY", name: "Wyoming" },
 ] as const;
 
+const CLOUD_PROVIDERS = [
+  "AWS", "Azure", "GCP", "Microsoft 365", "Google Workspace",
+  "Salesforce", "Shopify", "QuickBooks", "Dropbox", "Slack", "Zoom",
+] as const;
+
+const COMPLIANCE_FRAMEWORKS = [
+  "HIPAA", "PCI-DSS", "SOC 2", "CMMC", "NIST CSF", "ISO 27001", "None",
+] as const;
+
+const DATA_TYPES = [
+  "PII (names, SSNs)",
+  "PHI (health records)",
+  "Payment card data",
+  "Intellectual property",
+  "Customer financial data",
+  "None of these",
+] as const;
+
+const SECURITY_CONTROLS = [
+  { key: "mfa_enabled", label: "MFA enabled for all users", category: "Identity & Access" },
+  { key: "password_policy", label: "Password policy enforced", category: "Identity & Access" },
+  { key: "sso_in_use", label: "SSO in use", category: "Identity & Access" },
+  { key: "edr_deployed", label: "EDR/antivirus deployed", category: "Endpoint Protection" },
+  { key: "devices_encrypted", label: "Devices encrypted", category: "Endpoint Protection" },
+  { key: "auto_patching", label: "Auto-patching enabled", category: "Endpoint Protection" },
+  { key: "email_filtering", label: "Email filtering / gateway", category: "Email Security" },
+  { key: "phishing_training", label: "Phishing training conducted", category: "Email Security" },
+  { key: "firewall_in_place", label: "Firewall in place", category: "Network" },
+  { key: "vpn_remote_access", label: "VPN for remote access", category: "Network" },
+  { key: "network_segmentation", label: "Network segmentation", category: "Network" },
+  { key: "regular_backups", label: "Regular data backups", category: "Data Protection" },
+  { key: "backup_testing", label: "Backup restoration tested", category: "Data Protection" },
+  { key: "data_classification", label: "Data classification policy", category: "Data Protection" },
+  { key: "ir_plan_documented", label: "IR plan documented", category: "Incident Response" },
+  { key: "ir_plan_tested", label: "IR plan tested within 12 months", category: "Incident Response" },
+] as const;
+
+const TOTAL_STEPS = 9;
+
 interface FormData {
   name: string;
   industry_label: string;
   primary_state: string;
   employee_range: string;
   revenue_range: string;
+  security_controls: Record<string, "yes" | "no" | "unsure">;
+  cloud_providers: string[];
+  compliance_frameworks: string[];
+  data_types: string[];
 }
-
-const TOTAL_STEPS = 5;
 
 export default function OnboardingPage({ onComplete }: { onComplete: () => void }) {
   const navigate = useNavigate();
@@ -90,11 +131,32 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
     primary_state: "",
     employee_range: "",
     revenue_range: "",
+    security_controls: {},
+    cloud_providers: [],
+    compliance_frameworks: [],
+    data_types: [],
   });
 
   const update = (field: keyof FormData, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setError("");
+  };
+
+  const toggleListItem = (field: "cloud_providers" | "compliance_frameworks" | "data_types", value: string) => {
+    setForm((prev) => {
+      const current = prev[field] as string[];
+      const next = current.includes(value)
+        ? current.filter((v) => v !== value)
+        : [...current, value];
+      return { ...prev, [field]: next };
+    });
+  };
+
+  const setControlValue = (key: string, value: "yes" | "no" | "unsure") => {
+    setForm((prev) => ({
+      ...prev,
+      security_controls: { ...prev.security_controls, [key]: value },
+    }));
   };
 
   const canAdvance = (): boolean => {
@@ -104,6 +166,10 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
       case 3: return form.primary_state !== "";
       case 4: return form.employee_range !== "";
       case 5: return true; // revenue is optional
+      case 6: return true; // security controls optional
+      case 7: return true; // cloud providers optional
+      case 8: return true; // compliance optional
+      case 9: return true; // data types optional
       default: return false;
     }
   };
@@ -125,12 +191,16 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
     setSubmitting(true);
     setError("");
 
-    const payload: Record<string, string | null> = {
+    const payload: Record<string, unknown> = {
       name: form.name.trim(),
       industry_label: form.industry_label,
       primary_state: form.primary_state,
       employee_range: form.employee_range,
       revenue_range: form.revenue_range || null,
+      security_controls: Object.keys(form.security_controls).length > 0 ? form.security_controls : null,
+      cloud_providers: form.cloud_providers.length > 0 ? form.cloud_providers : null,
+      compliance_frameworks: form.compliance_frameworks.length > 0 ? form.compliance_frameworks : null,
+      data_types: form.data_types.length > 0 ? form.data_types : null,
     };
 
     try {
@@ -255,6 +325,106 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
             </div>
           </div>
         );
+      case 6: {
+        const categories = [...new Set(SECURITY_CONTROLS.map((c) => c.category))];
+        return (
+          <div className="onboarding-step">
+            <h2>Security Controls</h2>
+            <p className="step-description">
+              Tell us which security controls are in place. This enables CIS IG1 baseline scoring.
+              You can update these later in Settings.
+            </p>
+            {categories.map((cat) => (
+              <div key={cat} className="onboarding-control-group">
+                <h3 className="control-category">{cat}</h3>
+                {SECURITY_CONTROLS.filter((c) => c.category === cat).map((control) => {
+                  const val = form.security_controls[control.key] ?? "unsure";
+                  return (
+                    <div key={control.key} className="onboarding-control-row">
+                      <span className="control-label">{control.label}</span>
+                      <div className="control-toggle">
+                        {(["yes", "no", "unsure"] as const).map((opt) => (
+                          <button
+                            key={opt}
+                            type="button"
+                            className={`control-option${val === opt ? " selected" : ""}`}
+                            onClick={() => setControlValue(control.key, opt)}
+                          >
+                            {opt === "yes" ? "Yes" : opt === "no" ? "No" : "?"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        );
+      }
+      case 7:
+        return (
+          <div className="onboarding-step">
+            <h2>Cloud & SaaS Providers</h2>
+            <p className="step-description">
+              Select cloud platforms and SaaS tools your organization uses. This helps match CVEs to your stack.
+            </p>
+            <div className="onboarding-checklist">
+              {CLOUD_PROVIDERS.map((provider) => (
+                <label key={provider} className="onboarding-check-item">
+                  <input
+                    type="checkbox"
+                    checked={form.cloud_providers.includes(provider)}
+                    onChange={() => toggleListItem("cloud_providers", provider)}
+                  />
+                  {provider}
+                </label>
+              ))}
+            </div>
+          </div>
+        );
+      case 8:
+        return (
+          <div className="onboarding-step">
+            <h2>Compliance Frameworks</h2>
+            <p className="step-description">
+              Which compliance frameworks does your organization track? We'll flag gaps based on your industry and data.
+            </p>
+            <div className="onboarding-checklist">
+              {COMPLIANCE_FRAMEWORKS.map((fw) => (
+                <label key={fw} className="onboarding-check-item">
+                  <input
+                    type="checkbox"
+                    checked={form.compliance_frameworks.includes(fw)}
+                    onChange={() => toggleListItem("compliance_frameworks", fw)}
+                  />
+                  {fw}
+                </label>
+              ))}
+            </div>
+          </div>
+        );
+      case 9:
+        return (
+          <div className="onboarding-step">
+            <h2>Data Types Handled</h2>
+            <p className="step-description">
+              What kinds of sensitive data does your organization handle? This drives regulatory exposure analysis.
+            </p>
+            <div className="onboarding-checklist">
+              {DATA_TYPES.map((dt) => (
+                <label key={dt} className="onboarding-check-item">
+                  <input
+                    type="checkbox"
+                    checked={form.data_types.includes(dt)}
+                    onChange={() => toggleListItem("data_types", dt)}
+                  />
+                  {dt}
+                </label>
+              ))}
+            </div>
+          </div>
+        );
       default:
         return null;
     }
@@ -312,14 +482,14 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
           </button>
         </div>
 
-        {step === 5 && !form.revenue_range && (
+        {step >= 5 && step < TOTAL_STEPS && (
           <button
             type="button"
             className="onboarding-skip-btn"
             onClick={handleSubmit}
             disabled={submitting}
           >
-            Skip and finish
+            Skip remaining and finish
           </button>
         )}
       </div>

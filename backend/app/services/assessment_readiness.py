@@ -24,6 +24,9 @@ _NEXT_STEP_MAP: dict[str, str] = {
     "employee_range": "Set your employee range during onboarding or in Settings.",
     "vendors": "Add at least one vendor in Settings > Technology Stack.",
     "domains": "Add at least one domain in Settings > Organization Domains.",
+    "security_controls": "Complete the security controls checklist in Settings > Security Profile.",
+    "compliance_frameworks": "Select your compliance frameworks in Settings > Security Profile.",
+    "data_types": "Specify data types your organization handles in Settings > Security Profile.",
     "revenue": "Provide your revenue range for more accurate loss projections.",
     "uploads": "Upload at least one supporting document in Settings > File Uploads.",
 }
@@ -38,6 +41,17 @@ async def evaluate_readiness(
     org_id = org.id
 
     vendor_count, domain_count, upload_count = await _fetch_counts(session, org_id)
+
+    # Security profile completeness checks
+    has_controls = bool(org.security_controls and any(
+        v in ("yes", "no", "unsure") for v in org.security_controls.values()
+    ))
+    controls_answered = sum(
+        1 for v in (org.security_controls or {}).values() if v in ("yes", "no", "unsure")
+    )
+
+    has_compliance = bool(org.compliance_frameworks and len(org.compliance_frameworks) > 0)
+    has_data_types = bool(org.data_types and len(org.data_types) > 0)
 
     items: list[ReadinessItem] = [
         ReadinessItem(
@@ -81,6 +95,27 @@ async def evaluate_readiness(
             complete=domain_count >= 1,
             required=True,
             detail=f"{domain_count} domain(s) registered",
+        ),
+        ReadinessItem(
+            key="security_controls",
+            label="Security controls checklist",
+            complete=has_controls,
+            required=False,
+            detail=f"{controls_answered} control(s) answered" if has_controls else "Not started",
+        ),
+        ReadinessItem(
+            key="compliance_frameworks",
+            label="Compliance frameworks",
+            complete=has_compliance,
+            required=False,
+            detail=", ".join(org.compliance_frameworks[:3]) if has_compliance else "Not set",
+        ),
+        ReadinessItem(
+            key="data_types",
+            label="Data types handled",
+            complete=has_data_types,
+            required=False,
+            detail=f"{len(org.data_types)} type(s)" if has_data_types else "Not set",
         ),
         ReadinessItem(
             key="revenue",

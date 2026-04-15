@@ -13,6 +13,12 @@ export interface OrganizationProfile {
   revenue_range: string | null;
   logo_url: string | null;
   primary_domain: string | null;
+  security_controls: Record<string, string> | null;
+  cloud_providers: string[] | null;
+  compliance_frameworks: string[] | null;
+  data_types: string[] | null;
+  device_count_range: string | null;
+  incident_history: string | null;
 }
 
 interface UserContextType {
