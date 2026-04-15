@@ -81,6 +81,17 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     CENSUS_API_KEY: str = ""
     BEA_API_KEY: str = ""
 
+    # Domain intelligence
+    HIBP_API_KEY: str = ""  # Have I Been Pwned domain search (paid, optional)
+    SHODAN_API_KEY: str = ""  # Shodan host lookup — 100 free credits/month
+    OTX_API_KEY: str = ""  # AlienVault OTX threat intel (free registration)
+
+    # AI / LLM
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+    AI_SUMMARY_ENABLED: bool = True
+    AI_SUMMARY_CACHE_TTL: int = 3600  # seconds (1 hour)
+
     # Ingestion
     FORCE_SEED: bool = False
 

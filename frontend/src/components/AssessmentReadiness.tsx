@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   fetchAssessmentReadiness,
   type AssessmentReadiness,
@@ -18,19 +18,28 @@ const TIER_CLASS: Record<string, string> = {
   minimal: "readiness-tier--minimal",
 };
 
-const SETTINGS_ANCHOR: Record<string, string> = {
-  org_name: "/settings",
-  industry: "/settings",
-  state: "/settings",
-  employee_range: "/settings",
-  vendors: "/settings",
-  domains: "/settings",
-  revenue: "/settings",
-  uploads: "/settings",
+// Maps readiness key → section element ID on /org-profile (for scroll-to behavior)
+const SETTINGS_SECTION_ID: Record<string, string> = {
+  vendors: "section-vendors",
+  domains: "section-domains",
+  uploads: "section-uploads",
+  security_controls: "section-security-profile",
+  compliance_frameworks: "section-security-profile",
+  data_types: "section-security-profile",
 };
+
+function handleFix(key: string, navigate: ReturnType<typeof useNavigate>, location: { pathname: string }) {
+  const sectionId = SETTINGS_SECTION_ID[key];
+  if (location.pathname === "/org-profile" && sectionId) {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  } else {
+    navigate("/org-profile", { state: { scrollTo: sectionId } });
+  }
+}
 
 export default function AssessmentReadinessWidget() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [data, setData] = useState<AssessmentReadiness | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -94,10 +103,10 @@ export default function AssessmentReadinessWidget() {
             </span>
             <span className="readiness-label">{item.label}</span>
             <span className="readiness-detail">{item.detail}</span>
-            {!item.complete && SETTINGS_ANCHOR[item.key] && (
+            {!item.complete && SETTINGS_SECTION_ID[item.key] && (
               <button
                 className="readiness-fix-btn"
-                onClick={() => navigate(SETTINGS_ANCHOR[item.key])}
+                onClick={() => handleFix(item.key, navigate, location)}
               >
                 Fix
               </button>
@@ -118,10 +127,10 @@ export default function AssessmentReadinessWidget() {
               </span>
               <span className="readiness-label">{item.label}</span>
               <span className="readiness-detail">{item.detail}</span>
-              {!item.complete && SETTINGS_ANCHOR[item.key] && (
+              {!item.complete && SETTINGS_SECTION_ID[item.key] && (
                 <button
                   className="readiness-fix-btn"
-                  onClick={() => navigate(SETTINGS_ANCHOR[item.key])}
+                  onClick={() => handleFix(item.key, navigate, location)}
                 >
                   Fix
                 </button>

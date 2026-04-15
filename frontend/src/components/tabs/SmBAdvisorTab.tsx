@@ -797,8 +797,8 @@ const SmBAdvisorTab: React.FC = () => {
         {!loading && (
           <p className="smb-profile-hint" style={{ marginTop: 6 }}>
             💡 Set your industry and state in{' '}
-            <Link to="/settings" style={{ color: 'var(--accent, #3b82f6)', textDecoration: 'underline' }}>
-              Organization Settings
+            <Link to="/org-profile" style={{ color: 'var(--accent, #3b82f6)', textDecoration: 'underline' }}>
+              Organization Profile
             </Link>{' '}
             so your risk score is always pre-calculated against your actual profile.
           </p>

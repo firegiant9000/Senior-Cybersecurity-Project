@@ -6,18 +6,24 @@ const IC3Table = lazy(() => import('./IC3Table'));
 const EconomicsTable = lazy(() => import('./EconomicsTable'));
 const CisaKevTable = lazy(() => import('./CisaKevTable'));
 const NvdTable = lazy(() => import('./NvdTable'));
+const DomainIntelTable = lazy(() => import('./DomainIntelTable'));
 
-type SubTab = 'ic3' | 'economics' | 'cisa' | 'nvd';
+type SubTab = 'ic3' | 'economics' | 'cisa' | 'nvd' | 'domainIntel';
 
 const SUB_TABS: { id: SubTab; label: string; description: string }[] = [
+  { id: 'domainIntel', label: 'Domain Intelligence', description: 'Real-time reconnaissance: DNS, SSL, HTTP headers, tech fingerprinting, Shodan, OTX, HIBP, crt.sh, and MITRE ATT&CK enrichment' },
   { id: 'ic3',       label: 'IC3 Incidents',  description: 'FBI Internet Crime Complaint Center data' },
   { id: 'economics', label: 'Economics',       description: 'SMB economic indicators by state' },
   { id: 'cisa',      label: 'CISA KEV',        description: 'Known Exploited Vulnerabilities catalog' },
   { id: 'nvd',       label: 'NVD CVEs',        description: 'National Vulnerability Database' },
 ];
 
-const DataSourcesTab: React.FC = () => {
-  const [active, setActive] = useState<SubTab>('ic3');
+interface DataSourcesTabProps {
+  onNavigateToFindings?: () => void;
+}
+
+const DataSourcesTab: React.FC<DataSourcesTabProps> = ({ onNavigateToFindings }) => {
+  const [active, setActive] = useState<SubTab>('domainIntel');
   const current = SUB_TABS.find(t => t.id === active)!;
 
   return (
@@ -68,10 +74,11 @@ const DataSourcesTab: React.FC = () => {
 
       {/* Content */}
       <Suspense fallback={<WidgetSkeleton />}>
-        {active === 'ic3'       && <IC3Table       apiBaseUrl={API_BASE_URL} />}
-        {active === 'economics' && <EconomicsTable  apiBaseUrl={API_BASE_URL} />}
-        {active === 'cisa'      && <CisaKevTable    apiBaseUrl={API_BASE_URL} />}
-        {active === 'nvd'       && <NvdTable        apiBaseUrl={API_BASE_URL} />}
+        {active === 'domainIntel' && <DomainIntelTable onNavigateToFindings={onNavigateToFindings} />}
+        {active === 'ic3'         && <IC3Table       apiBaseUrl={API_BASE_URL} />}
+        {active === 'economics'   && <EconomicsTable  apiBaseUrl={API_BASE_URL} />}
+        {active === 'cisa'        && <CisaKevTable    apiBaseUrl={API_BASE_URL} />}
+        {active === 'nvd'         && <NvdTable        apiBaseUrl={API_BASE_URL} />}
       </Suspense>
     </div>
   );
