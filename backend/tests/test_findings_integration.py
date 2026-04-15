@@ -9,13 +9,13 @@ and error paths behave properly.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.schemas.findings import Finding, FindingsReport, FindingsSummary
 from app.schemas.ai_summary import AISummaryResponse
+from app.schemas.findings import Finding, FindingsReport, FindingsSummary
 from app.services.domain_checks import (
     CrtShResult,
     DnsCheckResult,
@@ -27,7 +27,6 @@ from app.services.domain_checks import (
     TechFingerprintResult,
 )
 from app.services.findings_engine import FindingsEngine
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -94,7 +93,7 @@ def _readiness_items_all_complete():
         ("vendors", "Vendors"),
         ("domains", "Domains"),
     ]
-    return [_ReadinessItem(key=k, label=l, complete=True, required=True) for k, l in keys]
+    return [_ReadinessItem(key=k, label=lbl, complete=True, required=True) for k, lbl in keys]
 
 
 def _good_readiness(tier="good", readiness_pct=100):
@@ -157,7 +156,7 @@ def _http_missing_headers():
 def _ssl_ok():
     return SslCheckResult(
         domain="acme.com", reachable=True, issuer="Let's Encrypt",
-        expiry=datetime(2025, 6, 1, tzinfo=timezone.utc), days_until_expiry=90,
+        expiry=datetime(2025, 6, 1, tzinfo=UTC), days_until_expiry=90,
         self_signed=False, tls_version="TLSv1.3", error=None,
     )
 
@@ -165,7 +164,7 @@ def _ssl_ok():
 def _ssl_expiring():
     return SslCheckResult(
         domain="acme.com", reachable=True, issuer="Let's Encrypt",
-        expiry=datetime(2024, 5, 1, tzinfo=timezone.utc), days_until_expiry=10,
+        expiry=datetime(2024, 5, 1, tzinfo=UTC), days_until_expiry=10,
         self_signed=False, tls_version="TLSv1.2", error=None,
     )
 

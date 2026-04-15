@@ -143,7 +143,6 @@ def _build_fallback(org: Organization, report: FindingsReport, risk_score: float
     industry = org.industry_label or "your industry"
     size = org.employee_range or "unknown size"
     critical_count = report.summary.by_severity.get("critical", 0)
-    high_count = report.summary.by_severity.get("high", 0)
     total = report.summary.total
 
     threat_findings = [
@@ -221,14 +220,28 @@ async def _call_gemini(prompt: str) -> str:
 
 async def _get_feedback_meta(db: AsyncSession, org_id: int) -> str | None:
     """Aggregate recent feedback to inject as a meta-instruction in the prompt."""
-    from sqlalchemy import func as sa_func, select
+    from sqlalchemy import func as sa_func
+    from sqlalchemy import select
 
     from app.db.ai_summary_feedback import AISummaryFeedback
 
-    result = await db.execute(
+    # Overall average rating (ungrouped)
+    overall = await db.execute(
         select(
             sa_func.avg(AISummaryFeedback.rating).label("avg_rating"),
             sa_func.count().label("total"),
+        ).where(AISummaryFeedback.org_id == org_id)
+    )
+    overall_row = overall.one()
+    total = int(overall_row.total or 0)
+    if total < 2:
+        return None  # not enough feedback to guide the model
+
+    avg_rating = float(overall_row.avg_rating or 3.0)
+
+    # Top flags by frequency
+    flag_result = await db.execute(
+        select(
             AISummaryFeedback.flag,
             sa_func.count().label("flag_count"),
         )
@@ -237,16 +250,8 @@ async def _get_feedback_meta(db: AsyncSession, org_id: int) -> str | None:
         .order_by(sa_func.count().desc())
         .limit(3)
     )
-    rows = result.all()
-    if not rows:
-        return None
-
-    total = sum(r.flag_count for r in rows)
-    if total < 2:
-        return None  # not enough feedback to guide the model
-
-    avg_rating = rows[0].avg_rating or 3.0
-    top_flags = [r.flag for r in rows[:2]]
+    flag_rows = flag_result.all()
+    top_flags = [r.flag for r in flag_rows[:2]]
 
     hints: list[str] = []
     if avg_rating < 3.0:

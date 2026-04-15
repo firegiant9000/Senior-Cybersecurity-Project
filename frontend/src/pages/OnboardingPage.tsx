@@ -332,7 +332,7 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
             <h2>Security Controls</h2>
             <p className="step-description">
               Tell us which security controls are in place. This enables CIS IG1 baseline scoring.
-              You can update these later in Settings.
+              You can update these later in Organization Profile.
             </p>
             {categories.map((cat) => (
               <div key={cat} className="onboarding-control-group">

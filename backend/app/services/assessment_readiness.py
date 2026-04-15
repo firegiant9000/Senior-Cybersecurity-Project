@@ -24,9 +24,9 @@ _NEXT_STEP_MAP: dict[str, str] = {
     "employee_range": "Set your employee range during onboarding or in Settings.",
     "vendors": "Add at least one vendor in Settings > Technology Stack.",
     "domains": "Add at least one domain in Settings > Organization Domains.",
-    "security_controls": "Complete the security controls checklist in Settings > Security Profile.",
-    "compliance_frameworks": "Select your compliance frameworks in Settings > Security Profile.",
-    "data_types": "Specify data types your organization handles in Settings > Security Profile.",
+    "security_controls": "Complete the security controls checklist in Organization Profile.",
+    "compliance_frameworks": "Select your compliance frameworks in Organization Profile.",
+    "data_types": "Specify data types your organization handles in Organization Profile.",
     "revenue": "Provide your revenue range for more accurate loss projections.",
     "uploads": "Upload at least one supporting document in Settings > File Uploads.",
 }

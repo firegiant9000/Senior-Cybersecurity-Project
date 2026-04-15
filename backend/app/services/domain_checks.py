@@ -22,9 +22,8 @@ import logging
 import re
 import socket
 import ssl
-import time
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 from cachetools import TTLCache
@@ -132,7 +131,7 @@ class OtxResult:
 _COMMON_DKIM_SELECTORS = ["default", "google", "mail", "selector1", "selector2", "k1", "dkim"]
 
 
-async def check_dns(domain: str) -> DnsCheckResult:
+async def check_dns(domain: str) -> DnsCheckResult:  # noqa: C901
     """Query DNS TXT records for SPF, DMARC, and common DKIM selectors."""
     result = DnsCheckResult(domain=domain)
     try:
@@ -183,7 +182,7 @@ async def check_dns(domain: str) -> DnsCheckResult:
 
     except ImportError:
         result.error = "dnspython not installed"
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         result.error = str(exc)
 
     return result
@@ -228,7 +227,7 @@ async def check_http_headers(domain: str) -> HttpHeaderResult:
             return result
         except httpx.RequestError:
             continue
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             # Log but continue to HTTP fallback instead of returning early
             logger.debug("Non-request error on %s://%s: %s", scheme, domain, exc)
             continue
@@ -260,7 +259,7 @@ async def check_ssl(domain: str) -> SslCheckResult:
                         not_after = cert.get("notAfter")
                         if not_after:
                             expiry_dt = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z").replace(
-                                tzinfo=timezone.utc
+                                tzinfo=UTC
                             )
                             result.expiry = expiry_dt
                             result.days_until_expiry = (
@@ -285,11 +284,11 @@ async def check_ssl(domain: str) -> SslCheckResult:
                         result.reachable = True
                         result.tls_version = ssock.version()
                         result.self_signed = True
-            except Exception as inner:
+            except Exception as inner:  # noqa: BLE001
                 result.error = str(inner)
-        except (OSError, socket.timeout) as exc:
+        except (TimeoutError, OSError) as exc:
             result.error = str(exc)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             result.error = str(exc)
         return result
 
@@ -393,7 +392,7 @@ _sig("HubSpot", ["Marketing"], body=[r"js\.hs-scripts\.com", r"hubspot\.com"])
 _sig("Salesforce", ["CRM"], body=[r"force\.com", r"salesforce\.com"])
 
 
-async def check_tech_fingerprint(domain: str) -> TechFingerprintResult:
+async def check_tech_fingerprint(domain: str) -> TechFingerprintResult:  # noqa: C901
     """Detect technologies from HTTP response headers, cookies, and HTML body."""
     result = TechFingerprintResult(domain=domain)
 
@@ -471,7 +470,7 @@ async def check_tech_fingerprint(domain: str) -> TechFingerprintResult:
             return result
         except httpx.RequestError:
             continue
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             # Log but continue to HTTP fallback instead of returning early
             logger.debug("Non-request error on %s://%s: %s", scheme, domain, exc)
             continue
@@ -511,7 +510,7 @@ async def check_crtsh(domain: str) -> CrtShResult:
                     seen.add(name)
 
         result.subdomains = sorted(seen)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         result.error = str(exc)
 
     return result
@@ -562,7 +561,7 @@ async def check_hibp(domain: str, api_key: str | None) -> HibpResult:
 
         result.breaches_found = len(data)
         result.breach_names = sorted(all_breach_names)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         result.error = str(exc)
 
     return result
@@ -585,7 +584,7 @@ async def run_tier1_checks(
     )
 
 
-async def check_shodan(domain: str, api_key: str | None) -> ShodanHostResult:
+async def check_shodan(domain: str, api_key: str | None) -> ShodanHostResult:  # noqa: C901
     """Query Shodan for open ports, detected CVEs, and service info on this domain's IP.
 
     Requires SHODAN_API_KEY (100 free query credits/month).
@@ -605,7 +604,7 @@ async def check_shodan(domain: str, api_key: str | None) -> ShodanHostResult:
         answers = await resolver.resolve(domain, "A")
         ip = str(answers[0])
         result.ip = ip
-    except Exception:
+    except Exception:  # noqa: BLE001
         result.error = "Could not resolve domain to IP"
         return result
 
@@ -652,7 +651,7 @@ async def check_shodan(domain: str, api_key: str | None) -> ShodanHostResult:
         result.services = services[:20]  # cap at 20 services
 
         _shodan_cache[ip] = result
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         result.error = str(exc)
 
     return result
@@ -702,7 +701,7 @@ async def check_otx(domain: str, api_key: str | None) -> OtxResult:
                 if tag and len(tag) <= 30 and " " not in tag:
                     malware_families.add(tag)
         result.malware_families = sorted(malware_families)[:15]
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         result.error = str(exc)
 
     return result
