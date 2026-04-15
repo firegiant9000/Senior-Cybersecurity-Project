@@ -16,10 +16,14 @@ const PipelineHealthTab = lazy(() => import('./components/tabs/PipelineHealthTab
 const SmBAdvisorTab = lazy(() => import('./components/tabs/SmBAdvisorTab'));
 const VendorAlertsTab = lazy(() => import('./components/tabs/VendorAlertsTab'));
 const DataSourcesTab = lazy(() => import('./components/tabs/DataSourcesTab'));
+const FindingsTab = lazy(() => import('./components/tabs/FindingsTab'));
+const AISummaryTab = lazy(() => import('./components/tabs/AISummaryTab'));
 
 const TABS: TabDef[] = [
     { id: 'smbAdvisor', label: 'SMB Risk Advisor' },
     { id: 'overview', label: 'Overview' },
+    { id: 'findings', label: 'Findings' },
+    { id: 'aiSummary', label: 'AI Summary' },
     { id: 'dataSources', label: 'Data Sources' },
     { id: 'riskScoring', label: 'Risk Scoring' },
     { id: 'threatIntel', label: 'Threat Intelligence' },
@@ -58,7 +62,9 @@ const Dashboard: React.FC = () => {
 
                 <Suspense fallback={<WidgetSkeleton />}>
                     {activeTab === 'smbAdvisor' && <SmBAdvisorTab />}
-                    {activeTab === 'dataSources' && <DataSourcesTab />}
+                    {activeTab === 'findings' && <FindingsTab />}
+                    {activeTab === 'aiSummary' && <AISummaryTab />}
+                    {activeTab === 'dataSources' && <DataSourcesTab onNavigateToFindings={() => setActiveTab('findings')} />}
                     {activeTab === 'riskScoring' && <RiskScoringTable apiBaseUrl={API_BASE_URL} />}
                     {activeTab === 'threatIntel' && <ThreatIntelTab />}
                     {activeTab === 'trends' && <TrendsTab />}

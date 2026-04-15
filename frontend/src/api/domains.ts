@@ -47,9 +47,12 @@ export async function addDomain(
   );
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({}));
-    throw new Error(
-      (body as { detail?: string }).detail ?? "Failed to add domain",
-    );
+    const detail = (body as { detail?: string | { msg: string }[] }).detail;
+    const message =
+      Array.isArray(detail)
+        ? detail.map((d) => d.msg).join("; ")
+        : detail ?? "Failed to add domain";
+    throw new Error(message);
   }
   return resp.json();
 }
