@@ -4,6 +4,7 @@ import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +18,10 @@ from app.db.user import User
 from app.repositories.organization import SqlOrganizationRepository, get_org_repo
 from app.schemas.assessment_readiness import AssessmentReadinessResponse
 from app.schemas.executive_summary import ExecutiveSummaryResponse
+from app.schemas.ai_summary import AISummaryResponse
+from app.schemas.ai_summary_feedback import FeedbackCreate, FeedbackResponse
+from app.schemas.findings import FindingsReport
+from app.schemas.findings_snapshot import SnapshotDetail, SnapshotListItem, SnapshotListResponse
 from app.schemas.loss_projection import LossProjectionResponse
 from app.schemas.organization import (
     OrganizationCreate,
@@ -28,6 +33,8 @@ from app.schemas.smb_risk_score import RiskScoreResponse
 from app.schemas.vendor_alert import VendorAlertsResponse
 from app.services.assessment_readiness import evaluate_readiness
 from app.services.executive_summary import ExecutiveSummaryService
+from app.services.ai_summary import AISummaryService
+from app.services.findings_engine import FindingsEngine
 from app.services.loss_projection import LossProjectionService
 from app.services.risk_scoring import calculate_smb_risk_score
 from app.services.vendor_alerts import VendorAlertService
@@ -161,6 +168,210 @@ async def get_vendor_alerts(
     except SQLAlchemyError:
         logger.exception("Failed to fetch vendor alerts for org %s", org.id)
         raise HTTPException(status_code=500, detail="Failed to fetch vendor alerts")
+
+
+@router.get("/mine/findings", response_model=FindingsReport)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def get_findings(
+    request: Request,  # noqa: ARG001
+    current_user: User = Depends(get_current_user),  # noqa: ARG001
+    org: Organization = Depends(get_current_org),
+    db: AsyncSession = Depends(get_session),
+):
+    """Return a structured findings report for the current org.
+
+    Synthesizes risk score, vendor CVE matches, assessment readiness, and
+    domain reconnaissance (DNS/HTTP/SSL/crt.sh) into categorized findings.
+    Requires at least the 'good' readiness tier (all required profile fields set).
+    """
+    readiness = await evaluate_readiness(org, db)
+    if readiness.tier == "minimal":
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Your organization profile is incomplete. "
+                "Please complete all required fields before viewing findings."
+            ),
+        )
+    try:
+        return await FindingsEngine(db).build(org, persist=True)
+    except Exception:
+        logger.exception("Failed to build findings report for org %s", org.id)
+        raise HTTPException(status_code=500, detail="Failed to build findings report")
+
+
+@router.get("/mine/ai-summary", response_model=AISummaryResponse)
+@limiter.limit("5/minute")
+async def get_ai_summary(
+    request: Request,  # noqa: ARG001
+    current_user: User = Depends(get_current_user),  # noqa: ARG001
+    org: Organization = Depends(get_current_org),
+    db: AsyncSession = Depends(get_session),
+):
+    """Return an AI-generated executive summary for the current org.
+
+    Uses Google Gemini to synthesize findings into a plain-language narrative.
+    Falls back to a template-based summary if Gemini is unavailable or disabled.
+    Responses are cached per org for AI_SUMMARY_CACHE_TTL seconds (default 1 hour).
+    """
+    if not settings.AI_SUMMARY_ENABLED:
+        raise HTTPException(status_code=503, detail="AI summary is currently disabled.")
+    readiness = await evaluate_readiness(org, db)
+    if readiness.tier == "minimal":
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Your organization profile is incomplete. "
+                "Please complete all required fields before generating an AI summary."
+            ),
+        )
+    try:
+        return await AISummaryService(db).build(org)
+    except Exception:
+        logger.exception("Failed to build AI summary for org %s", org.id)
+        raise HTTPException(status_code=500, detail="Failed to generate AI summary")
+
+
+@router.post("/mine/ai-summary/feedback", response_model=FeedbackResponse, status_code=201)
+@limiter.limit("10/minute")
+async def submit_ai_summary_feedback(
+    request: Request,  # noqa: ARG001
+    body: FeedbackCreate,
+    current_user: User = Depends(get_current_user),
+    org: Organization = Depends(get_current_org),
+    db: AsyncSession = Depends(get_session),
+):
+    """Submit feedback on an AI-generated summary. One per user per day."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.db.ai_summary_feedback import AISummaryFeedback
+
+    # Check for existing feedback from this user today
+    today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    existing = await db.execute(
+        select(AISummaryFeedback).where(
+            AISummaryFeedback.user_id == current_user.id,
+            AISummaryFeedback.org_id == org.id,
+            AISummaryFeedback.created_at >= today_start,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Feedback already submitted today")
+
+    # Find the most recent snapshot for this org to link the feedback
+    from app.db.findings_snapshot import FindingsSnapshot
+
+    snap_result = await db.execute(
+        select(FindingsSnapshot.id)
+        .where(FindingsSnapshot.org_id == org.id)
+        .order_by(FindingsSnapshot.generated_at.desc())
+        .limit(1)
+    )
+    snap_id = snap_result.scalar_one_or_none()
+
+    feedback = AISummaryFeedback(
+        org_id=org.id,
+        user_id=current_user.id,
+        rating=body.rating,
+        flag=body.flag,
+        comment=body.comment,
+        summary_snapshot_id=snap_id,
+    )
+    db.add(feedback)
+    await db.commit()
+    await db.refresh(feedback)
+
+    return FeedbackResponse(
+        id=feedback.id,
+        rating=feedback.rating,
+        flag=feedback.flag,
+        comment=feedback.comment,
+        created_at=feedback.created_at.isoformat(),
+    )
+
+
+@router.get("/mine/findings/history", response_model=SnapshotListResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def get_findings_history(
+    request: Request,  # noqa: ARG001
+    limit: Annotated[int, Query(ge=1, le=50)] = 10,
+    current_user: User = Depends(get_current_user),  # noqa: ARG001
+    org: Organization = Depends(get_current_org),
+    db: AsyncSession = Depends(get_session),
+):
+    """Return a list of recent findings snapshots for trend tracking."""
+    from sqlalchemy import func as sa_func
+
+    from app.db.findings_snapshot import FindingsSnapshot
+
+    try:
+        count_result = await db.execute(
+            select(sa_func.count()).where(FindingsSnapshot.org_id == org.id)
+        )
+        total = count_result.scalar() or 0
+
+        result = await db.execute(
+            select(FindingsSnapshot)
+            .where(FindingsSnapshot.org_id == org.id)
+            .order_by(FindingsSnapshot.generated_at.desc())
+            .limit(limit)
+        )
+        snapshots = result.scalars().all()
+    except SQLAlchemyError:
+        logger.exception("Failed to fetch findings history for org %s", org.id)
+        raise HTTPException(status_code=500, detail="Failed to fetch findings history")
+
+    return SnapshotListResponse(
+        items=[
+            SnapshotListItem(
+                id=s.id,
+                generated_at=s.generated_at.isoformat(),
+                assessment_tier=s.assessment_tier,
+                summary=s.summary,
+                data_sources_used=s.data_sources_used,
+            )
+            for s in snapshots
+        ],
+        total=total,
+    )
+
+
+@router.get("/mine/findings/history/{snapshot_id}", response_model=SnapshotDetail)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def get_findings_snapshot(
+    request: Request,  # noqa: ARG001
+    snapshot_id: int,
+    current_user: User = Depends(get_current_user),  # noqa: ARG001
+    org: Organization = Depends(get_current_org),
+    db: AsyncSession = Depends(get_session),
+):
+    """Return a single findings snapshot with full finding details."""
+    from app.db.findings_snapshot import FindingsSnapshot
+
+    try:
+        result = await db.execute(
+            select(FindingsSnapshot).where(
+                FindingsSnapshot.id == snapshot_id,
+                FindingsSnapshot.org_id == org.id,
+            )
+        )
+        snapshot = result.scalar_one_or_none()
+    except SQLAlchemyError:
+        logger.exception("Failed to fetch snapshot %s", snapshot_id)
+        raise HTTPException(status_code=500, detail="Failed to fetch snapshot")
+
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="Snapshot not found")
+
+    return SnapshotDetail(
+        id=snapshot.id,
+        org_id=snapshot.org_id,
+        generated_at=snapshot.generated_at.isoformat(),
+        assessment_tier=snapshot.assessment_tier,
+        findings=snapshot.findings,
+        summary=snapshot.summary,
+        data_sources_used=snapshot.data_sources_used,
+    )
 
 
 @router.get("/{org_id}", response_model=OrganizationRead)
