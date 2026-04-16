@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import './OverviewTab.css';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList,
@@ -13,6 +13,7 @@ import CyberRisksTiles from '../charts/CyberRisksTiles';
 import WidgetErrorBoundary from '../shared/WidgetErrorBoundary';
 import SectorAttackHeatmap from '../charts/SectorAttackHeatmap';
 import DataFreshness from '../shared/DataFreshness';
+import { formatDateWithTz, formatTimeWithTz } from '../../utils/formatTime';
 import ExecutiveSummaryCard from './ExecutiveSummaryCard';
 import VendorAlertsCard from '../shared/VendorAlertsCard';
 import type { DashboardData } from '../../hooks/useDashboardData';
@@ -29,6 +30,9 @@ function truncate(str: string, max = 22): string {
   return str.length > max ? str.slice(0, max) + '…' : str;
 }
 
+import { fetchIngestFreshness } from '../../api/ingest';
+import { useAuth } from '../../context/AuthContext';
+import { canSeePipeline as checkCanSeePipeline } from '../../utils/roleUtils';
 import type { AttackTypeStats, IndustryRiskProfile } from '../../api/dashboardSummary';
 import WidgetSkeleton from '../shared/WidgetSkeleton';
 import AssessmentBanner from '../shared/AssessmentBanner';
@@ -183,6 +187,26 @@ const OverviewTab: React.FC<Props> = ({
     lastUpdated,
     onRefresh: refresh,
 }) => {
+    const { role, orgRole } = useAuth();
+    const pipelineVisible = checkCanSeePipeline(role, orgRole);
+    const [lastIngestAt, setLastIngestAt] = useState<string | null>(null);
+    const [freshnessRevision, setFreshnessRevision] = useState(0);
+
+    useEffect(() => {
+        if (pipelineVisible) return;
+        const controller = new AbortController();
+        fetchIngestFreshness(controller.signal)
+            .then((r) => {
+                const dates = r.sources.map((s) => s.last_run_at).filter(Boolean) as string[];
+                if (dates.length > 0) {
+                    const latest = dates.reduce((a, b) => (a > b ? a : b));
+                    setLastIngestAt(latest);
+                }
+            })
+            .catch(() => { /* non-fatal */ });
+        return () => controller.abort();
+    }, [pipelineVisible, freshnessRevision]);
+
     const sortedTrends = useMemo(
         () => [...dashboardData.temporalTrends].sort((a, b) => b.year - a.year),
         [dashboardData.temporalTrends]
@@ -216,12 +240,17 @@ const OverviewTab: React.FC<Props> = ({
             {/* Toolbar */}
             <div className="overview-toolbar">
                 <DataFreshness />
-                <button className="overview-refresh-btn" onClick={refresh}>
+                <button className="overview-refresh-btn" onClick={() => { refresh(); setFreshnessRevision((r) => r + 1); }}>
                     ↻ Refresh
                 </button>
                 {lastUpdated && (
                     <span className="overview-last-updated">
-                        Updated {lastUpdated.toLocaleTimeString()}
+                        Updated {formatTimeWithTz(lastUpdated)}
+                    </span>
+                )}
+                {!pipelineVisible && lastIngestAt && (
+                    <span className="overview-last-updated" style={{ marginLeft: 'auto' }}>
+                        Data last refreshed: {formatDateWithTz(lastIngestAt)}
                     </span>
                 )}
             </div>

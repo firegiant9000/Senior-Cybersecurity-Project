@@ -1415,3 +1415,20 @@
 }
 
 /* SMB Risk Advisor Tab → components/tabs/SmBAdvisorTab.css */
+
+
+.org-join-cta {
+    background: var(--color-surface, #f0f4ff);
+    border: 1px solid var(--color-border, #c7d4f0);
+    border-radius: 6px;
+    padding: 10px 16px;
+    margin: 12px 0 4px;
+    font-size: 0.9rem;
+    color: var(--color-text-secondary, #555);
+}
+
+.org-join-cta a {
+    color: var(--color-accent, #3b6fd4);
+    font-weight: 500;
+    text-decoration: underline;
+}

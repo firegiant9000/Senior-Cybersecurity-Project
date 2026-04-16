@@ -223,25 +223,30 @@ def _check_duplicate_vendors(
     vendors: list[OrgVendor],
     result: _ValidationResult,
 ) -> None:
-    names = [v.vendor_name for v in vendors]
+    # Key on (vendor_name, product_name) so the same vendor with different products is not flagged.
+    def _vendor_key(v: OrgVendor) -> str:
+        product = (v.product_name or "").strip()
+        return f"{v.vendor_name.strip()}|{product}"
+
+    keys = [_vendor_key(v) for v in vendors]
 
     # Case-duplicate check
     seen: dict[str, str] = {}
-    for name in names:
-        lower = name.lower()
-        if lower in seen and seen[lower] != name:
+    for key in keys:
+        lower = key.lower()
+        if lower in seen and seen[lower] != key:
             result.add(
                 "duplicate",
                 "warning",
                 "vendors",
-                f'Possible duplicate vendors: "{seen[lower]}" and "{name}" differ only in casing.',
+                f'Possible duplicate vendor entry: "{seen[lower].replace("|", " / ")}" and "{key.replace("|", " / ")}" differ only in casing.',
                 "Remove the duplicate or standardize casing.",
             )
         else:
-            seen[lower] = name
+            seen[lower] = key
 
     # Near-duplicate check (Levenshtein-like via difflib, skip pairs already flagged as case-dupes)
-    lowered = [n.lower() for n in names]
+    lowered = [k.lower() for k in keys]
     reported: set[frozenset[str]] = set()
     for i in range(len(lowered)):
         for j in range(i + 1, len(lowered)):
@@ -251,18 +256,20 @@ def _check_duplicate_vendors(
             pair = frozenset({a, b})
             if pair in reported:
                 continue
-            # Skip pairs with large length difference — quick exit
-            if abs(len(a) - len(b)) > 3:
+            # Compare only the vendor name portion for near-duplicate detection
+            a_vendor = a.split("|")[0]
+            b_vendor = b.split("|")[0]
+            if abs(len(a_vendor) - len(b_vendor)) > 3:
                 continue
-            ratio = difflib.SequenceMatcher(None, a, b).ratio()
+            ratio = difflib.SequenceMatcher(None, a_vendor, b_vendor).ratio()
             # ratio > 0.85 with length ≥ 3 catches most 1-2 char edits
-            if ratio > 0.85 and len(a) >= 3:
+            if ratio > 0.85 and len(a_vendor) >= 3:
                 reported.add(pair)
                 result.add(
                     "duplicate",
                     "warning",
                     "vendors",
-                    f'Possibly similar vendors: "{names[i]}" and "{names[j]}".',
+                    f'Possibly similar vendors: "{keys[i].replace("|", " / ")}" and "{keys[j].replace("|", " / ")}".',
                     "Review and remove duplicates to keep your stack accurate.",
                 )
 
