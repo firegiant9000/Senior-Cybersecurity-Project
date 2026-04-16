@@ -49,9 +49,7 @@ def _ensure_ingest_run_columns(connection: Connection) -> None:
     }
     for col_name, col_def in additions.items():
         if col_name not in existing:
-            connection.execute(
-                text(f"ALTER TABLE ingest_runs ADD COLUMN {col_name} {col_def}")
-            )
+            connection.execute(text(f"ALTER TABLE ingest_runs ADD COLUMN {col_name} {col_def}"))
             logger.info("Added column ingest_runs.%s", col_name)
 
 

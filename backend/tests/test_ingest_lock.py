@@ -16,6 +16,7 @@ from app.services.ingest_lock import (
 
 # ── _lock_key ──────────────────────────────────────────────────────────────────
 
+
 def test_lock_key_known_sources():
     assert _lock_key("nvd") == 0x696E6765_73744E56
     assert _lock_key("cisa_kev") == 0x696E6765_73744B45
@@ -29,6 +30,7 @@ def test_lock_key_unknown_source_is_stable():
 
 
 # ── try_acquire_lock ───────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_acquire_lock_success():
@@ -54,6 +56,7 @@ async def test_acquire_lock_contention():
 
 # ── release_lock ───────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_release_lock_calls_unlock():
     session = AsyncMock()
@@ -63,6 +66,7 @@ async def test_release_lock_calls_unlock():
 
 
 # ── expire_stale_runs ──────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_expire_stale_runs_marks_failed():
