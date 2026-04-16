@@ -4,8 +4,8 @@ from pydantic import BaseModel
 
 
 class ValidationIssueResponse(BaseModel):
-    category: str       # "missing_field" | "duplicate" | "invalid_format" | "conflict" | "quality"
-    severity: str       # "error" | "warning" | "info"
+    category: str  # "missing_field" | "duplicate" | "invalid_format" | "conflict" | "quality"
+    severity: str  # "error" | "warning" | "info"
     field: str
     message: str
     suggestion: str | None = None

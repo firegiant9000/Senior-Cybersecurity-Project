@@ -27,8 +27,10 @@ def test_jobs_added_when_enabled(mock_scheduler):
         "ic3": "",
         "economics": "",
     }
-    with patch("app.workers.scheduler.settings") as mock_settings, \
-         patch("app.workers.scheduler._SOURCE_SCHEDULE_MAP", source_map):
+    with (
+        patch("app.workers.scheduler.settings") as mock_settings,
+        patch("app.workers.scheduler._SOURCE_SCHEDULE_MAP", source_map),
+    ):
         mock_settings.SCHEDULER_ENABLED = True
         init_scheduler()
 
@@ -40,8 +42,10 @@ def test_jobs_added_when_enabled(mock_scheduler):
 
 def test_empty_cron_skipped(mock_scheduler):
     source_map = {"nvd": "", "cisa_kev": "", "ic3": "", "economics": ""}
-    with patch("app.workers.scheduler.settings") as mock_settings, \
-         patch("app.workers.scheduler._SOURCE_SCHEDULE_MAP", source_map):
+    with (
+        patch("app.workers.scheduler.settings") as mock_settings,
+        patch("app.workers.scheduler._SOURCE_SCHEDULE_MAP", source_map),
+    ):
         mock_settings.SCHEDULER_ENABLED = True
         init_scheduler()
     mock_scheduler.add_job.assert_not_called()
@@ -49,8 +53,10 @@ def test_empty_cron_skipped(mock_scheduler):
 
 def test_invalid_cron_skipped(mock_scheduler):
     source_map = {"nvd": "not-a-cron", "cisa_kev": "", "ic3": "", "economics": ""}
-    with patch("app.workers.scheduler.settings") as mock_settings, \
-         patch("app.workers.scheduler._SOURCE_SCHEDULE_MAP", source_map):
+    with (
+        patch("app.workers.scheduler.settings") as mock_settings,
+        patch("app.workers.scheduler._SOURCE_SCHEDULE_MAP", source_map),
+    ):
         mock_settings.SCHEDULER_ENABLED = True
         init_scheduler()
     mock_scheduler.add_job.assert_not_called()
