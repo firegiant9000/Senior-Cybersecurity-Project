@@ -95,6 +95,19 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     # Ingestion
     FORCE_SEED: bool = False
 
+    # Ingestion scheduling — cron expressions (standard 5-field format, empty = disabled)
+    # Examples: "0 */6 * * *" = every 6 hours, "0 2 * * 0" = weekly Sunday 2am
+    INGEST_SCHEDULE_NVD: str = ""
+    INGEST_SCHEDULE_KEV: str = ""
+    INGEST_SCHEDULE_IC3: str = ""
+    INGEST_SCHEDULE_ECONOMICS: str = ""
+    # Maximum seconds a run may be "running" before it is considered stale/timed-out
+    INGEST_LOCK_TIMEOUT_SECONDS: int = 3600
+    # Number of automatic retries on failure (exponential back-off: 30s, 120s)
+    INGEST_MAX_RETRIES: int = 2
+    # Set to False to disable the in-process scheduler (useful when running multiple instances)
+    SCHEDULER_ENABLED: bool = True
+
     # Rate limiting
     RATE_LIMIT_AUTH: str = "10/minute"
     RATE_LIMIT_DATA: str = "60/minute"
