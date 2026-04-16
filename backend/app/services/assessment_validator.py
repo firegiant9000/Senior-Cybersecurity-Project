@@ -97,17 +97,15 @@ async def _fetch_data(
     session: AsyncSession, org_id: int
 ) -> tuple[list[OrgVendor], list[OrgDomain], int]:
     vendor_rows = (
-        await session.execute(select(OrgVendor).where(OrgVendor.org_id == org_id))
-    ).scalars().all()
+        (await session.execute(select(OrgVendor).where(OrgVendor.org_id == org_id))).scalars().all()
+    )
 
     domain_rows = (
-        await session.execute(select(OrgDomain).where(OrgDomain.org_id == org_id))
-    ).scalars().all()
+        (await session.execute(select(OrgDomain).where(OrgDomain.org_id == org_id))).scalars().all()
+    )
 
     upload_count = (
-        await session.execute(
-            select(func.count(OrgUpload.id)).where(OrgUpload.org_id == org_id)
-        )
+        await session.execute(select(func.count(OrgUpload.id)).where(OrgUpload.org_id == org_id))
     ).scalar_one()
 
     return list(vendor_rows), list(domain_rows), int(upload_count or 0)
@@ -125,37 +123,49 @@ def _check_required_fields(
     """Check hard-required fields (errors)."""
     if not org.name or not org.name.strip():
         result.add(
-            "missing_field", "error", "org_name",
+            "missing_field",
+            "error",
+            "org_name",
             "Organization name is missing.",
             "Set your organization name in Settings > Company Profile.",
         )
     if not org.industry_label:
         result.add(
-            "missing_field", "error", "industry",
+            "missing_field",
+            "error",
+            "industry",
             "Industry is not set.",
             "Select your industry in Settings or during onboarding.",
         )
     if not org.primary_state:
         result.add(
-            "missing_field", "error", "primary_state",
+            "missing_field",
+            "error",
+            "primary_state",
             "Primary state is not set.",
             "Set your primary state in Settings or during onboarding.",
         )
     if not org.employee_range:
         result.add(
-            "missing_field", "error", "employee_range",
+            "missing_field",
+            "error",
+            "employee_range",
             "Employee range is not set.",
             "Set your employee range in Settings or during onboarding.",
         )
     if not vendors:
         result.add(
-            "missing_field", "error", "vendors",
+            "missing_field",
+            "error",
+            "vendors",
             "No vendors in your technology stack.",
             "Add at least one vendor in Settings > Technology Stack.",
         )
     if not domains:
         result.add(
-            "missing_field", "error", "domains",
+            "missing_field",
+            "error",
+            "domains",
             "No domains registered.",
             "Add at least one domain in Settings > Organization Domains.",
         )
@@ -165,7 +175,9 @@ def _check_optional_fields(org: Organization, result: _ValidationResult) -> None
     """Check optional fields (warnings/info)."""
     if not org.revenue_range:
         result.add(
-            "missing_field", "warning", "revenue_range",
+            "missing_field",
+            "warning",
+            "revenue_range",
             "Revenue range is not set.",
             "Provide your revenue range for more accurate loss projections.",
         )
@@ -173,19 +185,25 @@ def _check_optional_fields(org: Organization, result: _ValidationResult) -> None
     answered_controls = [v for v in controls.values() if v in ("yes", "no", "unsure")]
     if not answered_controls:
         result.add(
-            "missing_field", "warning", "security_controls",
+            "missing_field",
+            "warning",
+            "security_controls",
             "No security controls have been answered.",
             "Complete the security controls checklist in Organization Profile.",
         )
     if not org.compliance_frameworks:
         result.add(
-            "missing_field", "info", "compliance_frameworks",
+            "missing_field",
+            "info",
+            "compliance_frameworks",
             "No compliance frameworks selected.",
             "Select applicable compliance frameworks in Organization Profile.",
         )
     if not org.data_types:
         result.add(
-            "missing_field", "info", "data_types",
+            "missing_field",
+            "info",
+            "data_types",
             "No data types specified.",
             "Specify the types of data your organization handles in Organization Profile.",
         )
@@ -213,7 +231,9 @@ def _check_duplicate_vendors(
         lower = name.lower()
         if lower in seen and seen[lower] != name:
             result.add(
-                "duplicate", "warning", "vendors",
+                "duplicate",
+                "warning",
+                "vendors",
                 f'Possible duplicate vendors: "{seen[lower]}" and "{name}" differ only in casing.',
                 "Remove the duplicate or standardize casing.",
             )
@@ -239,7 +259,9 @@ def _check_duplicate_vendors(
             if ratio > 0.85 and len(a) >= 3:
                 reported.add(pair)
                 result.add(
-                    "duplicate", "warning", "vendors",
+                    "duplicate",
+                    "warning",
+                    "vendors",
                     f'Possibly similar vendors: "{names[i]}" and "{names[j]}".',
                     "Review and remove duplicates to keep your stack accurate.",
                 )
@@ -254,7 +276,9 @@ def _check_duplicate_domains(
         lower = d.domain_name.lower()
         if lower in seen and seen[lower] != d.domain_name:
             result.add(
-                "duplicate", "warning", "domains",
+                "duplicate",
+                "warning",
+                "domains",
                 f'Possible duplicate domains: "{seen[lower]}" and "{d.domain_name}" differ only in casing.',
                 "Remove the duplicate domain.",
             )
@@ -270,7 +294,9 @@ def _check_invalid_formats(
     for d in domains:
         if not _DOMAIN_RE.match(d.domain_name):
             result.add(
-                "invalid_format", "error", "domains",
+                "invalid_format",
+                "error",
+                "domains",
                 f'Domain "{d.domain_name}" does not appear to be a valid domain name.',
                 "Remove and re-add the domain using the correct format (e.g. example.com).",
             )
@@ -279,7 +305,9 @@ def _check_invalid_formats(
         name = v.vendor_name
         if name != name.strip() or "  " in name:
             result.add(
-                "invalid_format", "warning", "vendors",
+                "invalid_format",
+                "warning",
+                "vendors",
                 f'Vendor "{name}" has leading/trailing or consecutive spaces.',
                 "Edit the vendor name to remove extra whitespace.",
             )
@@ -295,12 +323,12 @@ def _check_conflicts(
     for framework, required_keywords in _COMPLIANCE_DATA_REQUIREMENTS.items():
         if framework not in frameworks:
             continue
-        matched = any(
-            kw in dt for dt in data_types_lower for kw in required_keywords
-        )
+        matched = any(kw in dt for dt in data_types_lower for kw in required_keywords)
         if not matched:
             result.add(
-                "conflict", "warning", "compliance_frameworks",
+                "conflict",
+                "warning",
+                "compliance_frameworks",
                 f"{framework} is selected but no matching data type is specified.",
                 f"Add the relevant data type for {framework} or remove the framework if it doesn't apply.",
             )
@@ -317,21 +345,27 @@ def _check_quality(
     answered = [v for v in controls.values() if v in ("yes", "no", "unsure")]
     if answered and all(v == "unsure" for v in answered):
         result.add(
-            "quality", "warning", "security_controls",
+            "quality",
+            "warning",
+            "security_controls",
             "All security controls are answered 'unsure', which provides no signal for risk assessment.",
             "Review the controls and update answers where you have definitive information.",
         )
 
     if len(vendors) == 1:
         result.add(
-            "quality", "info", "vendors",
+            "quality",
+            "info",
+            "vendors",
             "Only one vendor is tracked — your technology stack may be incomplete.",
             "Add more vendors to get a more accurate risk assessment.",
         )
 
     if upload_count == 0:
         result.add(
-            "quality", "info", "uploads",
+            "quality",
+            "info",
+            "uploads",
             "No supporting documents have been uploaded.",
             "Upload any relevant documents (policies, audit reports) in Settings > File Uploads.",
         )

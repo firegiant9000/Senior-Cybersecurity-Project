@@ -26,11 +26,12 @@ logger = logging.getLogger(__name__)
 
 # Deterministic per-source lock keys (arbitrary stable int64 values).
 _LOCK_KEYS: dict[str, int] = {
-    "nvd": 0x696E6765_73744E56,       # "ingestNV"
+    "nvd": 0x696E6765_73744E56,  # "ingestNV"
     "cisa_kev": 0x696E6765_73744B45,  # "ingestKE"
-    "ic3": 0x696E6765_73744943,       # "ingestIC"
-    "economics": 0x696E6765_73744543, # "ingestEC"
+    "ic3": 0x696E6765_73744943,  # "ingestIC"
+    "economics": 0x696E6765_73744543,  # "ingestEC"
 }
+
 
 # Fallback: derive a key for any source not in the table above.
 def _lock_key(source: str) -> int:
@@ -42,6 +43,7 @@ def _lock_key(source: str) -> int:
     # it cannot be used here — different app instances would derive different
     # lock keys for the same source, defeating cross-instance exclusion.
     import hashlib  # noqa: PLC0415
+
     digest = hashlib.sha256(source.encode()).digest()
     raw = int.from_bytes(digest[:8], "big")
     return raw % (2**63 - 1)  # fold into positive signed int64
@@ -67,12 +69,14 @@ async def expire_stale_runs(session: AsyncSession, source: str) -> None:
     for run in stale_runs:
         run.status = "failed"
         run.finished_at = datetime.datetime.utcnow()
-        run.error_message = (
-            f"Timed out after {timeout}s — process likely crashed mid-run."
-        )
+        run.error_message = f"Timed out after {timeout}s — process likely crashed mid-run."
         logger.warning(
             "Marked stale ingest run as failed",
-            extra={"source": source, "run_id": str(run.id), "started_at": run.started_at.isoformat()},
+            extra={
+                "source": source,
+                "run_id": str(run.id),
+                "started_at": run.started_at.isoformat(),
+            },
         )
     if stale_runs:
         await session.commit()
@@ -85,9 +89,7 @@ async def try_acquire_lock(session: AsyncSession, source: str) -> bool:
     session (i.e. a concurrent ingestion is running).
     """
     key = _lock_key(source)
-    result = await session.execute(
-        text("SELECT pg_try_advisory_lock(:key)"), {"key": key}
-    )
+    result = await session.execute(text("SELECT pg_try_advisory_lock(:key)"), {"key": key})
     acquired: bool = result.scalar()  # type: ignore[assignment]
     if not acquired:
         logger.info(
@@ -105,7 +107,5 @@ async def release_lock(session: AsyncSession, source: str) -> None:
     statement is flushed to the server before the session closes.
     """
     key = _lock_key(source)
-    await session.execute(
-        text("SELECT pg_advisory_unlock(:key)"), {"key": key}
-    )
+    await session.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": key})
     await session.commit()
