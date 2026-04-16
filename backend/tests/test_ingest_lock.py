@@ -14,7 +14,6 @@ from app.services.ingest_lock import (
     try_acquire_lock,
 )
 
-
 # ── _lock_key ──────────────────────────────────────────────────────────────────
 
 def test_lock_key_known_sources():
