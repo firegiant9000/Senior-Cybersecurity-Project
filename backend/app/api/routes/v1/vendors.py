@@ -24,6 +24,7 @@ from app.repositories.technology_vendor import (
 )
 from app.schemas.org_vendor import (
     OrgVendorCreate,
+    OrgVendorImportPreviewResponse,
     OrgVendorImportResponse,
     OrgVendorListResponse,
     OrgVendorRead,
@@ -47,27 +48,42 @@ def _parse_csv_rows(
 ) -> tuple[list[dict[str, str]], list[str]]:
     """Validate and extract rows from a CSV DictReader.
 
+    Normalizes vendor/product names (trim + collapse whitespace) and detects
+    duplicate rows within the CSV before import.
+
     Returns (valid_rows, errors).
     """
     rows: list[dict[str, str]] = []
     errors: list[str] = []
+    seen_keys: dict[str, int] = {}  # (vendor_name_lower, product_name_lower) → first row number
+
     for i, row in enumerate(reader, start=2):  # row 1 is header
         if len(rows) >= MAX_CSV_ROWS:
             errors.append(
                 f"Row {i}: exceeded maximum of {MAX_CSV_ROWS} rows — remaining rows skipped"
             )
             break
-        vendor_name = (row.get("vendor_name") or "").strip()
+        vendor_name = " ".join((row.get("vendor_name") or "").strip().split())
         if not vendor_name:
             errors.append(f"Row {i}: missing vendor_name")
             continue
         if len(vendor_name) > 255:
             errors.append(f"Row {i}: vendor_name exceeds 255 characters")
             continue
-        product_name = (row.get("product_name") or "").strip()
+        product_name = " ".join((row.get("product_name") or "").strip().split())
         if len(product_name) > 255:
             errors.append(f"Row {i}: product_name exceeds 255 characters")
             continue
+
+        dedup_key = f"{vendor_name.lower()}|{product_name.lower()}"
+        if dedup_key in seen_keys:
+            errors.append(
+                f"Row {i}: duplicate of row {seen_keys[dedup_key]} "
+                f"(vendor_name={vendor_name!r}) — skipped"
+            )
+            continue
+        seen_keys[dedup_key] = i
+
         rows.append({"vendor_name": vendor_name, "product_name": product_name})
     return rows, errors
 
@@ -359,6 +375,54 @@ async def delete_vendor(
     if not deleted:
         raise HTTPException(status_code=404, detail="Vendor not found")
     return None
+
+
+@router.post(
+    "/organizations/{org_id}/vendors/import/preview",
+    response_model=OrgVendorImportPreviewResponse,
+)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def preview_vendor_csv(
+    request: Request,  # noqa: ARG001
+    org_id: int,
+    file: UploadFile,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Dry-run a CSV import and return counts without committing anything.
+
+    Returns how many rows would be imported, skipped (in-CSV duplicates), and
+    any parse errors — without touching the database.
+    """
+    await _check_org_access(current_user, org_id, session)
+
+    if file.content_type and file.content_type not in (
+        "text/csv",
+        "application/vnd.ms-excel",
+        "application/octet-stream",
+    ):
+        raise HTTPException(status_code=400, detail="File must be a CSV")
+
+    try:
+        raw = await file.read()
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="File must be UTF-8 encoded")
+
+    reader = csv.DictReader(io.StringIO(text))
+    if not reader.fieldnames or "vendor_name" not in reader.fieldnames:
+        raise HTTPException(
+            status_code=400,
+            detail="CSV must contain a 'vendor_name' column",
+        )
+
+    rows, errors = _parse_csv_rows(reader)
+    return OrgVendorImportPreviewResponse(
+        total_rows=len(rows) + len(errors),
+        would_import=len(rows),
+        would_skip=len([e for e in errors if "duplicate" in e]),
+        errors=errors,
+    )
 
 
 @router.post(
