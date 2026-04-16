@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class OrgDomainCreate(BaseModel):
@@ -12,6 +12,11 @@ class OrgDomainCreate(BaseModel):
         max_length=255,
         pattern=r"^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$",
     )
+
+    @field_validator("domain_name", mode="before")
+    @classmethod
+    def normalize_domain_name(cls, v: str) -> str:
+        return v.strip().lower().rstrip(".")
 
 
 class OrgDomainRead(BaseModel):

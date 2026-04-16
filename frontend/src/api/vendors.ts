@@ -105,6 +105,30 @@ export async function importVendorsCsv(
   return resp.json();
 }
 
+export interface OrgVendorImportPreviewResponse {
+  total_rows: number;
+  would_import: number;
+  would_skip: number;
+  errors: string[];
+}
+
+export async function previewVendorsCsv(
+  orgId: number,
+  file: File,
+): Promise<OrgVendorImportPreviewResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const resp = await fetchWithAuth(
+    `${API_BASE_URL}/api/v1/organizations/${orgId}/vendors/import/preview`,
+    { method: "POST", body: formData },
+  );
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    throw new Error((body as { detail?: string }).detail ?? "Failed to preview CSV");
+  }
+  return resp.json();
+}
+
 export async function autocompleteVendors(
   query: string,
   field: "vendor" | "product" = "vendor",
