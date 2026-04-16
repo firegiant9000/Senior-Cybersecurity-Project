@@ -17,6 +17,7 @@ from app.services.assessment_validator import run_validation
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _org(**kwargs) -> Organization:
     defaults = {
         "id": 1,
@@ -65,6 +66,7 @@ async def _run(org, vendors=None, domains=None, upload_count=0):
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_missing_required_fields():
     org = _org(name="", industry_label=None, primary_state=None, employee_range=None)
@@ -91,8 +93,7 @@ async def test_near_duplicate_vendors():
     vendors = [_vendor("Cisco"), _vendor("Ciscoo")]
     result = await _run(_org(), vendors=vendors, domains=[_domain("example.com")])
     near_dupes = [
-        i for i in result.issues
-        if i.category == "duplicate" and "similar" in i.message.lower()
+        i for i in result.issues if i.category == "duplicate" and "similar" in i.message.lower()
     ]
     assert near_dupes, "Expected a near-duplicate warning for 'Cisco' and 'Ciscoo'"
 
@@ -102,8 +103,7 @@ async def test_no_near_duplicate_for_unrelated():
     vendors = [_vendor("Cisco"), _vendor("Oracle")]
     result = await _run(_org(), vendors=vendors, domains=[_domain("example.com")])
     near_dupes = [
-        i for i in result.issues
-        if i.category == "duplicate" and "similar" in i.message.lower()
+        i for i in result.issues if i.category == "duplicate" and "similar" in i.message.lower()
     ]
     assert not near_dupes, "Unrelated vendor names should not trigger near-duplicate warning"
 
@@ -144,7 +144,9 @@ async def test_no_conflict_when_data_type_matches():
 async def test_all_unsure_controls():
     org = _org(security_controls={"mfa_enabled": "unsure", "firewall_in_place": "unsure"})
     result = await _run(org, vendors=[_vendor("Cisco")], domains=[_domain("example.com")])
-    quality = [i for i in result.issues if i.category == "quality" and i.field == "security_controls"]
+    quality = [
+        i for i in result.issues if i.category == "quality" and i.field == "security_controls"
+    ]
     assert quality, "Expected quality warning when all controls are 'unsure'"
 
 
