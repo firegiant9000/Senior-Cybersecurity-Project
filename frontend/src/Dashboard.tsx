@@ -1,4 +1,5 @@
-import React, { useState, Suspense, lazy } from 'react';
+import React, { useState, Suspense, lazy, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import './Dashboard.css';
 import { useAuth } from './context/AuthContext';
 import { useDarkMode } from './hooks/useDarkMode';
@@ -53,6 +54,12 @@ const Dashboard: React.FC = () => {
             return true;
           });
 
+    useEffect(() => {
+        if (!tabs.find((t) => t.id === activeTab)) {
+            setActiveTab('overview');
+        }
+    }, [tabs]);
+
     return (
         <div className="dashboard-container">
             <DashboardHeader
@@ -67,7 +74,7 @@ const Dashboard: React.FC = () => {
                 {!orgLoading && orgId == null && (
                     <div className="org-join-cta">
                         <span>You are not part of an organization. </span>
-                        <a href="/settings">Join or create an org</a>
+                        <Link to="/settings">Join or create an org</Link>
                         <span> to unlock org-specific features.</span>
                     </div>
                 )}
