@@ -13,6 +13,7 @@ import CyberRisksTiles from '../charts/CyberRisksTiles';
 import WidgetErrorBoundary from '../shared/WidgetErrorBoundary';
 import SectorAttackHeatmap from '../charts/SectorAttackHeatmap';
 import DataFreshness from '../shared/DataFreshness';
+import { formatDateWithTz, formatTimeWithTz } from '../../utils/formatTime';
 import ExecutiveSummaryCard from './ExecutiveSummaryCard';
 import VendorAlertsCard from '../shared/VendorAlertsCard';
 import type { DashboardData } from '../../hooks/useDashboardData';
@@ -244,12 +245,12 @@ const OverviewTab: React.FC<Props> = ({
                 </button>
                 {lastUpdated && (
                     <span className="overview-last-updated">
-                        Updated {lastUpdated.toLocaleTimeString()}
+                        Updated {formatTimeWithTz(lastUpdated)}
                     </span>
                 )}
                 {!pipelineVisible && lastIngestAt && (
                     <span className="overview-last-updated" style={{ marginLeft: 'auto' }}>
-                        Data last refreshed: {new Date(lastIngestAt).toLocaleString()}
+                        Data last refreshed: {formatDateWithTz(lastIngestAt)}
                     </span>
                 )}
             </div>
