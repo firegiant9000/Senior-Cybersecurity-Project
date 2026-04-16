@@ -28,6 +28,31 @@ def _import_all_orm_models() -> None:
     import app.db.organization  # noqa: F401
     import app.db.technology_vendor  # noqa: F401
     import app.db.user  # noqa: F401
+    import app.models.ingest_run  # noqa: F401
+
+
+def _ensure_ingest_run_columns(connection: Connection) -> None:
+    """Add columns introduced by migration 016 when upgrading without Alembic.
+
+    ``Base.metadata.create_all()`` does not alter existing tables, so these
+    columns must be added manually for installs that skip migrations.
+    """
+    inspector = inspect(connection)
+    if not inspector.has_table("ingest_runs"):
+        return
+    existing = {col["name"].lower() for col in inspector.get_columns("ingest_runs")}
+    additions = {
+        "trigger": "VARCHAR(50) NOT NULL DEFAULT 'manual'",
+        "retry_count": "INTEGER NOT NULL DEFAULT 0",
+        "skipped_reason": "VARCHAR(255)",
+        "next_scheduled_at": "TIMESTAMP",
+    }
+    for col_name, col_def in additions.items():
+        if col_name not in existing:
+            connection.execute(
+                text(f"ALTER TABLE ingest_runs ADD COLUMN {col_name} {col_def}")
+            )
+            logger.info("Added column ingest_runs.%s", col_name)
 
 
 def _ensure_organization_profile_columns(connection: Connection) -> None:
@@ -81,6 +106,7 @@ async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(_ensure_organization_profile_columns)
+        await conn.run_sync(_ensure_ingest_run_columns)
     logger.info("Database initialized")
 
 
