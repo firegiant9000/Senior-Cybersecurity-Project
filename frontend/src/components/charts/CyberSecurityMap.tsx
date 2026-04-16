@@ -94,7 +94,7 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
         [complaintByState]
     );
 
-    if (loading) return <p style={{ color: '#888', fontSize: 13 }}>Loading…</p>;
+    if (loading) return <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>Loading…</p>;
 
     return (
         <div style={{ width: '100%', height: '100%', minHeight: 0, position: 'relative' }}>

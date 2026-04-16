@@ -92,7 +92,7 @@
 .back-btn {
   background: transparent;
   border: 1px solid var(--border, #334155);
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary, #6b7280);
   padding: 0.5rem 1rem;
   border-radius: 8px;
   cursor: pointer;
@@ -105,7 +105,7 @@
 }
 
 .settings-loading {
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary, #6b7280);
   text-align: center;
   padding: 2rem;
 }
@@ -140,7 +140,7 @@
 }
 
 .settings-field label {
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary, #6b7280);
   font-size: 0.9rem;
 }
 
@@ -233,7 +233,7 @@
 /* Technology Stack / Vendor section */
 
 .tech-stack-description {
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary, #6b7280);
   font-size: 0.85rem;
   margin: 0 0 1rem;
 }
@@ -311,7 +311,7 @@
 }
 
 .vendor-empty {
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary, #6b7280);
   font-size: 0.85rem;
   text-align: center;
   padding: 1.5rem 0;
@@ -325,7 +325,7 @@
 
 .vendor-table th {
   text-align: left;
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary, #6b7280);
   font-size: 0.8rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -378,7 +378,7 @@
 }
 
 .vendor-page-info {
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary, #6b7280);
   font-size: 0.85rem;
 }
 
@@ -418,7 +418,7 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-muted, #9ca3af);
+  color: var(--text-muted, #6b7280);
   margin: 0 0 0.4rem 0;
   font-weight: 600;
 }
@@ -448,7 +448,7 @@
   font-size: 0.75rem;
   border: 1px solid var(--border, #374151);
   background: transparent;
-  color: var(--text-muted, #9ca3af);
+  color: var(--text-muted, #6b7280);
   border-radius: 4px;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
@@ -499,6 +499,6 @@
 }
 
 .sec-profile-field-row label {
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary, #6b7280);
   font-size: 0.85rem;
 }

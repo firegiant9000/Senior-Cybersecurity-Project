@@ -66,8 +66,8 @@ const AnomaliesTab: React.FC = () => {
     border: 'none',
     cursor: 'pointer',
     fontWeight: subTab === id ? 700 : 400,
-    background: subTab === id ? 'var(--accent, #3b82f6)' : 'var(--card-bg, #1e293b)',
-    color: subTab === id ? '#fff' : 'var(--text-secondary, #94a3b8)',
+    background: subTab === id ? 'var(--accent, #3b82f6)' : 'var(--card-bg, #ffffff)',
+    color: subTab === id ? '#fff' : 'var(--text-secondary, #555)',
     fontSize: 13,
   });
 
@@ -75,7 +75,7 @@ const AnomaliesTab: React.FC = () => {
     <div className="tab-page">
       <div style={{ marginBottom: '1rem' }}>
         <h2 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 700 }}>Anomaly Detection</h2>
-        <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary, #94a3b8)' }}>
+        <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary, #555)' }}>
           Statistical outliers in IC3 incident data and vendor KEV exposure.
         </p>
       </div>
@@ -87,13 +87,13 @@ const AnomaliesTab: React.FC = () => {
         <button style={subTabStyle('vendors')} onClick={() => setSubTab('vendors')}>Vendor Exposure</button>
       </div>
 
-      {loading && <p style={{ color: 'var(--text-secondary, #94a3b8)', fontSize: 13 }}>Loading...</p>}
+      {loading && <p style={{ color: 'var(--text-secondary, #555)', fontSize: 13 }}>Loading...</p>}
       {error && <p style={{ color: '#d32f2f' }}>{error}</p>}
 
       {/* IC3 Anomalies */}
       {subTab === 'ic3' && !loading && ic3Data && (
         <>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary, #94a3b8)', marginBottom: '0.75rem' }}>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary, #555)', marginBottom: '0.75rem' }}>
             {ic3Data.total} state/sector combinations flagged at z-score ≥ {ic3Data.threshold}.
             Z-scores compare each state's incident rate against all states in the same sector and year.
           </p>
@@ -141,7 +141,7 @@ const AnomaliesTab: React.FC = () => {
       {/* YoY Trends */}
       {subTab === 'trends' && !loading && trendsData && (
         <>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary, #94a3b8)', marginBottom: '0.75rem' }}>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary, #555)', marginBottom: '0.75rem' }}>
             Year-over-year change in IC3 incident totals by sector. Rows flagged when change exceeds ±{(trendsData.threshold_pct * 100).toFixed(0)}%.
           </p>
           <div className="table-scroll-wrapper">
@@ -203,22 +203,22 @@ const AnomaliesTab: React.FC = () => {
       {subTab === 'vendors' && !loading && vendorData && (
         <>
           {!vendorData.has_vendors ? (
-            <p style={{ color: 'var(--text-secondary, #94a3b8)' }}>
+            <p style={{ color: 'var(--text-secondary, #555)' }}>
               No vendors configured. Add your technology stack in Organization Profile to see exposure analysis.
             </p>
           ) : (
             <>
               <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
                 <div style={{ fontSize: 13 }}>
-                  <span style={{ color: 'var(--text-secondary, #94a3b8)' }}>Your total KEV matches: </span>
+                  <span style={{ color: 'var(--text-secondary, #555)' }}>Your total KEV matches: </span>
                   <strong>{vendorData.org_total_matches}</strong>
                 </div>
                 <div style={{ fontSize: 13 }}>
-                  <span style={{ color: 'var(--text-secondary, #94a3b8)' }}>Global avg (same # vendors): </span>
+                  <span style={{ color: 'var(--text-secondary, #555)' }}>Global avg (same # vendors): </span>
                   <strong>{vendorData.global_avg_total.toFixed(1)}</strong>
                 </div>
               </div>
-              <p style={{ fontSize: 13, color: 'var(--text-secondary, #94a3b8)', marginBottom: '0.75rem' }}>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary, #555)', marginBottom: '0.75rem' }}>
                 Z-scores compare each vendor's KEV match count to the distribution across all orgs.
                 Vendors flagged at z-score ≥ {vendorData.threshold}.
               </p>
