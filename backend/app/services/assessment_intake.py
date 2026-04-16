@@ -170,7 +170,6 @@ async def evaluate_intake(
 
     tier_definitions: list[TierDefinition] = []
     current_tier = AssessmentTier.INCOMPLETE
-    all_unmet_keys: list[str] = []
 
     for tier_enum, label, description in _TIER_META:
         req_specs = next(reqs for t, reqs in tier_req_keys if t == tier_enum)
@@ -183,8 +182,6 @@ async def evaluate_intake(
             requirements.append(
                 TierRequirement(key=key, label=req_label, met=met, detail=detail)
             )
-            if not met:
-                all_unmet_keys.append(key)
 
         all_met = all(r.met for r in requirements)
 
