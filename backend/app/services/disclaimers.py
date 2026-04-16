@@ -15,8 +15,7 @@ _BASE_DISCLAIMER = (
 )
 
 _TRANSPARENCY_NOTE = (
-    "Generated from available company-provided information and public threat "
-    "intelligence data."
+    "Generated from available company-provided information and public threat intelligence data."
 )
 
 

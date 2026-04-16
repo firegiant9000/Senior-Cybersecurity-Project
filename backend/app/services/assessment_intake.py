@@ -125,11 +125,7 @@ def _check_requirement(
         ),
         "compliance_frameworks": (
             bool(org.compliance_frameworks and len(org.compliance_frameworks) > 0),
-            (
-                ", ".join(org.compliance_frameworks[:3])
-                if org.compliance_frameworks
-                else "Not set"
-            ),
+            (", ".join(org.compliance_frameworks[:3]) if org.compliance_frameworks else "Not set"),
         ),
         "data_types": (
             bool(org.data_types and len(org.data_types) > 0),
@@ -156,9 +152,7 @@ async def evaluate_intake(
     vendor_count, domain_count, upload_count = await _fetch_counts(session, org.id)
 
     controls_answered = sum(
-        1
-        for v in (org.security_controls or {}).values()
-        if v in ("yes", "no", "unsure")
+        1 for v in (org.security_controls or {}).values() if v in ("yes", "no", "unsure")
     )
 
     # Build requirement lists per tier
@@ -179,9 +173,7 @@ async def evaluate_intake(
             met, detail = _check_requirement(
                 key, org, vendor_count, domain_count, upload_count, controls_answered
             )
-            requirements.append(
-                TierRequirement(key=key, label=req_label, met=met, detail=detail)
-            )
+            requirements.append(TierRequirement(key=key, label=req_label, met=met, detail=detail))
 
         all_met = all(r.met for r in requirements)
 
@@ -204,7 +196,12 @@ async def evaluate_intake(
             break
 
     # Determine next tier and progress toward it
-    tier_order = [AssessmentTier.INCOMPLETE, AssessmentTier.BASIC, AssessmentTier.ENHANCED, AssessmentTier.COMPREHENSIVE]
+    tier_order = [
+        AssessmentTier.INCOMPLETE,
+        AssessmentTier.BASIC,
+        AssessmentTier.ENHANCED,
+        AssessmentTier.COMPREHENSIVE,
+    ]
     current_idx = tier_order.index(current_tier)
 
     next_tier: AssessmentTier | None = None
