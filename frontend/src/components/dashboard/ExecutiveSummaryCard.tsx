@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import './ExecutiveSummaryCard.css';
 import type { ExecutiveSummary } from '../../api/executiveSummary';
 import { fmtLoss } from '../../utils/fmtLoss';
+import DisclaimerBanner from '../shared/DisclaimerBanner';
 
 interface Props {
     data: ExecutiveSummary | null;
@@ -113,7 +114,11 @@ const ExecutiveSummaryCard: React.FC<Props> = ({ data, loading, error }) => {
                 )}
 
                 {/* Disclaimer */}
-                <p className="exec-disclaimer">{data.disclaimer}</p>
+                {data.disclaimer_block ? (
+                    <DisclaimerBanner disclaimerBlock={data.disclaimer_block} variant="compact" />
+                ) : (
+                    <p className="exec-disclaimer">{data.disclaimer}</p>
+                )}
             </div>
         </div>
     );

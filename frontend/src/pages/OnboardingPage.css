@@ -29,14 +29,14 @@
 }
 
 .onboarding-header p {
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary, #6b7280);
   font-size: 0.95rem;
 }
 
 .onboarding-logout-btn {
   background: none;
   border: none;
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary, #6b7280);
   font-size: 0.8rem;
   cursor: pointer;
   margin-top: 0.5rem;
@@ -83,7 +83,7 @@
 }
 
 .onboarding-step p.step-description {
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary, #6b7280);
   font-size: 0.9rem;
   margin: 0;
 }
@@ -95,7 +95,7 @@
 }
 
 .onboarding-form-group label {
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary, #6b7280);
   font-size: 0.85rem;
   font-weight: 500;
 }
@@ -165,7 +165,7 @@
 .onboarding-btn.secondary {
   background: transparent;
   border: 1px solid var(--border, #334155);
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary, #6b7280);
 }
 
 .onboarding-btn.secondary:hover:not(:disabled) {
@@ -177,7 +177,7 @@
 .onboarding-skip-btn {
   background: none;
   border: none;
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary, #6b7280);
   cursor: pointer;
   font-size: 0.85rem;
   text-align: center;
@@ -198,7 +198,7 @@
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-muted, #9ca3af);
+  color: var(--text-muted, #6b7280);
   margin: 0 0 0.5rem 0;
 }
 
@@ -226,7 +226,7 @@
   font-size: 0.75rem;
   border: 1px solid var(--border, #374151);
   background: transparent;
-  color: var(--text-muted, #9ca3af);
+  color: var(--text-muted, #6b7280);
   border-radius: 4px;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;

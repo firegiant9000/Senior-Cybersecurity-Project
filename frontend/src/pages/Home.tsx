@@ -29,7 +29,7 @@ const Home = () => {
     <div>
       <header style={{ borderBottom: '1px solid #334155', paddingBottom: '1rem' }}>
         <h1>🛡️ Cyber Threat Intelligence Platform</h1>
-        <p style={{ fontSize: '0.95rem', color: '#94a3b8', marginTop: '0.5rem' }}>
+        <p style={{ fontSize: '0.95rem', color: 'var(--text-secondary, #555)', marginTop: '0.5rem' }}>
           Aggregating, analyzing, and detecting cyber threats
         </p>
       </header>

@@ -9,6 +9,7 @@ import {
 } from '../../api/findings';
 import { useAuth } from '../../context/AuthContext';
 import SeverityBadge from '../shared/SeverityBadge';
+import DisclaimerBanner from '../shared/DisclaimerBanner';
 import './FindingsTab.css';
 
 const TYPE_LABELS: Record<string, { label: string; icon: string }> = {
@@ -225,6 +226,11 @@ const FindingsTab: React.FC = () => {
         <div className="findings-sources">
           Data sources: {report.data_sources_used.join(', ')}
         </div>
+      )}
+
+      {/* Disclaimer */}
+      {report.disclaimer_block && (
+        <DisclaimerBanner disclaimerBlock={report.disclaimer_block} variant="full" />
       )}
 
       {/* Grouped findings */}

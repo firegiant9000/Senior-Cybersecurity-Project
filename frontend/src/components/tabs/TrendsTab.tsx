@@ -92,7 +92,7 @@ const TrendsTab: React.FC = () => {
             </span>
             <div className="chart-body">
               {loading ? <WidgetSkeleton variant="chart" /> : trends.length === 0 ? (
-                <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>
+                <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>No data available.</p>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={trends} margin={{ top: 8, right: 24, left: 0, bottom: 4 }}>
@@ -128,7 +128,7 @@ const TrendsTab: React.FC = () => {
             </span>
             <div className="chart-body">
               {loading ? <WidgetSkeleton variant="chart" /> : trends.length === 0 ? (
-                <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>
+                <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>No data available.</p>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={trends} margin={{ top: 8, right: 24, left: 0, bottom: 4 }}>
@@ -167,7 +167,7 @@ const TrendsTab: React.FC = () => {
             </span>
             <div className="chart-body">
               {loading ? <WidgetSkeleton variant="chart" /> : trends.length === 0 ? (
-                <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>
+                <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>No data available.</p>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={trends} margin={{ top: 8, right: 24, left: 0, bottom: 4 }}>
@@ -203,7 +203,7 @@ const TrendsTab: React.FC = () => {
             <span className="widget-title">Year-by-Year Summary</span>
             <div className="tab-table-scroll">
               {loading ? <WidgetSkeleton variant="chart" /> : trends.length === 0 ? (
-                <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>
+                <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>No data available.</p>
               ) : (
                 <table className="tab-table">
                   <thead>

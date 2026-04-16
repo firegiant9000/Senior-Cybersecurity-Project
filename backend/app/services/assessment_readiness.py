@@ -1,4 +1,9 @@
-"""Assessment readiness service — checks org data completeness."""
+"""Assessment readiness service — checks org data completeness.
+
+Delegates to the graduated intake tier system and maps back to the
+legacy three-tier format (minimal / good / comprehensive) for backward
+compatibility with existing consumers.
+"""
 
 from __future__ import annotations
 
@@ -9,13 +14,11 @@ from app.db.org_domain import OrgDomain
 from app.db.org_upload import OrgUpload
 from app.db.org_vendor import OrgVendor
 from app.db.organization import Organization
+from app.schemas.assessment_intake import AssessmentTier
 from app.schemas.assessment_readiness import (
     AssessmentReadinessResponse,
     ReadinessItem,
 )
-
-# Readiness criteria: (key, label, required, checker, incomplete-hint)
-# "checker" is a callable(org, counts) → (bool, detail_str)
 
 _NEXT_STEP_MAP: dict[str, str] = {
     "org_name": "Set your organization name in Settings > Company Profile.",
@@ -31,128 +34,59 @@ _NEXT_STEP_MAP: dict[str, str] = {
     "uploads": "Upload at least one supporting document in Settings > File Uploads.",
 }
 
+# Map graduated intake tiers → legacy readiness tier names
+_TIER_TO_LEGACY: dict[AssessmentTier, str] = {
+    AssessmentTier.INCOMPLETE: "minimal",
+    AssessmentTier.BASIC: "minimal",
+    AssessmentTier.ENHANCED: "good",
+    AssessmentTier.COMPREHENSIVE: "comprehensive",
+}
+
 
 async def evaluate_readiness(
     org: Organization,
     session: AsyncSession,
 ) -> AssessmentReadinessResponse:
-    """Evaluate how complete an org's profile is for risk assessment."""
+    """Evaluate how complete an org's profile is for risk assessment.
 
-    org_id = org.id
+    Delegates tier computation to the intake service, then maps the result
+    back to the legacy readiness response format.
+    """
+    from app.services.assessment_intake import evaluate_intake
 
-    vendor_count, domain_count, upload_count = await _fetch_counts(session, org_id)
+    intake = await evaluate_intake(org, session)
 
-    # Security profile completeness checks
-    has_controls = bool(
-        org.security_controls
-        and any(v in ("yes", "no", "unsure") for v in org.security_controls.values())
-    )
-    controls_answered = sum(
-        1 for v in (org.security_controls or {}).values() if v in ("yes", "no", "unsure")
-    )
+    # Flatten all tier requirements into ReadinessItem list.
+    # Basic tier reqs are "required", Enhanced/Comprehensive are "optional".
+    items: list[ReadinessItem] = []
+    seen_keys: set[str] = set()
 
-    has_compliance = bool(org.compliance_frameworks and len(org.compliance_frameworks) > 0)
-    has_data_types = bool(org.data_types and len(org.data_types) > 0)
-
-    items: list[ReadinessItem] = [
-        ReadinessItem(
-            key="org_name",
-            label="Organization name",
-            complete=bool(org.name and org.name.strip()),
-            required=True,
-            detail=org.name or "Not set",
-        ),
-        ReadinessItem(
-            key="industry",
-            label="Industry",
-            complete=bool(org.industry_label),
-            required=True,
-            detail=org.industry_label or "Not set",
-        ),
-        ReadinessItem(
-            key="state",
-            label="Primary state",
-            complete=bool(org.primary_state),
-            required=True,
-            detail=org.primary_state or "Not set",
-        ),
-        ReadinessItem(
-            key="employee_range",
-            label="Employee range",
-            complete=bool(org.employee_range),
-            required=True,
-            detail=org.employee_range or "Not set",
-        ),
-        ReadinessItem(
-            key="vendors",
-            label="Technology stack",
-            complete=vendor_count >= 1,
-            required=True,
-            detail=f"{vendor_count} vendor(s) tracked",
-        ),
-        ReadinessItem(
-            key="domains",
-            label="Organization domains",
-            complete=domain_count >= 1,
-            required=True,
-            detail=f"{domain_count} domain(s) registered",
-        ),
-        ReadinessItem(
-            key="security_controls",
-            label="Security controls checklist",
-            complete=has_controls,
-            required=False,
-            detail=f"{controls_answered} control(s) answered" if has_controls else "Not started",
-        ),
-        ReadinessItem(
-            key="compliance_frameworks",
-            label="Compliance frameworks",
-            complete=has_compliance,
-            required=False,
-            detail=", ".join(org.compliance_frameworks[:3]) if has_compliance else "Not set",
-        ),
-        ReadinessItem(
-            key="data_types",
-            label="Data types handled",
-            complete=has_data_types,
-            required=False,
-            detail=f"{len(org.data_types)} type(s)" if has_data_types else "Not set",
-        ),
-        ReadinessItem(
-            key="revenue",
-            label="Revenue range",
-            complete=bool(org.revenue_range),
-            required=False,
-            detail=org.revenue_range or "Not set",
-        ),
-        ReadinessItem(
-            key="uploads",
-            label="Supporting documents",
-            complete=upload_count >= 1,
-            required=False,
-            detail=f"{upload_count} file(s) uploaded",
-        ),
-    ]
+    for td in intake.tiers:
+        is_required = td.tier == AssessmentTier.BASIC
+        for req in td.requirements:
+            if req.key in seen_keys:
+                continue
+            seen_keys.add(req.key)
+            items.append(
+                ReadinessItem(
+                    key=req.key,
+                    label=req.label,
+                    complete=req.met,
+                    required=is_required,
+                    detail=req.detail,
+                )
+            )
 
     required_items = [i for i in items if i.required]
-    all_items = items
-
     required_done = sum(1 for i in required_items if i.complete)
-    total_done = sum(1 for i in all_items if i.complete)
-
+    total_done = sum(1 for i in items if i.complete)
     is_ready = required_done == len(required_items)
+    readiness_pct = round((total_done / len(items)) * 100, 1) if items else 0.0
 
-    readiness_pct = round((total_done / len(all_items)) * 100, 1) if all_items else 0.0
-
-    if total_done == len(all_items):
-        tier = "comprehensive"
-    elif is_ready:
-        tier = "good"
-    else:
-        tier = "minimal"
+    tier = _TIER_TO_LEGACY[intake.current_tier]
 
     next_steps = [
-        _NEXT_STEP_MAP[i.key] for i in all_items if not i.complete and i.key in _NEXT_STEP_MAP
+        _NEXT_STEP_MAP[i.key] for i in items if not i.complete and i.key in _NEXT_STEP_MAP
     ]
 
     return AssessmentReadinessResponse(

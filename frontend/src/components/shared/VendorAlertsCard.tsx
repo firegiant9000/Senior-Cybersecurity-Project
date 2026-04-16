@@ -30,7 +30,7 @@ const VendorAlertsCard: React.FC = () => {
     return (
       <div className="card chart-widget" style={{ gridColumn: 'span 2' }}>
         <span className="widget-title">Vendor Vulnerability Alerts</span>
-        <p style={{ padding: '1rem', color: '#6b7280' }}>Loading...</p>
+        <p style={{ padding: '1rem', color: 'var(--text-muted)' }}>Loading...</p>
       </div>
     );
   }
@@ -48,7 +48,7 @@ const VendorAlertsCard: React.FC = () => {
     return (
       <div className="card chart-widget" style={{ gridColumn: 'span 2' }}>
         <span className="widget-title">Vendor Vulnerability Alerts</span>
-        <p style={{ padding: '1rem', color: '#6b7280' }}>
+        <p style={{ padding: '1rem', color: 'var(--text-muted)' }}>
           Add your technology vendors in Settings to see matched vulnerability alerts.
         </p>
       </div>
@@ -99,7 +99,7 @@ const VendorAlertsCard: React.FC = () => {
               <SeverityBadge label="Unknown" /> <strong>{sb.unknown}</strong>
             </span>
           )}
-          <span style={{ color: '#6b7280', fontSize: 13, marginLeft: 'auto' }}>
+          <span style={{ color: 'var(--text-muted)', fontSize: 13, marginLeft: 'auto' }}>
             {data.total_matched} total
           </span>
         </div>
@@ -131,7 +131,7 @@ const VendorAlertsCard: React.FC = () => {
         </table>
 
         {/* Footer */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', fontSize: 11, color: '#9ca3af' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', fontSize: 11, color: 'var(--text-muted)' }}>
           {data.kev_last_ingest_at && (
             <span>KEV data as of: {new Date(data.kev_last_ingest_at).toLocaleDateString()}</span>
           )}
