@@ -37,8 +37,14 @@ def _lock_key(source: str) -> int:
     key = _LOCK_KEYS.get(source)
     if key is not None:
         return key
-    # Stable hash folded into signed int32 range (PG advisory lock range)
-    return abs(hash(source)) % (2**31 - 1)
+    # Deterministic hash using sha256, folded into signed int64 range.
+    # Python's built-in hash() is PYTHONHASHSEED-randomized per process, so
+    # it cannot be used here — different app instances would derive different
+    # lock keys for the same source, defeating cross-instance exclusion.
+    import hashlib  # noqa: PLC0415
+    digest = hashlib.sha256(source.encode()).digest()
+    raw = int.from_bytes(digest[:8], "big")
+    return raw % (2**63 - 1)  # fold into positive signed int64
 
 
 async def expire_stale_runs(session: AsyncSession, source: str) -> None:

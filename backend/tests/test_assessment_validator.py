@@ -15,23 +15,22 @@ from app.db.org_vendor import OrgVendor
 from app.db.organization import Organization
 from app.services.assessment_validator import run_validation
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _org(**kwargs) -> Organization:
-    defaults = dict(
-        id=1,
-        name="Acme Corp",
-        industry_label="Technology",
-        ic3_sector="Technology",
-        primary_state="CA",
-        employee_range="11-50",
-        revenue_range="$1M-$10M",
-        security_controls={"mfa_enabled": "yes"},
-        cloud_providers=["AWS"],
-        compliance_frameworks=[],
-        data_types=[],
-    )
+    defaults = {
+        "id": 1,
+        "name": "Acme Corp",
+        "industry_label": "Technology",
+        "ic3_sector": "Technology",
+        "primary_state": "CA",
+        "employee_range": "11-50",
+        "revenue_range": "$1M-$10M",
+        "security_controls": {"mfa_enabled": "yes"},
+        "cloud_providers": ["AWS"],
+        "compliance_frameworks": [],
+        "data_types": [],
+    }
     defaults.update(kwargs)
     org = MagicMock(spec=Organization)
     for k, v in defaults.items():

@@ -116,12 +116,13 @@ async def _fetch_data(
 # ── Rule categories ────────────────────────────────────────────────────────────
 
 
-def _check_missing_fields(
+def _check_required_fields(
     org: Organization,
     vendors: list[OrgVendor],
     domains: list[OrgDomain],
     result: _ValidationResult,
 ) -> None:
+    """Check hard-required fields (errors)."""
     if not org.name or not org.name.strip():
         result.add(
             "missing_field", "error", "org_name",
@@ -158,6 +159,10 @@ def _check_missing_fields(
             "No domains registered.",
             "Add at least one domain in Settings > Organization Domains.",
         )
+
+
+def _check_optional_fields(org: Organization, result: _ValidationResult) -> None:
+    """Check optional fields (warnings/info)."""
     if not org.revenue_range:
         result.add(
             "missing_field", "warning", "revenue_range",
@@ -184,6 +189,16 @@ def _check_missing_fields(
             "No data types specified.",
             "Specify the types of data your organization handles in Organization Profile.",
         )
+
+
+def _check_missing_fields(
+    org: Organization,
+    vendors: list[OrgVendor],
+    domains: list[OrgDomain],
+    result: _ValidationResult,
+) -> None:
+    _check_required_fields(org, vendors, domains, result)
+    _check_optional_fields(org, result)
 
 
 def _check_duplicate_vendors(
