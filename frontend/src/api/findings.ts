@@ -3,6 +3,7 @@
  */
 
 import { API_BASE_URL, getJsonAuth } from "./fetchWithAuth";
+import type { DisclaimerBlock } from "../types/disclaimer";
 
 export interface Finding {
   id: string;
@@ -29,6 +30,7 @@ export interface FindingsReport {
   generated_at: string;
   data_sources_used: string[];
   assessment_tier: string;
+  disclaimer_block?: DisclaimerBlock;
 }
 
 export interface SnapshotListItem {
