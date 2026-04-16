@@ -19,6 +19,7 @@ from app.repositories.organization import SqlOrganizationRepository, get_org_rep
 from app.schemas.ai_summary import AISummaryResponse
 from app.schemas.ai_summary_feedback import FeedbackCreate, FeedbackResponse
 from app.schemas.assessment_readiness import AssessmentReadinessResponse
+from app.schemas.assessment_validation import AssessmentValidationResponse
 from app.schemas.executive_summary import ExecutiveSummaryResponse
 from app.schemas.findings import FindingsReport
 from app.schemas.findings_snapshot import SnapshotDetail, SnapshotListItem, SnapshotListResponse
@@ -33,6 +34,7 @@ from app.schemas.smb_risk_score import RiskScoreResponse
 from app.schemas.vendor_alert import VendorAlertsResponse
 from app.services.ai_summary import AISummaryService
 from app.services.assessment_readiness import evaluate_readiness
+from app.services.assessment_validator import build_response, run_validation
 from app.services.executive_summary import ExecutiveSummaryService
 from app.services.findings_engine import FindingsEngine
 from app.services.loss_projection import LossProjectionService
@@ -88,6 +90,7 @@ async def list_organizations(
 @limiter.limit(settings.RATE_LIMIT_DATA)
 async def get_executive_summary(
     request: Request,  # noqa: ARG001
+    _current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_session),
 ):
     """Return an executive summary of the current threat landscape."""
@@ -132,6 +135,27 @@ async def get_assessment_readiness(
     uploads to determine whether the org has enough data for evaluation.
     """
     return await evaluate_readiness(org, db)
+
+
+@router.get("/mine/validation", response_model=AssessmentValidationResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def validate_assessment(
+    request: Request,  # noqa: ARG001
+    current_user: User = Depends(get_current_user),  # noqa: ARG001
+    org: Organization = Depends(get_current_org),
+    db: AsyncSession = Depends(get_session),
+):
+    """Run all validation rules against the current org's assessment data.
+
+    Returns structured issues (missing fields, duplicates, conflicts, quality)
+    plus a 0-100 quality score. Advisory only — does not block save operations.
+    """
+    try:
+        result = await run_validation(org, db)
+    except SQLAlchemyError:
+        logger.exception("Failed to run validation for org %s", org.id)
+        raise HTTPException(status_code=500, detail="Failed to run assessment validation")
+    return build_response(result)
 
 
 @router.get("/mine/risk", response_model=RiskScoreResponse)
