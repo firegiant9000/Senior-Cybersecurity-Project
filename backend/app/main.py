@@ -21,6 +21,7 @@ from app.core.logging import setup_logging
 from app.db.engine import AsyncSessionLocal, init_db
 from app.db.models import CVE, KEV, IC3Incident
 from app.integrations.cve_org import aclose_http_client
+from app.workers import init_scheduler, scheduler
 
 _log = logging.getLogger(__name__)
 
@@ -50,7 +51,12 @@ async def _run_sequential_ingest(sources: list[str]) -> None:
 
     for src in sources:
         _log.info("Starting %s ingestion...", src)
-        await _run_ingestion(src)
+        try:
+            await _run_ingestion(src, trigger="startup")
+        except Exception:  # noqa: BLE001
+            # Errors are already logged and persisted by _run_ingestion; continue
+            # to the next source rather than aborting the whole startup sequence.
+            pass
 
 
 async def _auto_ingest() -> None:
@@ -136,7 +142,10 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         )
     await init_db()
     await _auto_ingest()
+    init_scheduler()
+    scheduler.start()
     yield
+    scheduler.shutdown(wait=False)
     await aclose_http_client()
 
 
