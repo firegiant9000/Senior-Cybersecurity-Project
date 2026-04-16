@@ -51,15 +51,9 @@ const ExecutiveSummaryCard: React.FC<Props> = ({ data, loading, error }) => {
             {/* ── Header ── */}
             <div className="exec-summary-header">
                 <div className="exec-summary-title-group">
-                    <span className="exec-summary-title">Executive Summary</span>
+                    <span className="exec-summary-title">Threat Landscape Overview</span>
                     <span className="exec-summary-subtitle">
                         SMB Cyber Threat Landscape · {data.data_year_range}
-                    </span>
-                </div>
-                <div className="exec-summary-risk-badge">
-                    <span className="exec-risk-score">{data.risk_score.toFixed(0)}</span>
-                    <span className={`exec-risk-label-pill ${data.risk_label}`}>
-                        {data.risk_label} Risk
                     </span>
                 </div>
             </div>
