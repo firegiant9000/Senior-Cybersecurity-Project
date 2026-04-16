@@ -32,3 +32,8 @@ class IngestRun(Base):
     status: Mapped[str] = mapped_column(String(50), index=True)
     records_ingested: Mapped[int] = mapped_column(Integer, default=0)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Phase 1 additions
+    trigger: Mapped[str] = mapped_column(String(50), default="manual")
+    retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    skipped_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    next_scheduled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
