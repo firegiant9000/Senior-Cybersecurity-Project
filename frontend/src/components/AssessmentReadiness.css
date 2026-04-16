@@ -8,7 +8,7 @@
 
 .readiness-loading,
 .readiness-error {
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary, #6b7280);
   font-size: 0.9rem;
   text-align: center;
   padding: 1rem;
@@ -70,13 +70,13 @@
 }
 
 .readiness-pct-label {
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary, #6b7280);
   font-size: 0.8rem;
   margin: 0.35rem 0 1rem;
 }
 
 .readiness-checklist h4 {
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary, #6b7280);
   font-size: 0.8rem;
   text-transform: uppercase;
   font-weight: 600;
@@ -134,7 +134,7 @@
 }
 
 .readiness-next-steps h4 {
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary, #6b7280);
   font-size: 0.8rem;
   text-transform: uppercase;
   font-weight: 600;
