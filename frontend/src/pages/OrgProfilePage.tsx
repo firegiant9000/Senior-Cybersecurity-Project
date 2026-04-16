@@ -5,10 +5,12 @@ import { API_BASE_URL, fetchWithAuth } from "../api/fetchWithAuth";
 import { canEditOrganizationProfile } from "../components/ProtectedRoute";
 import {
   OrgVendor,
+  OrgVendorImportPreviewResponse,
   listVendors,
   createVendor,
   deleteVendor,
   importVendorsCsv,
+  previewVendorsCsv,
   autocompleteVendors,
 } from "../api/vendors";
 import {
@@ -25,6 +27,7 @@ import {
   downloadUpload,
 } from "../api/uploads";
 import AssessmentReadinessWidget from "../components/AssessmentReadiness";
+import ValidationPanel from "../components/ValidationPanel";
 import "../Dashboard.css";
 import "./SettingsPage.css";
 
@@ -150,6 +153,11 @@ export default function OrgProfilePage() {
   const uploadFileInputRef = useRef<HTMLInputElement>(null);
   const vendorPageSize = 20;
 
+  // CSV preview state
+  const [csvPreview, setCsvPreview] = useState<OrgVendorImportPreviewResponse | null>(null);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvPreviewing, setCsvPreviewing] = useState(false);
+
   // Domain state
   const [domains, setDomains] = useState<OrgDomain[]>([]);
   const [domainTotal, setDomainTotal] = useState(0);
@@ -191,6 +199,17 @@ export default function OrgProfilePage() {
   const handleAddVendor = async () => {
     if (!profile?.org_id || !newVendor.trim()) return;
     setVendorError("");
+    const normalizedNew = newVendor.trim().replace(/\s+/g, " ").toLowerCase();
+    const normalizedProd = newProduct.trim().replace(/\s+/g, " ").toLowerCase();
+    const isDupe = vendors.some(
+      (v) =>
+        v.vendor_name.toLowerCase() === normalizedNew &&
+        v.product_name.toLowerCase() === normalizedProd,
+    );
+    if (isDupe) {
+      setVendorError("A vendor with this name already exists in your stack.");
+      return;
+    }
     try {
       await createVendor(profile.org_id, newVendor.trim(), newProduct.trim());
       setNewVendor("");
@@ -222,8 +241,25 @@ export default function OrgProfilePage() {
     if (!file || !profile?.org_id) return;
     setVendorError("");
     setVendorMsg("");
+    setCsvPreviewing(true);
     try {
-      const result = await importVendorsCsv(profile.org_id, file);
+      const preview = await previewVendorsCsv(profile.org_id, file);
+      setCsvPreview(preview);
+      setCsvFile(file);
+    } catch (err) {
+      setVendorError(err instanceof Error ? err.message : "CSV preview failed");
+    } finally {
+      setCsvPreviewing(false);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleCsvConfirm = async () => {
+    if (!csvFile || !profile?.org_id) return;
+    setVendorError("");
+    setVendorMsg("");
+    try {
+      const result = await importVendorsCsv(profile.org_id, csvFile);
       const parts: string[] = [];
       if (result.imported) parts.push(`${result.imported} imported`);
       if (result.skipped) parts.push(`${result.skipped} duplicates skipped`);
@@ -240,8 +276,15 @@ export default function OrgProfilePage() {
       setVendorPage(1);
     } catch (err) {
       setVendorError(err instanceof Error ? err.message : "CSV import failed");
+    } finally {
+      setCsvPreview(null);
+      setCsvFile(null);
     }
-    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleCsvCancel = () => {
+    setCsvPreview(null);
+    setCsvFile(null);
   };
 
   // ── Domain handlers ──────────────────────────────────────────────────
@@ -266,7 +309,17 @@ export default function OrgProfilePage() {
   const handleAddDomain = async () => {
     if (!profile?.org_id || !newDomain.trim()) return;
     setDomainError("");
-    const cleaned = newDomain.trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
+    const cleaned = newDomain
+      .trim()
+      .replace(/^https?:\/\//i, "")
+      .replace(/\/.*$/, "")
+      .toLowerCase()
+      .replace(/\.$/, "");
+    const isDupe = domains.some((d) => d.domain_name.toLowerCase() === cleaned);
+    if (isDupe) {
+      setDomainError("This domain is already registered.");
+      return;
+    }
     try {
       await addDomain(profile.org_id, cleaned);
       setNewDomain("");
@@ -560,6 +613,7 @@ export default function OrgProfilePage() {
           {!loading && !error && profile && (
             <div className="settings-sections">
               {profile.org_id != null && <AssessmentReadinessWidget />}
+              {profile.org_id != null && <ValidationPanel />}
 
               {profile.org_id != null && (
                 <section className="settings-section">
@@ -917,14 +971,52 @@ export default function OrgProfilePage() {
                     />
                     <button
                       className="action-btn"
+                      disabled={csvPreviewing}
                       onClick={() => fileInputRef.current?.click()}
                     >
-                      Import CSV
+                      {csvPreviewing ? "Previewing…" : "Import CSV"}
                     </button>
                     <span className="vendor-import-hint">
                       CSV with vendor_name column (max 500 rows)
                     </span>
                   </div>
+
+                  {csvPreview && (
+                    <div className="csv-preview-panel">
+                      <p className="csv-preview-summary">
+                        <strong>CSV preview:</strong> {csvPreview.would_import} row
+                        {csvPreview.would_import !== 1 ? "s" : ""} to import
+                        {csvPreview.would_skip > 0
+                          ? `, ${csvPreview.would_skip} in-file duplicate${csvPreview.would_skip !== 1 ? "s" : ""} skipped`
+                          : ""}
+                        {csvPreview.errors.length > 0
+                          ? `, ${csvPreview.errors.length} error${csvPreview.errors.length !== 1 ? "s" : ""}`
+                          : ""}
+                      </p>
+                      {csvPreview.errors.length > 0 && (
+                        <ul className="csv-preview-errors">
+                          {csvPreview.errors.slice(0, 5).map((e, i) => (
+                            <li key={i}>{e}</li>
+                          ))}
+                          {csvPreview.errors.length > 5 && (
+                            <li>…and {csvPreview.errors.length - 5} more</li>
+                          )}
+                        </ul>
+                      )}
+                      <div className="csv-preview-actions">
+                        <button
+                          className="action-btn"
+                          disabled={csvPreview.would_import === 0}
+                          onClick={handleCsvConfirm}
+                        >
+                          Confirm Import
+                        </button>
+                        <button className="action-btn-secondary" onClick={handleCsvCancel}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {vendorLoading ? (
                     <p className="settings-loading">Loading vendors...</p>

@@ -8,6 +8,23 @@ from fastapi import HTTPException, UploadFile
 
 from app.core.config import settings
 
+# Known magic bytes for binary formats we accept.
+# Text-based types (text/csv, application/json, text/plain) are excluded —
+# they have no reliable signature and the content-type whitelist is sufficient.
+_MAGIC_BYTES: dict[str, bytes] = {
+    "application/pdf": b"%PDF",
+    "application/zip": b"PK\x03\x04",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": b"PK\x03\x04",
+}
+
+
+def _content_matches_type(content: bytes, content_type: str) -> bool:
+    """Return False when content bytes contradict the declared content_type."""
+    expected = _MAGIC_BYTES.get(content_type)
+    if expected is None:
+        return True  # no signature check for text types
+    return len(content) >= len(expected) and content[: len(expected)] == expected
+
 
 def sanitize_filename(name: str) -> str:
     """Strip dangerous characters and truncate to a safe length."""
@@ -55,6 +72,13 @@ async def save_upload(
         raise HTTPException(
             status_code=413,
             detail=f"File exceeds maximum size of {max_mb:.0f} MB",
+        )
+
+    # Verify file content matches the declared content type.
+    if not _content_matches_type(content, file.content_type):
+        raise HTTPException(
+            status_code=400,
+            detail="File content does not match the declared content type.",
         )
 
     original = file.filename or "unnamed"

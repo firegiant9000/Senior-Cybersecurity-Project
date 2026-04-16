@@ -1,5 +1,6 @@
 """Ingest status and trigger routes — v1."""
 
+import asyncio
 import datetime
 import logging
 from typing import Annotated, Literal
@@ -36,6 +37,9 @@ class SourceFreshness(BaseModel):
     records_ingested: int | None
     total_records: int | None = None
     error_message: str | None = None
+    trigger: str | None = None
+    retry_count: int = 0
+    skipped_reason: str | None = None
 
 
 class FreshnessResponse(BaseModel):
@@ -57,14 +61,53 @@ class IngestTriggerResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-async def _run_ingestion(source: str, **kwargs: object) -> None:
-    """Run an ingestion job and record the result in ingest_runs."""
-    run = IngestRun(source=source, status="running", started_at=datetime.datetime.utcnow())
+async def _run_ingestion(
+    source: str,
+    trigger: str = "manual",
+    retry_count: int = 0,
+) -> None:
+    """Run an ingestion job and record the result in ingest_runs.
+
+    Acquires a PostgreSQL advisory lock before running so that concurrent
+    calls for the same source are safely skipped rather than racing.
+    """
+    from app.services.ingest_lock import expire_stale_runs, release_lock, try_acquire_lock
 
     async with AsyncSessionLocal() as db:
+        # Clean up any runs that timed out without updating their status.
+        await expire_stale_runs(db, source)
+
+        # Attempt non-blocking advisory lock.
+        if not await try_acquire_lock(db, source):
+            skipped_run = IngestRun(
+                source=source,
+                status="skipped",
+                trigger=trigger,
+                retry_count=retry_count,
+                skipped_reason="Lock held by a concurrent run",
+                started_at=datetime.datetime.utcnow(),
+                finished_at=datetime.datetime.utcnow(),
+                records_ingested=0,
+            )
+            db.add(skipped_run)
+            await db.commit()
+            logger.info(
+                "Skipped ingestion — lock held",
+                extra={"source": source, "trigger": trigger},
+            )
+            return
+
+        run = IngestRun(
+            source=source,
+            status="running",
+            trigger=trigger,
+            retry_count=retry_count,
+            started_at=datetime.datetime.utcnow(),
+        )
         db.add(run)
         await db.commit()
 
+        _start = datetime.datetime.utcnow()
         try:
             count = 0
             if source == "nvd":
@@ -85,18 +128,74 @@ async def _run_ingestion(source: str, **kwargs: object) -> None:
                 await ingest_region_economics(db)
                 count = -1
 
+            elapsed = (datetime.datetime.utcnow() - _start).total_seconds()
             run.status = "completed"
             run.records_ingested = max(count, 0)
             run.finished_at = datetime.datetime.utcnow()
             await db.commit()
-            logger.info("Ingestion %s completed: %s records", source, count)
+            logger.info(
+                "Ingestion completed",
+                extra={
+                    "source": source,
+                    "trigger": trigger,
+                    "records": count,
+                    "duration_s": round(elapsed, 2),
+                    "run_id": str(run.id),
+                },
+            )
 
         except Exception as exc:
+            elapsed = (datetime.datetime.utcnow() - _start).total_seconds()
             run.status = "failed"
             run.error_message = str(exc)[:500]
             run.finished_at = datetime.datetime.utcnow()
             await db.commit()
-            logger.exception("Ingestion %s failed: %s", source, exc)
+            logger.exception(
+                "Ingestion failed",
+                extra={
+                    "source": source,
+                    "trigger": trigger,
+                    "duration_s": round(elapsed, 2),
+                    "run_id": str(run.id),
+                    "error": str(exc)[:200],
+                    "retry_count": retry_count,
+                },
+            )
+            # Schedule automatic retry with exponential back-off unless we've
+            # exhausted retries or this was already a retry run.
+            if retry_count < settings.INGEST_MAX_RETRIES:
+                # Back-off: 30s for first retry, 120s for second.
+                delay = 30 * (4**retry_count)  # 30s, 120s
+                next_retry_count = retry_count + 1
+                logger.info(
+                    "Scheduling retry %d/%d in %ds",
+                    next_retry_count,
+                    settings.INGEST_MAX_RETRIES,
+                    delay,
+                    extra={"source": source},
+                )
+
+                async def _retry() -> None:
+                    await asyncio.sleep(delay)
+                    await _run_ingestion(source, trigger=trigger, retry_count=next_retry_count)
+
+                asyncio.create_task(_retry())
+            else:
+                logger.error(
+                    "Ingestion exhausted retries",
+                    extra={"source": source, "max_retries": settings.INGEST_MAX_RETRIES},
+                )
+
+        finally:
+            try:
+                await release_lock(db, source)
+            except Exception:  # noqa: BLE001
+                # Session may be broken after a DB-level failure; advisory lock
+                # self-releases when the session closes, so this is safe to swallow.
+                logger.debug(
+                    "release_lock failed — lock will self-release on session close",
+                    extra={"source": source},
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -149,6 +248,9 @@ async def get_ingest_freshness(
                 records_ingested=run.records_ingested,
                 total_records=total_counts.get(run.source),
                 error_message=run.error_message,
+                trigger=getattr(run, "trigger", None),
+                retry_count=getattr(run, "retry_count", 0),
+                skipped_reason=getattr(run, "skipped_reason", None),
             )
             for run in latest
         ]
@@ -170,6 +272,10 @@ class IngestRunItem(BaseModel):
     status: str
     records_ingested: int
     error_message: str | None = None
+    trigger: str = "manual"
+    retry_count: int = 0
+    skipped_reason: str | None = None
+    next_scheduled_at: str | None = None
 
 
 class IngestRunsResponse(BaseModel):
@@ -230,6 +336,12 @@ async def get_ingest_runs(
                 status=run.status,
                 records_ingested=run.records_ingested,
                 error_message=run.error_message,
+                trigger=getattr(run, "trigger", "manual"),
+                retry_count=getattr(run, "retry_count", 0),
+                skipped_reason=getattr(run, "skipped_reason", None),
+                next_scheduled_at=run.next_scheduled_at.replace(tzinfo=datetime.UTC).isoformat()
+                if getattr(run, "next_scheduled_at", None)
+                else None,
             )
             for run in runs
         ]
@@ -237,6 +349,57 @@ async def get_ingest_runs(
     except Exception as exc:
         logger.exception("Error fetching ingest runs: %s", exc)
         raise HTTPException(status_code=500, detail="Internal server error") from exc
+
+
+class ScheduleJobInfo(BaseModel):
+    """Info for a single scheduled ingest job."""
+
+    source: str
+    cron_expr: str
+    next_fire_time: str | None
+    enabled: bool
+
+
+class ScheduleResponse(BaseModel):
+    """Response for GET /schedule."""
+
+    scheduler_enabled: bool
+    jobs: list[ScheduleJobInfo]
+
+
+@router.get("/schedule", response_model=ScheduleResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def get_ingest_schedule(
+    request: Request,
+    _: User = Depends(require_role("viewer")),
+) -> ScheduleResponse:
+    """Return the current scheduler configuration and next fire times for each source."""
+    from app.workers.scheduler import scheduler
+
+    enabled = settings.SCHEDULER_ENABLED
+    source_crons = {
+        "nvd": settings.INGEST_SCHEDULE_NVD,
+        "cisa_kev": settings.INGEST_SCHEDULE_KEV,
+        "ic3": settings.INGEST_SCHEDULE_IC3,
+        "economics": settings.INGEST_SCHEDULE_ECONOMICS,
+    }
+
+    jobs: list[ScheduleJobInfo] = []
+    for source, cron_expr in source_crons.items():
+        job = scheduler.get_job(f"ingest_{source}") if enabled else None
+        next_fire: str | None = None
+        if job and job.next_run_time:
+            next_fire = job.next_run_time.isoformat()
+        jobs.append(
+            ScheduleJobInfo(
+                source=source,
+                cron_expr=cron_expr or "(not scheduled)",
+                next_fire_time=next_fire,
+                enabled=bool(cron_expr and job is not None),
+            )
+        )
+
+    return ScheduleResponse(scheduler_enabled=enabled, jobs=jobs)
 
 
 @router.post("/trigger", response_model=list[IngestTriggerResponse])
@@ -257,7 +420,7 @@ async def trigger_ingestion(
 
     results: list[IngestTriggerResponse] = []
     for src in sources:
-        background_tasks.add_task(_run_ingestion, src)
+        background_tasks.add_task(_run_ingestion, src, "manual")
         results.append(
             IngestTriggerResponse(
                 source=src,
