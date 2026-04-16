@@ -1,0 +1,205 @@
+.tier-progress {
+  background: var(--card-bg, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.tier-progress--loading {
+  color: var(--text-secondary, #6b7280);
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 1rem;
+}
+
+.tier-progress__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.tier-progress__header h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-primary, #e2e8f0);
+}
+
+.tier-progress__next-hint {
+  font-size: 0.8rem;
+  color: var(--text-secondary, #6b7280);
+}
+
+/* ── Tier ladder ── */
+
+.tier-progress__ladder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.tier-card {
+  border: 1px solid var(--border, #334155);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  transition: border-color 0.2s;
+}
+
+.tier-card--completed {
+  border-color: #065f46;
+  background: rgba(6, 95, 70, 0.08);
+}
+
+.tier-card--current {
+  border-color: var(--accent, #3b82f6);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.tier-card--locked {
+  opacity: 0.65;
+}
+
+.tier-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.tier-card__icon {
+  font-size: 1rem;
+  color: var(--text-secondary, #6b7280);
+}
+
+.tier-card__label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary, #e2e8f0);
+  flex: 1;
+}
+
+.tier-card__badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+  text-transform: uppercase;
+}
+
+.tier-card__badge--done {
+  background: #065f46;
+  color: #6ee7b7;
+}
+
+.tier-card__badge--active {
+  background: #1e3a5f;
+  color: #7dd3fc;
+}
+
+.tier-card__badge--locked {
+  background: var(--bg, #0f172a);
+  color: var(--text-muted, #64748b);
+}
+
+.tier-card__desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary, #6b7280);
+  margin: 0 0 0.5rem;
+}
+
+/* ── Requirements ── */
+
+.tier-card__reqs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.tier-req {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.tier-req__check {
+  width: 1rem;
+  text-align: center;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.tier-req--met .tier-req__check {
+  color: #6ee7b7;
+}
+
+.tier-req--unmet .tier-req__check {
+  color: var(--text-muted, #64748b);
+}
+
+.tier-req__label {
+  color: var(--text-primary, #e2e8f0);
+  min-width: 120px;
+}
+
+.tier-req__detail {
+  color: var(--text-muted, #64748b);
+  flex: 1;
+}
+
+.tier-req__fix {
+  background: transparent;
+  border: 1px solid var(--border, #334155);
+  color: var(--accent, #3b82f6);
+  border-radius: 6px;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.7rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.tier-req__fix:hover {
+  background: var(--accent, #3b82f6);
+  color: #fff;
+}
+
+/* ── Unlocks ── */
+
+.tier-card__unlocks {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.tier-card__unlocks-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #6b7280);
+  font-weight: 600;
+}
+
+.tier-card__unlock-chip {
+  font-size: 0.7rem;
+  background: var(--bg, #0f172a);
+  color: var(--text-primary, #e2e8f0);
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid var(--border, #334155);
+}
+
+/* ── Advance hint ── */
+
+.tier-progress__advance {
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary, #6b7280);
+  background: var(--bg, #0f172a);
+  padding: 0.6rem 0.8rem;
+  border-radius: 6px;
+}
+
+.tier-progress__advance strong {
+  color: var(--text-primary, #e2e8f0);
+}

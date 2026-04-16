@@ -37,7 +37,7 @@
 .assessment-banner-pct {
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary, #6b7280);
   margin-left: auto;
 }
 
@@ -103,5 +103,5 @@
 }
 
 .assessment-banner-dismiss:hover {
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-secondary, #6b7280);
 }
