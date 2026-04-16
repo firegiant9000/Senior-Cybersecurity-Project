@@ -3,6 +3,7 @@
  */
 
 import { API_BASE_URL, fetchWithAuth, getJsonAuth } from "./fetchWithAuth";
+import type { DisclaimerBlock } from "../types/disclaimer";
 
 export interface AISummaryResponse {
   narrative: string;
@@ -14,6 +15,7 @@ export interface AISummaryResponse {
   generated_at: string;
   cached: boolean;
   disclaimer: string;
+  disclaimer_block?: DisclaimerBlock;
 }
 
 export interface FeedbackRequest {

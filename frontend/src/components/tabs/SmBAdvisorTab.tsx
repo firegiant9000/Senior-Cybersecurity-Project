@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import './SmBAdvisorTab.css';
+import DisclaimerBanner from '../shared/DisclaimerBanner';
+import { SMB_ADVISOR_DISCLAIMER } from '../../constants/disclaimers';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
@@ -829,13 +831,7 @@ const SmBAdvisorTab: React.FC = () => {
       <ActionPlanCard topThreats={sectorThreats} loading={loading} />
 
       {/* Footer disclaimer */}
-      <div className="smb-disclaimer">
-        <p>
-          Data sourced from the FBI Internet Crime Complaint Center (IC3) and the National Vulnerability Database (NVD).
-          Figures represent aggregated complaint data and may not reflect all incidents — the majority of cybercrimes go unreported.
-          This tool provides educational guidance and is not a substitute for professional cybersecurity consultation.
-        </p>
-      </div>
+      <DisclaimerBanner disclaimerBlock={SMB_ADVISOR_DISCLAIMER} variant="full" className="smb-disclaimer" />
     </div>
   );
 };

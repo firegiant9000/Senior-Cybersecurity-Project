@@ -131,7 +131,7 @@ const VendorAlertsCard: React.FC = () => {
         </table>
 
         {/* Footer */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', fontSize: 11, color: '#9ca3af' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', fontSize: 11, color: '#6b7280' }}>
           {data.kev_last_ingest_at && (
             <span>KEV data as of: {new Date(data.kev_last_ingest_at).toLocaleDateString()}</span>
           )}
