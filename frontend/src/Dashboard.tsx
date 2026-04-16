@@ -18,6 +18,7 @@ const VendorAlertsTab = lazy(() => import('./components/tabs/VendorAlertsTab'));
 const DataSourcesTab = lazy(() => import('./components/tabs/DataSourcesTab'));
 const FindingsTab = lazy(() => import('./components/tabs/FindingsTab'));
 const AISummaryTab = lazy(() => import('./components/tabs/AISummaryTab'));
+const AnomaliesTab = lazy(() => import('./components/tabs/AnomaliesTab'));
 
 const TABS: TabDef[] = [
     { id: 'smbAdvisor', label: 'SMB Risk Advisor' },
@@ -30,6 +31,7 @@ const TABS: TabDef[] = [
     { id: 'trends', label: 'Trends' },
     { id: 'vendorAlerts', label: 'Vendor Alerts' },
     { id: 'pipelineHealth', label: 'Pipeline Health' },
+    { id: 'anomalies', label: 'Anomalies' },
 ];
 
 const Dashboard: React.FC = () => {
@@ -70,6 +72,7 @@ const Dashboard: React.FC = () => {
                     {activeTab === 'trends' && <TrendsTab />}
                     {activeTab === 'vendorAlerts' && <VendorAlertsTab />}
                     {activeTab === 'pipelineHealth' && <PipelineHealthTab />}
+                    {activeTab === 'anomalies' && <AnomaliesTab />}
                 </Suspense>
             </main>
         </div>

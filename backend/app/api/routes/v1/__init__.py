@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends
 
 from app.api.routes.v1 import (
+    anomalies,
     auth,
     domains,
     economics,
@@ -64,3 +65,11 @@ router.include_router(members.router, tags=["members"])
 
 # Ingest router: per-route auth (viewer for reads, admin for trigger).
 router.include_router(ingest.router, prefix="/ingest", tags=["ingest"])
+
+# Anomaly detection: IC3 and vendor anomalies (viewer role required).
+router.include_router(
+    anomalies.router,
+    prefix="/anomalies",
+    tags=["anomalies"],
+    dependencies=_viewer,
+)
