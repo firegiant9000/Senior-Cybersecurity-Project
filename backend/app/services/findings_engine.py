@@ -25,6 +25,7 @@ from app.db.organization import Organization
 from app.ingestors.ic3_real import ATTACK_SECTOR_WEIGHTS
 from app.schemas.findings import Finding, FindingsReport, FindingsSummary
 from app.services.assessment_readiness import evaluate_readiness
+from app.services.disclaimers import DisclaimerContext, get_disclaimer
 from app.services.domain_checks import (
     DnsCheckResult,
     HttpHeaderResult,
@@ -1489,13 +1490,21 @@ class FindingsEngine:
         # ── Sort by severity (use numeric score for finer ordering) ─────────
         findings.sort(key=lambda f: -(f.severity_score or _severity_score(f.severity, 0.5)))
 
+        sorted_sources = sorted(set(data_sources_used))
+        disclaimer_block = get_disclaimer(
+            DisclaimerContext.FINDINGS,
+            tier=readiness_resp.tier,
+            data_sources=sorted_sources,
+        )
+
         report = FindingsReport(
             org_id=org.id,
             findings=findings,
             summary=_build_summary(findings),
             generated_at=datetime.now(UTC).isoformat(),
-            data_sources_used=sorted(set(data_sources_used)),
+            data_sources_used=sorted_sources,
             assessment_tier=readiness_resp.tier,
+            disclaimer_block=disclaimer_block,
         )
 
         if persist:

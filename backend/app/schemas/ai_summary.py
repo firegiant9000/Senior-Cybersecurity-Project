@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from app.schemas.disclaimer import DisclaimerBlock
+
 
 class AISummaryResponse(BaseModel):
     narrative: str
@@ -15,3 +17,4 @@ class AISummaryResponse(BaseModel):
     generated_at: str
     cached: bool
     disclaimer: str
+    disclaimer_block: DisclaimerBlock | None = None

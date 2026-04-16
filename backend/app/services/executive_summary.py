@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import CVE, KEV, IC3Incident
 from app.schemas.executive_summary import ExecutiveSummaryResponse, TopThreat
+from app.services.disclaimers import DisclaimerContext, get_disclaimer
 
 _METHODOLOGY = (
     "This risk score combines three public threat-intelligence sources: "
@@ -121,6 +122,12 @@ class ExecutiveSummaryService:
             for row in top_threats_raw
         ]
 
+        disclaimer_block = get_disclaimer(
+            DisclaimerContext.EXECUTIVE_SUMMARY,
+            tier=confidence.lower(),
+            data_sources=["ic3_sector_weights", "kev_vendor_match"],
+        )
+
         return ExecutiveSummaryResponse(
             risk_score=round(risk_score, 1),
             risk_label=_risk_label(risk_score),
@@ -132,6 +139,7 @@ class ExecutiveSummaryService:
             methodology=_METHODOLOGY,
             confidence_level=confidence,
             disclaimer=_DISCLAIMER,
+            disclaimer_block=disclaimer_block,
             has_data=has_data,
             generated_at=datetime.now(UTC).isoformat(),
             data_year_range=year_range,
