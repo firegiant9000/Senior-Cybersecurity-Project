@@ -10,12 +10,20 @@ const TIER_LABEL: Record<string, string> = {
   comprehensive: "Comprehensive",
   good: "Good",
   minimal: "Incomplete",
+  // Graduated intake tier names (for forward compatibility)
+  enhanced: "Enhanced",
+  basic: "Basic",
+  incomplete: "Incomplete",
 };
 
 const TIER_CLASS: Record<string, string> = {
   comprehensive: "readiness-tier--comprehensive",
   good: "readiness-tier--good",
   minimal: "readiness-tier--minimal",
+  // Graduated intake tier names
+  enhanced: "readiness-tier--good",
+  basic: "readiness-tier--minimal",
+  incomplete: "readiness-tier--minimal",
 };
 
 // Maps readiness key → section element ID on /org-profile (for scroll-to behavior)

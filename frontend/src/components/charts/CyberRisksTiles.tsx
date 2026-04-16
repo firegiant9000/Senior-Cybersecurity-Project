@@ -10,7 +10,7 @@ interface Props {
 
 const CyberRisksTiles: React.FC<Props> = ({ data, loading }) => {
     if (loading) return <WidgetSkeleton variant="chart" />;
-    if (data.length === 0) return <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>;
+    if (data.length === 0) return <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>No data available.</p>;
 
     const sorted = [...data]
         .sort((a, b) => b.complaint_count - a.complaint_count)

@@ -40,7 +40,7 @@ const VictimProfileTab: React.FC = () => {
     <div className="tab-page">
       <div className="overview-toolbar">
         <button className="overview-refresh-btn" onClick={refresh}>↻ Refresh</button>
-        <span style={{ fontSize: 12, color: '#888' }}>
+        <span style={{ fontSize: 12, color: 'var(--text-muted, #6b7280)' }}>
           Based on IC3 complaint data — no individual victim data is stored.
         </span>
       </div>
@@ -58,7 +58,7 @@ const VictimProfileTab: React.FC = () => {
             <span className="widget-title">Total Financial Loss by Attack Type</span>
             <div className="chart-body">
               {loading ? <WidgetSkeleton variant="chart" /> : topLossByAttack.length === 0 ? (
-                <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>
+                <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>No data available.</p>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
@@ -97,7 +97,7 @@ const VictimProfileTab: React.FC = () => {
             <span className="widget-title">Average Loss per Incident by Sector</span>
             <div className="chart-body">
               {loading ? <WidgetSkeleton variant="chart" /> : topAvgLossBySector.length === 0 ? (
-                <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>
+                <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>No data available.</p>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
@@ -136,7 +136,7 @@ const VictimProfileTab: React.FC = () => {
             <span className="widget-title">Complaint Count by Sector</span>
             <div className="chart-body">
               {loading ? <WidgetSkeleton variant="chart" /> : topComplaintsBySector.length === 0 ? (
-                <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>
+                <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>No data available.</p>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
@@ -175,7 +175,7 @@ const VictimProfileTab: React.FC = () => {
             <span className="widget-title">Sector Impact Summary</span>
             <div className="tab-table-scroll">
               {loading ? <WidgetSkeleton variant="chart" /> : data.industryRisk.length === 0 ? (
-                <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>
+                <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>No data available.</p>
               ) : (
                 <table className="tab-table">
                   <thead>

@@ -23,7 +23,7 @@
 
 .ai-summary-loading-sub {
   font-size: 13px;
-  color: var(--text-muted, #9ca3af);
+  color: var(--text-muted, #6b7280);
   margin-top: 4px;
 }
 
@@ -196,7 +196,7 @@
 
 .ai-summary-metric-label {
   font-size: 12px;
-  color: var(--text-muted, #9ca3af);
+  color: var(--text-muted, #6b7280);
   margin-top: 4px;
 }
 
@@ -276,12 +276,12 @@
 
 .ai-summary-generated {
   font-size: 12px;
-  color: var(--text-muted, #9ca3af);
+  color: var(--text-muted, #6b7280);
 }
 
 .ai-summary-disclaimer {
   font-size: 11px;
-  color: var(--text-muted, #9ca3af);
+  color: var(--text-muted, #6b7280);
   font-style: italic;
   line-height: 1.4;
 }

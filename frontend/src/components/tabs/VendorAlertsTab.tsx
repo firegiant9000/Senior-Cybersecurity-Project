@@ -60,7 +60,7 @@ const VendorAlertsTab: React.FC = () => {
           <p style={{ fontWeight: 700, color: 'var(--text-primary, #e2e8f0)', marginBottom: 8 }}>
             No vendors configured
           </p>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary, #94a3b8)', marginBottom: 16 }}>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary, #555)', marginBottom: 16 }}>
             Add your technology stack in Organization Profile. We'll match your vendors against the CISA Known Exploited Vulnerabilities catalog and alert you to active threats.
           </p>
           <Link

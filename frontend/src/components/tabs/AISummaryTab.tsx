@@ -7,6 +7,7 @@ import {
   type FeedbackRequest,
 } from '../../api/aiSummary';
 import { useAuth } from '../../context/AuthContext';
+import DisclaimerBanner from '../shared/DisclaimerBanner';
 import './AISummaryTab.css';
 
 function riskClass(label: string): string {
@@ -222,7 +223,11 @@ const AISummaryTab: React.FC = () => {
       {/* Meta footer */}
       <div className="ai-summary-footer">
         <span className="ai-summary-generated">Generated {generatedDate}</span>
-        <span className="ai-summary-disclaimer">{data.disclaimer}</span>
+        {data.disclaimer_block ? (
+          <DisclaimerBanner disclaimerBlock={data.disclaimer_block} variant="full" />
+        ) : (
+          <span className="ai-summary-disclaimer">{data.disclaimer}</span>
+        )}
       </div>
     </div>
   );

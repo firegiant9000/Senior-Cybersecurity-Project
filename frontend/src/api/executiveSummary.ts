@@ -3,6 +3,7 @@
  */
 
 import { API_BASE_URL, getJsonAuth } from "./fetchWithAuth";
+import type { DisclaimerBlock } from "../types/disclaimer";
 
 export interface TopThreat {
   name: string;
@@ -21,6 +22,7 @@ export interface ExecutiveSummary {
   methodology: string;
   confidence_level: "High" | "Medium" | "Low";
   disclaimer: string;
+  disclaimer_block?: DisclaimerBlock;
   has_data: boolean;
   generated_at: string;
   data_year_range: string;

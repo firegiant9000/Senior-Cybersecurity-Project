@@ -52,7 +52,7 @@ const DataSourcesTab: React.FC<DataSourcesTabProps> = ({ onNavigateToFindings })
               background: 'transparent',
               border: 'none',
               borderBottom: active === tab.id ? '2px solid var(--accent, #3b82f6)' : '2px solid transparent',
-              color: active === tab.id ? 'var(--accent, #3b82f6)' : 'var(--text-secondary, #94a3b8)',
+              color: active === tab.id ? 'var(--accent, #3b82f6)' : 'var(--text-secondary, #555)',
               fontWeight: active === tab.id ? 700 : 500,
               fontSize: 13,
               padding: '8px 16px',

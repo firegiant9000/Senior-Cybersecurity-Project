@@ -50,8 +50,13 @@ vi.mock('./hooks/useDarkMode', () => ({ useDarkMode: () => [false, vi.fn()] }))
 vi.mock('./components/dashboard/OverviewTab', () => ({ default: () => <div>Overview</div> }))
 vi.mock('./components/dashboard/DashboardHeader', () => ({ default: () => <div>Header</div> }))
 vi.mock('./components/dashboard/TabBar', () => ({
-  default: ({ tabs }: { tabs: { id: string; label: string }[] }) => (
-    <nav>{tabs.map(t => <span key={t.id} data-testid={`tab-${t.id}`}>{t.label}</span>)}</nav>
+  default: ({ groups }: { groups: { id: string; label: string; subTabs?: { id: string; label: string }[] }[] }) => (
+    <nav>
+      {groups.flatMap(g => [
+        <span key={g.id} data-testid={`tab-${g.id}`}>{g.label}</span>,
+        ...(g.subTabs ?? []).map(s => <span key={s.id} data-testid={`tab-${s.id}`}>{s.label}</span>),
+      ])}
+    </nav>
   ),
 }))
 vi.mock('./api/fetchWithAuth', () => ({ API_BASE_URL: '', fetchWithAuth: vi.fn(), getJsonAuth: vi.fn() }))

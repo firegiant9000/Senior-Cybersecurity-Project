@@ -18,6 +18,7 @@ from app.db.user import User
 from app.repositories.organization import SqlOrganizationRepository, get_org_repo
 from app.schemas.ai_summary import AISummaryResponse
 from app.schemas.ai_summary_feedback import FeedbackCreate, FeedbackResponse
+from app.schemas.assessment_intake import AssessmentIntakeResponse
 from app.schemas.assessment_readiness import AssessmentReadinessResponse
 from app.schemas.assessment_validation import AssessmentValidationResponse
 from app.schemas.executive_summary import ExecutiveSummaryResponse
@@ -33,6 +34,7 @@ from app.schemas.organization import (
 from app.schemas.smb_risk_score import RiskScoreResponse
 from app.schemas.vendor_alert import VendorAlertsResponse
 from app.services.ai_summary import AISummaryService
+from app.services.assessment_intake import evaluate_intake
 from app.services.assessment_readiness import evaluate_readiness
 from app.services.assessment_validator import build_response, run_validation
 from app.services.executive_summary import ExecutiveSummaryService
@@ -137,6 +139,23 @@ async def get_assessment_readiness(
     return await evaluate_readiness(org, db)
 
 
+@router.get("/mine/intake", response_model=AssessmentIntakeResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def get_assessment_intake(
+    request: Request,  # noqa: ARG001
+    current_user: User = Depends(get_current_user),  # noqa: ARG001
+    org: Organization = Depends(get_current_org),
+    db: AsyncSession = Depends(get_session),
+):
+    """Return graduated assessment intake tier status for the current org.
+
+    Evaluates org completeness across three tiers (basic, enhanced,
+    comprehensive) and reports which features each tier unlocks plus
+    progress toward the next tier.
+    """
+    return await evaluate_intake(org, db)
+
+
 @router.get("/mine/validation", response_model=AssessmentValidationResponse)
 @limiter.limit(settings.RATE_LIMIT_DATA)
 async def validate_assessment(
@@ -208,13 +227,14 @@ async def get_findings(
     domain reconnaissance (DNS/HTTP/SSL/crt.sh) into categorized findings.
     Requires at least the 'good' readiness tier (all required profile fields set).
     """
-    readiness = await evaluate_readiness(org, db)
-    if readiness.tier == "minimal":
+    intake = await evaluate_intake(org, db)
+    if intake.current_tier in ("incomplete", "basic"):
         raise HTTPException(
             status_code=422,
             detail=(
-                "Your organization profile is incomplete. "
-                "Please complete all required fields before viewing findings."
+                "Your organization profile needs at least Enhanced tier "
+                "(add vendors, domains, and security controls) "
+                "before viewing findings."
             ),
         )
     try:
@@ -240,13 +260,14 @@ async def get_ai_summary(
     """
     if not settings.AI_SUMMARY_ENABLED:
         raise HTTPException(status_code=503, detail="AI summary is currently disabled.")
-    readiness = await evaluate_readiness(org, db)
-    if readiness.tier == "minimal":
+    intake = await evaluate_intake(org, db)
+    if intake.current_tier in ("incomplete", "basic"):
         raise HTTPException(
             status_code=422,
             detail=(
-                "Your organization profile is incomplete. "
-                "Please complete all required fields before generating an AI summary."
+                "Your organization profile needs at least Enhanced tier "
+                "(add vendors, domains, and security controls) "
+                "before generating an AI summary."
             ),
         )
     try:

@@ -1,0 +1,55 @@
+/* ── DisclaimerBanner ─────────────────────────────────────────────────────── */
+
+.disclaimer-banner {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.disclaimer-banner p {
+  margin: 0 0 4px;
+}
+
+.disclaimer-banner p:last-child {
+  margin-bottom: 0;
+}
+
+/* Full variant — bordered box */
+.disclaimer-banner--full {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+
+/* Compact variant — single-line with expand toggle */
+.disclaimer-banner--compact {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  margin-top: 8px;
+}
+
+.disclaimer-expand-toggle {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 0 4px;
+  text-decoration: underline;
+}
+
+.disclaimer-expand-toggle:hover {
+  color: var(--text-primary);
+}
+
+.disclaimer-expanded {
+  margin-top: 8px;
+}
+
+.disclaimer-confidence {
+  font-style: italic;
+}
+
+.disclaimer-attribution {
+  font-weight: 500;
+}

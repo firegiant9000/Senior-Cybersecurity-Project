@@ -2,6 +2,8 @@
 
 from pydantic import BaseModel  # type: ignore[import-not-found]
 
+from app.schemas.disclaimer import DisclaimerBlock
+
 
 class TopThreat(BaseModel):
     """A top threat by financial impact."""
@@ -29,6 +31,7 @@ class ExecutiveSummaryResponse(BaseModel):
     methodology: str
     confidence_level: str  # High | Medium | Low
     disclaimer: str
+    disclaimer_block: DisclaimerBlock | None = None
 
     # Metadata
     has_data: bool  # False when all source tables are empty
