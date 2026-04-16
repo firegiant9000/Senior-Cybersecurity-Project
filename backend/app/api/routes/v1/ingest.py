@@ -370,7 +370,7 @@ class ScheduleResponse(BaseModel):
 @router.get("/schedule", response_model=ScheduleResponse)
 @limiter.limit(settings.RATE_LIMIT_DATA)
 async def get_ingest_schedule(
-    request: Request,
+    request: Request,  # noqa: ARG001
     _: User = Depends(require_role("viewer")),
 ) -> ScheduleResponse:
     """Return the current scheduler configuration and next fire times for each source."""

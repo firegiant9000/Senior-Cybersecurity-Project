@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { fetchIngestRuns, fetchIngestFreshness, type IngestRunItem, type SourceFreshness } from '../../api/ingest';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { fetchIngestRuns, fetchIngestFreshness, triggerIngestion, type IngestRunItem, type SourceFreshness } from '../../api/ingest';
+import { useAuth } from '../../context/AuthContext';
+import { formatDateWithTz } from '../../utils/formatTime';
 
 const PAGE_SIZE = 15;
 
@@ -34,11 +36,13 @@ function fmtDuration(start: string | null, end: string | null): string {
 }
 
 function fmtTime(iso: string | null): string {
-    if (!iso) return '—';
-    return new Date(iso).toLocaleString();
+    return formatDateWithTz(iso);
 }
 
 const PipelineHealthTab: React.FC = () => {
+    const { role } = useAuth();
+    const isAdmin = role === 'admin';
+
     const [runs, setRuns] = useState<IngestRunItem[]>([]);
     const [freshness, setFreshness] = useState<SourceFreshness[]>([]);
     const [loading, setLoading] = useState(false);
@@ -46,6 +50,21 @@ const PipelineHealthTab: React.FC = () => {
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
     const [sourceFilter, setSourceFilter] = useState('');
+    const [triggerSource, setTriggerSource] = useState('');
+    const [triggering, setTriggering] = useState(false);
+    const [triggerMsg, setTriggerMsg] = useState<string | null>(null);
+
+    const triggerAbortRef = useRef<AbortController | null>(null);
+    const refreshTimerRef = useRef<number | null>(null);
+    const pollIntervalRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        return () => {
+            triggerAbortRef.current?.abort();
+            if (refreshTimerRef.current !== null) window.clearTimeout(refreshTimerRef.current);
+            if (pollIntervalRef.current !== null) window.clearInterval(pollIntervalRef.current);
+        };
+    }, []);
 
     const fetchData = useCallback(async (p: number, source: string, signal?: AbortSignal) => {
         setLoading(true);
@@ -77,7 +96,54 @@ const PipelineHealthTab: React.FC = () => {
         return () => controller.abort();
     }, [fetchData, sourceFilter]);
 
+    // Poll freshness every second while any source is running;
+    // refresh the run table once polling stops (ingestion finished)
+    const wasRunningRef = useRef(false);
+    useEffect(() => {
+        const anyRunning = freshness.some(s => s.status === 'running');
+        if (pollIntervalRef.current !== null) {
+            window.clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+        }
+        if (!anyRunning && wasRunningRef.current) {
+            fetchData(1, sourceFilter);
+        }
+        wasRunningRef.current = anyRunning;
+        if (anyRunning) {
+            pollIntervalRef.current = window.setInterval(() => {
+                const controller = new AbortController();
+                fetchIngestFreshness(controller.signal)
+                    .then(r => setFreshness(r.sources))
+                    .catch(() => { /* non-fatal */ });
+            }, 1000);
+        }
+        return () => {
+            if (pollIntervalRef.current !== null) window.clearInterval(pollIntervalRef.current);
+        };
+    }, [freshness, sourceFilter, fetchData]);
+
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+    const handleTrigger = useCallback(async () => {
+        triggerAbortRef.current?.abort();
+        const controller = new AbortController();
+        triggerAbortRef.current = controller;
+
+        if (refreshTimerRef.current !== null) window.clearTimeout(refreshTimerRef.current);
+
+        setTriggering(true);
+        setTriggerMsg(null);
+        try {
+            const res = await triggerIngestion(controller.signal, triggerSource || undefined);
+            setTriggerMsg(res.message ?? 'Ingestion triggered.');
+            refreshTimerRef.current = window.setTimeout(() => fetchData(1, sourceFilter), 2000);
+        } catch (err) {
+            if (err instanceof DOMException && err.name === 'AbortError') return;
+            setTriggerMsg(err instanceof Error ? err.message : 'Trigger failed.');
+        } finally {
+            setTriggering(false);
+        }
+    }, [triggerSource, sourceFilter, fetchData]);
 
     return (
         <div className="data-table-container">
@@ -113,8 +179,29 @@ const PipelineHealthTab: React.FC = () => {
                                     Last Run New: {s.records_ingested?.toLocaleString() ?? '—'}
                                 </div>
                                 <div style={{ fontSize: '12px' }}>
-                                    Last run: {s.last_run_at ? new Date(s.last_run_at).toLocaleString() : 'never'}
+                                    Last run: {s.last_run_at ? formatDateWithTz(s.last_run_at) : 'never'}
                                 </div>
+                                {s.status === 'running' && (
+                                    <div style={{ marginTop: '8px' }}>
+                                        <div style={{ fontSize: '11px', marginBottom: '4px', color: style.color }}>
+                                            Ingesting…
+                                        </div>
+                                        <div style={{
+                                            height: '6px',
+                                            borderRadius: '3px',
+                                            background: 'rgba(0,0,0,0.12)',
+                                            overflow: 'hidden',
+                                        }}>
+                                            <div style={{
+                                                height: '100%',
+                                                width: '40%',
+                                                borderRadius: '3px',
+                                                background: style.color,
+                                                animation: 'pipeline-progress-slide 1.4s ease-in-out infinite',
+                                            }} />
+                                        </div>
+                                    </div>
+                                )}
                                 {s.error_message && (
                                     <div style={{ fontSize: '11px', marginTop: '4px', color: '#991b1b' }}>
                                         Error: {s.error_message.substring(0, 100)}
@@ -126,7 +213,47 @@ const PipelineHealthTab: React.FC = () => {
                 </div>
             )}
 
-            {/* Filters */}
+            {/* Admin-only: Trigger ingestion */}
+            {isAdmin && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                    <select
+                        value={triggerSource}
+                        onChange={(e) => setTriggerSource(e.target.value)}
+                        style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '13px' }}
+                    >
+                        <option value="">All Sources</option>
+                        <option value="nvd">NVD</option>
+                        <option value="cisa_kev">CISA KEV</option>
+                        <option value="ic3">IC3</option>
+                        <option value="economics">Economics</option>
+                    </select>
+                    <button
+                        onClick={handleTrigger}
+                        disabled={triggering}
+                        style={{
+                            padding: '6px 16px',
+                            borderRadius: '4px',
+                            background: triggering ? '#9ca3af' : '#2563eb',
+                            color: '#fff',
+                            border: 'none',
+                            fontWeight: 600,
+                            fontSize: '13px',
+                            cursor: triggering ? 'not-allowed' : 'pointer',
+                        }}
+                    >
+                        {triggering ? 'Triggering…' : 'Trigger Ingestion'}
+                    </button>
+                    {triggerMsg && (
+                        <span style={{ fontSize: '13px', color: triggerMsg.startsWith('Trigger failed') ? '#991b1b' : '#166534' }}>
+                            {triggerMsg}
+                        </span>
+                    )}
+                </div>
+            )}
+
+            {/* Filters + run table — admin only */}
+            {isAdmin && (
+            <>
             <div className="filter-controls">
                 <div className="filter-group">
                     <label htmlFor="pipeline-source">Source</label>
@@ -218,6 +345,8 @@ const PipelineHealthTab: React.FC = () => {
                         </button>
                     </div>
                 </>
+            )}
+            </>
             )}
         </div>
     );

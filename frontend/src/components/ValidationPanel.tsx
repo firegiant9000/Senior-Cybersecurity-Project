@@ -94,7 +94,7 @@ export default function ValidationPanel() {
   return (
     <section className="vp-panel settings-section">
       <div className="vp-header" onClick={() => setExpanded((v) => !v)} role="button" tabIndex={0}
-        onKeyDown={(e) => e.key === "Enter" && setExpanded((v) => !v)}>
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpanded((v) => !v); } }}>
         <div className="vp-header-left">
           <h2 className="vp-title">Assessment Quality</h2>
           <span className="vp-summary">{summaryText}</span>

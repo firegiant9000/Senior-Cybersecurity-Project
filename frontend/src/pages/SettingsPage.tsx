@@ -84,6 +84,7 @@ export default function SettingsPage() {
 
   const canManageMembers =
     profile != null &&
+    profile.org_id != null &&
     (profile.role === "admin" ||
       profile.org_role === "admin" ||
       profile.org_role === "owner");
