@@ -58,7 +58,7 @@ const Dashboard: React.FC = () => {
         if (!tabs.find((t) => t.id === activeTab)) {
             setActiveTab('overview');
         }
-    }, [tabs]);
+    }, [tabs, activeTab]);
 
     return (
         <div className="dashboard-container">
