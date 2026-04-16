@@ -38,3 +38,7 @@ class IngestRunResponse(IngestRunBase):
     started_at: datetime
     finished_at: datetime | None = None
     error_message: str | None = None
+    trigger: str = "manual"
+    retry_count: int = 0
+    skipped_reason: str | None = None
+    next_scheduled_at: datetime | None = None
