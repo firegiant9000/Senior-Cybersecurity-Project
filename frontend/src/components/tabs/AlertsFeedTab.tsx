@@ -24,7 +24,7 @@ function SeverityBadge({ label }: { label: string }) {
 }
 
 function ScorePill({ score }: { score: number | null }) {
-  if (score === null) return <span style={{ color: '#aaa' }}>—</span>;
+  if (score === null) return <span style={{ color: 'var(--text-muted, #6b7280)' }}>—</span>;
   const color = score >= 9 ? '#d32f2f' : score >= 7 ? '#e65100' : score >= 4 ? '#00bcd4' : '#2e7d32';
   return (
     <span style={{ color, fontWeight: 700, fontSize: 13 }}>
@@ -60,7 +60,7 @@ const AlertsFeedTab: React.FC = () => {
             </span>
             <div className="tab-table-scroll">
               {loading ? <WidgetSkeleton variant="chart" /> : data.recentKev.length === 0 ? (
-                <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>
+                <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>No data available.</p>
               ) : (
                 <table className="tab-table">
                   <thead>
@@ -107,7 +107,7 @@ const AlertsFeedTab: React.FC = () => {
             </span>
             <div className="tab-table-scroll">
               {loading ? <WidgetSkeleton variant="chart" /> : data.recentCves.length === 0 ? (
-                <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>
+                <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>No data available.</p>
               ) : (
                 <table className="tab-table">
                   <thead>

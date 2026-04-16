@@ -233,7 +233,7 @@ const PipelineHealthTab: React.FC = () => {
                         style={{
                             padding: '6px 16px',
                             borderRadius: '4px',
-                            background: triggering ? '#9ca3af' : '#2563eb',
+                            background: triggering ? '#6b7280' : '#2563eb',
                             color: '#fff',
                             border: 'none',
                             fontWeight: 600,

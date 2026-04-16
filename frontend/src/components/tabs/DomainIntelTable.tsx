@@ -147,10 +147,10 @@ const DomainIntelTable: React.FC<Props> = ({ onNavigateToFindings }) => {
               statusColor = 'var(--success, #16a34a)';
             } else if (src.requiresKey) {
               status = 'Needs API Key';
-              statusColor = 'var(--text-muted, #9ca3af)';
+              statusColor = 'var(--text-muted, #6b7280)';
             } else {
               status = 'No Data';
-              statusColor = 'var(--text-muted, #9ca3af)';
+              statusColor = 'var(--text-muted, #6b7280)';
             }
             return (
               <tr key={src.id} style={{ borderBottom: '1px solid var(--border, #1e293b)' }}>

@@ -39,8 +39,8 @@ function truncate(str: string, max = 12): string {
 }
 
 const IncidentManagementChart: React.FC<Props> = ({ data, loading }) => {
-    if (loading) return <p style={{ color: '#888', fontSize: 13 }}>Loading…</p>;
-    if (data.length === 0) return <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>;
+    if (loading) return <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>Loading…</p>;
+    if (data.length === 0) return <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>No data available.</p>;
 
     // Aggregate by sector → { Medium, High, Critical }
     const sectorMap: Record<string, { Medium: number; High: number; Critical: number; total: number }> = {};

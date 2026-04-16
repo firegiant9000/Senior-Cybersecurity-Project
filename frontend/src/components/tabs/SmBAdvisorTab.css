@@ -528,7 +528,7 @@
 [data-theme="dark"] .smb-cost-mid  { background: #2d1f00; }
 [data-theme="dark"] .smb-cost-high { background: #2d0f0f; }
 [data-theme="dark"] .smb-cost-amount { color: #93c5fd; }
-[data-theme="dark"] .smb-cost-band-label { color: #94a3b8; }
+[data-theme="dark"] .smb-cost-band-label { color: #6b7280; }
 [data-theme="dark"] .smb-check-high { border-color: #4a1515; background: #2d0f0f; }
 
 /* Responsive */

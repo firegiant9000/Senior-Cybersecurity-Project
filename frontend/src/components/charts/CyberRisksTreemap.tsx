@@ -81,8 +81,8 @@ const CustomContent: React.FC<ContentProps> = ({
 };
 
 const CyberRisksTreemap: React.FC<Props> = ({ data, loading }) => {
-    if (loading) return <p style={{ color: '#888', fontSize: 13 }}>Loading…</p>;
-    if (data.length === 0) return <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>;
+    if (loading) return <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>Loading…</p>;
+    if (data.length === 0) return <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>No data available.</p>;
 
     const chartData = [...data]
         .sort((a, b) => b.complaint_count - a.complaint_count)

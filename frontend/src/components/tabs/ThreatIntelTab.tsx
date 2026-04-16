@@ -77,7 +77,7 @@ const ThreatIntelTab: React.FC = () => {
             <span className="widget-title">CVE Publications by Year</span>
             <div className="chart-body">
               {loading ? <WidgetSkeleton variant="chart" /> : data.nvdTimeline.length === 0 ? (
-                <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>
+                <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>No data available.</p>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={data.nvdTimeline} margin={{ top: 8, right: 24, left: 0, bottom: 4 }}>
@@ -106,7 +106,7 @@ const ThreatIntelTab: React.FC = () => {
             <span className="widget-title">CVE Severity Distribution</span>
             <div className="chart-body">
               {loading ? <WidgetSkeleton variant="chart" /> : sortedSeverity.length === 0 ? (
-                <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>
+                <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>No data available.</p>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -148,7 +148,7 @@ const ThreatIntelTab: React.FC = () => {
             <span className="widget-title">Top Affected Vendors (KEV)</span>
             <div className="chart-body">
               {loading ? <WidgetSkeleton variant="chart" /> : topVendors.length === 0 ? (
-                <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>
+                <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>No data available.</p>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
@@ -180,7 +180,7 @@ const ThreatIntelTab: React.FC = () => {
             <span className="widget-title">Recent CISA KEV Additions</span>
             <div className="tab-table-scroll">
               {loading ? <WidgetSkeleton variant="chart" /> : data.recentKev.length === 0 ? (
-                <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>
+                <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>No data available.</p>
               ) : (
                 <table className="tab-table">
                   <thead>
@@ -214,7 +214,7 @@ const ThreatIntelTab: React.FC = () => {
       </div>
 
       {/* ── Live Alerts Feed (merged from Alerts Feed tab) ── */}
-      <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary, #94a3b8)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '24px 0 12px' }}>
+      <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary, #555)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '24px 0 12px' }}>
         Live Alerts Feed
       </h3>
       <div className="alerts-grid">
@@ -226,7 +226,7 @@ const ThreatIntelTab: React.FC = () => {
             </span>
             <div className="tab-table-scroll">
               {loading ? <WidgetSkeleton variant="chart" /> : data.recentKev.length === 0 ? (
-                <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>
+                <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>No data available.</p>
               ) : (
                 <table className="tab-table">
                   <thead>
@@ -253,7 +253,7 @@ const ThreatIntelTab: React.FC = () => {
                         <td>{severityBadge(entry.severity_label)}</td>
                         <td>
                           {entry.severity_score === null ? (
-                            <span style={{ color: '#aaa' }}>—</span>
+                            <span style={{ color: 'var(--text-muted, #6b7280)' }}>—</span>
                           ) : (
                             <span style={{
                               color: entry.severity_score >= 9 ? '#d32f2f' : entry.severity_score >= 7 ? '#e65100' : entry.severity_score >= 4 ? '#00bcd4' : '#2e7d32',
@@ -282,7 +282,7 @@ const ThreatIntelTab: React.FC = () => {
             </span>
             <div className="tab-table-scroll">
               {loading ? <WidgetSkeleton variant="chart" /> : data.recentCves.length === 0 ? (
-                <p style={{ color: '#888', fontSize: 13 }}>No data available.</p>
+                <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>No data available.</p>
               ) : (
                 <table className="tab-table">
                   <thead>
@@ -304,7 +304,7 @@ const ThreatIntelTab: React.FC = () => {
                         <td>{severityBadge(cve.severity_label)}</td>
                         <td>
                           {cve.severity_score === null ? (
-                            <span style={{ color: '#aaa' }}>—</span>
+                            <span style={{ color: 'var(--text-muted, #6b7280)' }}>—</span>
                           ) : (
                             <span style={{
                               color: cve.severity_score >= 9 ? '#d32f2f' : cve.severity_score >= 7 ? '#e65100' : cve.severity_score >= 4 ? '#00bcd4' : '#2e7d32',
