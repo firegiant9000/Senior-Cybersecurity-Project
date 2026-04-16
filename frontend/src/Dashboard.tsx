@@ -1,15 +1,17 @@
-import React, { useState, Suspense, lazy, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import React, { Suspense, lazy, useEffect, useCallback, useMemo } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import './Dashboard.css';
 import { useAuth } from './context/AuthContext';
 import { useDarkMode } from './hooks/useDarkMode';
 import { useDashboardData } from './hooks/useDashboardData';
 import DashboardHeader from './components/dashboard/DashboardHeader';
-import TabBar, { type TabDef } from './components/dashboard/TabBar';
+import TabBar from './components/dashboard/TabBar';
+import SubTabBar from './components/dashboard/SubTabBar';
 import OverviewTab from './components/dashboard/OverviewTab';
 import WidgetSkeleton from './components/shared/WidgetSkeleton';
 import { API_BASE_URL } from './api/fetchWithAuth';
-import { canSeePipeline as checkCanSeePipeline } from './utils/roleUtils';
+import { TAB_GROUPS, LEGACY_TAB_MAP } from './config/tabGroups';
+import { getVisibleGroups } from './utils/roleUtils';
 
 const RiskScoringTable = lazy(() => import('./components/tabs/RiskScoringTable'));
 const ThreatIntelTab = lazy(() => import('./components/tabs/ThreatIntelTab'));
@@ -22,43 +24,73 @@ const FindingsTab = lazy(() => import('./components/tabs/FindingsTab'));
 const AISummaryTab = lazy(() => import('./components/tabs/AISummaryTab'));
 const AnomaliesTab = lazy(() => import('./components/tabs/AnomaliesTab'));
 
-const ALL_TABS: TabDef[] = [
-    { id: 'smbAdvisor', label: 'SMB Risk Advisor' },
-    { id: 'overview', label: 'Overview' },
-    { id: 'findings', label: 'Findings' },
-    { id: 'aiSummary', label: 'AI Summary' },
-    { id: 'dataSources', label: 'Data Sources' },
-    { id: 'riskScoring', label: 'Risk Scoring' },
-    { id: 'threatIntel', label: 'Threat Intelligence' },
-    { id: 'trends', label: 'Trends' },
-    { id: 'vendorAlerts', label: 'Vendor Alerts' },
-    { id: 'pipelineHealth', label: 'Pipeline Health' },
-    { id: 'anomalies', label: 'Anomalies' },
-];
-
-const ORG_ONLY_TABS = new Set(['smbAdvisor', 'findings', 'aiSummary', 'vendorAlerts']);
-
 const Dashboard: React.FC = () => {
-    const [activeTab, setActiveTab] = useState('overview');
+    const [searchParams, setSearchParams] = useSearchParams();
     const [dark, toggleDark] = useDarkMode();
     const { user, logout, orgId, orgLoading, role, orgRole } = useAuth();
     const { data, loading, loadingHeavy, errors, lastUpdated, refresh } = useDashboardData();
 
-    const canSeePipeline = checkCanSeePipeline(role, orgRole);
+    const visibleGroups = useMemo(
+        () => getVisibleGroups(TAB_GROUPS, { orgId: orgId ?? null, role, orgRole, orgLoading }),
+        [orgId, role, orgRole, orgLoading],
+    );
 
-    const tabs = orgLoading
-        ? ALL_TABS.filter((t) => !ORG_ONLY_TABS.has(t.id) && t.id !== 'pipelineHealth')
-        : ALL_TABS.filter((t) => {
-            if (ORG_ONLY_TABS.has(t.id) && orgId == null) return false;
-            if (t.id === 'pipelineHealth' && !canSeePipeline) return false;
-            return true;
-          });
+    // --- Resolve active group + sub-tab from URL ---
+    const rawTab = searchParams.get('tab');
+    const rawSub = searchParams.get('sub');
 
-    useEffect(() => {
-        if (!tabs.find((t) => t.id === activeTab)) {
-            setActiveTab('overview');
+    // Handle legacy flat tab IDs (e.g. ?tab=findings → ?tab=assessment&sub=findings)
+    const resolved = useMemo(() => {
+        if (rawTab && LEGACY_TAB_MAP[rawTab] && LEGACY_TAB_MAP[rawTab].sub) {
+            return LEGACY_TAB_MAP[rawTab];
         }
-    }, [tabs, activeTab]);
+        return { tab: rawTab ?? 'overview', sub: rawSub ?? undefined };
+    }, [rawTab, rawSub]);
+
+    const activeGroup = resolved.tab;
+    const activeGroupDef = visibleGroups.find((g) => g.id === activeGroup);
+
+    const activeSubTab = useMemo(() => {
+        if (!activeGroupDef?.subTabs) return activeGroup;
+        if (resolved.sub && activeGroupDef.subTabs.some((s) => s.id === resolved.sub)) {
+            return resolved.sub;
+        }
+        return activeGroupDef.subTabs[0].id;
+    }, [activeGroupDef, activeGroup, resolved.sub]);
+
+    // If active group isn't visible, fall back to overview
+    useEffect(() => {
+        if (!activeGroupDef && visibleGroups.length > 0) {
+            setSearchParams({}, { replace: true });
+        }
+    }, [activeGroupDef, visibleGroups, setSearchParams]);
+
+    const handleGroupChange = useCallback(
+        (groupId: string) => {
+            const group = visibleGroups.find((g) => g.id === groupId);
+            const params: Record<string, string> = { tab: groupId };
+            if (group?.subTabs) {
+                params.sub = group.subTabs[0].id;
+            }
+            setSearchParams(params);
+        },
+        [visibleGroups, setSearchParams],
+    );
+
+    const handleSubTabChange = useCallback(
+        (subId: string) => {
+            setSearchParams({ tab: activeGroup, sub: subId });
+        },
+        [activeGroup, setSearchParams],
+    );
+
+    const navigateToFindings = useCallback(() => {
+        setSearchParams({ tab: 'assessment', sub: 'findings' });
+    }, [setSearchParams]);
+
+    // The component key to render — for standalone groups it's the group id,
+    // for groups with sub-tabs it's the active sub-tab id.
+    const activeComponent = activeGroupDef?.subTabs ? activeSubTab : activeGroup;
 
     return (
         <div className="dashboard-container">
@@ -68,7 +100,15 @@ const Dashboard: React.FC = () => {
                 user={user}
                 onLogout={logout}
             />
-            <TabBar activeTab={activeTab} onTabChange={setActiveTab} tabs={tabs} />
+            <TabBar activeGroup={activeGroup} onGroupChange={handleGroupChange} groups={visibleGroups} />
+
+            {activeGroupDef?.subTabs && activeGroupDef.subTabs.length > 1 && (
+                <SubTabBar
+                    subTabs={activeGroupDef.subTabs}
+                    activeSubTab={activeSubTab}
+                    onSubTabChange={handleSubTabChange}
+                />
+            )}
 
             <main className="dashboard-content">
                 {!orgLoading && orgId == null && (
@@ -78,7 +118,8 @@ const Dashboard: React.FC = () => {
                         <span> to unlock org-specific features.</span>
                     </div>
                 )}
-                {activeTab === 'overview' && (
+
+                {activeComponent === 'overview' && (
                     <OverviewTab
                         data={data}
                         loading={loading}
@@ -90,16 +131,16 @@ const Dashboard: React.FC = () => {
                 )}
 
                 <Suspense fallback={<WidgetSkeleton />}>
-                    {activeTab === 'smbAdvisor' && <SmBAdvisorTab />}
-                    {activeTab === 'findings' && <FindingsTab />}
-                    {activeTab === 'aiSummary' && <AISummaryTab />}
-                    {activeTab === 'dataSources' && <DataSourcesTab onNavigateToFindings={() => setActiveTab('findings')} />}
-                    {activeTab === 'riskScoring' && <RiskScoringTable apiBaseUrl={API_BASE_URL} />}
-                    {activeTab === 'threatIntel' && <ThreatIntelTab />}
-                    {activeTab === 'trends' && <TrendsTab />}
-                    {activeTab === 'vendorAlerts' && <VendorAlertsTab />}
-                    {activeTab === 'pipelineHealth' && <PipelineHealthTab />}
-                    {activeTab === 'anomalies' && <AnomaliesTab />}
+                    {activeComponent === 'smbAdvisor' && <SmBAdvisorTab />}
+                    {activeComponent === 'findings' && <FindingsTab />}
+                    {activeComponent === 'aiSummary' && <AISummaryTab />}
+                    {activeComponent === 'dataSources' && <DataSourcesTab onNavigateToFindings={navigateToFindings} />}
+                    {activeComponent === 'riskScoring' && <RiskScoringTable apiBaseUrl={API_BASE_URL} />}
+                    {activeComponent === 'threatIntel' && <ThreatIntelTab />}
+                    {activeComponent === 'trends' && <TrendsTab />}
+                    {activeComponent === 'vendorAlerts' && <VendorAlertsTab />}
+                    {activeComponent === 'pipelineHealth' && <PipelineHealthTab />}
+                    {activeComponent === 'anomalies' && <AnomaliesTab />}
                 </Suspense>
             </main>
         </div>
