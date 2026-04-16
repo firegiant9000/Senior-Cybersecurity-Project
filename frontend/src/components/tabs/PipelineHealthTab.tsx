@@ -55,13 +55,13 @@ const PipelineHealthTab: React.FC = () => {
     const [triggerMsg, setTriggerMsg] = useState<string | null>(null);
 
     const triggerAbortRef = useRef<AbortController | null>(null);
-    const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const pollIntervalRef = useRef<ReturnType<typeof window.setInterval> | null>(null);
+    const refreshTimerRef = useRef<number | null>(null);
+    const pollIntervalRef = useRef<number | null>(null);
 
     useEffect(() => {
         return () => {
             triggerAbortRef.current?.abort();
-            if (refreshTimerRef.current !== null) clearTimeout(refreshTimerRef.current);
+            if (refreshTimerRef.current !== null) window.clearTimeout(refreshTimerRef.current);
             if (pollIntervalRef.current !== null) window.clearInterval(pollIntervalRef.current);
         };
     }, []);
@@ -129,14 +129,14 @@ const PipelineHealthTab: React.FC = () => {
         const controller = new AbortController();
         triggerAbortRef.current = controller;
 
-        if (refreshTimerRef.current !== null) clearTimeout(refreshTimerRef.current);
+        if (refreshTimerRef.current !== null) window.clearTimeout(refreshTimerRef.current);
 
         setTriggering(true);
         setTriggerMsg(null);
         try {
             const res = await triggerIngestion(controller.signal, triggerSource || undefined);
             setTriggerMsg(res.message ?? 'Ingestion triggered.');
-            refreshTimerRef.current = setTimeout(() => fetchData(1, sourceFilter), 2000);
+            refreshTimerRef.current = window.setTimeout(() => fetchData(1, sourceFilter), 2000);
         } catch (err) {
             if (err instanceof DOMException && err.name === 'AbortError') return;
             setTriggerMsg(err instanceof Error ? err.message : 'Trigger failed.');
