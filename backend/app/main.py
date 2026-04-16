@@ -142,10 +142,12 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         )
     await init_db()
     await _auto_ingest()
-    init_scheduler()
-    scheduler.start()
+    if settings.SCHEDULER_ENABLED:
+        init_scheduler()
+        scheduler.start()
     yield
-    scheduler.shutdown(wait=False)
+    if settings.SCHEDULER_ENABLED:
+        scheduler.shutdown(wait=False)
     await aclose_http_client()
 
 

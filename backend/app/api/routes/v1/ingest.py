@@ -189,7 +189,7 @@ async def _run_ingestion(
         finally:
             try:
                 await release_lock(db, source)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 # Session may be broken after a DB-level failure; advisory lock
                 # self-releases when the session closes, so this is safe to swallow.
                 logger.debug(
