@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchIngestRuns, fetchIngestFreshness, triggerIngestion, type IngestRunItem, type SourceFreshness } from '../../api/ingest';
 import { useAuth } from '../../context/AuthContext';
+import { formatDateWithTz } from '../../utils/formatTime';
 
 const PAGE_SIZE = 15;
 
@@ -35,8 +36,7 @@ function fmtDuration(start: string | null, end: string | null): string {
 }
 
 function fmtTime(iso: string | null): string {
-    if (!iso) return '—';
-    return new Date(iso).toLocaleString();
+    return formatDateWithTz(iso);
 }
 
 const PipelineHealthTab: React.FC = () => {
@@ -54,13 +54,15 @@ const PipelineHealthTab: React.FC = () => {
     const [triggering, setTriggering] = useState(false);
     const [triggerMsg, setTriggerMsg] = useState<string | null>(null);
 
-    const triggerAbortRef = React.useRef<AbortController | null>(null);
-    const refreshTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+    const triggerAbortRef = useRef<AbortController | null>(null);
+    const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const pollIntervalRef = useRef<ReturnType<typeof window.setInterval> | null>(null);
 
-    React.useEffect(() => {
+    useEffect(() => {
         return () => {
             triggerAbortRef.current?.abort();
             if (refreshTimerRef.current !== null) clearTimeout(refreshTimerRef.current);
+            if (pollIntervalRef.current !== null) window.clearInterval(pollIntervalRef.current);
         };
     }, []);
 
@@ -93,6 +95,32 @@ const PipelineHealthTab: React.FC = () => {
             .catch(() => { /* non-fatal */ });
         return () => controller.abort();
     }, [fetchData, sourceFilter]);
+
+    // Poll freshness every second while any source is running;
+    // refresh the run table once polling stops (ingestion finished)
+    const wasRunningRef = useRef(false);
+    useEffect(() => {
+        const anyRunning = freshness.some(s => s.status === 'running');
+        if (pollIntervalRef.current !== null) {
+            window.clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+        }
+        if (!anyRunning && wasRunningRef.current) {
+            fetchData(1, sourceFilter);
+        }
+        wasRunningRef.current = anyRunning;
+        if (anyRunning) {
+            pollIntervalRef.current = window.setInterval(() => {
+                const controller = new AbortController();
+                fetchIngestFreshness(controller.signal)
+                    .then(r => setFreshness(r.sources))
+                    .catch(() => { /* non-fatal */ });
+            }, 1000);
+        }
+        return () => {
+            if (pollIntervalRef.current !== null) window.clearInterval(pollIntervalRef.current);
+        };
+    }, [freshness, sourceFilter, fetchData]);
 
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -151,8 +179,29 @@ const PipelineHealthTab: React.FC = () => {
                                     Last Run New: {s.records_ingested?.toLocaleString() ?? '—'}
                                 </div>
                                 <div style={{ fontSize: '12px' }}>
-                                    Last run: {s.last_run_at ? new Date(s.last_run_at).toLocaleString() : 'never'}
+                                    Last run: {s.last_run_at ? formatDateWithTz(s.last_run_at) : 'never'}
                                 </div>
+                                {s.status === 'running' && (
+                                    <div style={{ marginTop: '8px' }}>
+                                        <div style={{ fontSize: '11px', marginBottom: '4px', color: style.color }}>
+                                            Ingesting…
+                                        </div>
+                                        <div style={{
+                                            height: '6px',
+                                            borderRadius: '3px',
+                                            background: 'rgba(0,0,0,0.12)',
+                                            overflow: 'hidden',
+                                        }}>
+                                            <div style={{
+                                                height: '100%',
+                                                width: '40%',
+                                                borderRadius: '3px',
+                                                background: style.color,
+                                                animation: 'pipeline-progress-slide 1.4s ease-in-out infinite',
+                                            }} />
+                                        </div>
+                                    </div>
+                                )}
                                 {s.error_message && (
                                     <div style={{ fontSize: '11px', marginTop: '4px', color: '#991b1b' }}>
                                         Error: {s.error_message.substring(0, 100)}
