@@ -21,6 +21,7 @@ from app.db.organization import Organization
 from app.schemas.ai_summary import AISummaryResponse
 from app.schemas.findings import FindingsReport
 from app.services.findings_engine import FindingsEngine
+from app.services.disclaimers import DisclaimerContext, get_disclaimer
 from app.services.risk_scoring import calculate_smb_risk_score
 
 logger = logging.getLogger(__name__)
@@ -340,6 +341,12 @@ class AISummaryService:
         else:
             narrative = _build_fallback(org, report, risk_score)
 
+        disclaimer_block = get_disclaimer(
+            DisclaimerContext.AI_SUMMARY,
+            tier=report.assessment_tier,
+            data_sources=report.data_sources_used,
+        )
+
         resp = AISummaryResponse(
             narrative=narrative,
             ai_generated=ai_generated,
@@ -350,6 +357,7 @@ class AISummaryService:
             generated_at=generated_at,
             cached=False,
             disclaimer=disclaimer,
+            disclaimer_block=disclaimer_block,
         )
 
         self._set_cache(org.id, resp)

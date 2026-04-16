@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from app.schemas.disclaimer import DisclaimerBlock
+
 
 class Finding(BaseModel):
     id: str
@@ -30,3 +32,4 @@ class FindingsReport(BaseModel):
     generated_at: str
     data_sources_used: list[str]
     assessment_tier: str
+    disclaimer_block: DisclaimerBlock | None = None
