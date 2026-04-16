@@ -37,6 +37,26 @@ export interface IngestRunsResponse {
   page_size: number
 }
 
+export interface TriggerIngestResponse {
+  message: string
+  source?: string
+}
+
+export async function triggerIngestion(signal: AbortSignal, source?: string): Promise<TriggerIngestResponse> {
+  const body = source ? JSON.stringify({ source }) : undefined
+  const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/ingest/trigger`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+    signal,
+  })
+  if (!response.ok) {
+    const text = await response.text().catch(() => response.statusText)
+    throw new Error(`Trigger failed: ${text}`)
+  }
+  return response.json() as Promise<TriggerIngestResponse>
+}
+
 export async function fetchIngestRuns(
   signal: AbortSignal,
   page = 1,
