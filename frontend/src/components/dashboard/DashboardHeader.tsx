@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import './DashboardHeader.css';
 
 interface Props {
@@ -11,6 +12,9 @@ interface Props {
 
 const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout }) => {
     const navigate = useNavigate();
+    const { role, orgRole } = useAuth();
+
+    const canDebug = role === 'admin' || orgRole === 'admin' || orgRole === 'owner';
 
     return (
         <header className="dashboard-header">
@@ -24,6 +28,9 @@ const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout }
                         <span className="header-user-email">{user.email}</span>
                         <button onClick={() => navigate('/org-profile')}>Organization</button>
                         <button onClick={() => navigate('/settings')}>Settings</button>
+                        {canDebug && (
+                            <button onClick={() => navigate('/settings/assessment-debug')}>Assessment Debug</button>
+                        )}
                         <button onClick={async () => { await onLogout(); navigate('/login'); }}>Log Out</button>
                     </>
                 ) : (
