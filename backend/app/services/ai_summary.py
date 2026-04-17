@@ -18,10 +18,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.organization import Organization
+from app.repositories.ai_summary_generation import SqlAISummaryGenerationRepository
 from app.schemas.ai_summary import AISummaryResponse
 from app.schemas.findings import FindingsReport
 from app.services.disclaimers import DisclaimerContext, get_disclaimer
-from app.repositories.ai_summary_generation import SqlAISummaryGenerationRepository
 from app.services.findings_engine import FindingsEngine
 from app.services.risk_scoring import calculate_smb_risk_score
 
