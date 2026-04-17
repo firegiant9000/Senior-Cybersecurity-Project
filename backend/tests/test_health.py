@@ -13,9 +13,9 @@ def _assert_health_body(data):
     assert data["status"] == "ok"
     assert isinstance(data["service"], str) and data["service"]
     assert SEMVER_RE.match(data["version"]), f"version {data['version']!r} does not match semver"
-    assert data["environment"] in KNOWN_ENVIRONMENTS, (
-        f"unexpected environment {data['environment']!r}"
-    )
+    assert (
+        data["environment"] in KNOWN_ENVIRONMENTS
+    ), f"unexpected environment {data['environment']!r}"
 
 
 @pytest.mark.asyncio
