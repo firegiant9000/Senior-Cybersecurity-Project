@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,7 +36,7 @@ async def build_assessment_debug_snapshot(
     raw_profile = RawOrgProfile.model_validate(org)
 
     return DebugAssessmentResponse(
-        generated_at=datetime.now(tz=timezone.utc),
+        generated_at=datetime.now(UTC),
         org_id=org.id,
         raw_profile=raw_profile,
         intake=intake,

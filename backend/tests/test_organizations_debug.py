@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -19,7 +19,7 @@ from app.schemas.assessment_validation import AssessmentValidationResponse
 
 def _mock_debug_response(org_id: int = 1) -> DebugAssessmentResponse:
     return DebugAssessmentResponse(
-        generated_at=datetime.now(tz=timezone.utc),
+        generated_at=datetime.now(tz=UTC),
         org_id=org_id,
         raw_profile=RawOrgProfile(
             id=org_id,
@@ -28,8 +28,8 @@ def _mock_debug_response(org_id: int = 1) -> DebugAssessmentResponse:
             ic3_sector="Information",
             primary_state="CA",
             employee_range="11-50",
-            created_at=datetime.now(tz=timezone.utc),
-            updated_at=datetime.now(tz=timezone.utc),
+            created_at=datetime.now(tz=UTC),
+            updated_at=datetime.now(tz=UTC),
         ),
         intake=AssessmentIntakeResponse(
             current_tier=AssessmentTier.ENHANCED,

@@ -1,6 +1,6 @@
 """Tests for Firebase authentication endpoints."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
@@ -71,7 +71,7 @@ class TestAuthWithMockedDB:
             email="testuser@example.com",
             role="viewer",
             auth_provider="password",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         fake_user.is_active = True
 

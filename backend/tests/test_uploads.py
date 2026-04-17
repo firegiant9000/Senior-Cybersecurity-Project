@@ -1,6 +1,6 @@
 """Tests for org upload endpoints."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -15,7 +15,7 @@ fake_upload.stored_filename = "stored_abc.csv"
 fake_upload.file_size_bytes = 1024
 fake_upload.content_type = "text/csv"
 fake_upload.upload_purpose = "test"
-fake_upload.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+fake_upload.created_at = datetime(2024, 1, 1, tzinfo=UTC)
 
 _ORG_ID = 1
 

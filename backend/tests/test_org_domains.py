@@ -1,11 +1,11 @@
 """Tests for org domain CRUD endpoints."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlalchemy.exc import IntegrityError
 from httpx import AsyncClient
+from sqlalchemy.exc import IntegrityError
 
 fake_domain = MagicMock()
 fake_domain.id = 1
@@ -13,8 +13,8 @@ fake_domain.org_id = 1
 fake_domain.domain_name = "example.com"
 fake_domain.is_verified = False
 fake_domain.added_by = 1
-fake_domain.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
-fake_domain.updated_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+fake_domain.created_at = datetime(2024, 1, 1, tzinfo=UTC)
+fake_domain.updated_at = datetime(2024, 1, 1, tzinfo=UTC)
 
 _ORG_ID = 1
 _CHECK_ORG = "app.api.routes.v1.domains.check_org_access"
