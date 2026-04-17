@@ -226,6 +226,52 @@ describe("fetchWithAuth", () => {
     const result = await fetchWithAuth("https://api.test/endpoint");
     expect(result).toBe(mockResponse);
   });
+
+  // ── Network / transport errors ───────────────────────────────────────────
+  describe("network errors", () => {
+    it("propagates TypeError when fetch rejects (connection refused)", async () => {
+      vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"));
+
+      await expect(
+        fetchWithAuth("https://api.test/endpoint"),
+      ).rejects.toThrow(TypeError);
+
+      await expect(
+        fetchWithAuth("https://api.test/endpoint"),
+      ).rejects.toThrow("Failed to fetch");
+    });
+  });
+
+  // ── 429 rate limit ───────────────────────────────────────────────────────
+  describe("429 responses", () => {
+    it("returns the 429 response as-is without special handling", async () => {
+      const mockResponse = {
+        status: 429,
+        ok: false,
+        json: vi.fn().mockResolvedValue({ detail: "rate limited" }),
+      } as unknown as Response;
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(mockResponse);
+
+      const result = await fetchWithAuth("https://api.test/endpoint");
+      expect(result).toBe(mockResponse);
+      expect(result.status).toBe(429);
+    });
+  });
+
+  // ── Malformed JSON on 200 ────────────────────────────────────────────────
+  describe("malformed JSON responses", () => {
+    it("returns the response as-is when body is not valid JSON (fetchWithAuth does not parse body on 200)", async () => {
+      const mockResponse = {
+        status: 200,
+        ok: true,
+        json: vi.fn().mockRejectedValue(new SyntaxError("Unexpected token")),
+      } as unknown as Response;
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(mockResponse);
+
+      const result = await fetchWithAuth("https://api.test/endpoint");
+      expect(result).toBe(mockResponse);
+    });
+  });
 });
 
 describe("getJsonAuth", () => {
