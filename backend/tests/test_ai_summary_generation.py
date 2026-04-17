@@ -1,10 +1,9 @@
 """Tests for AI Summary Generation — repository and service persistence."""
 
-from __future__ import annotations
-
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from app.repositories.ai_summary_generation import SqlAISummaryGenerationRepository
 
 
