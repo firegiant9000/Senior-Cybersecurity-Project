@@ -19,7 +19,7 @@ _ROLE_LEVELS: dict[str, int] = {
 }
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def require_role(minimum_role: str):
     """Return a dependency that enforces a minimum role level.
 
@@ -75,7 +75,7 @@ _ORG_ROLE_LEVELS: dict[str, int] = {
 }
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def require_org_role(minimum_role: str):
     """Return a dependency that enforces a minimum org-level role.
 

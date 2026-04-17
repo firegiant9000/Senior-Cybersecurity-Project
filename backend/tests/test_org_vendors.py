@@ -1,19 +1,19 @@
 """Tests for org-scoped vendor CRUD and CSV import endpoints."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlalchemy.exc import IntegrityError
 from httpx import AsyncClient
+from sqlalchemy.exc import IntegrityError
 
 fake_vendor = MagicMock()
 fake_vendor.id = 1
 fake_vendor.org_id = 1
 fake_vendor.vendor_name = "Microsoft"
 fake_vendor.product_name = "Windows"
-fake_vendor.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
-fake_vendor.updated_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+fake_vendor.created_at = datetime(2024, 1, 1, tzinfo=UTC)
+fake_vendor.updated_at = datetime(2024, 1, 1, tzinfo=UTC)
 fake_vendor.matched_kev_count = 3
 
 _ORG_ID = 1

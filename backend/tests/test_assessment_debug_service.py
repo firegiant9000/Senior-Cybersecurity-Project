@@ -14,7 +14,7 @@ from app.services.assessment_validator import _ValidationResult
 
 
 def _org(org_id: int = 1) -> Organization:
-    from datetime import datetime, timezone
+    from datetime import UTC, datetime
 
     org = MagicMock(spec=Organization)
     org.id = org_id
@@ -32,8 +32,8 @@ def _org(org_id: int = 1) -> Organization:
     org.data_types = None
     org.device_count_range = None
     org.incident_history = None
-    org.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
-    org.updated_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    org.created_at = datetime(2024, 1, 1, tzinfo=UTC)
+    org.updated_at = datetime(2024, 1, 1, tzinfo=UTC)
     return org
 
 
@@ -82,9 +82,9 @@ async def test_debug_snapshot_composition():
         ),
         patch(
             "app.services.assessment_debug.FindingsEngine",
-        ) as MockEngine,
+        ) as mock_engine_cls,
     ):
-        MockEngine.return_value.build = AsyncMock(return_value=_findings_report())
+        mock_engine_cls.return_value.build = AsyncMock(return_value=_findings_report())
 
         from app.services.assessment_debug import build_assessment_debug_snapshot
 
@@ -93,7 +93,7 @@ async def test_debug_snapshot_composition():
     assert result.org_id == org.id
     assert result.findings_readiness.ready is True
     assert result.findings_readiness.report is not None
-    MockEngine.return_value.build.assert_awaited_once_with(org, persist=False)
+    mock_engine_cls.return_value.build.assert_awaited_once_with(org, persist=False)
 
 
 @pytest.mark.asyncio
@@ -114,7 +114,7 @@ async def test_debug_snapshot_skips_findings_below_enhanced():
             "app.services.assessment_debug.build_response",
             return_value=_validation(),
         ),
-        patch("app.services.assessment_debug.FindingsEngine") as MockEngine,
+        patch("app.services.assessment_debug.FindingsEngine") as mock_engine_cls,
     ):
         from app.services.assessment_debug import build_assessment_debug_snapshot
 
@@ -122,7 +122,7 @@ async def test_debug_snapshot_skips_findings_below_enhanced():
 
     assert result.findings_readiness.ready is False
     assert result.findings_readiness.blocking_reason is not None
-    MockEngine.return_value.build.assert_not_called()
+    mock_engine_cls.return_value.build.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -143,11 +143,11 @@ async def test_debug_snapshot_skips_findings_for_incomplete():
             "app.services.assessment_debug.build_response",
             return_value=_validation(),
         ),
-        patch("app.services.assessment_debug.FindingsEngine") as MockEngine,
+        patch("app.services.assessment_debug.FindingsEngine") as mock_engine_cls,
     ):
         from app.services.assessment_debug import build_assessment_debug_snapshot
 
         result = await build_assessment_debug_snapshot(org, db)
 
     assert result.findings_readiness.ready is False
-    MockEngine.return_value.build.assert_not_called()
+    mock_engine_cls.return_value.build.assert_not_called()
