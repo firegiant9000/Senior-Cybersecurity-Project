@@ -6,7 +6,6 @@ import pytest
 
 from app.repositories.ai_summary_generation import SqlAISummaryGenerationRepository
 
-
 # ---------------------------------------------------------------------------
 # Repository unit tests (in-memory mocks, no real DB)
 # ---------------------------------------------------------------------------
