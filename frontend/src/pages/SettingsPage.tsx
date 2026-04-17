@@ -223,6 +223,14 @@ export default function SettingsPage() {
               Organization Profile
             </button>
           )}
+          {canManageMembers && (
+            <button
+              type="button"
+              onClick={() => navigate("/settings/assessment-debug")}
+            >
+              Assessment Debug
+            </button>
+          )}
         </div>
       </header>
 

@@ -22,6 +22,7 @@ export interface FeedbackRequest {
   rating: number;
   flag: "helpful" | "inaccurate" | "too_vague" | "other";
   comment?: string;
+  ai_summary_generation_id?: number | null;
 }
 
 export interface FeedbackResponse {
