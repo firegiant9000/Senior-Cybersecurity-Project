@@ -19,6 +19,7 @@ def _import_all_orm_models() -> None:
     Ensures ``create_all`` sees the full schema regardless of import order.
     """
     import app.db.ai_summary_feedback  # noqa: F401
+    import app.db.ai_summary_generation  # noqa: F401
     import app.db.findings_snapshot  # noqa: F401
     import app.db.models  # noqa: F401
     import app.db.org_domain  # noqa: F401
