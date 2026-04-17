@@ -2,6 +2,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+vi.mock("../hooks/useDarkMode", () => ({
+  useDarkMode: () => [false, vi.fn()],
+}));
+
 vi.mock("firebase/auth", () => ({
   getAuth: vi.fn(() => ({ currentUser: null })),
   onAuthStateChanged: vi.fn((_a: unknown, cb: (u: null) => void) => { cb(null); return vi.fn(); }),
@@ -73,6 +77,11 @@ const mockDebugResponse = {
 
 vi.mock("../api/assessmentDebug", () => ({
   fetchAssessmentDebug: vi.fn(() => Promise.resolve(mockDebugResponse)),
+}));
+
+vi.mock("../api/aiSummaryHistory", () => ({
+  fetchAISummaryHistory: vi.fn(() => Promise.resolve({ items: [], total: 0 })),
+  fetchAISummaryGeneration: vi.fn(() => Promise.resolve(null)),
 }));
 
 import AssessmentDebugPage from "./AssessmentDebugPage";
