@@ -1,5 +1,7 @@
 """Shared FastAPI dependencies for authentication and authorization."""
 
+import functools
+
 from fastapi import Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +19,7 @@ _ROLE_LEVELS: dict[str, int] = {
 }
 
 
+@functools.lru_cache(maxsize=None)
 def require_role(minimum_role: str):
     """Return a dependency that enforces a minimum role level.
 
@@ -72,6 +75,7 @@ _ORG_ROLE_LEVELS: dict[str, int] = {
 }
 
 
+@functools.lru_cache(maxsize=None)
 def require_org_role(minimum_role: str):
     """Return a dependency that enforces a minimum org-level role.
 

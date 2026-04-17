@@ -364,7 +364,8 @@ class AISummaryService:
         )
 
         ai_generated = False
-        model_used: str | None = None
+        model_used: str | None = None      # exposed in API response (None when fallback)
+        persist_model_name: str            # stored in DB always
         narrative: str
         prompt_inputs: dict = {}
         rendered_prompt: str | None = None
@@ -383,6 +384,7 @@ class AISummaryService:
                 narrative = await _call_gemini(rendered_prompt)
                 ai_generated = True
                 model_used = settings.GEMINI_MODEL
+                persist_model_name = settings.GEMINI_MODEL
                 status = "success"
                 source = "gemini"
             except Exception as e:
@@ -391,12 +393,14 @@ class AISummaryService:
                 narrative = _build_fallback(org, report, risk_score)
                 status = "fallback_used"
                 source = "fallback"
-                model_used = settings.GEMINI_MODEL
+                persist_model_name = settings.GEMINI_MODEL
+                model_used = None
         else:
             narrative = _build_fallback(org, report, risk_score)
             status = "success"
             source = "fallback"
-            model_used = "fallback-template"
+            persist_model_name = "fallback-template"
+            model_used = None
 
         latency_ms = int((time.time() - started_at) * 1000)
 
@@ -404,7 +408,7 @@ class AISummaryService:
             repo = SqlAISummaryGenerationRepository(self._db)
             await repo.create(
                 org_id=org.id,
-                model_name=model_used or "fallback-template",
+                model_name=persist_model_name,
                 source=source,
                 status=status,
                 error_message=error_message,

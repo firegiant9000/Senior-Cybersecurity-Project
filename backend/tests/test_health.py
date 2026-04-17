@@ -5,7 +5,7 @@ import re
 import pytest
 from httpx import AsyncClient
 
-KNOWN_ENVIRONMENTS = {"development", "staging", "production", "test", "local"}
+KNOWN_ENVIRONMENTS = {"development", "staging", "production", "test", "testing", "local"}
 SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+")
 
 
