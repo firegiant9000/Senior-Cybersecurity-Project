@@ -25,8 +25,8 @@ class AISummaryFeedback(Base):
         String(50), nullable=False
     )  # helpful | inaccurate | too_vague | other
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
-    summary_snapshot_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("findings_snapshots.id", ondelete="SET NULL"), nullable=True
+    ai_summary_generation_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("ai_summary_generations.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

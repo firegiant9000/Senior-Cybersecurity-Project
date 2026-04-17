@@ -109,7 +109,7 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     SCHEDULER_ENABLED: bool = True
 
     # Rate limiting
-    RATE_LIMIT_AUTH: str = "10/minute"
+    RATE_LIMIT_AUTH: str = "30/minute"
     RATE_LIMIT_DATA: str = "60/minute"
 
     # File uploads

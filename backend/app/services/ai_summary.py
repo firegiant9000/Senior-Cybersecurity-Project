@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.organization import Organization
+from app.repositories.ai_summary_generation import SqlAISummaryGenerationRepository
 from app.schemas.ai_summary import AISummaryResponse
 from app.schemas.findings import FindingsReport
 from app.services.disclaimers import DisclaimerContext, get_disclaimer
@@ -61,7 +62,7 @@ def _build_prompt(
     risk_score: float,
     *,
     feedback_hint: str | None = None,
-) -> str:
+) -> tuple[str, dict[str, Any]]:
     label = _risk_label(risk_score)
 
     # Summarize findings as structured JSON — org name/vendor names are
@@ -117,7 +118,7 @@ def _build_prompt(
     if feedback_hint:
         feedback_block = f"\nUSER FEEDBACK ON PREVIOUS SUMMARIES:\n{feedback_hint}\n"
 
-    return (
+    prompt_str = (
         f"{system_block}\n\n"
         f"CONTEXT:\n{context_block}\n\n"
         f"STRUCTURED FINDINGS:\n{json.dumps(findings_summary, indent=2)}\n\n"
@@ -125,6 +126,27 @@ def _build_prompt(
         f"{feedback_block}\n"
         f"INSTRUCTIONS:\n{instructions}"
     )
+
+    prompt_inputs: dict[str, Any] = {
+        "org": {
+            "name": org.name,
+            "industry": org.industry_label,
+            "employee_range": org.employee_range,
+            "state": org.primary_state,
+        },
+        "risk_metrics": {
+            "risk_score": risk_score,
+            "risk_label": label,
+            "critical_count": critical_count,
+            "high_count": high_count,
+            "total_findings": report.summary.total,
+            "assessment_completeness_pct": readiness_pct,
+        },
+        "findings": findings_summary,
+        "feedback_hint": feedback_hint,
+    }
+
+    return prompt_str, prompt_inputs
 
 
 def _readiness_pct(report: FindingsReport) -> int:
@@ -302,8 +324,17 @@ class AISummaryService:
         """Remove cached summary for the given org (call on profile update)."""
         _cache.pop(org_id, None)
 
-    async def build(self, org: Organization) -> AISummaryResponse:
+    async def build(
+        self,
+        org: Organization,
+        *,
+        triggered_by_user_id: int | None = None,
+    ) -> AISummaryResponse:
         from datetime import UTC, datetime
+
+        from sqlalchemy import select
+
+        from app.db.findings_snapshot import FindingsSnapshot
 
         # Check cache first
         cached = self._get_cached(org.id)
@@ -312,6 +343,15 @@ class AISummaryService:
 
         # Build findings report
         report = await FindingsEngine(self._db).build(org)
+
+        # Link to most recent snapshot if available
+        snap_result = await self._db.execute(
+            select(FindingsSnapshot.id)
+            .where(FindingsSnapshot.org_id == org.id)
+            .order_by(FindingsSnapshot.generated_at.desc())
+            .limit(1)
+        )
+        snap_id = snap_result.scalar_one_or_none()
 
         # Risk score
         risk_resp = calculate_smb_risk_score(org.industry_label, org.employee_range)
@@ -325,21 +365,63 @@ class AISummaryService:
         )
 
         ai_generated = False
-        model_used: str | None = None
+        model_used: str | None = None  # exposed in API response (None when fallback)
+        persist_model_name: str  # stored in DB always
         narrative: str
+        prompt_inputs: dict = {}
+        rendered_prompt: str | None = None
+        status: str
+        error_message: str | None = None
+        source: str
+
+        started_at = time.time()
 
         if settings.AI_SUMMARY_ENABLED and settings.GEMINI_API_KEY:
             try:
                 feedback_hint = await _get_feedback_meta(self._db, org.id)
-                prompt = _build_prompt(org, report, risk_score, feedback_hint=feedback_hint)
-                narrative = await _call_gemini(prompt)
+                rendered_prompt, prompt_inputs = _build_prompt(
+                    org, report, risk_score, feedback_hint=feedback_hint
+                )
+                narrative = await _call_gemini(rendered_prompt)
                 ai_generated = True
                 model_used = settings.GEMINI_MODEL
-            except Exception:
+                persist_model_name = settings.GEMINI_MODEL
+                status = "success"
+                source = "gemini"
+            except Exception as e:
                 logger.exception("Gemini API call failed for org %s — using fallback", org.id)
+                error_message = str(e)
                 narrative = _build_fallback(org, report, risk_score)
+                status = "fallback_used"
+                source = "fallback"
+                persist_model_name = settings.GEMINI_MODEL
+                model_used = None
         else:
             narrative = _build_fallback(org, report, risk_score)
+            status = "success"
+            source = "fallback"
+            persist_model_name = "fallback-template"
+            model_used = None
+
+        latency_ms = int((time.time() - started_at) * 1000)
+
+        try:
+            repo = SqlAISummaryGenerationRepository(self._db)
+            await repo.create(
+                org_id=org.id,
+                model_name=persist_model_name,
+                source=source,
+                status=status,
+                error_message=error_message,
+                prompt_inputs=prompt_inputs,
+                rendered_prompt=rendered_prompt,
+                output_text=narrative,
+                findings_snapshot_id=snap_id,
+                triggered_by_user_id=triggered_by_user_id,
+                latency_ms=latency_ms,
+            )
+        except Exception:
+            logger.exception("Failed to persist AI summary generation row for org %s", org.id)
 
         disclaimer_block = get_disclaimer(
             DisclaimerContext.AI_SUMMARY,

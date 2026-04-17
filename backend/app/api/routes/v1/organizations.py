@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.routes.v1.auth import get_current_user
 from app.core.config import settings
-from app.core.dependencies import get_current_org, require_role
+from app.core.dependencies import get_current_org, require_org_role, require_role
 from app.core.limiter import limiter
 from app.db.engine import get_session
 from app.db.organization import Organization
@@ -18,6 +18,12 @@ from app.db.user import User
 from app.repositories.organization import SqlOrganizationRepository, get_org_repo
 from app.schemas.ai_summary import AISummaryResponse
 from app.schemas.ai_summary_feedback import FeedbackCreate, FeedbackResponse
+from app.schemas.ai_summary_generation import (
+    AISummaryGenerationDetail,
+    AISummaryGenerationListItem,
+    AISummaryGenerationListResponse,
+)
+from app.schemas.assessment_debug import DebugAssessmentResponse
 from app.schemas.assessment_intake import AssessmentIntakeResponse
 from app.schemas.assessment_readiness import AssessmentReadinessResponse
 from app.schemas.assessment_validation import AssessmentValidationResponse
@@ -34,6 +40,7 @@ from app.schemas.organization import (
 from app.schemas.smb_risk_score import RiskScoreResponse
 from app.schemas.vendor_alert import VendorAlertsResponse
 from app.services.ai_summary import AISummaryService
+from app.services.assessment_debug import build_assessment_debug_snapshot
 from app.services.assessment_intake import evaluate_intake
 from app.services.assessment_readiness import evaluate_readiness
 from app.services.assessment_validator import build_response, run_validation
@@ -244,11 +251,27 @@ async def get_findings(
         raise HTTPException(status_code=500, detail="Failed to build findings report")
 
 
+@router.get("/mine/debug", response_model=DebugAssessmentResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def get_assessment_debug(
+    request: Request,  # noqa: ARG001
+    _user: User = Depends(require_org_role("admin")),
+    org: Organization = Depends(get_current_org),
+    db: AsyncSession = Depends(get_session),
+):
+    """Return a debug snapshot of the assessment pipeline. Org admins and owners only."""
+    try:
+        return await build_assessment_debug_snapshot(org, db)
+    except Exception:
+        logger.exception("Failed to build debug snapshot for org %s", org.id)
+        raise HTTPException(status_code=500, detail="Failed to build debug snapshot")
+
+
 @router.get("/mine/ai-summary", response_model=AISummaryResponse)
 @limiter.limit("5/minute")
 async def get_ai_summary(
     request: Request,  # noqa: ARG001
-    current_user: User = Depends(get_current_user),  # noqa: ARG001
+    current_user: User = Depends(get_current_user),
     org: Organization = Depends(get_current_org),
     db: AsyncSession = Depends(get_session),
 ):
@@ -271,7 +294,7 @@ async def get_ai_summary(
             ),
         )
     try:
-        return await AISummaryService(db).build(org)
+        return await AISummaryService(db).build(org, triggered_by_user_id=current_user.id)
     except Exception:
         logger.exception("Failed to build AI summary for org %s", org.id)
         raise HTTPException(status_code=500, detail="Failed to generate AI summary")
@@ -303,16 +326,19 @@ async def submit_ai_summary_feedback(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Feedback already submitted today")
 
-    # Find the most recent snapshot for this org to link the feedback
-    from app.db.findings_snapshot import FindingsSnapshot
+    # Validate generation_id belongs to this org if provided
+    generation_id = body.ai_summary_generation_id
+    if generation_id is not None:
+        from app.db.ai_summary_generation import AISummaryGeneration
 
-    snap_result = await db.execute(
-        select(FindingsSnapshot.id)
-        .where(FindingsSnapshot.org_id == org.id)
-        .order_by(FindingsSnapshot.generated_at.desc())
-        .limit(1)
-    )
-    snap_id = snap_result.scalar_one_or_none()
+        gen_result = await db.execute(
+            select(AISummaryGeneration.id).where(
+                AISummaryGeneration.id == generation_id,
+                AISummaryGeneration.org_id == org.id,
+            )
+        )
+        if gen_result.scalar_one_or_none() is None:
+            generation_id = None
 
     feedback = AISummaryFeedback(
         org_id=org.id,
@@ -320,7 +346,7 @@ async def submit_ai_summary_feedback(
         rating=body.rating,
         flag=body.flag,
         comment=body.comment,
-        summary_snapshot_id=snap_id,
+        ai_summary_generation_id=generation_id,
     )
     db.add(feedback)
     await db.commit()
@@ -333,6 +359,44 @@ async def submit_ai_summary_feedback(
         comment=feedback.comment,
         created_at=feedback.created_at.isoformat(),
     )
+
+
+@router.get("/mine/ai-summary/history", response_model=AISummaryGenerationListResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def get_ai_summary_history(
+    request: Request,  # noqa: ARG001
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    _user: User = Depends(require_org_role("admin")),
+    org: Organization = Depends(get_current_org),
+    db: AsyncSession = Depends(get_session),
+):
+    """List AI summary generation history for the current org. Admin/owner only."""
+    from app.repositories.ai_summary_generation import SqlAISummaryGenerationRepository
+
+    repo = SqlAISummaryGenerationRepository(db)
+    rows, total = await repo.list_by_org(org.id, limit=limit, offset=offset)
+    items = [AISummaryGenerationListItem.model_validate(row) for row in rows]
+    return AISummaryGenerationListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.get("/mine/ai-summary/history/{generation_id}", response_model=AISummaryGenerationDetail)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def get_ai_summary_generation(
+    request: Request,  # noqa: ARG001
+    generation_id: int,
+    _user: User = Depends(require_org_role("admin")),
+    org: Organization = Depends(get_current_org),
+    db: AsyncSession = Depends(get_session),
+):
+    """Get a single AI summary generation record. Admin/owner only."""
+    from app.repositories.ai_summary_generation import SqlAISummaryGenerationRepository
+
+    repo = SqlAISummaryGenerationRepository(db)
+    row = await repo.get(generation_id, org.id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Generation not found")
+    return AISummaryGenerationDetail.model_validate(row)
 
 
 @router.get("/mine/findings/history", response_model=SnapshotListResponse)
