@@ -8,6 +8,12 @@ from httpx import AsyncClient
 _DB_OK = (200, 500)
 
 
+def _assert_error_shape(resp):
+    data = resp.json()
+    assert "detail" in data
+    assert isinstance(data["detail"], str)
+
+
 @pytest.mark.asyncio
 async def test_severity_distribution_returns_200(client: AsyncClient) -> None:
     """Test severity distribution endpoint returns valid structure."""
@@ -21,6 +27,8 @@ async def test_severity_distribution_returns_200(client: AsyncClient) -> None:
         assert isinstance(data["total_cves"], int)
         assert data["date_from"] is None
         assert data["date_to"] is None
+    else:
+        _assert_error_shape(response)
 
 
 @pytest.mark.asyncio
@@ -36,6 +44,8 @@ async def test_severity_distribution_with_date_filters(client: AsyncClient) -> N
         assert data["date_from"] == "2024-01-01"
         assert data["date_to"] == "2024-12-31"
         assert isinstance(data["items"], list)
+    else:
+        _assert_error_shape(response)
 
 
 @pytest.mark.asyncio
