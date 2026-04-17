@@ -1,5 +1,5 @@
-# pylint: disable=too-few-public-methods,duplicate-code
 """Repository for AI Summary Generation records."""
+# pylint: disable=too-few-public-methods,duplicate-code
 
 from __future__ import annotations
 
@@ -34,9 +34,7 @@ class SqlAISummaryGenerationRepository:
         rows = list(result.scalars().all())
 
         total_result = await self._session.execute(
-            select(func.count(AISummaryGeneration.id)).where(
-                AISummaryGeneration.org_id == org_id
-            )
+            select(func.count(AISummaryGeneration.id)).where(AISummaryGeneration.org_id == org_id)
         )
         total = int(total_result.scalar_one())
         return rows, total

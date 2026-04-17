@@ -145,8 +145,12 @@ async def test_service_persists_on_gemini_success():
 
     with (
         patch("app.services.ai_summary.FindingsEngine") as mock_engine_cls,
-        patch("app.services.ai_summary._get_feedback_meta", new_callable=AsyncMock, return_value=None),
-        patch("app.services.ai_summary._call_gemini", new_callable=AsyncMock, return_value="narrative"),
+        patch(
+            "app.services.ai_summary._get_feedback_meta", new_callable=AsyncMock, return_value=None
+        ),
+        patch(
+            "app.services.ai_summary._call_gemini", new_callable=AsyncMock, return_value="narrative"
+        ),
         patch("app.services.ai_summary.settings") as mock_settings,
         patch("app.services.ai_summary.SqlAISummaryGenerationRepository") as mock_repo_cls,
     ):
@@ -200,8 +204,14 @@ async def test_service_persists_fallback_on_gemini_error():
 
     with (
         patch("app.services.ai_summary.FindingsEngine") as mock_engine_cls,
-        patch("app.services.ai_summary._get_feedback_meta", new_callable=AsyncMock, return_value=None),
-        patch("app.services.ai_summary._call_gemini", new_callable=AsyncMock, side_effect=Exception("network error")),
+        patch(
+            "app.services.ai_summary._get_feedback_meta", new_callable=AsyncMock, return_value=None
+        ),
+        patch(
+            "app.services.ai_summary._call_gemini",
+            new_callable=AsyncMock,
+            side_effect=Exception("network error"),
+        ),
         patch("app.services.ai_summary.settings") as mock_settings,
         patch("app.services.ai_summary.SqlAISummaryGenerationRepository") as mock_repo_cls,
     ):
