@@ -57,9 +57,7 @@ def upgrade() -> None:
         "ON ai_summary_feedback (ai_summary_generation_id)"
     )
 
-    op.execute(
-        "ALTER TABLE ai_summary_feedback DROP COLUMN IF EXISTS summary_snapshot_id"
-    )
+    op.execute("ALTER TABLE ai_summary_feedback DROP COLUMN IF EXISTS summary_snapshot_id")
 
 
 def downgrade() -> None:
@@ -70,9 +68,5 @@ def downgrade() -> None:
             REFERENCES findings_snapshots(id) ON DELETE SET NULL
         """
     )
-    op.execute(
-        "DROP INDEX IF EXISTS ix_ai_summary_feedback_generation_id"
-    )
-    op.execute(
-        "ALTER TABLE ai_summary_feedback DROP COLUMN IF EXISTS ai_summary_generation_id"
-    )
+    op.execute("DROP INDEX IF EXISTS ix_ai_summary_feedback_generation_id")
+    op.execute("ALTER TABLE ai_summary_feedback DROP COLUMN IF EXISTS ai_summary_generation_id")

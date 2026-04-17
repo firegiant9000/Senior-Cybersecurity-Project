@@ -335,6 +335,7 @@ class AISummaryService:
         from sqlalchemy import select
 
         from app.db.findings_snapshot import FindingsSnapshot
+
         # Check cache first
         cached = self._get_cached(org.id)
         if cached is not None:
@@ -364,8 +365,8 @@ class AISummaryService:
         )
 
         ai_generated = False
-        model_used: str | None = None      # exposed in API response (None when fallback)
-        persist_model_name: str            # stored in DB always
+        model_used: str | None = None  # exposed in API response (None when fallback)
+        persist_model_name: str  # stored in DB always
         narrative: str
         prompt_inputs: dict = {}
         rendered_prompt: str | None = None
