@@ -4,6 +4,12 @@ import pytest
 from httpx import AsyncClient
 
 
+def _assert_error_shape(resp):
+    data = resp.json()
+    assert "detail" in data
+    assert isinstance(data["detail"], str)
+
+
 @pytest.mark.asyncio
 async def test_attack_types(client: AsyncClient):
     resp = await client.get("/api/v1/ic3/analytics/attack-types")
@@ -11,12 +17,16 @@ async def test_attack_types(client: AsyncClient):
     if resp.status_code == 200:
         data = resp.json()
         assert "items" in data
+    else:
+        _assert_error_shape(resp)
 
 
 @pytest.mark.asyncio
 async def test_attack_types_with_year(client: AsyncClient):
     resp = await client.get("/api/v1/ic3/analytics/attack-types", params={"year": 2023})
     assert resp.status_code in (200, 500)
+    if resp.status_code == 500:
+        _assert_error_shape(resp)
 
 
 @pytest.mark.asyncio
@@ -25,6 +35,8 @@ async def test_industry_risk(client: AsyncClient):
     assert resp.status_code in (200, 500)
     if resp.status_code == 200:
         assert "items" in resp.json()
+    else:
+        _assert_error_shape(resp)
 
 
 @pytest.mark.asyncio
@@ -33,6 +45,8 @@ async def test_geographic_heatmap(client: AsyncClient):
     assert resp.status_code in (200, 500)
     if resp.status_code == 200:
         assert "items" in resp.json()
+    else:
+        _assert_error_shape(resp)
 
 
 @pytest.mark.asyncio
@@ -41,6 +55,8 @@ async def test_temporal_trends(client: AsyncClient):
     assert resp.status_code in (200, 500)
     if resp.status_code == 200:
         assert "items" in resp.json()
+    else:
+        _assert_error_shape(resp)
 
 
 @pytest.mark.asyncio
@@ -57,6 +73,8 @@ async def test_sector_attack_matrix(client: AsyncClient):
     assert resp.status_code in (200, 500)
     if resp.status_code == 200:
         assert "items" in resp.json()
+    else:
+        _assert_error_shape(resp)
 
 
 @pytest.mark.asyncio
@@ -66,3 +84,5 @@ async def test_dashboard_summary(client: AsyncClient):
     if resp.status_code == 200:
         data = resp.json()
         assert "total_complaints" in data
+    else:
+        _assert_error_shape(resp)
