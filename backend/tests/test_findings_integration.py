@@ -606,8 +606,10 @@ class TestAISummaryPipeline:
 
     @pytest.mark.asyncio
     async def test_fallback_when_gemini_key_empty(self):
+        import app.services.ai_summary as ai_mod
         from app.services.ai_summary import AISummaryService
 
+        ai_mod._cache.clear()
         db = _mock_db()
         org = _mock_org()
         report = FindingsReport(
@@ -652,6 +654,8 @@ class TestAISummaryPipeline:
         assert result.model_used is None
         assert len(result.narrative) > 0
         assert result.disclaimer
+
+        ai_mod._cache.clear()
 
     @pytest.mark.asyncio
     async def test_response_schema_completeness(self):
@@ -948,7 +952,7 @@ class TestAISummaryPromptBuilding:
             data_sources_used=["ic3"],
             assessment_tier="good",
         )
-        prompt = _build_prompt(org, report, 65.0)
+        prompt, _ = _build_prompt(org, report, 65.0)
 
         assert "TestCorp" in prompt
         assert "Healthcare" in prompt
@@ -983,7 +987,7 @@ class TestAISummaryPromptBuilding:
             data_sources_used=["test"],
             assessment_tier="good",
         )
-        prompt = _build_prompt(org, report, 50.0)
+        prompt, _ = _build_prompt(org, report, 50.0)
 
         assert "Finding 19" in prompt  # 0-indexed, finding #19 is last of 20
         assert "Finding 20" not in prompt  # #20 would be the 21st
