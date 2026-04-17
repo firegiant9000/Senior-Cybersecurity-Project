@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef, Fragment } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useDarkMode } from "../hooks/useDarkMode";
 import {
@@ -114,7 +114,7 @@ function RawProfileSection({ profile }: { profile: Record<string, unknown> }) {
         style={{ background: "var(--card-bg, #1a1a2e)", borderRadius: 4, padding: "0.25rem 0.5rem" }}
       >
         <span className="role-badge" style={{ background: "#c0392b" }}>
-          PII Warning — visible to org admins and owners only
+          PII Warning — visible to admins and org owners only
         </span>
       </div>
       {open && (
@@ -294,6 +294,7 @@ function SummaryHistorySection() {
   const [expanded, setExpanded] = useState<number | null>(null);
   const [detail, setDetail] = useState<AISummaryGenerationDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const inflightRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const ac = new AbortController();
@@ -306,19 +307,22 @@ function SummaryHistorySection() {
   }, []);
 
   function toggleRow(id: number) {
+    inflightRef.current?.abort();
     if (expanded === id) {
       setExpanded(null);
       setDetail(null);
+      inflightRef.current = null;
       return;
     }
     setExpanded(id);
     setDetail(null);
     setDetailLoading(true);
     const ac = new AbortController();
+    inflightRef.current = ac;
     fetchAISummaryGeneration(id, ac.signal)
-      .then((d) => setDetail(d))
-      .catch(() => setDetail(null))
-      .finally(() => setDetailLoading(false));
+      .then((d) => { if (!ac.signal.aborted) setDetail(d); })
+      .catch(() => { if (!ac.signal.aborted) setDetail(null); })
+      .finally(() => { if (!ac.signal.aborted) setDetailLoading(false); });
   }
 
   const statusColor: Record<string, string> = {
@@ -354,9 +358,8 @@ function SummaryHistorySection() {
             </thead>
             <tbody>
               {history.items.map((row) => (
-                <>
+                <Fragment key={row.id}>
                   <tr
-                    key={row.id}
                     style={{ cursor: "pointer" }}
                     onClick={() => toggleRow(row.id)}
                   >
@@ -380,7 +383,7 @@ function SummaryHistorySection() {
                     </td>
                   </tr>
                   {expanded === row.id && (
-                    <tr key={`${row.id}-detail`}>
+                    <tr>
                       <td colSpan={5} style={{ padding: "0.75rem 1rem", background: "var(--card-bg, #1a1a2e)" }}>
                         {detailLoading && <p style={{ fontSize: "0.85rem" }}>Loading detail…</p>}
                         {row.error_message && (
@@ -417,7 +420,7 @@ function SummaryHistorySection() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -439,9 +442,9 @@ function FindingsSection({ readiness }: { readiness: FindingsReadinessBlock }) {
           Complete your organization profile to reach Enhanced tier and unlock findings.
         </p>
         <div style={{ marginTop: "0.75rem" }}>
-          <a href="/org-profile" className="action-btn" style={{ textDecoration: "none" }}>
+          <Link to="/org-profile" className="action-btn" style={{ textDecoration: "none" }}>
             Go to Organization Profile
-          </a>
+          </Link>
         </div>
       </section>
     );

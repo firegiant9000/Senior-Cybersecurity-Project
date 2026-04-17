@@ -21,7 +21,16 @@ def _mock_debug_response(org_id: int = 1) -> DebugAssessmentResponse:
     return DebugAssessmentResponse(
         generated_at=datetime.now(tz=timezone.utc),
         org_id=org_id,
-        raw_profile=RawOrgProfile(),
+        raw_profile=RawOrgProfile(
+            id=org_id,
+            name="Acme",
+            industry_label="Technology",
+            ic3_sector="Information",
+            primary_state="CA",
+            employee_range="11-50",
+            created_at=datetime.now(tz=timezone.utc),
+            updated_at=datetime.now(tz=timezone.utc),
+        ),
         intake=AssessmentIntakeResponse(
             current_tier=AssessmentTier.ENHANCED,
             tiers=[],

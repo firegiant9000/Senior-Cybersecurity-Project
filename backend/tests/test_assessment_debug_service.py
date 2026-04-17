@@ -14,9 +14,26 @@ from app.services.assessment_validator import _ValidationResult
 
 
 def _org(org_id: int = 1) -> Organization:
+    from datetime import datetime, timezone
+
     org = MagicMock(spec=Organization)
     org.id = org_id
     org.name = "Acme"
+    org.industry_label = "Technology"
+    org.ic3_sector = "Information"
+    org.primary_state = "CA"
+    org.employee_range = "11-50"
+    org.revenue_range = None
+    org.logo_url = None
+    org.primary_domain = None
+    org.security_controls = None
+    org.cloud_providers = None
+    org.compliance_frameworks = None
+    org.data_types = None
+    org.device_count_range = None
+    org.incident_history = None
+    org.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    org.updated_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
     return org
 
 

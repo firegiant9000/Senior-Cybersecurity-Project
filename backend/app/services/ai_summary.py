@@ -22,6 +22,7 @@ from app.schemas.ai_summary import AISummaryResponse
 from app.schemas.findings import FindingsReport
 from app.services.disclaimers import DisclaimerContext, get_disclaimer
 from app.services.findings_engine import FindingsEngine
+from app.repositories.ai_summary_generation import SqlAISummaryGenerationRepository
 from app.services.risk_scoring import calculate_smb_risk_score
 
 logger = logging.getLogger(__name__)
@@ -334,8 +335,6 @@ class AISummaryService:
         from sqlalchemy import select
 
         from app.db.findings_snapshot import FindingsSnapshot
-        from app.repositories.ai_summary_generation import SqlAISummaryGenerationRepository
-
         # Check cache first
         cached = self._get_cached(org.id)
         if cached is not None:

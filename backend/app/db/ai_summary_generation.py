@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -13,10 +13,6 @@ from app.db.base import Base
 
 class AISummaryGeneration(Base):
     __tablename__ = "ai_summary_generations"
-    __table_args__ = (
-        Index("ix_ai_summary_generations_org_generated", "org_id", "generated_at"),
-    )
-
     id: Mapped[int] = mapped_column(Integer, primary_key=True)  # noqa: A003
     org_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True

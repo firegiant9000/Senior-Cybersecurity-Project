@@ -1,3 +1,4 @@
+# pylint: disable=too-few-public-methods,duplicate-code
 """Repository for AI Summary Generation records."""
 
 from __future__ import annotations
