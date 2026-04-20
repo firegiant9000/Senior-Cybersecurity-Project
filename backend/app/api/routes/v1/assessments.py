@@ -1,5 +1,7 @@
 """Assessment submission routes — v1."""
 
+# pylint: disable=unused-argument
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -29,7 +31,7 @@ def _ensure_org_access(current_user: User, organization_id: int) -> None:
 @router.post("/", response_model=AssessmentSubmissionRead, status_code=201)
 @limiter.limit(settings.RATE_LIMIT_DATA)
 async def create_assessment(
-    _request: Request,  # noqa: ARG001 - required by limiter
+    request: Request,  # noqa: ARG001 - required by limiter
     body: AssessmentSubmissionCreate,
     current_user: User = Depends(get_current_user),
     repo: SqlAssessmentSubmissionRepository = Depends(get_assessment_repo),
@@ -47,7 +49,7 @@ async def create_assessment(
 @router.get("/{org_id}", response_model=AssessmentSubmissionRead)
 @limiter.limit(settings.RATE_LIMIT_DATA)
 async def get_current_assessment(
-    _request: Request,  # noqa: ARG001 - required by limiter
+    request: Request,  # noqa: ARG001 - required by limiter
     org_id: int,
     current_user: User = Depends(get_current_user),
     repo: SqlAssessmentSubmissionRepository = Depends(get_assessment_repo),
@@ -66,7 +68,7 @@ async def get_current_assessment(
 @router.get("/{org_id}/history", response_model=AssessmentSubmissionHistoryResponse)
 @limiter.limit(settings.RATE_LIMIT_DATA)
 async def get_assessment_history(
-    _request: Request,  # noqa: ARG001 - required by limiter
+    request: Request,  # noqa: ARG001 - required by limiter
     org_id: int,
     current_user: User = Depends(get_current_user),
     repo: SqlAssessmentSubmissionRepository = Depends(get_assessment_repo),
@@ -83,7 +85,7 @@ async def get_assessment_history(
 @router.put("/{assessment_id}", response_model=AssessmentSubmissionRead)
 @limiter.limit(settings.RATE_LIMIT_DATA)
 async def update_assessment(
-    _request: Request,  # noqa: ARG001 - required by limiter
+    request: Request,  # noqa: ARG001 - required by limiter
     assessment_id: str,
     body: AssessmentSubmissionUpdate,
     current_user: User = Depends(get_current_user),
@@ -107,7 +109,7 @@ async def update_assessment(
 @router.delete("/{assessment_id}", response_model=AssessmentSubmissionRead)
 @limiter.limit(settings.RATE_LIMIT_DATA)
 async def delete_assessment(
-    _request: Request,  # noqa: ARG001 - required by limiter
+    request: Request,  # noqa: ARG001 - required by limiter
     assessment_id: str,
     current_user: User = Depends(get_current_user),
     repo: SqlAssessmentSubmissionRepository = Depends(get_assessment_repo),
