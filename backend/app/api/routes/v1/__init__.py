@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 
 from app.api.routes.v1 import (
     anomalies,
+    assessments,
     auth,
     domains,
     economics,
@@ -50,6 +51,9 @@ router.include_router(
 
 # Onboarding: self-service org creation (auth required, no role gate).
 router.include_router(onboarding.router)
+
+# Assessments: versioned assessment submission CRUD.
+router.include_router(assessments.router)
 
 # Vendors: org tech stack + KEV autocomplete (per-route auth).
 router.include_router(vendors.router, tags=["vendors"])
