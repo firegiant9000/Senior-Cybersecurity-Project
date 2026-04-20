@@ -146,7 +146,9 @@ async def test_update_assessment_creates_new_version(client: AsyncClient):
     try:
         payload = _valid_payload()
         payload.pop("organization_id")
-        resp = await client.put("/api/v1/assessments/0f5f6a2e-1027-43d3-b012-3d98b8f1f2b8", json=payload)
+        resp = await client.put(
+            "/api/v1/assessments/0f5f6a2e-1027-43d3-b012-3d98b8f1f2b8", json=payload
+        )
     finally:
         app.dependency_overrides.pop(get_assessment_repo, None)
         app.dependency_overrides.pop(get_current_user, None)
