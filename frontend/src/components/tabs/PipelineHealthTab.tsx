@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchIngestRuns, fetchIngestFreshness, triggerIngestion, type IngestRunItem, type SourceFreshness } from '../../api/ingest';
+import {
+    fetchIngestRuns,
+    fetchIngestFreshness,
+    triggerIngestion,
+    retryIngestRun,
+    cancelIngestRun,
+    type IngestRunItem,
+    type SourceFreshness,
+} from '../../api/ingest';
 import { useAuth } from '../../context/AuthContext';
 import { formatDateWithTz } from '../../utils/formatTime';
 
@@ -39,6 +47,22 @@ function fmtTime(iso: string | null): string {
     return formatDateWithTz(iso);
 }
 
+function fmtCountdown(iso: string | null): string {
+    if (!iso) return '—';
+    const diff = new Date(iso).getTime() - Date.now();
+    if (diff <= 0) return 'soon';
+    const totalMins = Math.floor(diff / 60000);
+    if (totalMins < 60) return `in ${totalMins}m`;
+    const hours = Math.floor(totalMins / 60);
+    const mins = totalMins % 60;
+    return `in ${hours}h ${mins}m`;
+}
+
+function runningMinutes(startedAt: string | null): number {
+    if (!startedAt) return 0;
+    return (Date.now() - new Date(startedAt).getTime()) / 60000;
+}
+
 const PipelineHealthTab: React.FC = () => {
     const { role } = useAuth();
     const isAdmin = role === 'admin';
@@ -53,6 +77,7 @@ const PipelineHealthTab: React.FC = () => {
     const [triggerSource, setTriggerSource] = useState('');
     const [triggering, setTriggering] = useState(false);
     const [triggerMsg, setTriggerMsg] = useState<string | null>(null);
+    const [actionMsgs, setActionMsgs] = useState<Record<string, string>>({});
 
     const triggerAbortRef = useRef<AbortController | null>(null);
     const refreshTimerRef = useRef<number | null>(null);
@@ -87,17 +112,21 @@ const PipelineHealthTab: React.FC = () => {
         }
     }, []);
 
+    const refreshFreshness = useCallback((signal: AbortSignal) => {
+        fetchIngestFreshness(signal)
+            .then(r => setFreshness(r.sources))
+            .catch(() => { /* non-fatal */ });
+    }, []);
+
     useEffect(() => {
         const controller = new AbortController();
         fetchData(1, sourceFilter, controller.signal);
-        fetchIngestFreshness(controller.signal)
-            .then(r => setFreshness(r.sources))
-            .catch(() => { /* non-fatal */ });
+        refreshFreshness(controller.signal);
         return () => controller.abort();
-    }, [fetchData, sourceFilter]);
+    }, [fetchData, sourceFilter, refreshFreshness]);
 
     // Poll freshness every second while any source is running;
-    // refresh the run table once polling stops (ingestion finished)
+    // stop polling when tab is hidden (visibilitychange).
     const wasRunningRef = useRef(false);
     useEffect(() => {
         const anyRunning = freshness.some(s => s.status === 'running');
@@ -109,18 +138,36 @@ const PipelineHealthTab: React.FC = () => {
             fetchData(1, sourceFilter);
         }
         wasRunningRef.current = anyRunning;
-        if (anyRunning) {
+        if (!anyRunning) return;
+
+        const startPoll = () => {
+            if (document.hidden) return;
             pollIntervalRef.current = window.setInterval(() => {
+                if (document.hidden) return;
                 const controller = new AbortController();
-                fetchIngestFreshness(controller.signal)
-                    .then(r => setFreshness(r.sources))
-                    .catch(() => { /* non-fatal */ });
+                refreshFreshness(controller.signal);
             }, 1000);
-        }
+        };
+
+        startPoll();
+
+        const onVisibility = () => {
+            if (document.hidden) {
+                if (pollIntervalRef.current !== null) {
+                    window.clearInterval(pollIntervalRef.current);
+                    pollIntervalRef.current = null;
+                }
+            } else {
+                startPoll();
+            }
+        };
+
+        document.addEventListener('visibilitychange', onVisibility);
         return () => {
+            document.removeEventListener('visibilitychange', onVisibility);
             if (pollIntervalRef.current !== null) window.clearInterval(pollIntervalRef.current);
         };
-    }, [freshness, sourceFilter, fetchData]);
+    }, [freshness, sourceFilter, fetchData, refreshFreshness]);
 
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -145,6 +192,52 @@ const PipelineHealthTab: React.FC = () => {
         }
     }, [triggerSource, sourceFilter, fetchData]);
 
+    const handleRetry = useCallback(async (source: string) => {
+        // Find latest failed run for this source in current runs state
+        const failedRun = runs.find(r => r.source === source && r.status === 'failed');
+        setActionMsgs(m => ({ ...m, [source]: '' }));
+        try {
+            if (failedRun) {
+                await retryIngestRun(failedRun.id);
+            } else {
+                // Fallback: trigger a new run (retry endpoint requires known run_id)
+                await triggerIngestion(new AbortController().signal, source);
+            }
+            setActionMsgs(m => ({ ...m, [source]: 'Retry started.' }));
+            const controller = new AbortController();
+            refreshFreshness(controller.signal);
+        } catch (err) {
+            setActionMsgs(m => ({
+                ...m,
+                [source]: err instanceof Error ? err.message : 'Retry failed.',
+            }));
+        }
+    }, [runs, refreshFreshness]);
+
+    const handleCancel = useCallback(async (source: string) => {
+        const runningRun = runs.find(r => r.source === source && r.status === 'running');
+        if (!runningRun) {
+            setActionMsgs(m => ({ ...m, [source]: 'Running run not found in current page.' }));
+            return;
+        }
+        setActionMsgs(m => ({ ...m, [source]: '' }));
+        try {
+            const res = await cancelIngestRun(runningRun.id);
+            const msg = res.warning
+                ? `Cancelled. Note: ${res.warning}`
+                : 'Cancelled.';
+            setActionMsgs(m => ({ ...m, [source]: msg }));
+            const controller = new AbortController();
+            refreshFreshness(controller.signal);
+            fetchData(1, sourceFilter);
+        } catch (err) {
+            setActionMsgs(m => ({
+                ...m,
+                [source]: err instanceof Error ? err.message : 'Cancel failed.',
+            }));
+        }
+    }, [runs, refreshFreshness, fetchData, sourceFilter]);
+
     return (
         <div className="data-table-container">
             <h2>Pipeline Health</h2>
@@ -154,6 +247,8 @@ const PipelineHealthTab: React.FC = () => {
                 <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
                     {freshness.map(s => {
                         const style = STATUS_STYLES[s.status ?? 'pending'] ?? STATUS_STYLES.pending;
+                        const isRunningLong = s.status === 'running' && runningMinutes(s.last_run_at) > 30;
+                        const actionMsg = actionMsgs[s.source];
                         return (
                             <div
                                 key={s.source}
@@ -166,8 +261,20 @@ const PipelineHealthTab: React.FC = () => {
                                     flex: '1 1 180px',
                                 }}
                             >
-                                <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '4px' }}>
+                                <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     {SOURCE_LABELS[s.source] ?? s.source}
+                                    {s.consecutive_failures > 0 && (
+                                        <span style={{
+                                            background: '#991b1b',
+                                            color: '#fff',
+                                            borderRadius: '10px',
+                                            padding: '1px 7px',
+                                            fontSize: '11px',
+                                            fontWeight: 700,
+                                        }}>
+                                            Failed {s.consecutive_failures}×
+                                        </span>
+                                    )}
                                 </div>
                                 <div style={{ fontSize: '12px' }}>
                                     Status: <strong>{capitalize(s.status ?? 'unknown')}</strong>
@@ -181,6 +288,16 @@ const PipelineHealthTab: React.FC = () => {
                                 <div style={{ fontSize: '12px' }}>
                                     Last run: {s.last_run_at ? formatDateWithTz(s.last_run_at) : 'never'}
                                 </div>
+                                <div style={{ fontSize: '12px' }}>
+                                    Last success: {s.last_successful_run_at ? formatDateWithTz(s.last_successful_run_at) : 'never'}
+                                </div>
+                                {s.status !== 'running' && (
+                                    <div style={{ fontSize: '12px' }}>
+                                        Next run: {fmtCountdown(
+                                            runs.find(r => r.source === s.source)?.next_scheduled_at ?? null
+                                        )}
+                                    </div>
+                                )}
                                 {s.status === 'running' && (
                                     <div style={{ marginTop: '8px' }}>
                                         <div style={{ fontSize: '11px', marginBottom: '4px', color: style.color }}>
@@ -205,6 +322,54 @@ const PipelineHealthTab: React.FC = () => {
                                 {s.error_message && (
                                     <div style={{ fontSize: '11px', marginTop: '4px', color: '#991b1b' }}>
                                         Error: {s.error_message.substring(0, 100)}
+                                    </div>
+                                )}
+                                {isAdmin && s.status === 'failed' && (
+                                    <button
+                                        onClick={() => void handleRetry(s.source)}
+                                        style={{
+                                            marginTop: '8px',
+                                            padding: '4px 10px',
+                                            background: '#2563eb',
+                                            color: '#fff',
+                                            border: 'none',
+                                            borderRadius: '4px',
+                                            fontSize: '12px',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        Retry
+                                    </button>
+                                )}
+                                {isAdmin && isRunningLong && (
+                                    <button
+                                        onClick={() => void handleCancel(s.source)}
+                                        title="The DB record will be marked failed, but the underlying task may still run until it completes."
+                                        style={{
+                                            marginTop: '8px',
+                                            marginLeft: '6px',
+                                            padding: '4px 10px',
+                                            background: '#dc2626',
+                                            color: '#fff',
+                                            border: 'none',
+                                            borderRadius: '4px',
+                                            fontSize: '12px',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        Cancel
+                                    </button>
+                                )}
+                                {actionMsg && (
+                                    <div style={{
+                                        fontSize: '11px',
+                                        marginTop: '6px',
+                                        color: actionMsg.startsWith('Cancelled') || actionMsg.startsWith('Retry') ? '#166534' : '#991b1b',
+                                        lineHeight: 1.4,
+                                    }}>
+                                        {actionMsg}
                                     </div>
                                 )}
                             </div>
@@ -299,6 +464,7 @@ const PipelineHealthTab: React.FC = () => {
                                     <th>Duration</th>
                                     <th>New Records</th>
                                     <th>Total Records</th>
+                                    <th>Next Scheduled</th>
                                     <th>Error</th>
                                 </tr>
                             </thead>
@@ -326,6 +492,7 @@ const PipelineHealthTab: React.FC = () => {
                                             <td>{fmtDuration(run.started_at, run.finished_at)}</td>
                                             <td>{run.records_ingested.toLocaleString()}</td>
                                             <td>{freshness.find(f => f.source === run.source)?.total_records?.toLocaleString() ?? '—'}</td>
+                                            <td>{fmtCountdown(run.next_scheduled_at)}</td>
                                             <td style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                 {run.error_message || '—'}
                                             </td>
