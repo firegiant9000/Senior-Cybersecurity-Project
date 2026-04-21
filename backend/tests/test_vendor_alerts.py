@@ -102,11 +102,11 @@ async def test_exact_match_items_have_confidence_1():
     exact = _exact_row()
 
     calls = [
-        _count_result(1),           # vendor count
-        _rows_result([exact]),       # exact match pass
+        _count_result(1),  # vendor count
+        _rows_result([exact]),  # exact match pass
         _rows_result([("Microsoft",)]),  # all vendor names
         # no fuzzy pass because all vendors matched exactly
-        _scalar_or_none_result(None),   # last kev ingest
+        _scalar_or_none_result(None),  # last kev ingest
     ]
     session.execute = AsyncMock(side_effect=calls)
 
@@ -129,17 +129,15 @@ async def test_fuzzy_match_items_carry_similarity_score():
     fuzzy = _fuzzy_row(score=0.82)
 
     calls = [
-        _count_result(1),                   # vendor count
-        _rows_result([]),                    # exact pass — no matches
-        _rows_result([("Microsft",)]),       # all vendor names
-        _rows_result([fuzzy]),               # fuzzy pass
-        _scalar_or_none_result(None),        # last kev ingest
+        _count_result(1),  # vendor count
+        _rows_result([]),  # exact pass — no matches
+        _rows_result([("Microsft",)]),  # all vendor names
+        _rows_result([fuzzy]),  # fuzzy pass
+        _scalar_or_none_result(None),  # last kev ingest
     ]
     session.execute = AsyncMock(side_effect=calls)
 
-    with patch(
-        "app.services.vendor_alerts.fire_and_forget_normalization_log"
-    ):
+    with patch("app.services.vendor_alerts.fire_and_forget_normalization_log"):
         svc = VendorAlertService(session)
         result = await svc.get_alerts(org_id=1)
 
@@ -158,17 +156,15 @@ async def test_no_match_returns_empty_items_and_unmatched_list():
     session = _mock_session()
 
     calls = [
-        _count_result(1),                   # vendor count
-        _rows_result([]),                    # exact pass — none
+        _count_result(1),  # vendor count
+        _rows_result([]),  # exact pass — none
         _rows_result([("UnknownVendor",)]),  # all vendor names
-        _rows_result([]),                    # fuzzy pass — none
-        _scalar_or_none_result(None),        # last kev ingest
+        _rows_result([]),  # fuzzy pass — none
+        _scalar_or_none_result(None),  # last kev ingest
     ]
     session.execute = AsyncMock(side_effect=calls)
 
-    with patch(
-        "app.services.vendor_alerts.fire_and_forget_normalization_log"
-    ):
+    with patch("app.services.vendor_alerts.fire_and_forget_normalization_log"):
         svc = VendorAlertService(session)
         result = await svc.get_alerts(org_id=1)
 
@@ -197,9 +193,7 @@ async def test_fuzzy_match_calls_fire_and_forget_log():
     ]
     session.execute = AsyncMock(side_effect=calls)
 
-    with patch(
-        "app.services.vendor_alerts.fire_and_forget_normalization_log"
-    ) as mock_log:
+    with patch("app.services.vendor_alerts.fire_and_forget_normalization_log") as mock_log:
         svc = VendorAlertService(session)
         await svc.get_alerts(org_id=7)
 
@@ -226,9 +220,9 @@ async def test_exact_and_fuzzy_combined_total():
 
     calls = [
         _count_result(2),
-        _rows_result([exact]),               # Microsoft matched exactly
+        _rows_result([exact]),  # Microsoft matched exactly
         _rows_result([("Microsoft",), ("Apche",)]),  # all vendors
-        _rows_result([fuzzy]),               # Apche matched by fuzzy
+        _rows_result([fuzzy]),  # Apche matched by fuzzy
         _scalar_or_none_result(None),
     ]
     session.execute = AsyncMock(side_effect=calls)

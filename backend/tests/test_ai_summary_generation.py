@@ -344,7 +344,9 @@ def test_parse_structured_response_missing_required_field_returns_none():
     from app.services.ai_summary import _parse_structured_response
 
     # narrative field is required — omitting it should fail validation
-    incomplete = '{"posture_statement": "ok", "notable_risks": [], "data_gaps": [], "next_steps": []}'
+    incomplete = (
+        '{"posture_statement": "ok", "notable_risks": [], "data_gaps": [], "next_steps": []}'
+    )
     result = _parse_structured_response(incomplete)
     assert result is None
 

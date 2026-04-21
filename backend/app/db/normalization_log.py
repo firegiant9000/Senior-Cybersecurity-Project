@@ -20,9 +20,7 @@ class NormalizationLog(Base):
     data_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     raw_value: Mapped[str] = mapped_column(Text, nullable=False)
     normalized_value: Mapped[str] = mapped_column(Text, nullable=False)
-    confidence: Mapped[float] = mapped_column(
-        Float, nullable=False, server_default="1.0"
-    )
+    confidence: Mapped[float] = mapped_column(Float, nullable=False, server_default="1.0")
     method: Mapped[str] = mapped_column(String(50), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
