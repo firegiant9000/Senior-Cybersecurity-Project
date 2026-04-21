@@ -14,6 +14,12 @@ class IndustryLabel(StrEnum):
     EDUCATION = "Education"
     MANUFACTURING = "Manufacturing"
     PROFESSIONAL_SERVICES = "Professional Services"
+    REAL_ESTATE = "Real Estate"
+    CONSTRUCTION = "Construction"
+    LEGAL_SERVICES = "Legal Services"
+    TRANSPORTATION = "Transportation"
+    HOSPITALITY = "Hospitality"
+    NON_PROFIT = "Non-Profit"
     OTHER = "Other"
 
 
@@ -48,6 +54,12 @@ INDUSTRY_TO_IC3_SECTOR.update(
         IndustryLabel.EDUCATION: IC3Sector.EDUCATION,
         IndustryLabel.MANUFACTURING: IC3Sector.MANUFACTURING,
         IndustryLabel.PROFESSIONAL_SERVICES: IC3Sector.PROFESSIONAL_SERVICES,
+        IndustryLabel.REAL_ESTATE: IC3Sector.REAL_ESTATE,
+        IndustryLabel.CONSTRUCTION: IC3Sector.CONSTRUCTION,
+        IndustryLabel.LEGAL_SERVICES: IC3Sector.LEGAL_SERVICES,
+        IndustryLabel.TRANSPORTATION: IC3Sector.TRANSPORTATION,
+        IndustryLabel.HOSPITALITY: IC3Sector.HOSPITALITY,
+        IndustryLabel.NON_PROFIT: IC3Sector.NON_PROFIT,
         IndustryLabel.OTHER: IC3Sector.TECHNOLOGY,  # sensible default
     }
 )
