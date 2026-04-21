@@ -270,9 +270,11 @@ const OverviewTab: React.FC<Props> = ({
             />
 
             {/* Vendor Alerts summary card */}
-            <WidgetErrorBoundary title="Vendor Alerts">
-                <VendorAlertsCard />
-            </WidgetErrorBoundary>
+            <div style={{ marginBottom: 16 }}>
+                <WidgetErrorBoundary title="Vendor Alerts">
+                    <VendorAlertsCard />
+                </WidgetErrorBoundary>
+            </div>
 
             <div className="dashboard-grid">
                 {/* Top Row */}
