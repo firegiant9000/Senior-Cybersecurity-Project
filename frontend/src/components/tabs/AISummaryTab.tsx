@@ -22,13 +22,23 @@ function riskClass(label: string): string {
   }
 }
 
-function severityClass(severity: string): string {
+function severityBadgeClass(severity: string): string {
   switch (severity.toLowerCase()) {
-    case 'critical': return 'risk-badge--critical';
-    case 'high': return 'risk-badge--high';
+    case 'critical': return 'ai-risk-badge--critical';
+    case 'high':     return 'ai-risk-badge--high';
     case 'medium':
-    case 'moderate': return 'risk-badge--moderate';
-    default: return 'risk-badge--low';
+    case 'moderate': return 'ai-risk-badge--moderate';
+    default:         return 'ai-risk-badge--low';
+  }
+}
+
+function severityItemClass(severity: string): string {
+  switch (severity.toLowerCase()) {
+    case 'critical': return 'ai-risk-item--critical';
+    case 'high':     return 'ai-risk-item--high';
+    case 'medium':
+    case 'moderate': return 'ai-risk-item--moderate';
+    default:         return 'ai-risk-item--low';
   }
 }
 
@@ -283,10 +293,10 @@ const AISummaryTab: React.FC = () => {
           <h3 className="ai-structured-card-title">Notable Risks</h3>
           <div className="ai-risk-list">
             {data.notable_risks.map((risk, i) => (
-              <div key={i} className="ai-risk-item">
+              <div key={i} className={`ai-risk-item ${severityItemClass(risk.severity)}`}>
                 <div className="ai-risk-item-header">
                   <span className="ai-risk-item-title">{risk.title}</span>
-                  <span className={`ai-risk-badge ${severityClass(risk.severity)}`}>
+                  <span className={`ai-risk-badge ${severityBadgeClass(risk.severity)}`}>
                     {risk.severity}
                   </span>
                 </div>
