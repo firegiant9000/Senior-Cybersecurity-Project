@@ -2,11 +2,16 @@ import { API_BASE_URL, fetchWithAuth, getJsonAuth } from "./fetchWithAuth";
 
 export interface SourceFreshness {
   source: string
-  last_run_at: string | null  // ISO datetime
+  last_run_at: string | null
+  last_successful_run_at: string | null
+  consecutive_failures: number
   status: string | null
   records_ingested: number | null
   total_records: number | null
   error_message: string | null
+  trigger: string | null
+  retry_count: number
+  skipped_reason: string | null
 }
 
 export interface FreshnessResponse {
@@ -28,6 +33,10 @@ export interface IngestRunItem {
   status: string
   records_ingested: number
   error_message: string | null
+  trigger: string
+  retry_count: number
+  skipped_reason: string | null
+  next_scheduled_at: string | null
 }
 
 export interface IngestRunsResponse {
@@ -70,4 +79,39 @@ export async function fetchIngestRuns(
   const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/ingest/runs?${params}`, { signal })
   if (!response.ok) throw new Error(`Ingest runs request failed: ${response.statusText}`)
   return response.json() as Promise<IngestRunsResponse>
+}
+
+export interface RetryRunResponse {
+  source: string
+  status: string
+  message: string
+}
+
+export async function retryIngestRun(runId: string): Promise<RetryRunResponse> {
+  const response = await fetchWithAuth(
+    `${API_BASE_URL}/api/v1/ingest/runs/${runId}/retry`,
+    { method: 'POST' },
+  )
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as { detail?: string }
+    throw new Error(body.detail ?? `Retry failed: ${response.statusText}`)
+  }
+  return response.json() as Promise<RetryRunResponse>
+}
+
+export interface CancelRunResponse {
+  cancelled: boolean
+  warning: string | null
+}
+
+export async function cancelIngestRun(runId: string): Promise<CancelRunResponse> {
+  const response = await fetchWithAuth(
+    `${API_BASE_URL}/api/v1/ingest/runs/${runId}/cancel`,
+    { method: 'POST' },
+  )
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as { detail?: string }
+    throw new Error(body.detail ?? `Cancel failed: ${response.statusText}`)
+  }
+  return response.json() as Promise<CancelRunResponse>
 }

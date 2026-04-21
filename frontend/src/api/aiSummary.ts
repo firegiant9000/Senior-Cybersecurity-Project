@@ -5,6 +5,23 @@
 import { API_BASE_URL, fetchWithAuth, getJsonAuth } from "./fetchWithAuth";
 import type { DisclaimerBlock } from "../types/disclaimer";
 
+export interface RiskItem {
+  title: string;
+  severity: string;
+  context: string;
+}
+
+export interface GapItem {
+  gap_type: string;
+  impact: string;
+}
+
+export interface StepItem {
+  priority: number;
+  action: string;
+  rationale: string;
+}
+
 export interface AISummaryResponse {
   narrative: string;
   ai_generated: boolean;
@@ -16,6 +33,32 @@ export interface AISummaryResponse {
   cached: boolean;
   disclaimer: string;
   disclaimer_block?: DisclaimerBlock;
+  output_format?: string;
+  posture_statement?: string | null;
+  notable_risks?: RiskItem[] | null;
+  data_gaps?: GapItem[] | null;
+  next_steps?: StepItem[] | null;
+}
+
+export interface HistoryEntry {
+  id: number;
+  org_id: number;
+  generated_at: string;
+  model_name: string;
+  source: string;
+  status: string;
+  error_message: string | null;
+  output_text: string | null;
+  output_format?: string;
+  latency_ms: number | null;
+  findings_snapshot_id: number | null;
+}
+
+export interface HistoryResponse {
+  items: HistoryEntry[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface FeedbackRequest {
@@ -39,6 +82,16 @@ export function fetchAISummary(
   return getJsonAuth<AISummaryResponse>(
     `${API_BASE_URL}/api/v1/organizations/mine/ai-summary`,
     signal,
+  );
+}
+
+export function fetchAISummaryHistory(
+  limit = 10,
+  offset = 0,
+): Promise<HistoryResponse> {
+  return getJsonAuth<HistoryResponse>(
+    `${API_BASE_URL}/api/v1/organizations/mine/ai-summary/history?limit=${limit}&offset=${offset}`,
+    new AbortController().signal,
   );
 }
 

@@ -90,21 +90,23 @@ describe('getVisibleGroups', () => {
     expect(result.map((g) => g.id)).toEqual(['public', 'org-tab'])
   })
 
-  it('hides org-required groups when orgId is null', () => {
+  it('shows org-required groups as locked when orgId is null', () => {
     const result = getVisibleGroups([base, requiresOrg, requiresAdmin], {
       ...baseCtx,
       orgId: null,
     })
-    expect(result.map((g) => g.id)).toEqual(['public'])
+    expect(result.map((g) => g.id)).toEqual(['public', 'org-tab'])
+    expect(result.find((g) => g.id === 'org-tab')?.locked).toBe(true)
   })
 
-  it('hides org-required groups while orgLoading is true', () => {
+  it('shows org-required groups as locked while orgLoading is true', () => {
     const result = getVisibleGroups([base, requiresOrg], {
       ...baseCtx,
       orgId: 1,
       orgLoading: true,
     })
-    expect(result.map((g) => g.id)).toEqual(['public'])
+    expect(result.map((g) => g.id)).toEqual(['public', 'org-tab'])
+    expect(result.find((g) => g.id === 'org-tab')?.locked).toBe(true)
   })
 
   it('returns empty array when no groups pass filters', () => {

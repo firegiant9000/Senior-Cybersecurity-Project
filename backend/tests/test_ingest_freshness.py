@@ -47,3 +47,28 @@ async def test_ingest_runs_source_filter(client: AsyncClient):
     """GET /api/v1/ingest/runs with source filter."""
     resp = await client.get("/api/v1/ingest/runs", params={"source": "nvd"})
     assert resp.status_code in (200, 500)
+
+
+# ---------------------------------------------------------------------------
+# Freshness response includes new fields from task 2A
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_freshness_includes_last_successful_run_at(client: AsyncClient):
+    resp = await client.get("/api/v1/ingest/freshness")
+    if resp.status_code != 200:
+        pytest.skip("DB unavailable")
+    for source in resp.json()["sources"]:
+        assert "last_successful_run_at" in source
+
+
+@pytest.mark.asyncio
+async def test_freshness_includes_consecutive_failures(client: AsyncClient):
+    resp = await client.get("/api/v1/ingest/freshness")
+    if resp.status_code != 200:
+        pytest.skip("DB unavailable")
+    for source in resp.json()["sources"]:
+        assert "consecutive_failures" in source
+        assert isinstance(source["consecutive_failures"], int)
+        assert source["consecutive_failures"] >= 0

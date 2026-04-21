@@ -17,6 +17,7 @@ class Finding(BaseModel):
     evidence: dict
     source: str
     affected_assets: list[str]
+    match_confidence: float | None = None  # 1.0 = exact, <1.0 = fuzzy similarity score
 
 
 class FindingsSummary(BaseModel):

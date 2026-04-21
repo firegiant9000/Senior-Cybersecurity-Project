@@ -3,26 +3,51 @@
 /* Loading state */
 .findings-loading {
   text-align: center;
-  padding: 48px 24px;
-  color: var(--text-secondary, #555);
+  padding: 64px 24px;
+  max-width: 480px;
+  margin: 0 auto;
 }
 
-.findings-loading-spinner {
-  width: 36px;
-  height: 36px;
-  margin: 0 auto 16px;
-  border: 3px solid var(--border, #eee);
-  border-top-color: var(--accent, #0b1060);
-  border-radius: 50%;
-  animation: findings-spin 0.8s linear infinite;
+.findings-loading-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary, #333);
+  margin-bottom: 20px;
 }
 
-@keyframes findings-spin {
-  to { transform: rotate(360deg); }
+.findings-progress-track {
+  width: 100%;
+  height: 6px;
+  background: var(--border, #eee);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.findings-progress-fill {
+  height: 100%;
+  background: var(--accent, #0b1060);
+  border-radius: 999px;
+  animation: findings-progress 20s cubic-bezier(0.1, 0.4, 0.6, 1) forwards;
+}
+
+@keyframes findings-progress {
+  0%   { width: 0%; }
+  60%  { width: 75%; }
+  90%  { width: 88%; }
+  100% { width: 92%; }
+}
+
+.findings-loading-stage {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent, #0b1060);
+  margin-bottom: 6px;
+  min-height: 20px;
 }
 
 .findings-loading-sub {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-muted, #6b7280);
   margin-top: 4px;
 }
@@ -200,10 +225,10 @@
 }
 
 /* Severity left-border accent */
-.finding-card--critical { border-left: 3px solid #d32f2f; }
-.finding-card--high     { border-left: 3px solid #f57c00; }
-.finding-card--medium   { border-left: 3px solid #fbc02d; }
-.finding-card--low      { border-left: 3px solid #388e3c; }
+.finding-card--critical { border-left: 3px solid var(--color-critical, #d32f2f); }
+.finding-card--high     { border-left: 3px solid var(--color-high, #f57c00); }
+.finding-card--medium   { border-left: 3px solid var(--color-moderate, #fbc02d); }
+.finding-card--low      { border-left: 3px solid var(--color-low, #388e3c); }
 .finding-card--info     { border-left: 3px solid #9e9e9e; }
 
 .finding-card-header {
@@ -343,4 +368,21 @@
 
 .findings-history-table td {
   color: var(--text-primary, #333);
+}
+
+/* Delta indicators in history table */
+.findings-delta--up {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-critical, #d32f2f);
+  margin-left: 3px;
+  white-space: nowrap;
+}
+
+.findings-delta--down {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-low, #388e3c);
+  margin-left: 3px;
+  white-space: nowrap;
 }

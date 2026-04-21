@@ -16,6 +16,7 @@ class VendorAlert(BaseModel):
     severity_label: str  # Critical / High / Medium / Low / Unknown
     risk_score: float | None  # 0-100
     published_date: date | None
+    match_confidence: float | None = None  # 1.0 = exact match, <1.0 = fuzzy similarity score
 
 
 class SeverityBreakdown(BaseModel):

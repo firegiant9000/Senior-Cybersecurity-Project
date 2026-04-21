@@ -271,7 +271,7 @@ async def get_assessment_debug(
 @limiter.limit("5/minute")
 async def get_ai_summary(
     request: Request,  # noqa: ARG001
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role("member")),
     org: Organization = Depends(get_current_org),
     db: AsyncSession = Depends(get_session),
 ):
@@ -531,6 +531,19 @@ async def update_organization(
         raise HTTPException(status_code=500, detail="Failed to update organization")
     if org is None:
         raise HTTPException(status_code=404, detail="Organization not found")
+
+    if body.industry_label is not None and body.ic3_sector:
+        from app.repositories.normalization_log_repo import fire_and_forget_normalization_log
+
+        fire_and_forget_normalization_log(
+            org_id=org_id,
+            data_type="industry",
+            raw_value=str(body.industry_label),
+            normalized_value=body.ic3_sector,
+            method="exact",
+            created_by=current_user.id,
+        )
+
     return org
 
 
