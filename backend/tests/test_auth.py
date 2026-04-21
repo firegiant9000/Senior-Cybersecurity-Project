@@ -8,9 +8,7 @@ from firebase_admin.exceptions import FirebaseError
 from httpx import AsyncClient
 
 from app.db.user import User
-
-with patch("app.core.firebase.init_firebase"):
-    from app.main import app
+from app.main import app
 
 
 @pytest.mark.asyncio
