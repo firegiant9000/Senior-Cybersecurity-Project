@@ -129,6 +129,19 @@ export async function previewVendorsCsv(
   return resp.json();
 }
 
+export interface VendorSuggestion {
+  vendor_name: string;
+  score: number;
+}
+
+export async function suggestVendors(query: string): Promise<VendorSuggestion[]> {
+  if (query.length < 2) return [];
+  const params = new URLSearchParams({ q: query });
+  const resp = await fetchWithAuth(`${API_BASE_URL}/api/v1/vendors/suggest?${params}`);
+  if (!resp.ok) return [];
+  return resp.json() as Promise<VendorSuggestion[]>;
+}
+
 export async function autocompleteVendors(
   query: string,
   field: "vendor" | "product" = "vendor",
