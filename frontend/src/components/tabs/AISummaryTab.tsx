@@ -2,9 +2,11 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   fetchAISummary,
+  fetchAISummaryHistory,
   submitFeedback,
   type AISummaryResponse,
   type FeedbackRequest,
+  type HistoryEntry,
 } from '../../api/aiSummary';
 import { useAuth } from '../../context/AuthContext';
 import DisclaimerBanner from '../shared/DisclaimerBanner';
@@ -20,13 +22,71 @@ function riskClass(label: string): string {
   }
 }
 
+function severityClass(severity: string): string {
+  switch (severity.toLowerCase()) {
+    case 'critical': return 'risk-badge--critical';
+    case 'high': return 'risk-badge--high';
+    case 'medium':
+    case 'moderate': return 'risk-badge--moderate';
+    default: return 'risk-badge--low';
+  }
+}
+
+const AI_LOADING_STAGES = [
+  'Reviewing findings...',
+  'Analyzing threat exposure...',
+  'Scoring vendor risk...',
+  'Synthesizing narrative...',
+  'Finalizing executive summary...',
+];
+
+const AISummaryLoadingBar: React.FC = () => {
+  const [stageIndex, setStageIndex] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setStageIndex((i) => (i < AI_LOADING_STAGES.length - 1 ? i + 1 : i));
+    }, 3000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="tab-page">
+      <div className="ai-summary-loading">
+        <p className="ai-summary-loading-title">Generating executive summary</p>
+        <div className="ai-summary-progress-track">
+          <div className="ai-summary-progress-fill" />
+        </div>
+        <p className="ai-summary-loading-stage">{AI_LOADING_STAGES[stageIndex]}</p>
+        <p className="ai-summary-loading-sub">Synthesizing findings into an actionable narrative.</p>
+      </div>
+    </div>
+  );
+};
+
+function parseHistoryOutputText(entry: HistoryEntry): { riskScore: number | null } {
+  if (!entry.output_text) return { riskScore: null };
+  if (entry.output_format === 'json' || entry.output_text.trimStart().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(entry.output_text) as Record<string, unknown>;
+      const score = typeof parsed.risk_score === 'number' ? parsed.risk_score : null;
+      return { riskScore: score };
+    } catch {
+      return { riskScore: null };
+    }
+  }
+  return { riskScore: null };
+}
+
 const AISummaryTab: React.FC = () => {
   const { user } = useAuth();
+  const userId = user?.uid;
   const [data, setData] = useState<AISummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [minElapsed, setMinElapsed] = useState(false);
   const [error, setError] = useState('');
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [feedbackError, setFeedbackError] = useState('');
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const handleFeedback = useCallback(
     async (flag: FeedbackRequest['flag']) => {
@@ -45,41 +105,46 @@ const AISummaryTab: React.FC = () => {
   );
 
   const load = useCallback(() => {
-    if (!user) return;
+    if (!userId) return;
+    let cancelled = false;
     const controller = new AbortController();
     setLoading(true);
     setError('');
+    setMinElapsed(false);
+    const minTimer = setTimeout(() => { if (!cancelled) setMinElapsed(true); }, 1500);
     fetchAISummary(controller.signal)
-      .then(setData)
+      .then((result) => { if (!cancelled) setData(result); })
       .catch((err) => {
+        if (cancelled) return;
         if (err instanceof DOMException && err.name === 'AbortError') return;
         setError(err instanceof Error ? err.message : 'Failed to load AI summary');
       })
-      .finally(() => setLoading(false));
-    return () => controller.abort();
-  }, [user]);
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => {
+      cancelled = true;
+      controller.abort();
+      clearTimeout(minTimer);
+    };
+  }, [userId]);
 
   useEffect(() => {
     const cleanup = load();
     return cleanup;
   }, [load]);
 
-  if (!user) {
+  useEffect(() => {
+    if (!userId) return;
+    fetchAISummaryHistory(10, 0)
+      .then((resp) => setHistory(resp.items))
+      .catch(() => { /* history unavailable — non-fatal */ });
+  }, [userId]);
+
+  if (!userId) {
     return <div className="tab-page"><p>Please log in to view the AI summary.</p></div>;
   }
 
-  if (loading && !data) {
-    return (
-      <div className="tab-page">
-        <div className="ai-summary-loading">
-          <div className="ai-summary-loading-spinner" />
-          <p>Generating executive summary...</p>
-          <p className="ai-summary-loading-sub">
-            Synthesizing findings into an actionable narrative.
-          </p>
-        </div>
-      </div>
-    );
+  if (loading || !minElapsed) {
+    return <AISummaryLoadingBar />;
   }
 
   if (error) {
@@ -122,11 +187,32 @@ const AISummaryTab: React.FC = () => {
     );
   }
 
-  if (!data) return null;
+  if (!data) {
+    return (
+      <div className="tab-page">
+        <div className="ai-summary-error-card">
+          <span className="ai-summary-error-icon">📋</span>
+          <p className="ai-summary-error-title">No Summary Yet</p>
+          <p className="ai-summary-error-detail">
+            Complete your organization profile and submit an assessment to generate an AI executive summary.
+          </p>
+          <Link to="/org-profile" className="ai-summary-error-action">
+            Complete Profile
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const generatedDate = new Date(data.generated_at).toLocaleString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
   });
+
+  const hasStructured =
+    data.posture_statement != null ||
+    data.notable_risks != null ||
+    data.data_gaps != null ||
+    data.next_steps != null;
 
   return (
     <div className="tab-page ai-summary-tab">
@@ -154,7 +240,7 @@ const AISummaryTab: React.FC = () => {
         </button>
       </div>
 
-      {/* Risk score card */}
+      {/* Risk score card + posture statement */}
       <div className="ai-summary-metrics">
         <div className={`ai-summary-risk-card ${riskClass(data.risk_label)}`}>
           <span className="ai-summary-risk-score">{data.risk_score.toFixed(0)}</span>
@@ -172,6 +258,14 @@ const AISummaryTab: React.FC = () => {
         )}
       </div>
 
+      {/* Posture statement */}
+      {data.posture_statement && (
+        <div className="ai-structured-card ai-posture-card">
+          <h3 className="ai-structured-card-title">Security Posture</h3>
+          <p className="ai-posture-statement">{data.posture_statement}</p>
+        </div>
+      )}
+
       {/* Narrative */}
       <div className="ai-summary-narrative-card">
         <div className="ai-summary-narrative">
@@ -182,6 +276,66 @@ const AISummaryTab: React.FC = () => {
           })}
         </div>
       </div>
+
+      {/* Notable risks */}
+      {data.notable_risks && data.notable_risks.length > 0 && (
+        <div className="ai-structured-card">
+          <h3 className="ai-structured-card-title">Notable Risks</h3>
+          <div className="ai-risk-list">
+            {data.notable_risks.map((risk, i) => (
+              <div key={i} className="ai-risk-item">
+                <div className="ai-risk-item-header">
+                  <span className="ai-risk-item-title">{risk.title}</span>
+                  <span className={`ai-risk-badge ${severityClass(risk.severity)}`}>
+                    {risk.severity}
+                  </span>
+                </div>
+                <p className="ai-risk-item-context">{risk.context}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Data gaps */}
+      {data.data_gaps && data.data_gaps.length > 0 && (
+        <div className="ai-structured-card">
+          <h3 className="ai-structured-card-title">Data Gaps</h3>
+          <ul className="ai-gap-list">
+            {data.data_gaps.map((gap, i) => (
+              <li key={i} className="ai-gap-item">
+                <span className="ai-gap-type">{gap.gap_type}</span>
+                <span className="ai-gap-impact">{gap.impact}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Next steps / action plan */}
+      {data.next_steps && data.next_steps.length > 0 && (
+        <div className="ai-structured-card">
+          <h3 className="ai-structured-card-title">Recommended Actions</h3>
+          <ol className="ai-steps-list">
+            {data.next_steps
+              .slice()
+              .sort((a, b) => a.priority - b.priority)
+              .map((step, i) => (
+                <li key={i} className="ai-step-item">
+                  <span className="ai-step-action">{step.action}</span>
+                  <span className="ai-step-rationale">{step.rationale}</span>
+                </li>
+              ))}
+          </ol>
+        </div>
+      )}
+
+      {/* Fallback hint when no structured data */}
+      {!hasStructured && data.ai_generated && (
+        <p className="ai-summary-prose-hint">
+          Structured sections (posture, risks, gaps, actions) will appear here once the AI returns a JSON response.
+        </p>
+      )}
 
       {/* Feedback */}
       <div className="ai-summary-feedback">
@@ -219,6 +373,44 @@ const AISummaryTab: React.FC = () => {
           </>
         )}
       </div>
+
+      {/* Past summaries (collapsible) */}
+      {history.length > 0 && (
+        <div className="ai-history-section">
+          <button
+            className="ai-history-toggle"
+            onClick={() => setHistoryOpen((o) => !o)}
+            aria-expanded={historyOpen}
+          >
+            Past Summaries ({history.length})
+            <span className="ai-history-toggle-icon">{historyOpen ? '▲' : '▼'}</span>
+          </button>
+          {historyOpen && (
+            <div className="ai-history-list">
+              {history.map((entry) => {
+                const { riskScore } = parseHistoryOutputText(entry);
+                return (
+                  <div key={entry.id} className="ai-history-item">
+                    <span className="ai-history-date">
+                      {new Date(entry.generated_at).toLocaleString('en-US', {
+                        month: 'short', day: 'numeric', year: 'numeric',
+                        hour: 'numeric', minute: '2-digit',
+                      })}
+                    </span>
+                    <span className="ai-history-model">{entry.model_name}</span>
+                    {riskScore !== null && (
+                      <span className="ai-history-score">Risk: {riskScore.toFixed(0)}</span>
+                    )}
+                    <span className={`ai-history-status ai-history-status--${entry.status}`}>
+                      {entry.status}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Meta footer */}
       <div className="ai-summary-footer">
