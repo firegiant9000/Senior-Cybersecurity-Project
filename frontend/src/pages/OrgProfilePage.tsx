@@ -6,11 +6,13 @@ import { canEditOrganizationProfile } from "../components/ProtectedRoute";
 import {
   OrgVendor,
   OrgVendorImportPreviewResponse,
+  VendorSuggestion,
   listVendors,
   createVendor,
   deleteVendor,
   importVendorsCsv,
   previewVendorsCsv,
+  suggestVendors,
   autocompleteVendors,
 } from "../api/vendors";
 import {
@@ -30,6 +32,24 @@ import AssessmentReadinessWidget from "../components/AssessmentReadiness";
 import ValidationPanel from "../components/ValidationPanel";
 import "../Dashboard.css";
 import "./SettingsPage.css";
+
+const INDUSTRY_OPTIONS = [
+  "Finance & Insurance",
+  "Healthcare",
+  "Tech & Software",
+  "Government",
+  "Retail & E-Commerce",
+  "Education",
+  "Manufacturing",
+  "Professional Services",
+  "Real Estate",
+  "Construction",
+  "Legal Services",
+  "Transportation",
+  "Hospitality",
+  "Non-Profit",
+  "Other",
+] as const;
 
 const CLOUD_PROVIDERS = [
   "AWS", "Azure", "GCP", "Microsoft 365", "Google Workspace",
@@ -119,6 +139,7 @@ export default function OrgProfilePage() {
   const [companyNameField, setCompanyNameField] = useState("");
   const [logoUrlField, setLogoUrlField] = useState("");
   const [primaryDomainField, setPrimaryDomainField] = useState("");
+  const [industryLabelField, setIndustryLabelField] = useState("");
   const [companySaveMsg, setCompanySaveMsg] = useState("");
   const [companySaveErr, setCompanySaveErr] = useState("");
   const [companySaving, setCompanySaving] = useState(false);
@@ -143,7 +164,7 @@ export default function OrgProfilePage() {
   const [vendorMsg, setVendorMsg] = useState("");
   const [newVendor, setNewVendor] = useState("");
   const [newProduct, setNewProduct] = useState("");
-  const [vendorSuggestions, setVendorSuggestions] = useState<string[]>([]);
+  const [vendorSuggestions, setVendorSuggestions] = useState<VendorSuggestion[]>([]);
   const [productSuggestions, setProductSuggestions] = useState<string[]>([]);
   const [showVendorSuggestions, setShowVendorSuggestions] = useState(false);
   const [showProductSuggestions, setShowProductSuggestions] = useState(false);
@@ -407,7 +428,7 @@ export default function OrgProfilePage() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  // Debounced autocomplete for vendor name
+  // Debounced typeahead for vendor name — uses fuzzy suggest endpoint with confidence scores
   useEffect(() => {
     if (newVendor.length < 2) {
       setVendorSuggestions([]);
@@ -417,7 +438,7 @@ export default function OrgProfilePage() {
     let cancelled = false;
     const timer = setTimeout(async () => {
       try {
-        const results = await autocompleteVendors(newVendor, "vendor");
+        const results = await suggestVendors(newVendor);
         if (!cancelled) {
           setVendorSuggestions(results);
           setShowVendorSuggestions(results.length > 0);
@@ -473,6 +494,7 @@ export default function OrgProfilePage() {
     setCompanyNameField(organization.name);
     setLogoUrlField(organization.logo_url ?? "");
     setPrimaryDomainField(organization.primary_domain ?? "");
+    setIndustryLabelField(organization.industry_label ?? "");
     setSecurityControls((organization.security_controls ?? {}) as Record<string, "yes" | "no" | "unsure">);
     setCloudProviders(organization.cloud_providers ?? []);
     setComplianceFrameworks(organization.compliance_frameworks ?? []);
@@ -497,6 +519,7 @@ export default function OrgProfilePage() {
         name: companyNameField.trim(),
         logo_url: logoUrlField.trim() || null,
         primary_domain: primaryDomainField.trim() || null,
+        industry_label: industryLabelField || null,
       };
       const resp = await fetchWithAuth(
         `${API_BASE_URL}/api/v1/organizations/${profile.org_id}`,
@@ -612,6 +635,17 @@ export default function OrgProfilePage() {
 
           {!loading && !error && profile && (
             <div className="settings-sections">
+              {profile.org_id == null && (
+                <div className="settings-section">
+                  <p style={{ color: 'var(--text-secondary, #555)', fontSize: 14, lineHeight: 1.6 }}>
+                    You are not part of an organization yet.{' '}
+                    <a href="/settings" style={{ color: 'var(--accent, #0b1060)', fontWeight: 600 }}>
+                      Create or join an organization
+                    </a>{' '}
+                    to manage your profile, vendors, and domains.
+                  </p>
+                </div>
+              )}
               {profile.org_id != null && <AssessmentReadinessWidget />}
               {profile.org_id != null && <ValidationPanel />}
 
@@ -701,6 +735,21 @@ export default function OrgProfilePage() {
                           disabled={companyFieldsDisabled}
                           autoCapitalize="none"
                         />
+                      </div>
+                      <div className="settings-field company-profile-field">
+                        <label htmlFor="company-industry">Industry</label>
+                        <select
+                          id="company-industry"
+                          className="company-profile-input"
+                          value={industryLabelField}
+                          onChange={(e) => setIndustryLabelField(e.target.value)}
+                          disabled={companyFieldsDisabled}
+                        >
+                          <option value="">Select industry…</option>
+                          {INDUSTRY_OPTIONS.map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
                       </div>
                       {canEditOrgProfile && (
                         <div
@@ -906,13 +955,18 @@ export default function OrgProfilePage() {
                         <ul className="autocomplete-dropdown">
                           {vendorSuggestions.map((s) => (
                             <li
-                              key={s}
+                              key={s.vendor_name}
                               onMouseDown={() => {
-                                setNewVendor(s);
+                                setNewVendor(s.vendor_name);
                                 setShowVendorSuggestions(false);
                               }}
+                              title={`${Math.round(s.score * 100)}% match`}
+                              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}
                             >
-                              {s}
+                              <span>{s.vendor_name}</span>
+                              <span style={{ fontSize: '11px', color: '#6b7280', flexShrink: 0 }}>
+                                {Math.round(s.score * 100)}%
+                              </span>
                             </li>
                           ))}
                         </ul>

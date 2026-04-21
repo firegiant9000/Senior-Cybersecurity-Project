@@ -10,6 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.repositories.normalization_log_repo import fire_and_forget_normalization_log
+
 from app.api.routes.v1.auth import get_current_user
 from app.core.config import settings
 from app.core.dependencies import check_org_access
@@ -153,6 +155,38 @@ async def autocomplete_vendors(
 
     result = await session.execute(stmt)
     return [row[0] for row in result.all()]
+
+
+@router.get("/vendors/suggest")
+@limiter.limit("30/minute")
+async def suggest_vendors(
+    request: Request,  # noqa: ARG001
+    q: Annotated[str, Query(min_length=2, max_length=255)],
+    current_user: User = Depends(get_current_user),  # noqa: ARG001
+    session: AsyncSession = Depends(get_session),
+):
+    """Fuzzy vendor name suggestions from the KEV catalog.
+
+    Requires migration 022 (pg_trgm extension) to be deployed.
+    Returns up to 5 suggestions with similarity scores.
+    """
+    from sqlalchemy import func as sa_func
+
+    stmt = (
+        select(
+            KEV.vendor.label("vendor_name"),
+            sa_func.similarity(KEV.vendor, q).label("score"),
+        )
+        .distinct()
+        .where(sa_func.similarity(KEV.vendor, q) > 0.4)
+        .order_by(sa_func.similarity(KEV.vendor, q).desc())
+        .limit(5)
+    )
+    result = await session.execute(stmt)
+    return [
+        {"vendor_name": row.vendor_name, "score": round(float(row.score), 3)}
+        for row in result.all()
+    ]
 
 
 # ---- Global technology vendor catalog CRUD ----
@@ -311,7 +345,7 @@ async def list_vendors(
 @router.post("/organizations/{org_id}/vendors", response_model=OrgVendorRead, status_code=201)
 @limiter.limit(settings.RATE_LIMIT_DATA)
 async def create_vendor(
-    request: Request,  # noqa: ARG001
+    request: Request,
     org_id: int,
     body: OrgVendorCreate,
     current_user: User = Depends(get_current_user),
@@ -319,6 +353,13 @@ async def create_vendor(
     session: AsyncSession = Depends(get_session),
 ):
     """Add a vendor to the organization's technology stack."""
+    # Capture raw value before Pydantic whitespace normalization
+    try:
+        raw_body = await request.json()
+        raw_vendor = raw_body.get("vendor_name") or body.vendor_name
+    except Exception:
+        raw_vendor = body.vendor_name
+
     await _check_org_access(current_user, org_id, session)
     try:
         vendor = await repo.create(org_id, body)
@@ -327,13 +368,22 @@ async def create_vendor(
     except SQLAlchemyError:
         logger.exception("Failed to create vendor for org %s", org_id)
         raise HTTPException(status_code=500, detail="Failed to add vendor")
+
+    fire_and_forget_normalization_log(
+        org_id=org_id,
+        data_type="vendor",
+        raw_value=raw_vendor,
+        normalized_value=vendor.vendor_name,
+        method="whitespace",
+        created_by=current_user.id,
+    )
     return vendor
 
 
 @router.put("/organizations/{org_id}/vendors/{vendor_id}", response_model=OrgVendorRead)
 @limiter.limit(settings.RATE_LIMIT_DATA)
 async def update_vendor(
-    request: Request,  # noqa: ARG001
+    request: Request,
     org_id: int,
     vendor_id: int,
     body: OrgVendorUpdate,
@@ -342,6 +392,15 @@ async def update_vendor(
     session: AsyncSession = Depends(get_session),
 ):
     """Update a vendor entry."""
+    # Capture raw vendor_name before Pydantic normalization (only if field is being updated)
+    raw_vendor: str | None = None
+    if body.vendor_name is not None:
+        try:
+            raw_body = await request.json()
+            raw_vendor = raw_body.get("vendor_name") or body.vendor_name
+        except Exception:
+            raw_vendor = body.vendor_name
+
     await _check_org_access(current_user, org_id, session)
     try:
         vendor = await repo.update(vendor_id, org_id, body)
@@ -352,6 +411,16 @@ async def update_vendor(
         raise HTTPException(status_code=500, detail="Failed to update vendor")
     if vendor is None:
         raise HTTPException(status_code=404, detail="Vendor not found")
+
+    if raw_vendor is not None:
+        fire_and_forget_normalization_log(
+            org_id=org_id,
+            data_type="vendor",
+            raw_value=raw_vendor,
+            normalized_value=vendor.vendor_name,
+            method="whitespace",
+            created_by=current_user.id,
+        )
     return vendor
 
 
