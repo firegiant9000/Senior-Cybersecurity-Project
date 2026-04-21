@@ -58,9 +58,9 @@ const Dashboard: React.FC = () => {
         return activeGroupDef.subTabs[0].id;
     }, [activeGroupDef, activeGroup, resolved.sub]);
 
-    // If active group isn't visible, fall back to overview
+    // If active group isn't visible or is locked, fall back to overview
     useEffect(() => {
-        if (!activeGroupDef && visibleGroups.length > 0) {
+        if ((!activeGroupDef || activeGroupDef.locked) && visibleGroups.length > 0) {
             setSearchParams({}, { replace: true });
         }
     }, [activeGroupDef, visibleGroups, setSearchParams]);
@@ -68,6 +68,7 @@ const Dashboard: React.FC = () => {
     const handleGroupChange = useCallback(
         (groupId: string) => {
             const group = visibleGroups.find((g) => g.id === groupId);
+            if (group?.locked) return;
             const params: Record<string, string> = { tab: groupId };
             if (group?.subTabs) {
                 params.sub = group.subTabs[0].id;
@@ -78,8 +79,8 @@ const Dashboard: React.FC = () => {
     );
 
     const handleSubTabChange = useCallback(
-        (subId: string) => {
-            setSearchParams({ tab: activeGroup, sub: subId });
+        (subId: string, groupId?: string) => {
+            setSearchParams({ tab: groupId ?? activeGroup, sub: subId });
         },
         [activeGroup, setSearchParams],
     );
@@ -90,7 +91,10 @@ const Dashboard: React.FC = () => {
 
     // The component key to render — for standalone groups it's the group id,
     // for groups with sub-tabs it's the active sub-tab id.
-    const activeComponent = activeGroupDef?.subTabs ? activeSubTab : activeGroup;
+    // Locked groups fall back to 'overview' to prevent a flash of gated content.
+    const activeComponent = activeGroupDef?.locked
+        ? 'overview'
+        : (activeGroupDef?.subTabs ? activeSubTab : activeGroup);
 
     return (
         <div className="dashboard-container">
@@ -100,7 +104,13 @@ const Dashboard: React.FC = () => {
                 user={user}
                 onLogout={logout}
             />
-            <TabBar activeGroup={activeGroup} onGroupChange={handleGroupChange} groups={visibleGroups} />
+            <TabBar
+                activeGroup={activeGroup}
+                activeSubTab={activeSubTab}
+                onGroupChange={handleGroupChange}
+                onSubTabChange={handleSubTabChange}
+                groups={visibleGroups}
+            />
 
             {activeGroupDef?.subTabs && activeGroupDef.subTabs.length > 1 && (
                 <SubTabBar
