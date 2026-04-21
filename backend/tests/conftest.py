@@ -9,9 +9,7 @@ import pytest
 import pytest_asyncio
 from httpx import AsyncClient
 
-# Patch Firebase init before importing the app so it doesn't require credentials
-with patch("app.core.firebase.init_firebase"):
-    from app.main import app
+from app.main import app
 
 FAKE_FIREBASE_TOKEN = {
     "uid": "test-firebase-uid-global",
@@ -39,6 +37,13 @@ def _mock_firebase_verify():
         "firebase_admin.auth.verify_id_token",
         return_value=FAKE_FIREBASE_TOKEN,
     ):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def _mock_firebase_init():
+    """Avoid requiring Google service account during test lifespan startup."""
+    with patch("app.main.init_firebase", return_value=None):
         yield
 
 

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.routes.v1.auth import get_current_user
 from app.db.engine import get_session
+from app.db.membership import Membership
 from app.db.organization import Organization
 from app.db.user import User
 
@@ -152,3 +153,44 @@ def require_org_or_admin():
         return org
 
     return _check
+
+
+async def require_same_org_membership(
+    org_id: int,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> Membership:
+    """Enforce same-org isolation by requiring an active membership for org_id."""
+    membership_result = await session.execute(
+        select(Membership).where(
+            Membership.user_id == current_user.id,
+            Membership.org_id == org_id,
+            Membership.status == "active",
+        )
+    )
+    membership = membership_result.scalar_one_or_none()
+    if membership is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied for this organization",
+        )
+    return membership
+
+
+@functools.cache
+def require_membership_role(minimum_role: str):
+    """Return dependency enforcing org role for the requested org_id."""
+    min_level = _ORG_ROLE_LEVELS[minimum_role]
+
+    async def _check_role(
+        membership: Membership = Depends(require_same_org_membership),
+    ) -> Membership:
+        membership_level = _ORG_ROLE_LEVELS.get(membership.role, -1)
+        if membership_level < min_level:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient organization role",
+            )
+        return membership
+
+    return _check_role
