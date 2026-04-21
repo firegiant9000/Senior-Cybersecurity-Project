@@ -13,6 +13,7 @@ from app.core.dependencies import check_org_access
 from app.core.limiter import limiter
 from app.db.engine import get_session
 from app.db.user import User
+from app.repositories.normalization_log_repo import fire_and_forget_normalization_log
 from app.repositories.org_domain import SqlOrgDomainRepository, get_domain_repo
 from app.schemas.org_domain import OrgDomainCreate, OrgDomainListResponse, OrgDomainRead
 
@@ -24,7 +25,7 @@ router = APIRouter()
 @router.post("/organizations/{org_id}/domains", response_model=OrgDomainRead, status_code=201)
 @limiter.limit(settings.RATE_LIMIT_DATA)
 async def create_domain(
-    request: Request,  # noqa: ARG001
+    request: Request,
     org_id: int,
     body: OrgDomainCreate,
     current_user: User = Depends(get_current_user),
@@ -32,6 +33,13 @@ async def create_domain(
     session: AsyncSession = Depends(get_session),
 ):
     """Add a domain to the organization."""
+    # Capture raw value before Pydantic lowercase+strip normalization
+    try:
+        raw_body = await request.json()
+        raw_domain = raw_body.get("domain_name") or body.domain_name
+    except Exception:
+        raw_domain = body.domain_name
+
     await check_org_access(current_user, org_id, session)
     try:
         domain = await repo.create(org_id, current_user.id, body.domain_name)
@@ -40,6 +48,15 @@ async def create_domain(
     except SQLAlchemyError:
         logger.exception("Failed to create domain for org %s", org_id)
         raise HTTPException(status_code=500, detail="Failed to add domain")
+
+    fire_and_forget_normalization_log(
+        org_id=org_id,
+        data_type="domain",
+        raw_value=raw_domain,
+        normalized_value=domain.domain_name,
+        method="pattern",
+        created_by=current_user.id,
+    )
     return domain
 
 
