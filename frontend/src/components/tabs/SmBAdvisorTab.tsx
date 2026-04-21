@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { useUserContext } from '../../context/UserContext';
 import './SmBAdvisorTab.css';
 import DisclaimerBanner from '../shared/DisclaimerBanner';
 import { SMB_ADVISOR_DISCLAIMER } from '../../constants/disclaimers';
@@ -126,6 +127,39 @@ const GENERAL_ACTIONS = [
   { icon: '🔄', text: 'Test your data backups monthly to confirm they actually work before you need them' },
   { icon: '👤', text: 'Designate one person responsible for cybersecurity in your business, even if it is you' },
 ];
+
+const SECURITY_CONTROL_MATCHES: [pattern: string, controlKey: string][] = [
+  ['multi-factor authentication', 'mfa_enabled'],
+  ['email authentication (SPF', 'email_filtering'],
+  ['phishing awareness training', 'phishing_training'],
+  ['email spam and phishing filter', 'email_filtering'],
+  ['computers and software up to date', 'auto_patching'],
+  ['Encrypt any files or databases', 'devices_encrypted'],
+  ['strong, unique passwords', 'password_policy'],
+  ['EDR/antivirus', 'edr_deployed'],
+];
+
+function isControlEnabled(controls: Record<string, string>, key: string): boolean {
+  const val = controls[key];
+  return !!val && val !== 'no' && val !== 'false' && val !== '0' && val !== 'unsure';
+}
+
+function getOrgFilledKeys(
+  actions: Array<{ key: string; text: string }>,
+  controls: Record<string, string> | null,
+): Set<string> {
+  if (!controls) return new Set();
+  const filled = new Set<string>();
+  for (const action of actions) {
+    for (const [pattern, controlKey] of SECURITY_CONTROL_MATCHES) {
+      if (action.text.toLowerCase().includes(pattern.toLowerCase()) && isControlEnabled(controls, controlKey)) {
+        filled.add(action.key);
+        break;
+      }
+    }
+  }
+  return filled;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -503,7 +537,9 @@ function ActionPlanCard({ topThreats, loading }: {
   topThreats: SectorAttackCombination[];
   loading: boolean;
 }) {
+  const { organization } = useUserContext();
   const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const [orgApplied, setOrgApplied] = useState(false);
   const toggle = (key: string) => setChecked(prev => ({ ...prev, [key]: !prev[key] }));
 
   const threatActions = useMemo(() => {
@@ -524,12 +560,30 @@ function ActionPlanCard({ topThreats, loading }: {
     return actions;
   }, [topThreats]);
 
-  const allActions = [...threatActions, ...GENERAL_ACTIONS.map((a, i) => ({
-    key: `general-${i}`,
-    icon: a.icon,
-    text: a.text,
-    priority: 'medium' as const,
-  }))];
+  const allActions = useMemo(() => [
+    ...threatActions,
+    ...GENERAL_ACTIONS.map((a, i) => ({
+      key: `general-${i}`,
+      icon: a.icon,
+      text: a.text,
+      priority: 'medium' as const,
+    })),
+  ], [threatActions]);
+
+  const orgFilledKeys = useMemo(
+    () => getOrgFilledKeys(allActions, organization?.security_controls ?? null),
+    [allActions, organization?.security_controls],
+  );
+
+  useEffect(() => {
+    if (orgApplied || orgFilledKeys.size === 0) return;
+    setChecked(prev => {
+      const next = { ...prev };
+      orgFilledKeys.forEach(k => { if (!(k in next)) next[k] = true; });
+      return next;
+    });
+    setOrgApplied(true);
+  }, [orgFilledKeys, orgApplied]);
 
   const doneCount = allActions.filter(a => checked[a.key]).length;
 
@@ -566,7 +620,10 @@ function ActionPlanCard({ topThreats, loading }: {
                   />
                   <span className="smb-check-icon">{item.icon}</span>
                   <span className="smb-check-text">{item.text}</span>
-                  {item.priority === 'high' && !checked[item.key] && (
+                  {orgFilledKeys.has(item.key) && (
+                    <span className="smb-org-badge">From org profile</span>
+                  )}
+                  {item.priority === 'high' && !checked[item.key] && !orgFilledKeys.has(item.key) && (
                     <span className="smb-priority-badge">Priority</span>
                   )}
                 </label>
@@ -587,6 +644,9 @@ function ActionPlanCard({ topThreats, loading }: {
                   />
                   <span className="smb-check-icon">{item.icon}</span>
                   <span className="smb-check-text">{item.text}</span>
+                  {orgFilledKeys.has(key) && (
+                    <span className="smb-org-badge">From org profile</span>
+                  )}
                 </label>
               );
             })}
@@ -708,8 +768,10 @@ function OrgRiskScoreCard() {
 
 const SmBAdvisorTab: React.FC = () => {
   const { data, loading, error, refresh } = useAdvisorData();
+  const { organization } = useUserContext();
   const [selectedSector, setSelectedSector] = useState('');
   const [selectedState, setSelectedState] = useState('');
+  const autoFilled = useRef(false);
 
   // Available sectors from loaded data
   const sectors = useMemo(
@@ -739,6 +801,23 @@ const SmBAdvisorTab: React.FC = () => {
     () => calcRiskGrade(sectorProfile, data.industryRisk),
     [sectorProfile, data.industryRisk],
   );
+
+  // Auto-fill from org profile on first load only
+  useEffect(() => {
+    if (autoFilled.current || !organization) return;
+    if (organization.primary_state && !selectedState) {
+      setSelectedState(organization.primary_state);
+    }
+    if (organization.industry_label && sectors.length > 0) {
+      const match = sectors.find(
+        s => s.toLowerCase() === organization.industry_label.toLowerCase(),
+      );
+      if (match) {
+        setSelectedSector(match);
+        autoFilled.current = true;
+      }
+    }
+  }, [organization, sectors, selectedState]);
 
   return (
     <div className="tab-page smb-advisor-page">
