@@ -9,7 +9,7 @@ from app.db.enums import OrgRole
 
 class InviteCreate(BaseModel):
     email: EmailStr
-    org_role: OrgRole = OrgRole.MEMBER
+    role: OrgRole = Field(default=OrgRole.MEMBER, validation_alias="org_role")
 
 
 class InviteRead(BaseModel):
@@ -17,10 +17,10 @@ class InviteRead(BaseModel):
 
     id: int  # noqa: A003
     org_id: int
-    invited_email: str
-    org_role: str
+    email: str
+    role: str
     status: str
-    invited_by: int | None = None
+    inviter_id: int | None = None
     expires_at: datetime
     created_at: datetime
 
@@ -35,21 +35,19 @@ class InviteListResponse(BaseModel):
 class InviteTokenRead(BaseModel):
     """Public-facing invite info returned when looking up a token."""
 
-    invite_token: str
+    token: str
     org_name: str
-    org_role: str
-    invited_email: str
+    role: str
+    email: str
     expires_at: datetime
 
 
 class MemberRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int  # noqa: A003
+    user_id: int
     email: str
-    org_role: str | None
+    role: str
+    status: str
     is_active: bool
-    created_at: datetime
 
 
 class MemberListResponse(BaseModel):
@@ -60,4 +58,4 @@ class MemberListResponse(BaseModel):
 
 
 class MemberUpdate(BaseModel):
-    org_role: OrgRole = Field(..., description="New organization role for the member")
+    role: OrgRole = Field(..., description="New organization role for the member")
