@@ -15,6 +15,8 @@ from sqlalchemy import (  # type: ignore[import-not-found]  # pylint: disable=im
 # Add app to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
+import app.db.invitation  # noqa: E402, F401  # register Invitation with Base.metadata
+import app.db.membership  # noqa: E402, F401  # register Membership with Base.metadata
 import app.db.models  # noqa: E402, F401  # register ORM models with Base.metadata
 import app.db.normalization_log  # noqa: E402, F401  # register NormalizationLog with Base.metadata
 import app.db.org_domain  # noqa: E402, F401  # register OrgDomain with Base.metadata
