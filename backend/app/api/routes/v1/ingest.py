@@ -244,10 +244,10 @@ async def _run_ingestion(
 
 
 def _compute_consecutive_failures(runs: list[IngestRun]) -> int:
-    """Count consecutive non-completed runs from most-recent backward."""
+    """Count consecutive terminal failures from most-recent backward."""
     count = 0
     for run in runs:
-        if run.status != "completed":
+        if run.status in {"failed", "skipped"}:
             count += 1
         else:
             break
@@ -358,8 +358,10 @@ async def get_ingest_freshness(
                 SourceFreshness(
                     source=source,
                     last_run_at=(
-                        latest.finished_at.replace(tzinfo=datetime.UTC).isoformat()
-                        if latest.finished_at
+                        (latest.finished_at or latest.started_at)
+                        .replace(tzinfo=datetime.UTC)
+                        .isoformat()
+                        if (latest.finished_at or latest.started_at)
                         else None
                     ),
                     last_successful_run_at=last_successful_run_at,

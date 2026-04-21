@@ -178,8 +178,9 @@ async def suggest_vendors(
             sa_func.similarity(KEV.vendor, q).label("score"),
         )
         .distinct()
+        .where(KEV.vendor.op("%")(q))
         .where(sa_func.similarity(KEV.vendor, q) > 0.4)
-        .order_by(sa_func.similarity(KEV.vendor, q).desc())
+        .order_by(sa_func.similarity(KEV.vendor, q).desc(), KEV.vendor.asc())
         .limit(5)
     )
     result = await session.execute(stmt)

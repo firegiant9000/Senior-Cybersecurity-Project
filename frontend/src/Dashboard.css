@@ -794,26 +794,26 @@
 
 .risk-analytics-card,
 .risk-kpi-card {
-    background: #1e293b;
-    border: 1px solid #334155;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
     border-radius: 10px;
     padding: 14px;
 }
 
 [data-theme="dark"] .risk-analytics-card,
 [data-theme="dark"] .risk-kpi-card {
-    background: #f1f5f9;
-    border: 1px solid #cbd5e1;
+    background: #1e293b;
+    border: 1px solid #334155;
 }
 
 .risk-analytics-card h3 {
     margin: 0 0 10px;
     font-size: 14px;
-    color: #e2e8f0;
+    color: #0f172a;
 }
 
 [data-theme="dark"] .risk-analytics-card h3 {
-    color: #0f172a;
+    color: #e2e8f0;
 }
 
 .risk-bar-chart {
