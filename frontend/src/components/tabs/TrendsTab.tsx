@@ -108,9 +108,9 @@ const TrendsTab: React.FC = () => {
                       dataKey="complaint_count"
                       name="Complaints"
                       stroke={COLORS.teal}
-                      strokeWidth={2}
-                      dot={{ r: 4 }}
-                      activeDot={{ r: 6 }}
+                      strokeWidth={4}
+                      dot={{ r: 6 }}
+                      activeDot={{ r: 8 }}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -147,9 +147,9 @@ const TrendsTab: React.FC = () => {
                       dataKey="total_loss"
                       name="Total Loss"
                       stroke={COLORS.red}
-                      strokeWidth={2}
-                      dot={{ r: 4 }}
-                      activeDot={{ r: 6 }}
+                      strokeWidth={4}
+                      dot={{ r: 6 }}
+                      activeDot={{ r: 8 }}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -186,9 +186,9 @@ const TrendsTab: React.FC = () => {
                       dataKey="avg_loss_per_incident"
                       name="Avg Loss / Incident"
                       stroke={COLORS.purple}
-                      strokeWidth={2}
-                      dot={{ r: 4 }}
-                      activeDot={{ r: 6 }}
+                      strokeWidth={4}
+                      dot={{ r: 6 }}
+                      activeDot={{ r: 8 }}
                     />
                   </LineChart>
                 </ResponsiveContainer>

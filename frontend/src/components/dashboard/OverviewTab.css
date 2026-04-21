@@ -6,27 +6,35 @@
     align-items: center;
     justify-content: flex-end;
     gap: 12px;
-    margin-bottom: 14px;
+    margin-bottom: 6px;
+    margin-top: 0;
 }
 
 .overview-last-updated {
     font-size: 12px;
     color: var(--text-muted);
+    line-height: 1;
+    align-self: center;
 }
 
 .overview-refresh-btn {
-    display: flex;
+    display: inline-flex;
     align-items: center;
+    align-self: center;
     gap: 6px;
-    padding: 6px 14px;
+    padding: 4px 14px;
+    height: 24px;
     background: var(--accent);
     color: white;
     border: none;
     border-radius: 20px;
     font-size: 12px;
     font-weight: 600;
+    line-height: 1;
     cursor: pointer;
     transition: background 0.2s, transform 0.15s;
+    flex-shrink: 0;
+    vertical-align: middle;
 }
 
 .overview-refresh-btn:hover {

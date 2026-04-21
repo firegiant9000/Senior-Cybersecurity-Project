@@ -4,6 +4,7 @@ import {
   LineChart, Line, PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import { useThreatIntelData } from '../../hooks/useThreatIntelData';
+import { useIsDark } from '../../hooks/useDarkMode';
 import WidgetSkeleton from '../shared/WidgetSkeleton';
 import WidgetErrorBoundary from '../shared/WidgetErrorBoundary';
 import { COLORS, RISK_COLORS, SEVERITY_COLORS } from '../../theme';
@@ -37,6 +38,7 @@ function severityBadge(label: string) {
 
 const ThreatIntelTab: React.FC = () => {
   const { data, loading, errors, refresh } = useThreatIntelData();
+  const isDark = useIsDark();
 
   // Aggregate top vendors from KEV data
   const topVendors = useMemo(() => {
@@ -160,11 +162,11 @@ const ThreatIntelTab: React.FC = () => {
                     <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
                     <YAxis type="category" dataKey="vendor" width={120} tick={{ fontSize: 10 }} />
                     <Tooltip formatter={(v: unknown) => [(v as number), 'KEV entries']} />
-                    <Bar dataKey="count" fill={COLORS.navy} radius={[0, 4, 4, 0]}>
+                    <Bar dataKey="count" fill={isDark ? '#6366f1' : COLORS.navy} radius={[0, 4, 4, 0]}>
                       <LabelList
                         dataKey="count"
                         position="right"
-                        style={{ fontSize: 10, fill: '#555', fontWeight: 600 }}
+                        style={{ fontSize: 10, fill: isDark ? '#94a3b8' : '#555', fontWeight: 600 }}
                       />
                     </Bar>
                   </BarChart>
