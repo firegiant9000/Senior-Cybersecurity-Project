@@ -352,9 +352,9 @@ async def get_ingest_freshness(
             last_success = next((r for r in group if r.status == "completed"), None)
             last_successful_run_at: str | None = None
             if last_success and last_success.finished_at:
-                last_successful_run_at = (
-                    last_success.finished_at.replace(tzinfo=datetime.UTC).isoformat()
-                )
+                last_successful_run_at = last_success.finished_at.replace(
+                    tzinfo=datetime.UTC
+                ).isoformat()
 
             # [2A] Consecutive failures
             consec_fails = _compute_consecutive_failures(group)

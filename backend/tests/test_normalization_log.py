@@ -88,7 +88,9 @@ async def test_write_defaults_confidence_and_created_by():
 @pytest.mark.asyncio
 async def test_write_commits_and_refreshes():
     session = _make_session()
-    with patch("app.repositories.normalization_log_repo.NormalizationLog", return_value=MagicMock()):
+    with patch(
+        "app.repositories.normalization_log_repo.NormalizationLog", return_value=MagicMock()
+    ):
         repo = SqlNormalizationLogRepository(session)
         await repo.write(
             data_type="industry",
@@ -129,7 +131,9 @@ def test_fire_and_forget_passes_all_kwargs():
         captured["coro"] = coro
         coro.close()  # prevent RuntimeWarning for un-awaited coroutine
 
-    with patch("app.repositories.normalization_log_repo.asyncio.create_task", side_effect=capture_task):
+    with patch(
+        "app.repositories.normalization_log_repo.asyncio.create_task", side_effect=capture_task
+    ):
         fire_and_forget_normalization_log(
             org_id=9,
             data_type="vendor",

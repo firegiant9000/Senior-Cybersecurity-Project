@@ -58,12 +58,8 @@ def upgrade() -> None:
                 nullable=False,
             ),
             sa.Column("created_by", sa.Integer(), nullable=True),
-            sa.ForeignKeyConstraint(
-                ["org_id"], ["organizations.id"], ondelete="CASCADE"
-            ),
-            sa.ForeignKeyConstraint(
-                ["created_by"], ["users.id"], ondelete="SET NULL"
-            ),
+            sa.ForeignKeyConstraint(["org_id"], ["organizations.id"], ondelete="CASCADE"),
+            sa.ForeignKeyConstraint(["created_by"], ["users.id"], ondelete="SET NULL"),
             sa.PrimaryKeyConstraint("id"),
         )
 

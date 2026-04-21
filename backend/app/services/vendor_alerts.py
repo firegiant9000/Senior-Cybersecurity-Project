@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import CVE, KEV
 from app.db.org_vendor import OrgVendor
 from app.models.ingest_run import IngestRun
+from app.repositories.normalization_log_repo import fire_and_forget_normalization_log
 from app.schemas.vendor_alert import (
     SeverityBreakdown,
     VendorAlert,
@@ -150,10 +151,6 @@ class VendorAlertService:
 
             # Log fuzzy matches to normalization_log (fire-and-forget)
             if fuzzy_rows:
-                from app.repositories.normalization_log_repo import (
-                    fire_and_forget_normalization_log,
-                )
-
                 for row in fuzzy_rows:
                     fuzzy_matched_vendor_names.add(row.vendor_name)
                     fire_and_forget_normalization_log(
@@ -251,9 +248,7 @@ class VendorAlertService:
 
         breakdown = _compute_severity_breakdown(combined)
 
-        truly_unmatched = sorted(
-            all_vendor_names - exact_vendor_names - fuzzy_matched_vendor_names
-        )
+        truly_unmatched = sorted(all_vendor_names - exact_vendor_names - fuzzy_matched_vendor_names)
 
         return VendorAlertsResponse(
             total_matched=total_matched,

@@ -34,7 +34,9 @@ def upgrade() -> None:
 
     if not _index_exists("ix_kev_vendor_trgm"):
         op.execute(
-            sa.text("CREATE INDEX ix_kev_vendor_trgm ON kev_catalog USING GIN (vendor gin_trgm_ops)")
+            sa.text(
+                "CREATE INDEX ix_kev_vendor_trgm ON kev_catalog USING GIN (vendor gin_trgm_ops)"
+            )
         )
 
     if not _index_exists("ix_org_vendor_name_trgm"):
