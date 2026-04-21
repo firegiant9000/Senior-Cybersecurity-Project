@@ -10,8 +10,6 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.repositories.normalization_log_repo import fire_and_forget_normalization_log
-
 from app.api.routes.v1.auth import get_current_user
 from app.core.config import settings
 from app.core.dependencies import check_org_access
@@ -19,6 +17,7 @@ from app.core.limiter import limiter
 from app.db.engine import get_session
 from app.db.models import KEV
 from app.db.user import User
+from app.repositories.normalization_log_repo import fire_and_forget_normalization_log
 from app.repositories.org_vendor import SqlOrgVendorRepository, get_vendor_repo
 from app.repositories.technology_vendor import (
     SqlTechnologyVendorRepository,
@@ -358,7 +357,7 @@ async def create_vendor(
     try:
         raw_body = await request.json()
         raw_vendor = raw_body.get("vendor_name") or body.vendor_name
-    except Exception:
+    except (ValueError, TypeError):
         raw_vendor = body.vendor_name
 
     await _check_org_access(current_user, org_id, session)
@@ -399,7 +398,7 @@ async def update_vendor(
         try:
             raw_body = await request.json()
             raw_vendor = raw_body.get("vendor_name") or body.vendor_name
-        except Exception:
+        except (ValueError, TypeError):
             raw_vendor = body.vendor_name
 
     await _check_org_access(current_user, org_id, session)

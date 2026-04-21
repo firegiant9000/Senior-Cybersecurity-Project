@@ -7,7 +7,6 @@ from unittest.mock import MagicMock
 import pytest
 from httpx import AsyncClient
 
-
 # ---------------------------------------------------------------------------
 # _compute_consecutive_failures (pure function — no DB needed)
 # ---------------------------------------------------------------------------

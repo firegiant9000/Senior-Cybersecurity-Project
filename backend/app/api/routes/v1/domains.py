@@ -37,7 +37,7 @@ async def create_domain(
     try:
         raw_body = await request.json()
         raw_domain = raw_body.get("domain_name") or body.domain_name
-    except Exception:
+    except (ValueError, TypeError):
         raw_domain = body.domain_name
 
     await check_org_access(current_user, org_id, session)

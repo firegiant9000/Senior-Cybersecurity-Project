@@ -81,7 +81,7 @@ async def _write_log_async(
             )
             session.add(row)
             await session.commit()
-    except Exception:
+    except Exception:  # noqa: BLE001
         _log.debug("normalization log write failed", exc_info=True)
 
 
