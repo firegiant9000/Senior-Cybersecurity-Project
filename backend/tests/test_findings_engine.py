@@ -1059,3 +1059,79 @@ class TestFindingsEngineIntegration:
 
         severities = [severity_order.get(f.severity, 99) for f in report.findings]
         assert severities == sorted(severities), "Findings are not sorted by severity"
+
+
+# ---------------------------------------------------------------------------
+# match_confidence on vendor exposure findings
+# ---------------------------------------------------------------------------
+
+
+class TestVendorExposureConfidence:
+    """_vendor_exposure_findings handles items with any match_confidence value."""
+
+    def test_exact_match_items_produce_vendor_findings(self):
+        data = _vendor_dict(
+            total_matched=1,
+            critical=1,
+            items=[{"vendor_name": "Microsoft", "due_date": None, "match_confidence": 1.0}],
+        )
+        findings = _vendor_exposure_findings(data)
+        assert any(f.finding_type == "vendor_exposure" for f in findings)
+
+    def test_fuzzy_match_items_also_produce_vendor_findings(self):
+        data = _vendor_dict(
+            total_matched=1,
+            high=1,
+            items=[{"vendor_name": "Microsft", "due_date": None, "match_confidence": 0.82}],
+        )
+        findings = _vendor_exposure_findings(data)
+        assert any(f.finding_type == "vendor_exposure" for f in findings)
+
+    def test_none_confidence_does_not_crash(self):
+        # match_confidence=None (legacy rows or exact path before schema update)
+        data = _vendor_dict(
+            total_matched=1,
+            high=1,
+            items=[{"vendor_name": "Apache", "due_date": None, "match_confidence": None}],
+        )
+        findings = _vendor_exposure_findings(data)
+        assert len(findings) >= 1
+
+    def test_zero_total_matched_returns_empty_regardless_of_confidence(self):
+        data = _vendor_dict(
+            total_matched=0,
+            items=[{"vendor_name": "Cisco", "due_date": None, "match_confidence": 0.9}],
+        )
+        findings = _vendor_exposure_findings(data)
+        assert findings == []
+
+    def test_finding_schema_accepts_match_confidence_field(self):
+        from app.schemas.findings import Finding
+
+        f = Finding(
+            id="test-id",
+            finding_type="vendor_exposure",
+            severity="high",
+            title="Test",
+            description="desc",
+            evidence={},
+            source="kev_vendor_match",
+            affected_assets=[],
+            match_confidence=0.85,
+        )
+        assert f.match_confidence == pytest.approx(0.85)
+
+    def test_finding_schema_match_confidence_defaults_none(self):
+        from app.schemas.findings import Finding
+
+        f = Finding(
+            id="test-id",
+            finding_type="vendor_exposure",
+            severity="high",
+            title="Test",
+            description="desc",
+            evidence={},
+            source="kev_vendor_match",
+            affected_assets=[],
+        )
+        assert f.match_confidence is None
