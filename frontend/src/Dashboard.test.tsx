@@ -50,9 +50,9 @@ vi.mock('./hooks/useDarkMode', () => ({ useDarkMode: () => [false, vi.fn()] }))
 vi.mock('./components/dashboard/OverviewTab', () => ({ default: () => <div>Overview</div> }))
 vi.mock('./components/dashboard/DashboardHeader', () => ({ default: () => <div>Header</div> }))
 vi.mock('./components/dashboard/TabBar', () => ({
-  default: ({ groups }: { groups: { id: string; label: string; subTabs?: { id: string; label: string }[] }[] }) => (
+  default: ({ groups }: { groups: { id: string; label: string; locked?: boolean; subTabs?: { id: string; label: string }[] }[] }) => (
     <nav>
-      {groups.flatMap(g => [
+      {groups.filter(g => !g.locked).flatMap(g => [
         <span key={g.id} data-testid={`tab-${g.id}`}>{g.label}</span>,
         ...(g.subTabs ?? []).map(s => <span key={s.id} data-testid={`tab-${s.id}`}>{s.label}</span>),
       ])}

@@ -1456,6 +1456,7 @@ class FindingsEngine:
                     "vendor_name": a.vendor_name,
                     "due_date": a.due_date.isoformat() if a.due_date else None,
                     "severity_label": a.severity_label,
+                    "match_confidence": a.match_confidence,
                 }
                 for a in vendor_alerts_resp.items
             ],

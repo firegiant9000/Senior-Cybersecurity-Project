@@ -107,6 +107,11 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     INGEST_MAX_RETRIES: int = 2
     # Set to False to disable the in-process scheduler (useful when running multiple instances)
     SCHEDULER_ENABLED: bool = True
+    # Staleness thresholds in hours — source is "stale" if last successful run exceeds this age
+    INGEST_STALE_HOURS_NVD: int = 25
+    INGEST_STALE_HOURS_KEV: int = 25
+    INGEST_STALE_HOURS_IC3: int = 168
+    INGEST_STALE_HOURS_ECON: int = 168
 
     # Rate limiting
     RATE_LIMIT_AUTH: str = "30/minute"

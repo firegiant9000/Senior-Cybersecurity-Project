@@ -25,10 +25,45 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+const LOADING_STAGES = [
+  'Resolving DNS records...',
+  'Running SSL analysis...',
+  'Matching CVE database...',
+  'Scoring vendor exposure...',
+  'Generating findings report...',
+];
+
+const FindingsLoadingBar: React.FC = () => {
+  const [stageIndex, setStageIndex] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setStageIndex((i) => (i < LOADING_STAGES.length - 1 ? i + 1 : i));
+    }, 3500);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="tab-page">
+      <div className="findings-loading">
+        <p className="findings-loading-title">Analyzing your organization&apos;s threat landscape</p>
+        <div className="findings-progress-track">
+          <div className="findings-progress-fill" />
+        </div>
+        <p className="findings-loading-stage">{LOADING_STAGES[stageIndex]}</p>
+        <p className="findings-loading-sub">This may take 15–30 seconds on first load.</p>
+      </div>
+    </div>
+  );
+};
+
+const MIN_LOADING_MS = 1200;
+
 const FindingsTab: React.FC = () => {
   const { user } = useAuth();
   const [report, setReport] = useState<FindingsReport | null>(null);
   const [loading, setLoading] = useState(true);
+  const [minLoadingDone, setMinLoadingDone] = useState(false);
   const [error, setError] = useState('');
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -48,15 +83,22 @@ const FindingsTab: React.FC = () => {
     if (!user) return;
     const controller = new AbortController();
     setLoading(true);
+    setMinLoadingDone(false);
     setError('');
+    const minTimer = setTimeout(() => setMinLoadingDone(true), MIN_LOADING_MS);
     fetchFindings(controller.signal)
       .then(setReport)
       .catch((err) => {
         if (err instanceof DOMException && err.name === 'AbortError') return;
         setError(err instanceof Error ? err.message : 'Failed to load findings');
       })
-      .finally(() => setLoading(false));
-    return () => controller.abort();
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => {
+      controller.abort();
+      clearTimeout(minTimer);
+    };
   }, [user]);
 
   useEffect(() => {
@@ -100,18 +142,8 @@ const FindingsTab: React.FC = () => {
     return <div className="tab-page"><p>Please log in to view findings.</p></div>;
   }
 
-  if (loading && !report) {
-    return (
-      <div className="tab-page">
-        <div className="findings-loading">
-          <div className="findings-loading-spinner" />
-          <p>Analyzing your organization's threat landscape...</p>
-          <p className="findings-loading-sub">
-            Running DNS, SSL, and vulnerability checks — this may take a few seconds.
-          </p>
-        </div>
-      </div>
-    );
+  if (loading || !minLoadingDone) {
+    return <FindingsLoadingBar />;
   }
 
   if (error) {
@@ -319,7 +351,20 @@ const FindingsTab: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {history.map((snap) => {
+                  {history.map((snap, i) => {
+                    const prev = history[i + 1];
+                    const delta = (key: 'critical' | 'high' | 'medium' | 'low' | 'total') => {
+                      if (!prev) return null;
+                      const curr = key === 'total' ? snap.summary.total : (snap.summary.by_severity[key] ?? 0);
+                      const before = key === 'total' ? prev.summary.total : (prev.summary.by_severity[key] ?? 0);
+                      const diff = curr - before;
+                      if (diff === 0) return null;
+                      return (
+                        <span className={diff > 0 ? 'findings-delta--up' : 'findings-delta--down'}>
+                          {diff > 0 ? `▲${diff}` : `▼${Math.abs(diff)}`}
+                        </span>
+                      );
+                    };
                     const d = new Date(snap.generated_at).toLocaleString('en-US', {
                       month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
                     });
@@ -327,11 +372,11 @@ const FindingsTab: React.FC = () => {
                       <tr key={snap.id}>
                         <td>{d}</td>
                         <td>{capitalize(snap.assessment_tier)}</td>
-                        <td>{snap.summary.by_severity.critical ?? 0}</td>
-                        <td>{snap.summary.by_severity.high ?? 0}</td>
-                        <td>{snap.summary.by_severity.medium ?? 0}</td>
-                        <td>{snap.summary.by_severity.low ?? 0}</td>
-                        <td>{snap.summary.total}</td>
+                        <td>{snap.summary.by_severity.critical ?? 0} {delta('critical')}</td>
+                        <td>{snap.summary.by_severity.high ?? 0} {delta('high')}</td>
+                        <td>{snap.summary.by_severity.medium ?? 0} {delta('medium')}</td>
+                        <td>{snap.summary.by_severity.low ?? 0} {delta('low')}</td>
+                        <td>{snap.summary.total} {delta('total')}</td>
                       </tr>
                     );
                   })}

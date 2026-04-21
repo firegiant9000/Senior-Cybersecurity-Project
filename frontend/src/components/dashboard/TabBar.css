@@ -48,6 +48,39 @@
     background-color: var(--tab-active-bg);
 }
 
+/* Locked (org-gated) tab */
+.tab--locked {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: auto;
+}
+
+.tab--locked:hover {
+    background-color: transparent;
+    color: var(--text-secondary);
+}
+
+.tab-lock-icon {
+    font-size: 10px;
+    margin-right: 4px;
+    vertical-align: middle;
+}
+
+/* Sub-tab indicator chevron */
+.tab-chevron {
+    display: inline-block;
+    margin-left: 5px;
+    font-size: 14px;
+    opacity: 0.6;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+    vertical-align: middle;
+}
+
+.tab-chevron--open {
+    transform: rotate(180deg);
+    opacity: 0.9;
+}
+
 /* Mobile: hide tab strip, show native select */
 .tabs-select {
     display: none;

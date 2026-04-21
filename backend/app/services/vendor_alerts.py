@@ -1,17 +1,38 @@
 """Service for vendor-matched vulnerability alerts."""
 
+
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import CVE, KEV
 from app.db.org_vendor import OrgVendor
 from app.models.ingest_run import IngestRun
+from app.repositories.normalization_log_repo import fire_and_forget_normalization_log
 from app.schemas.vendor_alert import (
     SeverityBreakdown,
     VendorAlert,
     VendorAlertsResponse,
 )
 from app.services.risk_scoring import basic_vuln_risk_score
+
+_FUZZY_THRESHOLD = 0.75
+
+
+def _compute_severity_breakdown(combined: list[dict]) -> SeverityBreakdown:
+    breakdown = SeverityBreakdown()
+    for r in combined:
+        label = _normalize_severity(r["severity"], r["cvss_score"])
+        if label == "Critical":
+            breakdown.critical += 1
+        elif label == "High":
+            breakdown.high += 1
+        elif label == "Medium":
+            breakdown.medium += 1
+        elif label == "Low":
+            breakdown.low += 1
+        else:
+            breakdown.unknown += 1
+    return breakdown
 
 
 def _normalize_severity(severity: str | None, cvss: float | None) -> str:
@@ -59,9 +80,8 @@ class VendorAlertService:
                 kev_last_ingest_at=await self._last_kev_ingest(),
             )
 
-        # Core join: org_vendors -> kev on LOWER(vendor) match -> cve for enrichment
-        # Product matching: match product when org product is non-empty, else match all
-        base_stmt = (
+        # ── First pass: exact case-insensitive join (confidence = 1.0) ──────
+        exact_stmt = (
             select(
                 OrgVendor.vendor_name,
                 OrgVendor.product_name.label("org_product"),
@@ -83,12 +103,100 @@ class VendorAlertService:
                 )
             )
         )
+        exact_result = await self._session.execute(exact_stmt)
+        exact_rows = exact_result.all()
+        exact_vendor_names = {row.vendor_name for row in exact_rows}
 
-        # Total count
-        count_result = await self._session.execute(
-            select(func.count()).select_from(base_stmt.subquery())
+        # ── All org vendor names (for determining unmatched set) ─────────────
+        all_vendors_result = await self._session.execute(
+            select(OrgVendor.vendor_name).where(OrgVendor.org_id == org_id).distinct()
         )
-        total_matched = int(count_result.scalar_one())
+        all_vendor_names = {r[0] for r in all_vendors_result.all()}
+        unmatched_vendor_names = all_vendor_names - exact_vendor_names
+
+        # ── Second pass: fuzzy match for vendors with no exact match ─────────
+        fuzzy_rows = []
+        fuzzy_matched_vendor_names: set[str] = set()
+
+        if unmatched_vendor_names:
+            fuzzy_stmt = (
+                select(
+                    OrgVendor.vendor_name,
+                    OrgVendor.product_name.label("org_product"),
+                    KEV.vendor.label("kev_vendor"),
+                    KEV.cve_id,
+                    KEV.product.label("kev_product"),
+                    KEV.due_date,
+                    CVE.description,
+                    CVE.cvss_score,
+                    CVE.severity,
+                    CVE.published_date,
+                    func.similarity(KEV.vendor, OrgVendor.vendor_name).label("score"),
+                )
+                .join(KEV, KEV.vendor.op("%")(OrgVendor.vendor_name))
+                .join(CVE, CVE.cve_id == KEV.cve_id)
+                .where(OrgVendor.org_id == org_id)
+                .where(OrgVendor.vendor_name.in_(list(unmatched_vendor_names)))
+                .where(func.similarity(KEV.vendor, OrgVendor.vendor_name) > _FUZZY_THRESHOLD)
+                .where(
+                    or_(
+                        OrgVendor.product_name == "",
+                        func.lower(KEV.product) == func.lower(OrgVendor.product_name),
+                    )
+                )
+                .order_by(func.similarity(KEV.vendor, OrgVendor.vendor_name).desc())
+            )
+            fuzzy_result = await self._session.execute(fuzzy_stmt)
+            fuzzy_rows = fuzzy_result.all()
+
+            # Log fuzzy matches to normalization_log (fire-and-forget)
+            if fuzzy_rows:
+                for row in fuzzy_rows:
+                    fuzzy_matched_vendor_names.add(row.vendor_name)
+                    fire_and_forget_normalization_log(
+                        org_id=org_id,
+                        data_type="vendor",
+                        raw_value=row.vendor_name,
+                        normalized_value=row.kev_vendor,
+                        method="fuzzy",
+                        confidence=float(row.score),
+                    )
+
+        # ── Combine exact + fuzzy results ─────────────────────────────────────
+        # Build unified list of dicts for sorting / pagination
+        combined: list[dict] = []
+        for row in exact_rows:
+            combined.append(
+                {
+                    "vendor_name": row.vendor_name,
+                    "org_product": row.org_product,
+                    "cve_id": row.cve_id,
+                    "kev_product": row.kev_product,
+                    "due_date": row.due_date,
+                    "description": row.description,
+                    "cvss_score": row.cvss_score,
+                    "severity": row.severity,
+                    "published_date": row.published_date,
+                    "match_confidence": 1.0,
+                }
+            )
+        for row in fuzzy_rows:
+            combined.append(
+                {
+                    "vendor_name": row.vendor_name,
+                    "org_product": row.org_product,
+                    "cve_id": row.cve_id,
+                    "kev_product": row.kev_product,
+                    "due_date": row.due_date,
+                    "description": row.description,
+                    "cvss_score": row.cvss_score,
+                    "severity": row.severity,
+                    "published_date": row.published_date,
+                    "match_confidence": float(row.score),
+                }
+            )
+
+        total_matched = len(combined)
 
         if total_matched == 0:
             return VendorAlertsResponse(
@@ -97,69 +205,50 @@ class VendorAlertService:
                 items=[],
                 page=page,
                 page_size=page_size,
-                unmatched_vendors=await self._unmatched_vendors(org_id),
+                unmatched_vendors=sorted(
+                    all_vendor_names - exact_vendor_names - fuzzy_matched_vendor_names
+                ),
                 reason="no_matches",
                 kev_last_ingest_at=await self._last_kev_ingest(),
             )
 
-        # Fetch page of results, ordered by CVSS desc (most severe first)
-        paginated = (
-            base_stmt.order_by(CVE.cvss_score.desc().nulls_last(), KEV.due_date.desc().nulls_last())
-            .limit(page_size)
-            .offset((page - 1) * page_size)
+        # Sort by CVSS desc, then due_date desc (nulls last)
+        combined.sort(
+            key=lambda r: (
+                -(r["cvss_score"] or 0),
+                r["due_date"] is None,
+                -(r["due_date"].toordinal()) if r["due_date"] else 0,
+            )
         )
-        result = await self._session.execute(paginated)
-        rows = result.all()
 
-        # Build items and severity breakdown
-        breakdown = SeverityBreakdown()
+        # Paginate
+        page_start = (page - 1) * page_size
+        paginated = combined[page_start : page_start + page_size]
+
+        # Build items for current page
         items: list[VendorAlert] = []
-
-        for row in rows:
-            sev_label = _normalize_severity(row.severity, row.cvss_score)
-            risk = basic_vuln_risk_score(row.cvss_score, exploited=True)
+        for r in paginated:
+            sev_label = _normalize_severity(r["severity"], r["cvss_score"])
+            risk = basic_vuln_risk_score(r["cvss_score"], exploited=True)
             items.append(
                 VendorAlert(
-                    vendor_name=row.vendor_name,
-                    org_product=row.org_product,
-                    cve_id=row.cve_id,
-                    kev_product=row.kev_product,
-                    due_date=row.due_date,
-                    description=row.description or "",
-                    cvss_score=row.cvss_score,
+                    vendor_name=r["vendor_name"],
+                    org_product=r["org_product"],
+                    cve_id=r["cve_id"],
+                    kev_product=r["kev_product"],
+                    due_date=r["due_date"],
+                    description=r["description"] or "",
+                    cvss_score=r["cvss_score"],
                     severity_label=sev_label,
                     risk_score=risk,
-                    published_date=row.published_date,
+                    published_date=r["published_date"],
+                    match_confidence=r["match_confidence"],
                 )
             )
 
-        # Compute severity breakdown over ALL matches (not just current page)
-        severity_stmt = (
-            select(CVE.severity, CVE.cvss_score)
-            .select_from(OrgVendor)
-            .join(KEV, func.lower(KEV.vendor) == func.lower(OrgVendor.vendor_name))
-            .join(CVE, CVE.cve_id == KEV.cve_id)
-            .where(OrgVendor.org_id == org_id)
-            .where(
-                or_(
-                    OrgVendor.product_name == "",
-                    func.lower(KEV.product) == func.lower(OrgVendor.product_name),
-                )
-            )
-        )
-        sev_result = await self._session.execute(severity_stmt)
-        for sev_row in sev_result.all():
-            label = _normalize_severity(sev_row.severity, sev_row.cvss_score)
-            if label == "Critical":
-                breakdown.critical += 1
-            elif label == "High":
-                breakdown.high += 1
-            elif label == "Medium":
-                breakdown.medium += 1
-            elif label == "Low":
-                breakdown.low += 1
-            else:
-                breakdown.unknown += 1
+        breakdown = _compute_severity_breakdown(combined)
+
+        truly_unmatched = sorted(all_vendor_names - exact_vendor_names - fuzzy_matched_vendor_names)
 
         return VendorAlertsResponse(
             total_matched=total_matched,
@@ -167,32 +256,10 @@ class VendorAlertService:
             items=items,
             page=page,
             page_size=page_size,
-            unmatched_vendors=await self._unmatched_vendors(org_id),
+            unmatched_vendors=truly_unmatched,
             reason=None,
             kev_last_ingest_at=await self._last_kev_ingest(),
         )
-
-    async def _unmatched_vendors(self, org_id: int) -> list[str]:
-        """Return vendor names from the org that have zero KEV matches."""
-        # All org vendor names
-        org_vendors_stmt = (
-            select(OrgVendor.vendor_name).where(OrgVendor.org_id == org_id).distinct()
-        )
-        # Vendor names that DO match KEV
-        matched_stmt = (
-            select(OrgVendor.vendor_name)
-            .join(KEV, func.lower(KEV.vendor) == func.lower(OrgVendor.vendor_name))
-            .where(OrgVendor.org_id == org_id)
-            .distinct()
-        )
-
-        all_result = await self._session.execute(org_vendors_stmt)
-        matched_result = await self._session.execute(matched_stmt)
-
-        all_vendors = {r[0] for r in all_result.all()}
-        matched_vendors = {r[0] for r in matched_result.all()}
-
-        return sorted(all_vendors - matched_vendors)
 
     async def _last_kev_ingest(self):
         """Query the most recent successful KEV ingest timestamp."""

@@ -38,3 +38,4 @@ class AISummaryGeneration(Base):
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_format: Mapped[str] = mapped_column(String(10), nullable=False, server_default="prose")

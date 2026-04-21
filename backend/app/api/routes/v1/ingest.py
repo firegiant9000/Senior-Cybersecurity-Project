@@ -3,7 +3,9 @@
 import asyncio
 import datetime
 import logging
+from collections import defaultdict
 from typing import Annotated, Literal
+from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict
@@ -32,7 +34,9 @@ class SourceFreshness(BaseModel):
     """Freshness info for a single data source."""
 
     source: str
-    last_run_at: str | None  # ISO datetime string
+    last_run_at: str | None
+    last_successful_run_at: str | None = None
+    consecutive_failures: int = 0
     status: str | None
     records_ingested: int | None
     total_records: int | None = None
@@ -56,9 +60,61 @@ class IngestTriggerResponse(BaseModel):
     message: str
 
 
+class RetryRunResponse(BaseModel):
+    """Response for a retry request."""
+
+    source: str
+    status: str
+    message: str
+
+
+class CancelRunResponse(BaseModel):
+    """Response for a cancel request."""
+
+    cancelled: bool
+    warning: str | None = None
+
+
+class SourceHealthItem(BaseModel):
+    """Health status for a single data source."""
+
+    stale: bool
+    last_success_hours_ago: float | None = None
+    consecutive_failures: int = 0
+
+
+class HealthResponse(BaseModel):
+    """Ingest health endpoint response."""
+
+    healthy: bool
+    sources: dict[str, SourceHealthItem]
+
+
 # ---------------------------------------------------------------------------
 # Background ingestion helpers
 # ---------------------------------------------------------------------------
+
+
+async def _dispatch_ingestor(source: str, db: "AsyncSession") -> int:
+    """Run the source-specific ingestor and return the record count."""
+    if source == "nvd":
+        from app.ingestors.nvd import ingest_nvd
+
+        return await ingest_nvd(db, max_results=20000)
+    if source == "cisa_kev":
+        from app.ingestors.cisa_kev import ingest_cisa_kev
+
+        return await ingest_cisa_kev(db)
+    if source == "ic3":
+        from app.ingestors.ic3_real import ingest_ic3_real
+
+        return await ingest_ic3_real(db, use_pdf=False)
+    if source == "economics":
+        from app.ingestors.econ import ingest_region_economics
+
+        await ingest_region_economics(db)
+        return -1
+    return 0
 
 
 async def _run_ingestion(
@@ -107,26 +163,20 @@ async def _run_ingestion(
         db.add(run)
         await db.commit()
 
+        # [2B] Populate next_scheduled_at from APScheduler at run creation time.
+        try:
+            from app.workers.scheduler import scheduler
+
+            job = scheduler.get_job(f"ingest_{source}")
+            if job and job.next_run_time:
+                run.next_scheduled_at = job.next_run_time
+                await db.commit()
+        except Exception:  # noqa: BLE001
+            pass  # scheduler not available in all environments
+
         _start = datetime.datetime.utcnow()
         try:
-            count = 0
-            if source == "nvd":
-                from app.ingestors.nvd import ingest_nvd
-
-                count = await ingest_nvd(db, max_results=20000)
-            elif source == "cisa_kev":
-                from app.ingestors.cisa_kev import ingest_cisa_kev
-
-                count = await ingest_cisa_kev(db)
-            elif source == "ic3":
-                from app.ingestors.ic3_real import ingest_ic3_real
-
-                count = await ingest_ic3_real(db, use_pdf=False)
-            elif source == "economics":
-                from app.ingestors.econ import ingest_region_economics
-
-                await ingest_region_economics(db)
-                count = -1
+            count = await _dispatch_ingestor(source, db)
 
             elapsed = (datetime.datetime.utcnow() - _start).total_seconds()
             run.status = "completed"
@@ -198,9 +248,71 @@ async def _run_ingestion(
                 )
 
 
+def _compute_consecutive_failures(runs: list[IngestRun]) -> int:
+    """Count consecutive terminal failures from most-recent backward."""
+    count = 0
+    for run in runs:
+        if run.status in {"failed", "skipped"}:
+            count += 1
+        else:
+            break
+    return count
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
+
+@router.get("/health", response_model=HealthResponse)
+async def get_ingest_health(
+    db: AsyncSession = Depends(get_session),
+) -> HealthResponse:
+    """Return ingest health status — no auth required (for external monitors).
+
+    Reads from DB only, not APScheduler memory, so it is accurate on
+    multi-instance deployments.
+    """
+    stale_thresholds = {
+        "nvd": settings.INGEST_STALE_HOURS_NVD,
+        "cisa_kev": settings.INGEST_STALE_HOURS_KEV,
+        "ic3": settings.INGEST_STALE_HOURS_IC3,
+        "economics": settings.INGEST_STALE_HOURS_ECON,
+    }
+
+    stmt = select(IngestRun).order_by(IngestRun.source, IngestRun.started_at.desc())
+    result = await db.execute(stmt)
+    all_runs = result.scalars().all()
+
+    source_runs: dict[str, list[IngestRun]] = defaultdict(list)
+    for run in all_runs:
+        source_runs[run.source].append(run)
+
+    now = datetime.datetime.utcnow()
+    sources_health: dict[str, SourceHealthItem] = {}
+    all_healthy = True
+
+    for source, stale_hours in stale_thresholds.items():
+        runs = source_runs.get(source, [])
+
+        last_success = next((r for r in runs if r.status == "completed"), None)
+        hours_ago: float | None = None
+        if last_success and last_success.finished_at:
+            hours_ago = (now - last_success.finished_at).total_seconds() / 3600
+
+        consec_fails = _compute_consecutive_failures(runs)
+        stale = hours_ago is None or hours_ago > stale_hours
+
+        if stale or consec_fails >= 2:
+            all_healthy = False
+
+        sources_health[source] = SourceHealthItem(
+            stale=stale,
+            last_success_hours_ago=round(hours_ago, 1) if hours_ago is not None else None,
+            consecutive_failures=consec_fails,
+        )
+
+    return HealthResponse(healthy=all_healthy, sources=sources_health)
 
 
 @router.get("/freshness", response_model=FreshnessResponse)
@@ -212,18 +324,14 @@ async def get_ingest_freshness(
 ) -> FreshnessResponse:
     """Return the latest ingest run info for each data source."""
     try:
-        # Fetch all runs ordered by source + started_at desc, then deduplicate in Python
         stmt = select(IngestRun).order_by(IngestRun.source, IngestRun.started_at.desc())
         result = await db.execute(stmt)
         runs = result.scalars().all()
 
-        # Keep only the most recent run per source
-        seen: set[str] = set()
-        latest: list[IngestRun] = []
+        # Group by source (already sorted descending by started_at within each group)
+        source_groups: dict[str, list[IngestRun]] = defaultdict(list)
         for run in runs:
-            if run.source not in seen:
-                seen.add(run.source)
-                latest.append(run)
+            source_groups[run.source].append(run)
 
         # Query total record counts per source table
         source_table_map = {
@@ -236,24 +344,42 @@ async def get_ingest_freshness(
             count_result = await db.execute(select(func.count()).select_from(model))
             total_counts[src_name] = int(count_result.scalar_one())
 
-        sources = [
-            SourceFreshness(
-                source=run.source,
-                last_run_at=(
-                    run.finished_at.replace(tzinfo=datetime.UTC).isoformat()
-                    if run.finished_at
-                    else None
-                ),
-                status=run.status,
-                records_ingested=run.records_ingested,
-                total_records=total_counts.get(run.source),
-                error_message=run.error_message,
-                trigger=getattr(run, "trigger", None),
-                retry_count=getattr(run, "retry_count", 0),
-                skipped_reason=getattr(run, "skipped_reason", None),
+        sources = []
+        for source, group in source_groups.items():
+            latest = group[0]
+
+            # [2A] Last successful run
+            last_success = next((r for r in group if r.status == "completed"), None)
+            last_successful_run_at: str | None = None
+            if last_success and last_success.finished_at:
+                last_successful_run_at = last_success.finished_at.replace(
+                    tzinfo=datetime.UTC
+                ).isoformat()
+
+            # [2A] Consecutive failures
+            consec_fails = _compute_consecutive_failures(group)
+
+            sources.append(
+                SourceFreshness(
+                    source=source,
+                    last_run_at=(
+                        (latest.finished_at or latest.started_at)
+                        .replace(tzinfo=datetime.UTC)
+                        .isoformat()
+                        if (latest.finished_at or latest.started_at)
+                        else None
+                    ),
+                    last_successful_run_at=last_successful_run_at,
+                    consecutive_failures=consec_fails,
+                    status=latest.status,
+                    records_ingested=latest.records_ingested,
+                    total_records=total_counts.get(source),
+                    error_message=latest.error_message,
+                    trigger=getattr(latest, "trigger", None),
+                    retry_count=getattr(latest, "retry_count", 0),
+                    skipped_reason=getattr(latest, "skipped_reason", None),
+                )
             )
-            for run in latest
-        ]
         return FreshnessResponse(sources=sources)
     except Exception as exc:  # pragma: no cover
         logger.exception("Error fetching ingest freshness: %s", exc)
@@ -349,6 +475,82 @@ async def get_ingest_runs(
     except Exception as exc:
         logger.exception("Error fetching ingest runs: %s", exc)
         raise HTTPException(status_code=500, detail="Internal server error") from exc
+
+
+# [2C] Retry and cancel endpoints
+
+
+@router.post("/runs/{run_id}/retry", response_model=RetryRunResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def retry_ingest_run(
+    request: Request,  # noqa: ARG001
+    run_id: str,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_session),
+    _: User = Depends(require_role("admin")),
+) -> RetryRunResponse:
+    """Retry a failed ingest run. Admin only."""
+    try:
+        run_uuid = UUID(run_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid run ID format")
+
+    run = await db.get(IngestRun, run_uuid)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if run.status != "failed":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Run status is '{run.status}'; only failed runs can be retried",
+        )
+
+    background_tasks.add_task(_run_ingestion, run.source, "manual")
+    return RetryRunResponse(
+        source=run.source,
+        status="started",
+        message=f"{run.source} ingestion started. Check GET /api/v1/ingest/freshness for status.",
+    )
+
+
+@router.post("/runs/{run_id}/cancel", response_model=CancelRunResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def cancel_ingest_run(
+    request: Request,  # noqa: ARG001
+    run_id: str,
+    db: AsyncSession = Depends(get_session),
+    _: User = Depends(require_role("admin")),
+) -> CancelRunResponse:
+    """Cancel a running ingest run by marking it failed. Admin only.
+
+    Note: this marks the DB record as failed but cannot stop the underlying
+    asyncio.create_task — the task continues until it completes or errors.
+    """
+    try:
+        run_uuid = UUID(run_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid run ID format")
+
+    run = await db.get(IngestRun, run_uuid)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if run.status != "running":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Run status is '{run.status}'; only running runs can be cancelled",
+        )
+
+    run.status = "failed"
+    run.error_message = "Manually cancelled"
+    run.finished_at = datetime.datetime.utcnow()
+    await db.commit()
+
+    return CancelRunResponse(
+        cancelled=True,
+        warning=(
+            "The database record has been marked as failed, but the underlying async task "
+            "may still be running until it completes or errors naturally."
+        ),
+    )
 
 
 class ScheduleJobInfo(BaseModel):

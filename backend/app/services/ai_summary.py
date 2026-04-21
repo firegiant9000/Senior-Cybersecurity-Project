@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.db.organization import Organization
 from app.repositories.ai_summary_generation import SqlAISummaryGenerationRepository
-from app.schemas.ai_summary import AISummaryResponse
+from app.schemas.ai_summary import AISummaryResponse, StructuredSummary
 from app.schemas.findings import FindingsReport
 from app.services.disclaimers import DisclaimerContext, get_disclaimer
 from app.services.findings_engine import FindingsEngine
@@ -28,9 +28,16 @@ from app.services.risk_scoring import calculate_smb_risk_score
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# In-memory cache: {org_id: (timestamp, AISummaryResponse)}
+# In-memory cache: {cache_key: (timestamp, AISummaryResponse)}
+# Versioned so prompt changes (e.g. switching to JSON mode) never serve
+# stale prose responses through the structured handler.
 # ---------------------------------------------------------------------------
-_cache: dict[int, tuple[float, AISummaryResponse]] = {}
+_CACHE_VERSION = "v2"
+_cache: dict[str, tuple[float, AISummaryResponse]] = {}
+
+
+def _cache_key(org_id: int) -> str:
+    return f"{_CACHE_VERSION}:{org_id}"
 
 
 def _risk_label(score: float) -> str:
@@ -114,6 +121,15 @@ def _build_prompt(
         "product, and severity. Keep the total response under 500 words."
     )
 
+    json_schema_block = (
+        "Respond ONLY with valid JSON matching this exact schema — no markdown fences, "
+        "no extra keys:\n"
+        '{"narrative": "string", "posture_statement": "string", '
+        '"notable_risks": [{"title": "string", "severity": "string", "context": "string"}], '
+        '"data_gaps": [{"gap_type": "string", "impact": "string"}], '
+        '"next_steps": [{"priority": 1, "action": "string", "rationale": "string"}]}'
+    )
+
     feedback_block = ""
     if feedback_hint:
         feedback_block = f"\nUSER FEEDBACK ON PREVIOUS SUMMARIES:\n{feedback_hint}\n"
@@ -124,7 +140,8 @@ def _build_prompt(
         f"STRUCTURED FINDINGS:\n{json.dumps(findings_summary, indent=2)}\n\n"
         f"RISK METRICS:\n{metrics_block}\n"
         f"{feedback_block}\n"
-        f"INSTRUCTIONS:\n{instructions}"
+        f"INSTRUCTIONS:\n{instructions}\n\n"
+        f"RESPONSE FORMAT:\n{json_schema_block}"
     )
 
     prompt_inputs: dict[str, Any] = {
@@ -230,9 +247,36 @@ def _call_gemini_sync(prompt: str) -> str:
     import google.generativeai as genai  # imported lazily to avoid hard dependency
 
     genai.configure(api_key=settings.GEMINI_API_KEY)
-    model = genai.GenerativeModel(settings.GEMINI_MODEL)
+    model = genai.GenerativeModel(
+        settings.GEMINI_MODEL,
+        generation_config={"response_mime_type": "application/json"},
+    )
     response = model.generate_content(prompt)
     return response.text
+
+
+def _parse_structured_response(raw: str) -> StructuredSummary | None:
+    """Strip markdown fences and parse Gemini JSON into StructuredSummary.
+
+    Returns None on any parse failure so callers can fall back to prose.
+    """
+    from json import JSONDecodeError
+
+    from pydantic import ValidationError
+
+    text = raw.strip()
+    if text.startswith("```"):
+        parts = text.split("```")
+        text = parts[1] if len(parts) > 1 else text
+        if text.startswith("json"):
+            text = text[4:]
+        text = text.strip()
+
+    try:
+        return StructuredSummary.model_validate_json(text)
+    except (ValidationError, JSONDecodeError, ValueError):
+        logger.warning("Gemini response failed structured parse — falling back to prose")
+        return None
 
 
 async def _call_gemini(prompt: str) -> str:
@@ -308,21 +352,21 @@ class AISummaryService:
         self._db = db
 
     def _get_cached(self, org_id: int) -> AISummaryResponse | None:
-        entry = _cache.get(org_id)
+        entry = _cache.get(_cache_key(org_id))
         if entry is None:
             return None
         ts, resp = entry
         if time.time() - ts > settings.AI_SUMMARY_CACHE_TTL:
-            del _cache[org_id]
+            del _cache[_cache_key(org_id)]
             return None
         return resp
 
     def _set_cache(self, org_id: int, resp: AISummaryResponse) -> None:
-        _cache[org_id] = (time.time(), resp)
+        _cache[_cache_key(org_id)] = (time.time(), resp)
 
     def invalidate(self, org_id: int) -> None:
         """Remove cached summary for the given org (call on profile update)."""
-        _cache.pop(org_id, None)
+        _cache.pop(_cache_key(org_id), None)
 
     async def build(
         self,
@@ -373,6 +417,8 @@ class AISummaryService:
         status: str
         error_message: str | None = None
         source: str
+        parsed: StructuredSummary | None = None
+        output_format: str = "prose"
 
         started_at = time.time()
 
@@ -382,12 +428,17 @@ class AISummaryService:
                 rendered_prompt, prompt_inputs = _build_prompt(
                     org, report, risk_score, feedback_hint=feedback_hint
                 )
-                narrative = await _call_gemini(rendered_prompt)
+                raw = await _call_gemini(rendered_prompt)
+                parsed = _parse_structured_response(raw)
+                narrative = parsed.narrative if parsed else raw
                 ai_generated = True
                 model_used = settings.GEMINI_MODEL
                 persist_model_name = settings.GEMINI_MODEL
                 status = "success"
                 source = "gemini"
+                # output_text stores the raw JSON so history viewers can re-parse;
+                # output_format distinguishes this from legacy prose rows
+                output_format = "json" if parsed else "prose"
             except Exception as e:
                 logger.exception("Gemini API call failed for org %s — using fallback", org.id)
                 error_message = str(e)
@@ -396,12 +447,14 @@ class AISummaryService:
                 source = "fallback"
                 persist_model_name = settings.GEMINI_MODEL
                 model_used = None
+                raw = narrative
         else:
             narrative = _build_fallback(org, report, risk_score)
             status = "success"
             source = "fallback"
             persist_model_name = "fallback-template"
             model_used = None
+            raw = narrative
 
         latency_ms = int((time.time() - started_at) * 1000)
 
@@ -415,7 +468,8 @@ class AISummaryService:
                 error_message=error_message,
                 prompt_inputs=prompt_inputs,
                 rendered_prompt=rendered_prompt,
-                output_text=narrative,
+                output_text=raw,
+                output_format=output_format,
                 findings_snapshot_id=snap_id,
                 triggered_by_user_id=triggered_by_user_id,
                 latency_ms=latency_ms,
@@ -440,6 +494,11 @@ class AISummaryService:
             cached=False,
             disclaimer=disclaimer,
             disclaimer_block=disclaimer_block,
+            output_format=output_format,
+            posture_statement=parsed.posture_statement if parsed else None,
+            notable_risks=parsed.notable_risks if parsed else None,
+            data_gaps=parsed.data_gaps if parsed else None,
+            next_steps=parsed.next_steps if parsed else None,
         )
 
         self._set_cache(org.id, resp)

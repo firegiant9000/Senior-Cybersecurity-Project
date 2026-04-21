@@ -285,3 +285,177 @@ async def test_service_continues_when_persistence_fails():
 
     assert result is not None
     assert result.narrative != ""
+
+
+# ---------------------------------------------------------------------------
+# _parse_structured_response — JSON mode parsing and fallback
+# ---------------------------------------------------------------------------
+
+_VALID_JSON = """{
+    "narrative": "Overall risk is moderate.",
+    "posture_statement": "The org is at moderate risk.",
+    "notable_risks": [{"title": "Ransomware exposure", "severity": "high", "context": "IC3 data"}],
+    "data_gaps": [{"gap_type": "missing_domains", "impact": "Incomplete domain analysis"}],
+    "next_steps": [{"priority": 1, "action": "Patch vendors", "rationale": "KEV match found"}]
+}"""
+
+_FENCED_JSON = f"```json\n{_VALID_JSON}\n```"
+_FENCED_NO_LANG = f"```\n{_VALID_JSON}\n```"
+
+
+def test_parse_structured_response_valid_json():
+    from app.services.ai_summary import _parse_structured_response
+
+    result = _parse_structured_response(_VALID_JSON)
+    assert result is not None
+    assert result.narrative == "Overall risk is moderate."
+    assert result.posture_statement == "The org is at moderate risk."
+    assert len(result.notable_risks) == 1
+    assert result.notable_risks[0].title == "Ransomware exposure"
+    assert len(result.data_gaps) == 1
+    assert len(result.next_steps) == 1
+    assert result.next_steps[0].priority == 1
+
+
+def test_parse_structured_response_strips_markdown_fence_with_lang():
+    from app.services.ai_summary import _parse_structured_response
+
+    result = _parse_structured_response(_FENCED_JSON)
+    assert result is not None
+    assert result.narrative == "Overall risk is moderate."
+
+
+def test_parse_structured_response_strips_markdown_fence_no_lang():
+    from app.services.ai_summary import _parse_structured_response
+
+    result = _parse_structured_response(_FENCED_NO_LANG)
+    assert result is not None
+    assert result.narrative == "Overall risk is moderate."
+
+
+def test_parse_structured_response_malformed_json_returns_none():
+    from app.services.ai_summary import _parse_structured_response
+
+    result = _parse_structured_response("This is just a plain prose narrative, not JSON.")
+    assert result is None
+
+
+def test_parse_structured_response_missing_required_field_returns_none():
+    from app.services.ai_summary import _parse_structured_response
+
+    # narrative field is required — omitting it should fail validation
+    incomplete = (
+        '{"posture_statement": "ok", "notable_risks": [], "data_gaps": [], "next_steps": []}'
+    )
+    result = _parse_structured_response(incomplete)
+    assert result is None
+
+
+def test_parse_structured_response_empty_string_returns_none():
+    from app.services.ai_summary import _parse_structured_response
+
+    assert _parse_structured_response("") is None
+    assert _parse_structured_response("   ") is None
+
+
+# ---------------------------------------------------------------------------
+# Service: output_format set correctly based on parse outcome
+# ---------------------------------------------------------------------------
+
+
+def _base_service_patches(gemini_raw: str, gemini_raises: Exception | None = None):
+    """Return the common patch set for AISummaryService.build() tests."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    org = MagicMock()
+    org.id = 99
+    org.name = "TestCo"
+    org.industry_label = "Tech & Software"
+    org.employee_range = "11-50"
+    org.primary_state = "CA"
+
+    mock_report = MagicMock()
+    mock_report.summary.total = 2
+    mock_report.summary.by_severity = {}
+    mock_report.assessment_tier = "enhanced"
+    mock_report.data_sources_used = []
+    mock_report.findings = []
+
+    mock_db = MagicMock()
+    snap = MagicMock()
+    snap.scalar_one_or_none.return_value = None
+    mock_db.execute = AsyncMock(return_value=snap)
+
+    return org, mock_report, mock_db
+
+
+@pytest.mark.asyncio
+async def test_service_output_format_json_on_successful_parse():
+    from unittest.mock import AsyncMock, patch
+
+    from app.services.ai_summary import AISummaryService
+
+    org, mock_report, mock_db = _base_service_patches(_VALID_JSON)
+
+    with (
+        patch("app.services.ai_summary.FindingsEngine") as mock_eng,
+        patch("app.services.ai_summary._get_feedback_meta", new=AsyncMock(return_value=None)),
+        patch("app.services.ai_summary._call_gemini", new=AsyncMock(return_value=_VALID_JSON)),
+        patch("app.services.ai_summary.settings") as mock_settings,
+        patch("app.services.ai_summary.SqlAISummaryGenerationRepository") as mock_repo_cls,
+    ):
+        mock_eng.return_value.build = AsyncMock(return_value=mock_report)
+        mock_settings.AI_SUMMARY_ENABLED = True
+        mock_settings.GEMINI_API_KEY = "key"
+        mock_settings.GEMINI_MODEL = "gemini-2.5-flash"
+        mock_settings.AI_SUMMARY_CACHE_TTL = 3600
+
+        mock_repo = AsyncMock()
+        mock_repo_cls.return_value = mock_repo
+
+        svc = AISummaryService(mock_db)
+        result = await svc.build(org)
+
+    kwargs = mock_repo.create.call_args.kwargs
+    assert kwargs["output_format"] == "json"
+    assert result.posture_statement == "The org is at moderate risk."
+    assert result.notable_risks is not None
+
+
+@pytest.mark.asyncio
+async def test_service_output_format_prose_when_parse_fails():
+    from unittest.mock import AsyncMock, patch
+
+    from app.services.ai_summary import AISummaryService
+
+    org, mock_report, mock_db = _base_service_patches("")
+
+    with (
+        patch("app.services.ai_summary.FindingsEngine") as mock_eng,
+        patch("app.services.ai_summary._get_feedback_meta", new=AsyncMock(return_value=None)),
+        patch(
+            "app.services.ai_summary._call_gemini",
+            new=AsyncMock(return_value="Not JSON at all, just prose."),
+        ),
+        patch("app.services.ai_summary.settings") as mock_settings,
+        patch("app.services.ai_summary.SqlAISummaryGenerationRepository") as mock_repo_cls,
+    ):
+        mock_eng.return_value.build = AsyncMock(return_value=mock_report)
+        mock_settings.AI_SUMMARY_ENABLED = True
+        mock_settings.GEMINI_API_KEY = "key"
+        mock_settings.GEMINI_MODEL = "gemini-2.5-flash"
+        mock_settings.AI_SUMMARY_CACHE_TTL = 3600
+
+        mock_repo = AsyncMock()
+        mock_repo_cls.return_value = mock_repo
+
+        svc = AISummaryService(mock_db)
+        svc.invalidate(org.id)  # clear any cache left by a prior test
+        result = await svc.build(org)
+
+    kwargs = mock_repo.create.call_args.kwargs
+    assert kwargs["output_format"] == "prose"
+    # Structured fields are absent when parse fails
+    assert result.notable_risks is None
+    assert result.data_gaps is None
+    assert result.next_steps is None
