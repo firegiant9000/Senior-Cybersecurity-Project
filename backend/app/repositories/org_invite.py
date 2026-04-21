@@ -47,9 +47,7 @@ class SqlOrgInviteRepository:
         return invite
 
     async def get_by_token(self, token: str) -> Invitation | None:
-        result = await self._session.execute(
-            select(Invitation).where(Invitation.token == token)
-        )
+        result = await self._session.execute(select(Invitation).where(Invitation.token == token))
         return result.scalar_one_or_none()
 
     async def get_by_token_for_update(self, token: str) -> Invitation | None:
@@ -109,7 +107,9 @@ class SqlOrgInviteRepository:
 
     # ── Member queries ────────────────────────────────────────────────────
 
-    async def list_members(self, org_id: int, page: int, page_size: int) -> tuple[list[Membership], int]:
+    async def list_members(
+        self, org_id: int, page: int, page_size: int
+    ) -> tuple[list[Membership], int]:
         stmt = (
             select(Membership)
             .where(Membership.org_id == org_id, Membership.status == "active")

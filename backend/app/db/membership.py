@@ -12,9 +12,7 @@ from app.db.base import Base
 
 class Membership(Base):
     __tablename__ = "memberships"
-    __table_args__ = (
-        UniqueConstraint("user_id", "org_id", name="uq_memberships_user_org"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "org_id", name="uq_memberships_user_org"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)  # noqa: A003
     user_id: Mapped[int] = mapped_column(
