@@ -17,6 +17,7 @@ class AISummaryGenerationListItem(BaseModel):
     status: str
     error_message: str | None
     output_text: str | None
+    output_format: str
     latency_ms: int | None
     findings_snapshot_id: int | None
 
