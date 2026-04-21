@@ -95,6 +95,28 @@ class HealthResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+async def _dispatch_ingestor(source: str, db: "AsyncSession") -> int:
+    """Run the source-specific ingestor and return the record count."""
+    if source == "nvd":
+        from app.ingestors.nvd import ingest_nvd
+
+        return await ingest_nvd(db, max_results=20000)
+    if source == "cisa_kev":
+        from app.ingestors.cisa_kev import ingest_cisa_kev
+
+        return await ingest_cisa_kev(db)
+    if source == "ic3":
+        from app.ingestors.ic3_real import ingest_ic3_real
+
+        return await ingest_ic3_real(db, use_pdf=False)
+    if source == "economics":
+        from app.ingestors.econ import ingest_region_economics
+
+        await ingest_region_economics(db)
+        return -1
+    return 0
+
+
 async def _run_ingestion(
     source: str,
     trigger: str = "manual",
@@ -149,29 +171,12 @@ async def _run_ingestion(
             if job and job.next_run_time:
                 run.next_scheduled_at = job.next_run_time
                 await db.commit()
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass  # scheduler not available in all environments
 
         _start = datetime.datetime.utcnow()
         try:
-            count = 0
-            if source == "nvd":
-                from app.ingestors.nvd import ingest_nvd
-
-                count = await ingest_nvd(db, max_results=20000)
-            elif source == "cisa_kev":
-                from app.ingestors.cisa_kev import ingest_cisa_kev
-
-                count = await ingest_cisa_kev(db)
-            elif source == "ic3":
-                from app.ingestors.ic3_real import ingest_ic3_real
-
-                count = await ingest_ic3_real(db, use_pdf=False)
-            elif source == "economics":
-                from app.ingestors.econ import ingest_region_economics
-
-                await ingest_region_economics(db)
-                count = -1
+            count = await _dispatch_ingestor(source, db)
 
             elapsed = (datetime.datetime.utcnow() - _start).total_seconds()
             run.status = "completed"

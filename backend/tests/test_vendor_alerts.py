@@ -6,7 +6,6 @@ import pytest
 
 from app.services.vendor_alerts import VendorAlertService
 
-
 # ---------------------------------------------------------------------------
 # Session and row factories
 # ---------------------------------------------------------------------------

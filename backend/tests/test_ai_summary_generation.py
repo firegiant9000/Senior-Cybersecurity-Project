@@ -363,7 +363,7 @@ def test_parse_structured_response_empty_string_returns_none():
 
 def _base_service_patches(gemini_raw: str, gemini_raises: Exception | None = None):
     """Return the common patch set for AISummaryService.build() tests."""
-    from unittest.mock import AsyncMock, MagicMock, patch
+    from unittest.mock import AsyncMock, MagicMock
 
     org = MagicMock()
     org.id = 99
@@ -389,7 +389,7 @@ def _base_service_patches(gemini_raw: str, gemini_raises: Exception | None = Non
 
 @pytest.mark.asyncio
 async def test_service_output_format_json_on_successful_parse():
-    from unittest.mock import AsyncMock, MagicMock, patch
+    from unittest.mock import AsyncMock, patch
 
     from app.services.ai_summary import AISummaryService
 
@@ -422,7 +422,7 @@ async def test_service_output_format_json_on_successful_parse():
 
 @pytest.mark.asyncio
 async def test_service_output_format_prose_when_parse_fails():
-    from unittest.mock import AsyncMock, MagicMock, patch
+    from unittest.mock import AsyncMock, patch
 
     from app.services.ai_summary import AISummaryService
 
@@ -448,6 +448,7 @@ async def test_service_output_format_prose_when_parse_fails():
         mock_repo_cls.return_value = mock_repo
 
         svc = AISummaryService(mock_db)
+        svc.invalidate(org.id)  # clear any cache left by a prior test
         result = await svc.build(org)
 
     kwargs = mock_repo.create.call_args.kwargs

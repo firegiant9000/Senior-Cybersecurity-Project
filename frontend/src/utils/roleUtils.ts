@@ -22,8 +22,9 @@ export function getVisibleGroups(
     .map((g): TabGroupDef | null => {
       if (g.requiresAdmin && !isAdmin) return null;
 
-      // requiresOrg groups are shown as locked (not hidden) so users know they exist
-      if (g.requiresOrg && !hasOrg) return { ...g, locked: true };
+      // requiresOrg groups are shown as locked (not hidden) so users know they exist,
+      // but subTabs are not expanded — the group header is the only visible element
+      if (g.requiresOrg && !hasOrg) return { ...g, locked: true, subTabs: undefined };
 
       if (!g.subTabs) return g;
       const visibleSubs = g.subTabs.filter((s) => {

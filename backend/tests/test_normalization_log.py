@@ -9,7 +9,6 @@ from app.repositories.normalization_log_repo import (
     fire_and_forget_normalization_log,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

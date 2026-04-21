@@ -1,6 +1,5 @@
 """Service for vendor-matched vulnerability alerts."""
 
-import datetime
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +15,23 @@ from app.schemas.vendor_alert import (
 from app.services.risk_scoring import basic_vuln_risk_score
 
 _FUZZY_THRESHOLD = 0.75
+
+
+def _compute_severity_breakdown(combined: list[dict]) -> SeverityBreakdown:
+    breakdown = SeverityBreakdown()
+    for r in combined:
+        label = _normalize_severity(r["severity"], r["cvss_score"])
+        if label == "Critical":
+            breakdown.critical += 1
+        elif label == "High":
+            breakdown.high += 1
+        elif label == "Medium":
+            breakdown.medium += 1
+        elif label == "Low":
+            breakdown.low += 1
+        else:
+            breakdown.unknown += 1
+    return breakdown
 
 
 def _normalize_severity(severity: str | None, cvss: float | None) -> str:
@@ -134,7 +150,9 @@ class VendorAlertService:
 
             # Log fuzzy matches to normalization_log (fire-and-forget)
             if fuzzy_rows:
-                from app.repositories.normalization_log_repo import fire_and_forget_normalization_log
+                from app.repositories.normalization_log_repo import (
+                    fire_and_forget_normalization_log,
+                )
 
                 for row in fuzzy_rows:
                     fuzzy_matched_vendor_names.add(row.vendor_name)
@@ -231,20 +249,7 @@ class VendorAlertService:
                 )
             )
 
-        # Severity breakdown over ALL combined results
-        breakdown = SeverityBreakdown()
-        for r in combined:
-            label = _normalize_severity(r["severity"], r["cvss_score"])
-            if label == "Critical":
-                breakdown.critical += 1
-            elif label == "High":
-                breakdown.high += 1
-            elif label == "Medium":
-                breakdown.medium += 1
-            elif label == "Low":
-                breakdown.low += 1
-            else:
-                breakdown.unknown += 1
+        breakdown = _compute_severity_breakdown(combined)
 
         truly_unmatched = sorted(
             all_vendor_names - exact_vendor_names - fuzzy_matched_vendor_names
