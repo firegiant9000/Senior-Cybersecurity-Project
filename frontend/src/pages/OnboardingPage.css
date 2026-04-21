@@ -191,51 +191,65 @@
 
 /* Security controls checklist */
 .onboarding-control-group {
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .control-category {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted, #6b7280);
-  margin: 0 0 0.5rem 0;
+  letter-spacing: 0.07em;
+  color: #93c5fd;
+  background: #0f172a;
+  padding: 0.5rem 0.875rem;
+  margin: 0;
+  border-bottom: 1px solid #334155;
 }
 
 .onboarding-control-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.4rem 0;
-  border-bottom: 1px solid var(--border, #1f2937);
-  gap: 0.75rem;
+  padding: 0.6rem 0.875rem;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+  gap: 1rem;
+}
+
+.onboarding-control-row:last-child {
+  border-bottom: none;
 }
 
 .control-label {
-  font-size: 0.875rem;
+  font-size: 0.9rem;
+  font-weight: 500;
   flex: 1;
+  color: #e2e8f0;
 }
 
 .control-toggle {
   display: flex;
-  gap: 0.25rem;
+  gap: 0.35rem;
 }
 
 .control-option {
-  padding: 0.2rem 0.5rem;
-  font-size: 0.75rem;
-  border: 1px solid var(--border, #374151);
-  background: transparent;
-  color: var(--text-muted, #6b7280);
+  padding: 0.3rem 0.65rem;
+  font-size: 0.8rem;
+  border: 1px solid #475569;
+  background: #0f172a;
+  color: #94a3b8;
   border-radius: 4px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
 .control-option.selected {
-  background: var(--accent, #3b82f6);
+  background: #3b82f6;
   color: #fff;
-  border-color: var(--accent, #3b82f6);
+  border-color: #3b82f6;
 }
 
 /* Multi-select checklist (cloud, compliance, data types) */
@@ -249,22 +263,31 @@
 .onboarding-check-item {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.875rem;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #e2e8f0;
   cursor: pointer;
-  padding: 0.4rem 0.6rem;
+  padding: 0.55rem 0.75rem;
   border-radius: 6px;
-  border: 1px solid var(--border, #374151);
-  transition: background 0.15s;
+  background: #1e293b;
+  border: 1px solid #334155;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.onboarding-check-item:hover {
+  background: #263548;
+  border-color: #475569;
 }
 
 .onboarding-check-item:has(input:checked) {
-  background: rgba(59, 130, 246, 0.12);
-  border-color: var(--accent, #3b82f6);
+  background: rgba(59, 130, 246, 0.15);
+  border-color: #3b82f6;
+  color: #bfdbfe;
 }
 
 .onboarding-check-item input[type="checkbox"] {
-  accent-color: var(--accent, #3b82f6);
+  accent-color: #3b82f6;
   width: 1rem;
   height: 1rem;
   flex-shrink: 0;

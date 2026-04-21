@@ -13,6 +13,12 @@ const INDUSTRY_OPTIONS = [
   "Education",
   "Manufacturing",
   "Professional Services",
+  "Real Estate",
+  "Construction",
+  "Legal Services",
+  "Transportation",
+  "Hospitality",
+  "Non-Profit",
   "Other",
 ] as const;
 
