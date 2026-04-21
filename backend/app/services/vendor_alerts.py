@@ -116,10 +116,11 @@ class VendorAlertService:
                     CVE.published_date,
                     func.similarity(KEV.vendor, OrgVendor.vendor_name).label("score"),
                 )
-                .join(KEV, func.similarity(KEV.vendor, OrgVendor.vendor_name) > _FUZZY_THRESHOLD)
+                .join(KEV, KEV.vendor.op("%")(OrgVendor.vendor_name))
                 .join(CVE, CVE.cve_id == KEV.cve_id)
                 .where(OrgVendor.org_id == org_id)
                 .where(OrgVendor.vendor_name.in_(list(unmatched_vendor_names)))
+                .where(func.similarity(KEV.vendor, OrgVendor.vendor_name) > _FUZZY_THRESHOLD)
                 .where(
                     or_(
                         OrgVendor.product_name == "",
@@ -196,11 +197,12 @@ class VendorAlertService:
                 kev_last_ingest_at=await self._last_kev_ingest(),
             )
 
-        # Sort by CVSS desc (most severe first), then due_date desc
+        # Sort by CVSS desc, then due_date desc (nulls last)
         combined.sort(
             key=lambda r: (
                 -(r["cvss_score"] or 0),
-                r["due_date"] or datetime.date.max,
+                r["due_date"] is None,
+                -(r["due_date"].toordinal()) if r["due_date"] else 0,
             )
         )
 
