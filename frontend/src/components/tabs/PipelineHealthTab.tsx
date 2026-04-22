@@ -19,6 +19,7 @@ const SOURCE_LABELS: Record<string, string> = {
     ic3: 'IC3',
     econ: 'Economics',
     economics: 'Economics',
+    epss: 'EPSS',
 };
 
 const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
@@ -380,7 +381,7 @@ const PipelineHealthTab: React.FC = () => {
 
             {/* Admin-only: Trigger ingestion */}
             {isAdmin && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
                     <select
                         value={triggerSource}
                         onChange={(e) => setTriggerSource(e.target.value)}
@@ -391,6 +392,7 @@ const PipelineHealthTab: React.FC = () => {
                         <option value="cisa_kev">CISA KEV</option>
                         <option value="ic3">IC3</option>
                         <option value="economics">Economics</option>
+                        <option value="epss">EPSS</option>
                     </select>
                     <button
                         onClick={handleTrigger}
@@ -432,6 +434,7 @@ const PipelineHealthTab: React.FC = () => {
                         <option value="cisa_kev">CISA KEV</option>
                         <option value="ic3">IC3</option>
                         <option value="economics">Economics</option>
+                        <option value="epss">EPSS</option>
                     </select>
                 </div>
                 <button

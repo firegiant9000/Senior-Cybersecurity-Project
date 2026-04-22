@@ -808,7 +808,7 @@ export default function OrgProfilePage() {
                                       setSecurityControls((prev) => ({ ...prev, [control.key]: opt }))
                                     }
                                   >
-                                    {opt === "yes" ? "Yes" : opt === "no" ? "No" : "?"}
+                                    {opt === "yes" ? "Yes" : opt === "no" ? "No" : "Unsure"}
                                   </button>
                                 ))}
                               </div>

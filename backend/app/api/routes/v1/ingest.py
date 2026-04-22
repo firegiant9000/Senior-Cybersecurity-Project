@@ -114,6 +114,10 @@ async def _dispatch_ingestor(source: str, db: "AsyncSession") -> int:
 
         await ingest_region_economics(db)
         return -1
+    if source == "epss":
+        from app.ingestors.epss import ingest_epss
+
+        return await ingest_epss(db)
     return 0
 
 
@@ -609,7 +613,7 @@ async def get_ingest_schedule(
 async def trigger_ingestion(
     request: Request,
     background_tasks: BackgroundTasks,
-    source: Literal["nvd", "cisa_kev", "ic3", "economics", "all"] = Query(
+    source: Literal["nvd", "cisa_kev", "ic3", "economics", "epss", "all"] = Query(
         default="all", description="Data source to ingest (or 'all')"
     ),
     _: User = Depends(require_role("admin")),
@@ -618,7 +622,7 @@ async def trigger_ingestion(
 
     The ingestion runs in the background. Use GET /freshness to check status.
     """
-    sources = ["nvd", "cisa_kev", "ic3", "economics"] if source == "all" else [source]
+    sources = ["nvd", "cisa_kev", "ic3", "economics", "epss"] if source == "all" else [source]
 
     results: list[IngestTriggerResponse] = []
     for src in sources:
@@ -632,3 +636,75 @@ async def trigger_ingestion(
         )
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# Normalization log — admin read endpoint
+# ---------------------------------------------------------------------------
+
+
+class NormalizationLogItem(BaseModel):
+    id: int
+    data_type: str
+    raw_value: str
+    normalized_value: str
+    confidence: float
+    method: str
+    org_id: int | None = None
+    created_at: str
+
+
+class NormalizationLogResponse(BaseModel):
+    items: list[NormalizationLogItem]
+    total: int
+    page: int
+    page_size: int
+
+
+@router.get("/normalization-log", response_model=NormalizationLogResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def get_normalization_log(
+    request: Request,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 25,
+    data_type: Annotated[str | None, Query(description="Filter by data type")] = None,
+    db: AsyncSession = Depends(get_session),
+    _: User = Depends(require_role("admin")),
+) -> NormalizationLogResponse:
+    """Return paginated normalization audit log (admin only)."""
+    from sqlalchemy import desc
+
+    from app.db.normalization_log import NormalizationLog
+
+    conditions = []
+    if data_type:
+        conditions.append(NormalizationLog.data_type == data_type)
+
+    total_result = await db.execute(
+        select(func.count()).select_from(NormalizationLog).where(*conditions)
+    )
+    total = int(total_result.scalar_one())
+
+    rows_result = await db.execute(
+        select(NormalizationLog)
+        .where(*conditions)
+        .order_by(desc(NormalizationLog.created_at))
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    rows = rows_result.scalars().all()
+
+    items = [
+        NormalizationLogItem(
+            id=r.id,
+            data_type=r.data_type,
+            raw_value=r.raw_value,
+            normalized_value=r.normalized_value,
+            confidence=float(r.confidence),
+            method=r.method,
+            org_id=r.org_id,
+            created_at=r.created_at.isoformat() if r.created_at else "",
+        )
+        for r in rows
+    ]
+    return NormalizationLogResponse(items=items, total=total, page=page, page_size=page_size)

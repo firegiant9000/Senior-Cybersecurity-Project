@@ -1,13 +1,298 @@
 /* OverviewTab styles — tokens defined in src/Dashboard.css */
 
 /* ── Overview toolbar (refresh + last updated) ────────────────────────────── */
+.overview-toolbar-wrapper {
+    position: relative;
+    margin-bottom: 6px;
+}
+
 .overview-toolbar {
     display: flex;
     align-items: center;
     justify-content: flex-end;
     gap: 12px;
-    margin-bottom: 6px;
+    margin-bottom: 0;
     margin-top: 0;
+}
+
+/* Gear button */
+.overview-customize-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.overview-customize-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+/* Customize panel */
+.overview-customize-panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 100;
+    min-width: 220px;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+    padding: 12px;
+}
+
+.overview-customize-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-bottom: 8px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+
+.overview-customize-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    line-height: 1;
+}
+
+.overview-customize-reset-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.overview-customize-reset-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.overview-customize-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 2px;
+    border-radius: 4px;
+    transition: background-color 0.1s ease;
+}
+
+.overview-customize-row:hover {
+    background-color: var(--tab-hover-bg);
+}
+
+.overview-customize-row input[type="checkbox"] {
+    cursor: pointer;
+    flex-shrink: 0;
+    margin: 0;
+}
+
+.overview-customize-label {
+    flex: 1;
+    font-size: 13px;
+    color: var(--text-primary);
+    cursor: pointer;
+    line-height: 1.3;
+}
+
+.overview-customize-arrows {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.overview-customize-arrow-btn {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 9px;
+    color: var(--text-secondary);
+    transition: color 0.15s ease, border-color 0.15s ease;
+    line-height: 1;
+}
+
+.overview-customize-arrow-btn:hover:not(:disabled) {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.overview-customize-arrow-btn:disabled {
+    opacity: 0.25;
+    cursor: default;
+}
+
+/* ── Drag-and-drop grid wrappers ──────────────────────────────────────────── */
+.widget-drag-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Make the inner card (direct child) fill the wrapper height */
+.widget-drag-wrapper > * {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+/* Drag handle — appears on card hover, absolutely positioned top-right */
+.widget-drag-handle {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    opacity: 0;
+    cursor: grab;
+    transition: opacity 0.15s ease;
+    z-index: 5;
+    user-select: none;
+}
+
+.widget-drag-wrapper:hover .widget-drag-handle {
+    opacity: 0.7;
+}
+
+.widget-drag-wrapper:active .widget-drag-handle {
+    cursor: grabbing;
+    opacity: 1;
+}
+
+/* Source slot — empty placeholder where the dragged widget came from */
+.widget-drag-wrapper.widget-source-slot {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    background-color: transparent;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+/* Source slot when hovered (drag back to origin) */
+.widget-drag-wrapper.widget-source-slot--over {
+    border-color: var(--accent);
+    background-color: var(--tab-active-bg);
+}
+
+/* Valid drop target */
+.widget-drag-wrapper.widget-drag-over {
+    outline: 2px dashed var(--accent);
+    border-radius: 10px;
+}
+
+/* Click-to-select: selected card — strong cyan ring + glow */
+.widget-drag-wrapper.widget-selected {
+    outline: 3px solid #00bcd4;
+    outline-offset: 2px;
+    border-radius: 10px;
+    box-shadow: 0 0 0 6px rgba(0, 188, 212, 0.28), 0 0 22px rgba(0, 188, 212, 0.35);
+    z-index: 2;
+    cursor: pointer;
+    transform: scale(1.012);
+}
+
+/* Transparent overlay on swap-target cards — sits above Recharts SVG so clicks
+   always register even when the inner chart intercepts pointer events. */
+.widget-swap-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    cursor: pointer;
+    border-radius: 10px;
+}
+
+/* Click-to-select: other moveable cards are valid swap targets */
+.widget-drag-wrapper.widget-swap-target {
+    outline: 2px dashed #00bcd4;
+    outline-offset: 2px;
+    border-radius: 10px;
+    cursor: pointer;
+    box-shadow: 0 0 0 3px rgba(0, 188, 212, 0.18);
+    transition: box-shadow 0.15s ease, outline-color 0.15s ease;
+}
+
+.widget-drag-wrapper.widget-swap-target::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 10px;
+    background: rgba(0, 188, 212, 0.07);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.widget-drag-wrapper.widget-swap-target:hover {
+    outline-color: #00bcd4;
+    box-shadow: 0 0 0 5px rgba(0, 188, 212, 0.3), 0 0 14px rgba(0, 188, 212, 0.2);
+}
+
+/* Click-to-select: empty gap slot shown during selection mode */
+.widget-drag-wrapper.widget-gap-target {
+    border: 2px dashed #00bcd4;
+    border-radius: 10px;
+    background-color: rgba(0, 188, 212, 0.10);
+    cursor: pointer;
+    min-height: 80px;
+    transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: inset 0 0 12px rgba(0, 188, 212, 0.08);
+}
+
+.widget-drag-wrapper.widget-gap-target:hover,
+.widget-drag-wrapper.widget-gap-target.widget-source-slot--over {
+    border-color: #00e5ff;
+    background-color: rgba(0, 188, 212, 0.20);
+    box-shadow: inset 0 0 16px rgba(0, 188, 212, 0.15);
+}
+
+/* Click-select end slot — always-visible "move to end" indicator */
+.widget-drag-wrapper.widget-gap-target--end {
+    min-height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.widget-gap-end-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #00bcd4;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    pointer-events: none;
+    user-select: none;
 }
 
 .overview-last-updated {
@@ -53,6 +338,21 @@
     to { transform: rotate(360deg); }
 }
 
+/* ── Victim Impact Analysis badge ────────────────────────────────────────── */
+.victim-impact-badge {
+    position: absolute;
+    bottom: 6px;
+    left: 10px;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-secondary);
+    opacity: 0.5;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
 /* ── Widget error banner (non-fatal partial errors) ───────────────────────── */
 .overview-partial-errors {
     grid-column: span 4;
@@ -68,4 +368,235 @@
     .overview-toolbar {
         flex-wrap: wrap;
     }
+}
+
+/* ── Stat + Chart hybrid cards ────────────────────────────────────────────── */
+.stat-chart-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 14px 14px;
+}
+
+.stat-chart-layout {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
+}
+
+.stat-chart-col {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    gap: 3px;
+    min-width: 54px;
+    justify-content: center;
+}
+
+.stat-chart-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.5px;
+}
+
+.stat-chart-note {
+    font-size: 11px;
+    color: var(--text-muted, #6b7280);
+    line-height: 1.3;
+}
+
+.stat-chart-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.stat-chart-header {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    flex-wrap: wrap;
+}
+
+/* Compact accent bar (e.g. severity stacked bar) */
+.stat-chart-accent-bar {
+    width: 100%;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 2px;
+}
+
+/* Severity color legend */
+.stat-chart-severity-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    margin-top: 4px;
+}
+
+.stat-chart-sev-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: var(--text-secondary, rgba(255,255,255,0.6));
+}
+
+.stat-chart-sev-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* Donut layout (chart + legend side by side) */
+.stat-chart-donut-layout {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+}
+
+.stat-chart-donut-wrapper {
+    position: relative;
+    flex-shrink: 0;
+    width: 110px;
+    height: 110px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.stat-chart-donut-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    padding-bottom: 2px;
+}
+
+.stat-chart-donut-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    flex: 1;
+}
+
+.stat-chart-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--text-secondary, rgba(255,255,255,0.6));
+    white-space: nowrap;
+}
+
+/* Descriptive text inside a stat-chart-card */
+.stat-chart-description {
+    font-size: 11px;
+    color: var(--text-muted, #6b7280);
+    line-height: 1.5;
+    margin: 4px 0 0;
+}
+
+/* Ranked attack vector list */
+.attack-vector-list {
+    list-style: none;
+    padding: 0;
+    margin: 4px 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.attack-vector-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+}
+
+.attack-vector-rank {
+    font-size: 10px;
+    font-weight: 700;
+    color: #00bcd4;
+    min-width: 20px;
+    flex-shrink: 0;
+}
+
+.attack-vector-name {
+    flex: 1;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.attack-vector-count {
+    font-size: 10px;
+    color: var(--text-secondary, rgba(255,255,255,0.6));
+    flex-shrink: 0;
+    font-weight: 600;
+}
+
+/* Risk band breakdown rows (expanded criticalRiskCves) */
+.risk-band-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    justify-content: center;
+    flex: 1;
+    min-width: 0;
+}
+
+.risk-band-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+}
+
+.risk-band-label {
+    min-width: 52px;
+    color: var(--text-primary);
+    flex-shrink: 0;
+}
+
+.risk-band-bar-track {
+    flex: 1;
+    height: 5px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 3px;
+    overflow: hidden;
+    min-width: 30px;
+}
+
+.risk-band-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.4s ease;
+}
+
+.risk-band-count {
+    font-size: 11px;
+    font-weight: 600;
+    min-width: 38px;
+    text-align: right;
+    flex-shrink: 0;
+    color: var(--text-primary);
+}
+
+.risk-band-pct {
+    font-size: 10px;
+    color: var(--text-muted, #6b7280);
+    min-width: 34px;
+    text-align: right;
+    flex-shrink: 0;
 }
