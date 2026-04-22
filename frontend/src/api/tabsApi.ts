@@ -60,16 +60,36 @@ export interface TemporalTrend {
 export interface TemporalTrendResponse {
   items: TemporalTrend[]
   attack_type: string | null
+  sector: string | null
 }
+
+export const IC3_SECTORS = [
+  'Construction',
+  'Education',
+  'Finance',
+  'Government',
+  'Healthcare',
+  'Hospitality',
+  'Legal Services',
+  'Manufacturing',
+  'Non-Profit',
+  'Professional Services',
+  'Real Estate',
+  'Retail',
+  'Technology',
+  'Transportation',
+] as const
 
 export function fetchTemporalTrends(
   signal: AbortSignal,
   attackType?: string,
+  sector?: string,
   yearFrom?: number,
   yearTo?: number,
 ): Promise<TemporalTrendResponse> {
   const p = new URLSearchParams()
   if (attackType) p.set('attack_type', attackType)
+  if (sector) p.set('sector', sector)
   if (yearFrom !== undefined) p.set('year_from', String(yearFrom))
   if (yearTo !== undefined) p.set('year_to', String(yearTo))
   const qs = p.toString() ? `?${p.toString()}` : ''
@@ -117,4 +137,50 @@ export function fetchRecentNvdCves(signal: AbortSignal, pageSize = 20): Promise<
     `${API_BASE_URL}/api/v1/nvd/cves?sort_by=published_date&sort_order=desc&page_size=${pageSize}`,
     signal
   )
+}
+
+// ─── Risk Score Stats ─────────────────────────────────────────────────────────
+
+export interface RiskBand {
+  label: string
+  min: number
+  max: number
+  count: number
+}
+
+export interface TopVendor {
+  vendor: string
+  avg_risk: number
+}
+
+export interface RiskScoreStatsResponse {
+  bands: RiskBand[]
+  top_vendors: TopVendor[]
+  avg_risk: number
+  total: number
+}
+
+export function fetchRiskScoreStats(signal: AbortSignal): Promise<RiskScoreStatsResponse> {
+  return getJsonAuth<RiskScoreStatsResponse>(
+    `${API_BASE_URL}/api/v1/vulnerabilities/risk-scored/stats`,
+    signal
+  )
+}
+
+// ─── Anomaly Counts ───────────────────────────────────────────────────────────
+
+export async function fetchIC3AnomalyCount(signal: AbortSignal, threshold = 2.0): Promise<number> {
+  const r = await getJsonAuth<{ total: number }>(
+    `${API_BASE_URL}/api/v1/anomalies/ic3?threshold=${threshold}`,
+    signal
+  )
+  return r.total
+}
+
+export async function fetchEscalatingSectorCount(signal: AbortSignal, thresholdPct = 0.5): Promise<number> {
+  const r = await getJsonAuth<{ items: Array<{ flagged: boolean }> }>(
+    `${API_BASE_URL}/api/v1/anomalies/trends?threshold_pct=${thresholdPct}`,
+    signal
+  )
+  return r.items.filter((i) => i.flagged).length
 }

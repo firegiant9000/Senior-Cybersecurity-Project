@@ -9,10 +9,10 @@ import { API_BASE_URL, fetchWithAuth } from "./fetchWithAuth";
 export interface OrgInvite {
   id: number;
   org_id: number;
-  invited_email: string;
-  org_role: string;
+  email: string;
+  role: string;
   status: string;
-  invited_by: number | null;
+  inviter_id: number | null;
   expires_at: string;
   created_at: string;
 }
@@ -35,9 +35,9 @@ export interface InviteTokenInfo {
 // ── Member types ─────────────────────────────────────────────────────────────
 
 export interface OrgMember {
-  id: number;
+  user_id: number;
   email: string;
-  org_role: string | null;
+  role: string | null;
   is_active: boolean;
   created_at: string;
 }
@@ -149,7 +149,7 @@ export async function updateMemberRole(
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ org_role: orgRole }),
+      body: JSON.stringify({ role: orgRole }),
     },
   );
   if (!resp.ok) {
