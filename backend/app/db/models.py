@@ -33,6 +33,7 @@ class CVE(Base):
     cvss_score: Mapped[float | None] = mapped_column(Float, nullable=True, index=True)
     severity: Mapped[str | None] = mapped_column(String(20), nullable=True)
     published_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    epss_score: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     kev: Mapped[KEV] = relationship(back_populates="cve", uselist=False)
 
