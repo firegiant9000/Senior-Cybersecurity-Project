@@ -40,7 +40,7 @@ function projectLinear(
   }));
 }
 
-function trendLegend({ payload }: { payload?: Array<{ value: string; color: string }> }) {
+function trendLegend({ payload }: { payload?: ReadonlyArray<{ value?: string; color?: string }> }) {
   const sorted = [...(payload ?? [])].sort((a, b) =>
     a.value === 'Projected' ? 1 : b.value === 'Projected' ? -1 : 0
   );
