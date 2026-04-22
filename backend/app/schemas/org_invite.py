@@ -48,6 +48,7 @@ class MemberRead(BaseModel):
     role: str
     status: str
     is_active: bool
+    created_at: datetime
 
 
 class MemberListResponse(BaseModel):
@@ -58,4 +59,8 @@ class MemberListResponse(BaseModel):
 
 
 class MemberUpdate(BaseModel):
-    role: OrgRole = Field(..., description="New organization role for the member")
+    role: OrgRole = Field(
+        ...,
+        validation_alias="org_role",
+        description="New organization role for the member",
+    )
