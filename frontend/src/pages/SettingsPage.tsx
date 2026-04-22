@@ -353,25 +353,25 @@ export default function SettingsPage() {
                         </thead>
                         <tbody>
                           {membersList.map((m) => (
-                            <tr key={m.id}>
+                            <tr key={m.user_id}>
                               <td>{m.email}</td>
                               <td>
-                                {m.org_role === "owner" ? (
+                                {m.role === "owner" ? (
                                   <span className="role-badge">
-                                    {m.org_role}
+                                    {m.role}
                                   </span>
                                 ) : (
                                   <select
                                     className="member-role-select"
-                                    value={m.org_role ?? "member"}
+                                    value={m.role ?? "member"}
                                     onChange={(e) =>
                                       handleUpdateMemberRole(
-                                        m.id,
+                                        m.user_id,
                                         e.target.value,
                                       )
                                     }
                                     disabled={
-                                      m.id === profile.id ||
+                                      m.user_id === profile.id ||
                                       profile.org_role !== "owner" && profile.role !== "admin"
                                     }
                                   >
@@ -384,11 +384,11 @@ export default function SettingsPage() {
                                 {new Date(m.created_at).toLocaleDateString()}
                               </td>
                               <td>
-                                {m.org_role !== "owner" &&
-                                  m.id !== profile.id && (
+                                {m.role !== "owner" &&
+                                  m.user_id !== profile.id && (
                                     <button
                                       className="vendor-delete-btn"
-                                      onClick={() => handleRemoveMember(m.id)}
+                                      onClick={() => handleRemoveMember(m.user_id)}
                                       title="Remove member"
                                     >
                                       &times;
@@ -501,8 +501,8 @@ export default function SettingsPage() {
                         <tbody>
                           {invitesList.map((inv) => (
                             <tr key={inv.id}>
-                              <td>{inv.invited_email}</td>
-                              <td>{inv.org_role}</td>
+                              <td>{inv.email}</td>
+                              <td>{inv.role}</td>
                               <td>
                                 <span
                                   className={`status-badge ${inv.status === "pending" ? "active" : "inactive"}`}

@@ -356,7 +356,7 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
                             className={`control-option${val === opt ? " selected" : ""}`}
                             onClick={() => setControlValue(control.key, opt)}
                           >
-                            {opt === "yes" ? "Yes" : opt === "no" ? "No" : "?"}
+                            {opt === "yes" ? "Yes" : opt === "no" ? "No" : "Unsure"}
                           </button>
                         ))}
                       </div>
