@@ -17,6 +17,7 @@ const RiskScoringTable = lazy(() => import('./components/tabs/RiskScoringTable')
 const ThreatIntelTab = lazy(() => import('./components/tabs/ThreatIntelTab'));
 const TrendsTab = lazy(() => import('./components/tabs/TrendsTab'));
 const PipelineHealthTab = lazy(() => import('./components/tabs/PipelineHealthTab'));
+const NormalizationLogTab = lazy(() => import('./components/tabs/NormalizationLogTab'));
 const SmBAdvisorTab = lazy(() => import('./components/tabs/SmBAdvisorTab'));
 const VendorAlertsTab = lazy(() => import('./components/tabs/VendorAlertsTab'));
 const DataSourcesTab = lazy(() => import('./components/tabs/DataSourcesTab'));
@@ -150,6 +151,7 @@ const Dashboard: React.FC = () => {
                     {activeComponent === 'trends' && <TrendsTab />}
                     {activeComponent === 'vendorAlerts' && <VendorAlertsTab />}
                     {activeComponent === 'pipelineHealth' && <PipelineHealthTab />}
+                    {activeComponent === 'normalizationLog' && <NormalizationLogTab />}
                     {activeComponent === 'anomalies' && <AnomaliesTab />}
                 </Suspense>
             </main>
