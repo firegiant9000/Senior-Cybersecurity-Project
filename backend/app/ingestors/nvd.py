@@ -292,9 +292,10 @@ def _normalize_nvd_cve(  # noqa: C901
     cvss_score = None
     severity = None
     if "metrics" in cve_data and isinstance(cve_data["metrics"], dict):
-        # Try CVSS v3.1, then v3.0, then v2.0
+        # Try CVSS v4.0, then v3.1, then v3.0, then v2.0
         cvss_v3 = (
-            cve_data["metrics"].get("cvssMetricV31")
+            cve_data["metrics"].get("cvssMetricV40")
+            or cve_data["metrics"].get("cvssMetricV31")
             or cve_data["metrics"].get("cvssMetricV30")
             or cve_data["metrics"].get("cvssMetricV2")
         )

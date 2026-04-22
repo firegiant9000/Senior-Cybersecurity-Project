@@ -9,6 +9,7 @@ import {
   type HistoryEntry,
 } from '../../api/aiSummary';
 import { useAuth } from '../../context/AuthContext';
+import { useUserContext } from '../../context/UserContext';
 import DisclaimerBanner from '../shared/DisclaimerBanner';
 import './AISummaryTab.css';
 
@@ -88,6 +89,7 @@ function parseHistoryOutputText(entry: HistoryEntry): { riskScore: number | null
 
 const AISummaryTab: React.FC = () => {
   const { user } = useAuth();
+  const { organization } = useUserContext();
   const userId = user?.uid;
   const [data, setData] = useState<AISummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -241,14 +243,34 @@ const AISummaryTab: React.FC = () => {
             )}
           </div>
         </div>
-        <button
-          className="overview-refresh-btn"
-          onClick={load}
-          disabled={loading}
-        >
-          {loading ? 'Regenerating...' : 'Regenerate'}
-        </button>
+        <div className="ai-summary-header-actions">
+          <button
+            className="overview-refresh-btn"
+            onClick={load}
+            disabled={loading}
+          >
+            {loading ? 'Regenerating...' : 'Regenerate'}
+          </button>
+          <button
+            className="ai-summary-print-btn"
+            onClick={() => window.print()}
+          >
+            Print / Save as PDF
+          </button>
+        </div>
       </div>
+
+      {/* Printable content — everything below is included in print output */}
+      <div className="ai-summary-printable">
+
+        {/* Print-only header: hidden on screen, rendered when printing */}
+        <div className="ai-summary-print-header">
+          <div className="ai-print-org">{organization?.name ?? 'Executive Security Summary'}</div>
+          <div className="ai-print-meta">
+            <span>Hacker Tracker</span>
+            <span>{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+          </div>
+        </div>
 
       {/* Risk score card + posture statement */}
       <div className="ai-summary-metrics">
@@ -431,6 +453,8 @@ const AISummaryTab: React.FC = () => {
           <span className="ai-summary-disclaimer">{data.disclaimer}</span>
         )}
       </div>
+
+      </div>{/* end ai-summary-printable */}
     </div>
   );
 };

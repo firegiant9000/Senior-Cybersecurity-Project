@@ -570,3 +570,135 @@
   font-style: italic;
   line-height: 1.4;
 }
+
+/* ── Print / Save as PDF button ─────────────────────────────────────── */
+
+.ai-summary-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ai-summary-print-btn {
+  background: transparent;
+  border: 1px solid var(--border, #334155);
+  color: var(--text-secondary, #94a3b8);
+  border-radius: 0.375rem;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.ai-summary-print-btn:hover {
+  border-color: var(--accent, #3b82f6);
+  color: var(--accent, #3b82f6);
+}
+
+/* ── Print-only header (hidden on screen) ────────────────────────────── */
+
+.ai-summary-print-header {
+  display: none;
+}
+
+/* ── @media print ────────────────────────────────────────────────────── */
+
+@media print {
+  /* Hide everything outside the printable section */
+  body * {
+    visibility: hidden;
+  }
+
+  .ai-summary-printable,
+  .ai-summary-printable * {
+    visibility: visible;
+  }
+
+  .ai-summary-printable {
+    position: fixed;
+    inset: 0;
+    padding: 2.5rem 3rem;
+    background: #ffffff;
+    color: #111827;
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+
+  /* Show the print-only header */
+  .ai-summary-print-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    border-bottom: 2px solid #1e3a5f;
+    padding-bottom: 0.75rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .ai-print-org {
+    font-size: 15pt;
+    font-weight: 700;
+    color: #111827;
+  }
+
+  .ai-print-meta {
+    display: flex;
+    gap: 1.5rem;
+    font-size: 9pt;
+    color: #6b7280;
+  }
+
+  /* Clean up card styling for print */
+  .ai-structured-card,
+  .ai-summary-narrative-card,
+  .ai-summary-metrics,
+  .ai-posture-card {
+    background: transparent !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 4px !important;
+    box-shadow: none !important;
+    margin-bottom: 0.75rem !important;
+    padding: 0.75rem 1rem !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .ai-structured-card-title,
+  .ai-summary-metric-label {
+    color: #374151 !important;
+  }
+
+  .ai-risk-badge--critical { background: #fee2e2 !important; color: #991b1b !important; }
+  .ai-risk-badge--high     { background: #fef3c7 !important; color: #92400e !important; }
+  .ai-risk-badge--moderate { background: #fefce8 !important; color: #854d0e !important; }
+  .ai-risk-badge--low      { background: #dcfce7 !important; color: #166534 !important; }
+
+  /* Force white on all text for legibility */
+  .ai-summary-risk-card,
+  .ai-summary-metric-value,
+  .ai-posture-statement,
+  .ai-risk-item-title,
+  .ai-risk-item-context,
+  .ai-step-action,
+  .ai-step-rationale,
+  .ai-gap-type,
+  .ai-gap-impact,
+  .ai-summary-narrative p {
+    color: #111827 !important;
+  }
+
+  .ai-summary-footer {
+    margin-top: 1rem;
+    font-size: 8pt;
+    color: #6b7280 !important;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 0.5rem;
+  }
+
+  /* Exclude interactive-only sections from print output */
+  .ai-summary-feedback,
+  .ai-history-section {
+    display: none !important;
+  }
+}

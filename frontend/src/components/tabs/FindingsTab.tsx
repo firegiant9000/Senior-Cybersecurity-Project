@@ -8,6 +8,7 @@ import {
   type SnapshotListItem,
 } from '../../api/findings';
 import { useAuth } from '../../context/AuthContext';
+import { downloadCsv } from '../../utils/csvExport';
 import SeverityBadge from '../shared/SeverityBadge';
 import DisclaimerBanner from '../shared/DisclaimerBanner';
 import './FindingsTab.css';
@@ -204,53 +205,76 @@ const FindingsTab: React.FC = () => {
     <div className="tab-page findings-tab">
       {/* Toolbar */}
       <div className="findings-toolbar">
-        <button
-          className="overview-refresh-btn"
-          onClick={load}
-          disabled={loading}
-        >
-          {loading ? 'Refreshing...' : 'Refresh'}
-        </button>
+        <div className="findings-actions">
+          <button
+            className="overview-refresh-btn"
+            onClick={load}
+            disabled={loading}
+          >
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
+          <button
+            className="export-csv-btn"
+            onClick={() =>
+              downloadCsv(
+                'findings.csv',
+                ['Type', 'Severity', 'Score', 'Title', 'Description', 'Source', 'Affected Assets'],
+                report.findings.map((f) => [
+                  f.finding_type,
+                  f.severity,
+                  f.severity_score ?? '',
+                  f.title,
+                  f.description,
+                  f.source,
+                  f.affected_assets.join('; '),
+                ])
+              )
+            }
+            disabled={!report || report.findings.length === 0}
+          >
+            Download CSV
+          </button>
+        </div>
         <span className="findings-meta">
           {summary.total} finding{summary.total !== 1 ? 's' : ''} &middot; Generated {generatedDate}
         </span>
       </div>
 
-      {/* Summary chips */}
-      <div className="findings-summary-row">
-        <button
-          className={`findings-chip ${activeFilter === null ? 'active' : ''}`}
-          onClick={() => setActiveFilter(null)}
-        >
-          All ({summary.total})
-        </button>
-        {TYPE_ORDER.map((type) => {
-          const count = summary.by_type[type] ?? 0;
-          if (count === 0) return null;
-          const info = TYPE_LABELS[type];
-          return (
-            <button
-              key={type}
-              className={`findings-chip ${activeFilter === type ? 'active' : ''}`}
-              onClick={() => setActiveFilter(activeFilter === type ? null : type)}
-            >
-              {info?.icon} {info?.label} ({count})
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Severity pills */}
-      <div className="findings-severity-row">
-        {['critical', 'high', 'medium', 'low', 'info'].map((sev) => {
-          const count = summary.by_severity[sev] ?? 0;
-          if (count === 0) return null;
-          return (
-            <span key={sev} className="findings-severity-pill">
-              <SeverityBadge label={capitalize(sev)} /> {count}
-            </span>
-          );
-        })}
+      {/* Filters + severity on one row */}
+      <div className="findings-filter-row">
+        <div className="findings-summary-row">
+          <button
+            className={`findings-chip ${activeFilter === null ? 'active' : ''}`}
+            onClick={() => setActiveFilter(null)}
+          >
+            All ({summary.total})
+          </button>
+          {TYPE_ORDER.map((type) => {
+            const count = summary.by_type[type] ?? 0;
+            if (count === 0) return null;
+            const info = TYPE_LABELS[type];
+            return (
+              <button
+                key={type}
+                className={`findings-chip ${activeFilter === type ? 'active' : ''}`}
+                onClick={() => setActiveFilter(activeFilter === type ? null : type)}
+              >
+                {info?.icon} {info?.label} ({count})
+              </button>
+            );
+          })}
+        </div>
+        <div className="findings-severity-row">
+          {['critical', 'high', 'medium', 'low', 'info'].map((sev) => {
+            const count = summary.by_severity[sev] ?? 0;
+            if (count === 0) return null;
+            return (
+              <span key={sev} className="findings-severity-pill">
+                <SeverityBadge label={capitalize(sev)} /> {count}
+              </span>
+            );
+          })}
+        </div>
       </div>
 
       {/* Data sources */}

@@ -24,37 +24,37 @@ export interface TabGroupDef {
 export const TAB_GROUPS: TabGroupDef[] = [
   {
     id: 'overview',
-    label: 'Overview',
+    label: 'Threat Dashboard',
   },
   {
     id: 'assessment',
-    label: 'Assessment',
+    label: 'Org Risk Assessment',
     requiresOrg: true,
     subTabs: [
       { id: 'smbAdvisor', label: 'SMB Risk Advisor' },
-      { id: 'findings', label: 'Findings' },
-      { id: 'aiSummary', label: 'AI Summary' },
+      { id: 'findings', label: 'Security Findings' },
+      { id: 'aiSummary', label: 'AI Risk Briefing' },
     ],
   },
   {
     id: 'threats',
-    label: 'Threats',
+    label: 'CVE & Threat Intel',
     subTabs: [
-      { id: 'threatIntel', label: 'Threat Intelligence' },
-      { id: 'riskScoring', label: 'Risk Scoring' },
+      { id: 'threatIntel', label: 'KEV & CVE Explorer' },
+      { id: 'riskScoring', label: 'Vulnerability Scoring' },
       { id: 'anomalies', label: 'Anomalies' },
     ],
   },
   {
     id: 'vendorAlerts',
-    label: 'Vendors',
+    label: 'Vendor Alerts',
     requiresOrg: true,
   },
   {
     id: 'trendsData',
-    label: 'Trends & Data',
+    label: 'Historical Trends',
     subTabs: [
-      { id: 'trends', label: 'Trends' },
+      { id: 'trends', label: 'Incident Trends' },
       { id: 'dataSources', label: 'Data Sources' },
     ],
   },
@@ -64,6 +64,7 @@ export const TAB_GROUPS: TabGroupDef[] = [
     requiresAdmin: true,
     subTabs: [
       { id: 'pipelineHealth', label: 'Pipeline Health' },
+      { id: 'normalizationLog', label: 'Normalization Log', requiresAdmin: true },
     ],
   },
 ];

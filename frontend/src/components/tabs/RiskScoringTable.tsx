@@ -13,6 +13,7 @@ interface RiskScoredItem {
     is_kev: boolean;
     kev_date_added: string;
     nvd_published?: string | null;
+    epss_score?: number | null;
 }
 
 interface ApiResponse {
@@ -236,6 +237,7 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
                                 <th>Vulnerability</th>
                                 <th>CVSS Score</th>
                                 <th>Risk Score</th>
+                                <th title="30-day exploitation probability (FIRST.org EPSS)">EPSS</th>
                                 <th>Published</th>
                             </tr>
                         </thead>
@@ -267,6 +269,29 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
                                                 {item.risk_score.toFixed(1)}/100
                                             </span>
                                         ) : 'N/A'}
+                                    </td>
+                                    <td>
+                                        {item.epss_score != null ? (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <div style={{
+                                                    width: 40, height: 6, borderRadius: 3,
+                                                    background: '#e5e7eb', overflow: 'hidden',
+                                                }}>
+                                                    <div style={{
+                                                        width: `${Math.max(2, item.epss_score * 100)}%`,
+                                                        height: '100%',
+                                                        background: item.epss_score >= 0.7 ? '#dc2626'
+                                                            : item.epss_score >= 0.3 ? '#d97706' : '#6b7280',
+                                                        borderRadius: 3,
+                                                    }} />
+                                                </div>
+                                                <span style={{ fontSize: 12, fontWeight: 600 }}>
+                                                    {item.epss_score < 0.001
+                                                        ? '<0.1%'
+                                                        : `${(item.epss_score * 100).toFixed(item.epss_score < 0.01 ? 2 : 1)}%`}
+                                                </span>
+                                            </div>
+                                        ) : '—'}
                                     </td>
                                     <td>{item.nvd_published || 'N/A'}</td>
                                 </tr>
