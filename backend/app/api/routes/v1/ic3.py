@@ -156,9 +156,7 @@ async def get_temporal_trends_analytics(
     attack_type: Annotated[
         str | None, Query(description="Filter by attack type (optional)")
     ] = None,
-    sector: Annotated[
-        str | None, Query(description="Filter by IC3 sector (optional)")
-    ] = None,
+    sector: Annotated[str | None, Query(description="Filter by IC3 sector (optional)")] = None,
     year_from: Annotated[
         int | None, Query(description="Start year for range filter (optional)")
     ] = None,

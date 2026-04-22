@@ -118,7 +118,7 @@ async def test_list_members_same_org_allowed(client: AsyncClient):
         return_value=(
             [
                 (
-                    SimpleNamespace(user_id=1, role="member", status="active"),
+                    SimpleNamespace(user_id=1, role="member", status="active", created_at=None),
                     SimpleNamespace(email="member@example.com", is_active=True),
                 )
             ],

@@ -211,7 +211,10 @@ const TrendsTab: React.FC = () => {
                     <XAxis dataKey="year" tick={{ fontSize: 11 }} />
                     <YAxis tickFormatter={fmtK} tick={{ fontSize: 11 }} width={52} />
                     <Tooltip
-                      formatter={(v: unknown) => [(v as number).toLocaleString(), 'Complaints']}
+                      formatter={(v: unknown) => [
+                        v == null ? '—' : typeof v === 'number' ? v.toLocaleString() : String(v),
+                        'Complaints',
+                      ]}
                     />
                     <Legend content={trendLegend} />
                     <Line
@@ -264,7 +267,7 @@ const TrendsTab: React.FC = () => {
                     <YAxis tickFormatter={fmtBillion} tick={{ fontSize: 11 }} width={64} />
                     <Tooltip
                       formatter={(v: unknown) => [
-                        `$${(v as number).toLocaleString()}`,
+                        v == null ? '—' : `$${(v as number).toLocaleString()}`,
                         'Total Loss',
                       ]}
                     />
@@ -319,7 +322,7 @@ const TrendsTab: React.FC = () => {
                     <YAxis tickFormatter={fmtBillion} tick={{ fontSize: 11 }} width={64} />
                     <Tooltip
                       formatter={(v: unknown) => [
-                        `$${(v as number).toLocaleString()}`,
+                        v == null ? '—' : `$${(v as number).toLocaleString()}`,
                         'Avg Loss / Incident',
                       ]}
                     />

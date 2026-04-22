@@ -47,7 +47,7 @@ const NormalizationLogTab: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const load = useCallback(async (p: number, dt: string) => {
+  const load = useCallback(async (p: number, dt: string, signal?: AbortSignal) => {
     setLoading(true);
     setError('');
     try {
@@ -55,12 +55,13 @@ const NormalizationLogTab: React.FC = () => {
       if (dt) params.set('data_type', dt);
       const result = await getJsonAuth<NormalizationLogResponse>(
         `${API_BASE_URL}/api/v1/ingest/normalization-log?${params}`,
-        new AbortController().signal,
+        signal ?? new AbortController().signal,
       );
       setItems(result.items);
       setTotal(result.total);
       setPage(p);
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
       setLoading(false);
@@ -68,7 +69,9 @@ const NormalizationLogTab: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    void load(1, dataTypeFilter);
+    const controller = new AbortController();
+    void load(1, dataTypeFilter, controller.signal);
+    return () => controller.abort();
   }, [load, dataTypeFilter]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));

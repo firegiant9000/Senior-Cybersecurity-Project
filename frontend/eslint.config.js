@@ -44,6 +44,7 @@ export default [
         HTMLDivElement: 'readonly',
         Node: 'readonly',
         Event: 'readonly',
+        KeyboardEvent: 'readonly',
         React: 'readonly',
       },
     },
