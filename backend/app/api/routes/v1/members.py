@@ -239,6 +239,7 @@ async def list_members(
                 role=membership.role,
                 status=membership.status,
                 is_active=user.is_active,
+                created_at=membership.created_at,
             )
             for membership, user in items
         ],
@@ -306,6 +307,7 @@ async def update_member_role(
         role=updated.role,
         status=updated.status,
         is_active=user.is_active if user else False,
+        created_at=updated.created_at,
     )
 
 

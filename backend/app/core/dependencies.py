@@ -170,9 +170,19 @@ async def require_same_org_membership(
     )
     membership = membership_result.scalar_one_or_none()
     if membership is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied for this organization",
+        # Fallback for users who predate the memberships table: if the legacy
+        # users.org_id matches, synthesise a membership from the legacy fields
+        # so that existing accounts aren't locked out after the migration.
+        if current_user.org_id != org_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied for this organization",
+            )
+        membership = Membership(
+            user_id=current_user.id,
+            org_id=org_id,
+            role=current_user.org_role or "member",
+            status="active",
         )
     return membership
 

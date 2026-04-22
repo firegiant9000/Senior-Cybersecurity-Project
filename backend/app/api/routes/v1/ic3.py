@@ -156,6 +156,9 @@ async def get_temporal_trends_analytics(
     attack_type: Annotated[
         str | None, Query(description="Filter by attack type (optional)")
     ] = None,
+    sector: Annotated[
+        str | None, Query(description="Filter by IC3 sector (optional)")
+    ] = None,
     year_from: Annotated[
         int | None, Query(description="Start year for range filter (optional)")
     ] = None,
@@ -170,12 +173,14 @@ async def get_temporal_trends_analytics(
     analytics = IC3Analytics(db)
     rows = await analytics.get_temporal_trends(
         attack_type=attack_type,
+        sector=sector,
         year_from=year_from,
         year_to=year_to,
     )
     return TemporalTrendResponse(
         items=[TemporalTrend(**r) for r in rows],
         attack_type=attack_type,
+        sector=sector,
     )
 
 
