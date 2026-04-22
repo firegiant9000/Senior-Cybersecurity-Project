@@ -71,7 +71,7 @@
 .dashboard-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    grid-template-rows: minmax(240px, auto) minmax(240px, auto) minmax(340px, auto) minmax(300px, auto);
+    grid-auto-rows: 300px;
     gap: 20px;
 }
 
@@ -89,6 +89,7 @@
     box-sizing: border-box;
     height: 100%;
     overflow: hidden;
+    position: relative;
     transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
@@ -125,11 +126,11 @@
 }
 
 .incident-widget {
-    grid-column: span 3;
+    grid-column: span 2;
 }
 
 .risks-widget {
-    grid-column: span 1;
+    grid-column: span 2;
 }
 
 .heatmap-widget {
@@ -144,7 +145,7 @@
 .gauges-card {
     justify-content: flex-start;
     align-items: center;
-    padding: 20px;
+    padding: 16px 12px;
     gap: 0;
 }
 
@@ -153,14 +154,14 @@
     font-weight: 700;
     letter-spacing: 1px;
     color: white;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
 }
 
 .gauges-row {
     display: flex;
     flex-direction: row;
     justify-content: space-around;
-    align-items: center;
+    align-items: flex-start;
     width: 100%;
     flex: 1;
 }
@@ -170,21 +171,41 @@
     flex-direction: column;
     align-items: center;
     flex: 1;
-    gap: 2px;
+    min-width: 0;
+    padding: 0 6px;
+    gap: 0;
+}
+
+.gauge-chart-wrapper {
+    position: relative;
+    width: 100%;
+    height: 90px;
 }
 
 .gauge-value {
-    font-size: 28px;
+    font-size: 22px;
     font-weight: 800;
     line-height: 1;
-    margin-top: -20px;
+    margin-top: -14px;
 }
 
 .gauge-label {
-    font-size: 12px;
+    font-size: 11px;
     color: rgba(255, 255, 255, 0.75);
     font-weight: 500;
-    margin-top: 4px;
+    margin-top: 5px;
+    text-align: center;
+    line-height: 1.3;
+}
+
+.gauge-sublabel {
+    font-size: 9px;
+    color: rgba(255, 255, 255, 0.38);
+    font-weight: 400;
+    margin-top: 3px;
+    text-align: center;
+    letter-spacing: 0.3px;
+    line-height: 1.3;
 }
 
 /* ── Chart widget title + body ────────────────────────────────────────────── */
@@ -497,6 +518,12 @@
     border-color: #fca5a5;
 }
 
+.freshness-item.freshness-stale {
+    background: #fffbeb;
+    color: #92400e;
+    border-color: #fcd34d;
+}
+
 .freshness-item.freshness-unknown {
     background: var(--table-head-bg);
     color: var(--text-muted);
@@ -515,7 +542,7 @@
 @media (max-width: 1200px) {
     .dashboard-grid {
         grid-template-columns: repeat(2, 1fr);
-        grid-template-rows: auto;
+        grid-auto-rows: auto;
     }
     .incident-widget {
         grid-column: span 2;
@@ -628,16 +655,23 @@
 }
 
 .export-csv-btn {
-    padding: 5px 14px;
+    display: inline-flex;
+    align-items: center;
+    align-self: center;
+    box-sizing: border-box;
+    height: 24px;
+    padding: 0 14px;
     background: transparent;
     color: var(--accent);
     border: 1px solid var(--accent);
     border-radius: 20px;
     font-size: 12px;
     font-weight: 600;
+    line-height: 1;
     cursor: pointer;
     transition: background 0.2s, color 0.2s;
-    margin-top: 0;
+    flex-shrink: 0;
+    vertical-align: middle;
 }
 
 .export-csv-btn:hover:not(:disabled) {
@@ -669,6 +703,16 @@
 
 .cisa-table .cve-id a:hover {
     color: #0b1060;
+    text-decoration: underline;
+}
+
+[data-theme="dark"] .cisa-table .cve-id,
+[data-theme="dark"] .cisa-table .cve-id a {
+    color: #fc8181;
+}
+
+[data-theme="dark"] .cisa-table .cve-id a:hover {
+    color: #fca5a5;
     text-decoration: underline;
 }
 
@@ -794,26 +838,26 @@
 
 .risk-analytics-card,
 .risk-kpi-card {
-    background: #f1f5f9;
-    border: 1px solid #cbd5e1;
+    background: #1e293b;
+    border: 1px solid #334155;
     border-radius: 10px;
     padding: 14px;
 }
 
 [data-theme="dark"] .risk-analytics-card,
 [data-theme="dark"] .risk-kpi-card {
-    background: #1e293b;
-    border: 1px solid #334155;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
 }
 
 .risk-analytics-card h3 {
     margin: 0 0 10px;
     font-size: 14px;
-    color: #0f172a;
+    color: #e2e8f0;
 }
 
 [data-theme="dark"] .risk-analytics-card h3 {
-    color: #e2e8f0;
+    color: #0f172a;
 }
 
 .risk-bar-chart {
@@ -901,11 +945,11 @@
 
 .risk-kpi-subtitle {
     font-size: 12px;
-    color: #64748b;
+    color: #94a3b8;
 }
 
 [data-theme="dark"] .risk-kpi-subtitle {
-    color: #64748b;
+    color: #475569;
 }
 
 @media (max-width: 1024px) {
@@ -1153,6 +1197,37 @@
 
 .trends-table-card { display: flex; flex-direction: column; }
 
+.trends-projection-note {
+  font-size: 11px;
+  color: var(--text-muted, #6b7280);
+  font-style: italic;
+  margin: 4px 0 0;
+  padding: 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trends-legend {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  padding: 4px 0 0;
+}
+
+.trends-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary, #555);
+}
+
+.trends-legend-item svg {
+  display: block;
+  flex-shrink: 0;
+}
+
 /* ── Alerts Feed tab grid ─────────────────────────────────────────────────── */
 .alerts-grid {
     display: grid;
@@ -1169,7 +1244,7 @@
 .victim-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: 300px 340px;
+    grid-template-rows: repeat(2, 300px);
     gap: 16px;
 }
 
@@ -1286,7 +1361,12 @@
 }
 
 [data-theme="dark"] .filter-controls {
-    background-color: var(--card-bg);
+    background-color: rgba(255, 255, 255, 0.04);
+    border-color: var(--border);
+}
+
+[data-theme="dark"] .filter-group label {
+    color: var(--tab-active-color);
 }
 
 [data-theme="dark"] .pagination-controls button {
