@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchVendorAlerts, VendorAlertsResponse } from '../../api/vendorAlerts';
+import { suggestVendors, type VendorSuggestion } from '../../api/vendors';
 import { useAuth } from '../../context/AuthContext';
 import SeverityBadge from '../shared/SeverityBadge';
 
@@ -10,6 +11,7 @@ const VendorAlertsTab: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
+  const [suggestions, setSuggestions] = useState<Record<string, VendorSuggestion[]>>({});
   const pageSize = 20;
 
   const load = useCallback(async (p: number) => {
@@ -29,6 +31,19 @@ const VendorAlertsTab: React.FC = () => {
   useEffect(() => {
     load(page);
   }, [page, load]);
+
+  useEffect(() => {
+    if (!data?.unmatched_vendors?.length) return;
+    const toCheck = data.unmatched_vendors.slice(0, 5);
+    const controller = new AbortController();
+    Promise.all(
+      toCheck.map(v => suggestVendors(v).then(s => [v, s] as [string, VendorSuggestion[]]).catch(() => [v, []] as [string, VendorSuggestion[]]))
+    ).then(pairs => {
+      if (controller.signal.aborted) return;
+      setSuggestions(Object.fromEntries(pairs));
+    });
+    return () => controller.abort();
+  }, [data?.unmatched_vendors]);
 
   if (!user) {
     return <div className="tab-page"><p>Please log in to view vendor alerts.</p></div>;
@@ -90,9 +105,32 @@ const VendorAlertsTab: React.FC = () => {
           No known exploited vulnerabilities match your vendor stack.
         </p>
         {data.unmatched_vendors.length > 0 && (
-          <p style={{ color: '#6b7280', fontSize: 13 }}>
-            Vendors with no KEV matches: {data.unmatched_vendors.join(', ')}
-          </p>
+          <div style={{ marginTop: 8 }}>
+            {data.unmatched_vendors.slice(0, 5).map(v => {
+              const hits = suggestions[v];
+              return (
+                <div key={v} style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>
+                  <span style={{ fontWeight: 600 }}>{v}</span>
+                  {hits && hits.length > 0
+                    ? <span style={{ marginLeft: 8, color: '#92400e' }}>
+                        — Did you mean: {hits.map((s, i) => (
+                          <span key={s.vendor_name}>
+                            {i > 0 && ', '}
+                            <strong>{s.vendor_name}</strong> ({Math.round(s.score * 100)}% match)
+                          </span>
+                        ))}?
+                      </span>
+                    : <span style={{ marginLeft: 8 }}>— not found in KEV catalog</span>
+                  }
+                </div>
+              );
+            })}
+            {data.unmatched_vendors.length > 5 && (
+              <p style={{ fontSize: 12, color: '#9ca3af' }}>
+                +{data.unmatched_vendors.length - 5} more unmatched
+              </p>
+            )}
+          </div>
         )}
       </div>
     );
@@ -125,9 +163,30 @@ const VendorAlertsTab: React.FC = () => {
       </div>
 
       {data.unmatched_vendors.length > 0 && (
-        <p style={{ color: '#6b7280', fontSize: 13, marginBottom: '0.75rem' }}>
-          Vendors with no KEV matches: {data.unmatched_vendors.join(', ')}
-        </p>
+        <div style={{ color: '#6b7280', fontSize: 13, marginBottom: '0.75rem' }}>
+          {data.unmatched_vendors.slice(0, 5).map(v => {
+            const hits = suggestions[v];
+            return (
+              <div key={v} style={{ marginBottom: 2 }}>
+                <span style={{ fontWeight: 600 }}>{v}</span>
+                {hits && hits.length > 0
+                  ? <span style={{ marginLeft: 6, color: '#92400e' }}>
+                      — Did you mean: {hits.map((s, i) => (
+                        <span key={s.vendor_name}>
+                          {i > 0 && ', '}
+                          <strong>{s.vendor_name}</strong> ({Math.round(s.score * 100)}%)
+                        </span>
+                      ))}?
+                    </span>
+                  : <span style={{ marginLeft: 6 }}>— no KEV match</span>
+                }
+              </div>
+            );
+          })}
+          {data.unmatched_vendors.length > 5 && (
+            <span>+{data.unmatched_vendors.length - 5} more unmatched vendors</span>
+          )}
+        </div>
       )}
 
       {/* Full alerts table */}
