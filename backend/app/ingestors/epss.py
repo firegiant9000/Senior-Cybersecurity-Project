@@ -64,9 +64,7 @@ async def ingest_epss(db: AsyncSession) -> int:
 
     updated = 0
     for cve_id, score in scores.items():
-        await db.execute(
-            update(CVE).where(CVE.cve_id == cve_id).values(epss_score=score)
-        )
+        await db.execute(update(CVE).where(CVE.cve_id == cve_id).values(epss_score=score))
         updated += 1
 
     await db.commit()

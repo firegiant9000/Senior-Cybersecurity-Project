@@ -35,14 +35,14 @@ const VendorAlertsTab: React.FC = () => {
   useEffect(() => {
     if (!data?.unmatched_vendors?.length) return;
     const toCheck = data.unmatched_vendors.slice(0, 5);
-    const controller = new AbortController();
+    let cancelled = false;
     Promise.all(
       toCheck.map(v => suggestVendors(v).then(s => [v, s] as [string, VendorSuggestion[]]).catch(() => [v, []] as [string, VendorSuggestion[]]))
     ).then(pairs => {
-      if (controller.signal.aborted) return;
+      if (cancelled) return;
       setSuggestions(Object.fromEntries(pairs));
     });
-    return () => controller.abort();
+    return () => { cancelled = true; };
   }, [data?.unmatched_vendors]);
 
   if (!user) {
