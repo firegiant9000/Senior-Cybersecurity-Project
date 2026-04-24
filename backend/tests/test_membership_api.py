@@ -164,3 +164,35 @@ async def test_list_members_different_org_forbidden(client: AsyncClient):
         app.dependency_overrides.pop(get_current_user, None)
 
     assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_update_member_role_requires_org_admin(client: AsyncClient):
+    async def _member_membership():
+        return SimpleNamespace(role="member", org_id=1, status="active")
+
+    app.dependency_overrides[require_same_org_membership] = _member_membership
+    app.dependency_overrides[get_current_user] = _fake_member_user
+    try:
+        resp = await client.patch("/api/v1/orgs/1/members/101", json={"role": "admin"})
+    finally:
+        app.dependency_overrides.pop(require_same_org_membership, None)
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_remove_member_requires_org_admin(client: AsyncClient):
+    async def _member_membership():
+        return SimpleNamespace(role="member", org_id=1, status="active")
+
+    app.dependency_overrides[require_same_org_membership] = _member_membership
+    app.dependency_overrides[get_current_user] = _fake_member_user
+    try:
+        resp = await client.delete("/api/v1/orgs/1/members/101")
+    finally:
+        app.dependency_overrides.pop(require_same_org_membership, None)
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert resp.status_code == 403
