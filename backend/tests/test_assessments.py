@@ -192,3 +192,118 @@ async def test_delete_assessment_soft_deletes_version(client: AsyncClient):
 
     assert resp.status_code == 200
     assert resp.json()["is_current"] is False
+
+
+@pytest.mark.asyncio
+async def test_get_current_assessment_cross_tenant_forbidden(client: AsyncClient):
+    repo = MagicMock()
+    repo.get_current_by_org = AsyncMock(return_value=_mock_submission())
+    app.dependency_overrides[get_assessment_repo] = lambda: repo
+
+    async def _org_a_member() -> MagicMock:
+        user = MagicMock()
+        user.role = "member"
+        user.org_id = 1
+        return user
+
+    app.dependency_overrides[get_current_user] = _org_a_member
+    try:
+        resp = await client.get("/api/v1/assessments/2")
+    finally:
+        app.dependency_overrides.pop(get_assessment_repo, None)
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert resp.status_code == 403
+    repo.get_current_by_org.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_update_assessment_cross_tenant_forbidden(client: AsyncClient):
+    repo = MagicMock()
+    existing = _mock_submission(version=1, is_current=True)
+    existing.organization_id = 2
+    repo.get_by_id = AsyncMock(return_value=existing)
+    repo.create_new_version = AsyncMock(return_value=_mock_submission(version=2, is_current=True))
+    app.dependency_overrides[get_assessment_repo] = lambda: repo
+
+    async def _org_a_member() -> MagicMock:
+        user = MagicMock()
+        user.role = "member"
+        user.org_id = 1
+        return user
+
+    app.dependency_overrides[get_current_user] = _org_a_member
+    try:
+        payload = _valid_payload()
+        payload.pop("organization_id")
+        resp = await client.put("/api/v1/assessments/org-b-assessment", json=payload)
+    finally:
+        app.dependency_overrides.pop(get_assessment_repo, None)
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert resp.status_code == 403
+    repo.create_new_version.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_assessment_cross_tenant_forbidden(client: AsyncClient):
+    repo = MagicMock()
+    repo.create_initial = AsyncMock(return_value=_mock_submission())
+    app.dependency_overrides[get_assessment_repo] = lambda: repo
+
+    async def _org_a_member() -> MagicMock:
+        user = MagicMock()
+        user.role = "member"
+        user.org_id = 1
+        return user
+
+    app.dependency_overrides[get_current_user] = _org_a_member
+    try:
+        payload = _valid_payload()
+        payload["organization_id"] = 2
+        resp = await client.post("/api/v1/assessments/", json=payload)
+    finally:
+        app.dependency_overrides.pop(get_assessment_repo, None)
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert resp.status_code == 403
+    repo.create_initial.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_assessment_missing_required_nested_field_returns_422(client: AsyncClient):
+    app.dependency_overrides[get_current_user] = _mock_admin_user
+    try:
+        payload = _valid_payload()
+        del payload["data"]["security_controls"]["backup_strategy"]
+        resp = await client.post("/api/v1/assessments/", json=payload)
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_assessment_invalid_boundary_returns_422(client: AsyncClient):
+    app.dependency_overrides[get_current_user] = _mock_admin_user
+    try:
+        payload = _valid_payload()
+        payload["data"]["company_profile"]["employee_count"] = 0
+        resp = await client.post("/api/v1/assessments/", json=payload)
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_assessment_extra_field_returns_422(client: AsyncClient):
+    app.dependency_overrides[get_current_user] = _mock_admin_user
+    try:
+        payload = _valid_payload()
+        payload["data"]["company_profile"]["unexpected"] = "not allowed"
+        resp = await client.post("/api/v1/assessments/", json=payload)
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert resp.status_code == 422
