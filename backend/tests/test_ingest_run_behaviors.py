@@ -59,7 +59,9 @@ async def test_trigger_single_source_registers_one_task():
 async def test_run_ingestion_skips_when_lock_held():
     fake_session = _FakeAsyncSession()
     with (
-        patch("app.api.routes.v1.ingest.AsyncSessionLocal", return_value=_FakeSessionCtx(fake_session)),
+        patch(
+            "app.api.routes.v1.ingest.AsyncSessionLocal", return_value=_FakeSessionCtx(fake_session)
+        ),
         patch("app.services.ingest_lock.expire_stale_runs", new=AsyncMock()),
         patch("app.services.ingest_lock.try_acquire_lock", new=AsyncMock(return_value=False)),
         patch("app.services.ingest_lock.release_lock", new=AsyncMock()),
@@ -82,7 +84,9 @@ async def test_run_ingestion_failure_schedules_retry():
         return MagicMock()
 
     with (
-        patch("app.api.routes.v1.ingest.AsyncSessionLocal", return_value=_FakeSessionCtx(fake_session)),
+        patch(
+            "app.api.routes.v1.ingest.AsyncSessionLocal", return_value=_FakeSessionCtx(fake_session)
+        ),
         patch("app.services.ingest_lock.expire_stale_runs", new=AsyncMock()),
         patch("app.services.ingest_lock.try_acquire_lock", new=AsyncMock(return_value=True)),
         patch("app.services.ingest_lock.release_lock", new=AsyncMock()),
@@ -109,7 +113,9 @@ async def test_run_ingestion_failure_schedules_retry():
 async def test_run_ingestion_failure_exhausted_retries_does_not_schedule():
     fake_session = _FakeAsyncSession()
     with (
-        patch("app.api.routes.v1.ingest.AsyncSessionLocal", return_value=_FakeSessionCtx(fake_session)),
+        patch(
+            "app.api.routes.v1.ingest.AsyncSessionLocal", return_value=_FakeSessionCtx(fake_session)
+        ),
         patch("app.services.ingest_lock.expire_stale_runs", new=AsyncMock()),
         patch("app.services.ingest_lock.try_acquire_lock", new=AsyncMock(return_value=True)),
         patch("app.services.ingest_lock.release_lock", new=AsyncMock()),
