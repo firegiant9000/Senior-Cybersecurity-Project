@@ -47,3 +47,17 @@ class SqlAISummaryGenerationRepository:
             )
         )
         return result.scalar_one_or_none()
+
+    async def get_last_successful_gemini(self, org_id: int) -> AISummaryGeneration | None:
+        """Return the most recent successful Gemini generation for an org, if any."""
+        result = await self._session.execute(
+            select(AISummaryGeneration)
+            .where(
+                AISummaryGeneration.org_id == org_id,
+                AISummaryGeneration.source == "gemini",
+                AISummaryGeneration.status == "success",
+            )
+            .order_by(AISummaryGeneration.generated_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()

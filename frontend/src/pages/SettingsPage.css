@@ -121,7 +121,7 @@
 .settings-sections {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 0.5rem;
 }
 
 .settings-section h2 {
@@ -130,6 +130,62 @@
   margin: 0 0 1rem;
   padding-bottom: 0.5rem;
   border-bottom: 1px solid var(--border, #334155);
+}
+
+/* Accordion header button */
+.section-accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border, #334155);
+  padding: 0.75rem 0;
+  cursor: pointer;
+  text-align: left;
+  gap: 1rem;
+}
+
+.section-accordion-header:hover {
+  border-bottom-color: var(--accent, #3b82f6);
+}
+
+.section-accordion-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1;
+}
+
+.section-accordion-title {
+  color: var(--text-primary, #e2e8f0);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.section-accordion-desc {
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.8rem;
+}
+
+.section-accordion-chevron {
+  color: var(--text-secondary, #94a3b8);
+  font-size: 1.4rem;
+  line-height: 1;
+  transition: transform 0.2s ease;
+  transform: rotate(0deg);
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.section-accordion-chevron.open {
+  transform: rotate(90deg);
+}
+
+/* Content area below the header */
+.section-accordion-body {
+  padding-top: 1.25rem;
 }
 
 .settings-field {

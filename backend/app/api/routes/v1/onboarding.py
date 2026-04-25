@@ -60,6 +60,11 @@ async def complete_onboarding(
 
         locked_user.org_id = org.id
         locked_user.org_role = str(OrgRole.OWNER)
+        # Bump global role so this user can manage their org without admin intervention.
+        # New users are created as global="viewer"; org owners need at least "member"
+        # for endpoints like PUT /organizations/{id} that gate on require_role("member").
+        if locked_user.role == "viewer":
+            locked_user.role = "member"
         session.add(
             Membership(
                 user_id=locked_user.id,

@@ -1,18 +1,33 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchVendorAlerts, VendorAlertsResponse } from '../../api/vendorAlerts';
-import { suggestVendors, type VendorSuggestion } from '../../api/vendors';
+import { createVendor, suggestVendors, type VendorSuggestion } from '../../api/vendors';
 import { useAuth } from '../../context/AuthContext';
 import SeverityBadge from '../shared/SeverityBadge';
+import InfoTip from '../shared/InfoTip';
+import './VendorAlertsTab.css';
 
 const VendorAlertsTab: React.FC = () => {
-  const { user } = useAuth();
+  const { user, orgId } = useAuth();
   const [data, setData] = useState<VendorAlertsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
   const [suggestions, setSuggestions] = useState<Record<string, VendorSuggestion[]>>({});
+  const [adding, setAdding] = useState<Record<string, 'pending' | 'added' | 'error'>>({});
   const pageSize = 20;
+
+  const handleAddVendor = async (vendorName: string, productName?: string) => {
+    if (!orgId) return;
+    setAdding((m) => ({ ...m, [vendorName]: 'pending' }));
+    try {
+      await createVendor(orgId, vendorName, productName ?? vendorName);
+      setAdding((m) => ({ ...m, [vendorName]: 'added' }));
+      load(page);
+    } catch {
+      setAdding((m) => ({ ...m, [vendorName]: 'error' }));
+    }
+  };
 
   const load = useCallback(async (p: number) => {
     if (!user) return;
@@ -79,7 +94,7 @@ const VendorAlertsTab: React.FC = () => {
             Add your technology stack in Organization Profile. We'll match your vendors against the CISA Known Exploited Vulnerabilities catalog and alert you to active threats.
           </p>
           <Link
-            to="/org-profile"
+            to="/org-profile#section-vendors"
             style={{
               display: 'inline-block',
               background: 'var(--accent, #3b82f6)',
@@ -91,7 +106,7 @@ const VendorAlertsTab: React.FC = () => {
               textDecoration: 'none',
             }}
           >
-            Add Vendors in Settings
+            Add Vendors in Technology Stack
           </Link>
         </div>
       </div>
@@ -101,37 +116,59 @@ const VendorAlertsTab: React.FC = () => {
   if (data.reason === 'no_matches') {
     return (
       <div className="tab-page">
-        <p style={{ color: '#2e7d32' }}>
-          No known exploited vulnerabilities match your vendor stack.
-        </p>
-        {data.unmatched_vendors.length > 0 && (
-          <div style={{ marginTop: 8 }}>
-            {data.unmatched_vendors.slice(0, 5).map(v => {
-              const hits = suggestions[v];
-              return (
-                <div key={v} style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>
-                  <span style={{ fontWeight: 600 }}>{v}</span>
-                  {hits && hits.length > 0
-                    ? <span style={{ marginLeft: 8, color: '#92400e' }}>
-                        — Did you mean: {hits.map((s, i) => (
-                          <span key={s.vendor_name}>
-                            {i > 0 && ', '}
-                            <strong>{s.vendor_name}</strong> ({Math.round(s.score * 100)}% match)
-                          </span>
-                        ))}?
-                      </span>
-                    : <span style={{ marginLeft: 8 }}>— not found in KEV catalog</span>
-                  }
-                </div>
-              );
-            })}
-            {data.unmatched_vendors.length > 5 && (
-              <p style={{ fontSize: 12, color: '#9ca3af' }}>
-                +{data.unmatched_vendors.length - 5} more unmatched
-              </p>
-            )}
-          </div>
-        )}
+        <div className="overview-toolbar" style={{ marginBottom: '1rem' }}>
+          <Link to="/org-profile#section-vendors" style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'underline' }}>
+            Manage Vendors →
+          </Link>
+        </div>
+        <div className="vendor-no-matches-card">
+          <span className="vendor-no-matches-icon">✅</span>
+          <p className="vendor-no-matches-title">No active threats for your stack</p>
+          <p className="vendor-no-matches-sub">
+            None of your vendors appear in CISA's Known Exploited Vulnerabilities catalog right now. Check back after the next data refresh.
+          </p>
+          {data.unmatched_vendors.length > 0 && (
+            <div className="vendor-unmatched-list">
+              <p className="vendor-unmatched-heading">Unmatched vendors (not found in KEV catalog):</p>
+              {data.unmatched_vendors.slice(0, 5).map(v => {
+                const hits = suggestions[v];
+                return (
+                  <div key={v} className="vendor-unmatched-row">
+                    <span className="vendor-unmatched-name">{v}</span>
+                    {hits && hits.length > 0
+                      ? <span className="vendor-unmatched-suggestion">
+                          — Did you mean: {hits.map((s, i) => {
+                            const state = adding[s.vendor_name];
+                            return (
+                              <span key={s.vendor_name}>
+                                {i > 0 && ', '}
+                                <strong>{s.vendor_name}</strong> ({Math.round(s.score * 100)}%)
+                                {state === 'added'
+                                  ? <span className="vendor-add-btn vendor-add-btn--done"> ✓ Added</span>
+                                  : (
+                                    <button
+                                      className="vendor-add-btn"
+                                      disabled={state === 'pending' || !orgId}
+                                      onClick={() => handleAddVendor(s.vendor_name)}
+                                    >
+                                      {state === 'pending' ? 'Adding…' : state === 'error' ? 'Retry' : '+ Add'}
+                                    </button>
+                                  )}
+                              </span>
+                            );
+                          })}?
+                        </span>
+                      : <span className="vendor-unmatched-none">— not in KEV catalog</span>
+                    }
+                  </div>
+                );
+              })}
+              {data.unmatched_vendors.length > 5 && (
+                <p className="vendor-unmatched-more">+{data.unmatched_vendors.length - 5} more</p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -145,9 +182,12 @@ const VendorAlertsTab: React.FC = () => {
         <button className="overview-refresh-btn" onClick={() => load(page)} disabled={loading}>
           {loading ? 'Refreshing...' : 'Refresh'}
         </button>
+        <Link to="/org-profile#section-vendors" style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'underline' }}>
+          Manage Vendors →
+        </Link>
         {data.kev_last_ingest_at && (
           <span className="overview-last-updated">
-            KEV data as of: {new Date(data.kev_last_ingest_at).toLocaleDateString()}
+            KEV<InfoTip text="Known Exploited Vulnerabilities — CISA's catalog of CVEs actively being exploited." /> data as of: {new Date(data.kev_last_ingest_at).toLocaleDateString()}
           </span>
         )}
       </div>
@@ -163,14 +203,14 @@ const VendorAlertsTab: React.FC = () => {
       </div>
 
       {data.unmatched_vendors.length > 0 && (
-        <div style={{ color: '#6b7280', fontSize: 13, marginBottom: '0.75rem' }}>
+        <div className="vendor-unmatched-list vendor-unmatched-list--inline">
           {data.unmatched_vendors.slice(0, 5).map(v => {
             const hits = suggestions[v];
             return (
-              <div key={v} style={{ marginBottom: 2 }}>
-                <span style={{ fontWeight: 600 }}>{v}</span>
+              <div key={v} className="vendor-unmatched-row">
+                <span className="vendor-unmatched-name">{v}</span>
                 {hits && hits.length > 0
-                  ? <span style={{ marginLeft: 6, color: '#92400e' }}>
+                  ? <span className="vendor-unmatched-suggestion">
                       — Did you mean: {hits.map((s, i) => (
                         <span key={s.vendor_name}>
                           {i > 0 && ', '}
@@ -178,13 +218,13 @@ const VendorAlertsTab: React.FC = () => {
                         </span>
                       ))}?
                     </span>
-                  : <span style={{ marginLeft: 6 }}>— no KEV match</span>
+                  : <span className="vendor-unmatched-none">— no KEV match</span>
                 }
               </div>
             );
           })}
           {data.unmatched_vendors.length > 5 && (
-            <span>+{data.unmatched_vendors.length - 5} more unmatched vendors</span>
+            <p className="vendor-unmatched-more">+{data.unmatched_vendors.length - 5} more unmatched</p>
           )}
         </div>
       )}
@@ -193,19 +233,19 @@ const VendorAlertsTab: React.FC = () => {
       <div className="table-scroll-wrapper">
       <table className="tab-table">
         <thead>
-          <tr style={{ borderBottom: '2px solid #e5e7eb', textAlign: 'left' }}>
-            <th style={{ padding: '6px 8px' }}>CVE ID</th>
+          <tr style={{ borderBottom: '2px solid var(--border)', textAlign: 'left' }}>
+            <th style={{ padding: '6px 8px' }}>CVE ID<InfoTip text="CVE (Common Vulnerabilities and Exposures) — a unique ID for a known security flaw" /></th>
             <th style={{ padding: '6px 8px' }}>Vendor</th>
             <th style={{ padding: '6px 8px' }}>Product</th>
             <th style={{ padding: '6px 8px' }}>Severity</th>
-            <th style={{ padding: '6px 8px' }}>CVSS</th>
+            <th style={{ padding: '6px 8px' }}>CVSS<InfoTip text="CVSS (Common Vulnerability Scoring System) — severity score from 0–10" /></th>
             <th style={{ padding: '6px 8px' }}>Risk Score</th>
             <th style={{ padding: '6px 8px' }}>Date Added</th>
           </tr>
         </thead>
         <tbody>
           {data.items.map((item) => (
-            <tr key={`${item.cve_id}-${item.vendor_name}-${item.kev_product}`} style={{ borderBottom: '1px solid #f3f4f6' }}>
+            <tr key={`${item.cve_id}-${item.vendor_name}-${item.kev_product}`} style={{ borderBottom: '1px solid var(--border)' }}>
               <td style={{ padding: '6px 8px', fontFamily: 'monospace' }}>{item.cve_id}</td>
               <td style={{ padding: '6px 8px' }}>{item.vendor_name}</td>
               <td style={{ padding: '6px 8px' }}>{item.kev_product}</td>

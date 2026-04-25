@@ -15,6 +15,7 @@ from app.api.routes.v1 import (
     nvd,
     onboarding,
     organizations,
+    public,
     uploads,
     vendors,
     vulnerabilities,
@@ -26,6 +27,9 @@ router = APIRouter()
 # Health and auth routes remain public.
 router.include_router(health.router, tags=["health"])
 router.include_router(auth.router)
+
+# Public aggregate stats for logged-out landing page.
+router.include_router(public.router, tags=["public"])
 
 # All data-read routers require at least the "viewer" role.
 _viewer = [Depends(require_role("viewer"))]

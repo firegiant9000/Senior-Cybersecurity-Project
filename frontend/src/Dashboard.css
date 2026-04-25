@@ -3,15 +3,15 @@
     --bg:               #f0f2f5;
     --card-bg:          #ffffff;
     --text-primary:     #333;
-    --text-secondary:   #555;
-    --text-muted:       #6b7280;
-    --border:           #eee;
+    --text-secondary:   #475569;
+    --text-muted:       #374151;
+    --border:           #cbd2da;
     --header-bg:        #0b1060;
     --tabs-bg:          #ffffff;
-    --tab-hover-bg:     #f5f6ff;
+    --tab-hover-bg:     #e8eaff;
     --tab-active-bg:    #eef0ff;
     --tab-active-color: #0b1060;
-    --table-head-bg:    #f5f5f5;
+    --table-head-bg:    #e9eaec;
     --table-row-hover:  #f9f9f9;
     --widget-title:     #0b1060;
     --accent:           #0b1060;
@@ -19,13 +19,13 @@
     --color-critical:   #d32f2f;
     --color-high:       #f57c00;
     --color-moderate:   #fbc02d;
-    --color-moderate-text: #92400e;
+    --color-moderate-text: #7c2d12;
     --color-low:        #388e3c;
     --error-bg:         #ffebee;
     --error-text:       #d32f2f;
-    --warn-bg:          #fffbeb;
-    --warn-border:      #f59e0b;
-    --warn-text:        #92400e;
+    --warn-bg:          #fef3c7;
+    --warn-border:      #d97706;
+    --warn-text:        #78350f;
 }
 
 [data-theme="dark"] {
@@ -462,7 +462,7 @@
     width: 100%;
     height: 100%;
     min-height: 80px;
-    color: #6b7280;
+    color: var(--text-muted);
 }
 
 .widget-error-icon {
@@ -519,9 +519,9 @@
 }
 
 .freshness-item.freshness-stale {
-    background: #fffbeb;
-    color: #92400e;
-    border-color: #fcd34d;
+    background: var(--warn-bg);
+    color: var(--warn-text);
+    border-color: var(--warn-border);
 }
 
 .freshness-item.freshness-unknown {
@@ -534,6 +534,15 @@
     background: #14532d;
     color: #86efac;
     border-color: #166534;
+}
+
+/* In dark mode, keep the text color uniform across all freshness states.
+   Background tint + status icon (⚠ ○) still differentiate them. */
+[data-theme="dark"] .freshness-item.freshness-failed,
+[data-theme="dark"] .freshness-item.freshness-error,
+[data-theme="dark"] .freshness-item.freshness-stale,
+[data-theme="dark"] .freshness-item.freshness-unknown {
+    color: #e2e8f0;
 }
 
 /* Overview toolbar + partial errors → components/dashboard/OverviewTab.css */
@@ -1026,7 +1035,7 @@
 }
 
 .filter-group input::placeholder {
-    color: #6b7280;
+    color: var(--text-muted);
 }
 
 .filter-group select {
@@ -1347,7 +1356,7 @@
 
 .heatmap-note {
     font-size: 10px;
-    color: #6b7280;
+    color: var(--text-muted);
     margin: 0;
     text-align: right;
 }

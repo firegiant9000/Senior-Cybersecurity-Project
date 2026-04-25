@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { fetchIngestFreshness, type SourceFreshness } from '../../api/ingest';
 
 const SOURCE_LABELS: Record<string, string> = {
-  cisa_kev: 'CISA KEV',
-  nvd:      'NVD',
-  ic3:      'IC3',
-  econ:     'Economics',
+  cisa_kev:   'CISA KEV',
+  nvd:        'NVD',
+  ic3:        'IC3',
+  econ:       'Economics',
+  economics:  'Economics',
+  epss:       'EPSS',
 };
 
 const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;

@@ -177,6 +177,29 @@
     color: var(--text-muted);
     font-style: italic;
 }
+.smb-profile-display {
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+}
+.smb-profile-display-item {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.smb-profile-display-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.smb-profile-display-value {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
 
 /* Risk grade card */
 .smb-risk-grade-card {

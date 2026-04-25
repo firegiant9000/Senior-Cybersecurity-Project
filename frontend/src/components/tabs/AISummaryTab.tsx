@@ -11,6 +11,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useUserContext } from '../../context/UserContext';
 import DisclaimerBanner from '../shared/DisclaimerBanner';
+import InfoTip from '../shared/InfoTip';
 import './AISummaryTab.css';
 
 function riskClass(label: string): string {
@@ -160,18 +161,31 @@ const AISummaryTab: React.FC = () => {
   }
 
   if (error) {
-    const isIncomplete = error.includes('incomplete');
-    const isDisabled = error.includes('disabled');
+    const lower = error.toLowerCase();
+    const isIncomplete =
+      lower.includes('incomplete') ||
+      lower.includes('enhanced tier') ||
+      (lower.includes('profile') && (lower.includes('required') || lower.includes('missing'))) ||
+      lower.includes('no vendor') ||
+      lower.includes('no domain');
+    const isDisabled = lower.includes('disabled') || lower.includes('not enabled');
     return (
       <div className="tab-page">
         <div className="ai-summary-error-card">
           {isIncomplete ? (
             <>
               <span className="ai-summary-error-icon">{'\ud83d\udccb'}</span>
-              <p className="ai-summary-error-title">Profile Incomplete</p>
+              <p className="ai-summary-error-title">Setup Required</p>
               <p className="ai-summary-error-detail">
-                Complete all required fields in your organization profile before generating a summary.
+                Complete these steps to unlock your AI Executive Summary:
               </p>
+              <ul className="ai-summary-setup-checklist">
+                <li>Organization name</li>
+                <li>Industry &amp; state</li>
+                <li>At least one vendor (Technology Stack)</li>
+                <li>At least one domain</li>
+                <li>At least one security question answered</li>
+              </ul>
               <Link to="/org-profile" className="ai-summary-error-action">
                 Complete Profile
               </Link>
@@ -187,8 +201,13 @@ const AISummaryTab: React.FC = () => {
           ) : (
             <>
               <span className="ai-summary-error-icon">{'\u26a0'}</span>
-              <p className="ai-summary-error-title">Failed to Generate Summary</p>
-              <p className="ai-summary-error-detail">{error}</p>
+              <p className="ai-summary-error-title">Couldn't Generate Summary</p>
+              <p className="ai-summary-error-detail">
+                The AI service didn't respond. This is usually a temporary hiccup — give it another try in a moment.
+              </p>
+              <p className="ai-summary-error-detail" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                Details: {error}
+              </p>
               <button className="ai-summary-error-action" onClick={load}>
                 Retry
               </button>
@@ -238,6 +257,7 @@ const AISummaryTab: React.FC = () => {
             ) : (
               <span className="ai-badge ai-badge--template">Template-Based</span>
             )}
+            <InfoTip text="This summary was written by an AI model based on your findings data. Review before sharing externally." />
             {data.cached && (
               <span className="ai-badge ai-badge--cached">Cached</span>
             )}
@@ -275,11 +295,11 @@ const AISummaryTab: React.FC = () => {
       {/* Risk score card + posture statement */}
       <div className="ai-summary-metrics">
         <div className={`ai-summary-risk-card ${riskClass(data.risk_label)}`}>
-          <span className="ai-summary-risk-score">{data.risk_score.toFixed(0)}</span>
-          <span className="ai-summary-risk-label">{data.risk_label} Risk</span>
+          <span className="ai-summary-risk-score">{(data.risk_score ?? 0).toFixed(0)}</span>
+          <span className="ai-summary-risk-label">{data.risk_label ?? 'Unknown'} Risk</span>
         </div>
         <div className="ai-summary-metric">
-          <span className="ai-summary-metric-value">{data.findings_count}</span>
+          <span className="ai-summary-metric-value">{data.findings_count ?? 0}</span>
           <span className="ai-summary-metric-label">Findings Analyzed</span>
         </div>
         {data.model_used && (
@@ -301,7 +321,7 @@ const AISummaryTab: React.FC = () => {
       {/* Narrative */}
       <div className="ai-summary-narrative-card">
         <div className="ai-summary-narrative">
-          {data.narrative.split('\n').map((paragraph, i) => {
+          {(data.narrative ?? '').split('\n').map((paragraph, i) => {
             const trimmed = paragraph.trim();
             if (!trimmed) return null;
             return <p key={i}>{trimmed}</p>;

@@ -182,7 +182,13 @@ async def suggest_vendors(
         .order_by(sa_func.similarity(KEV.vendor, q).desc(), KEV.vendor.asc())
         .limit(5)
     )
-    result = await session.execute(stmt)
+    try:
+        result = await session.execute(stmt)
+    except SQLAlchemyError:
+        # pg_trgm extension may be missing on the DB; fail soft so the UI
+        # doesn't break and the browser doesn't surface this as CORS.
+        logger.warning("vendor suggest failed (pg_trgm missing?)", exc_info=True)
+        return []
     return [
         {"vendor_name": row.vendor_name, "score": round(float(row.score), 3)}
         for row in result.all()

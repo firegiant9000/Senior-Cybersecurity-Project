@@ -100,6 +100,28 @@
   text-decoration: none;
 }
 
+.findings-setup-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text-secondary, #555);
+}
+
+.findings-setup-checklist li {
+  padding: 3px 0 3px 22px;
+  position: relative;
+  line-height: 1.5;
+}
+
+.findings-setup-checklist li::before {
+  content: '☐';
+  position: absolute;
+  left: 0;
+  color: var(--accent, #0b1060);
+}
+
 .findings-error-action:hover,
 .findings-empty-action:hover {
   background: var(--accent-hover, #1a2080);
