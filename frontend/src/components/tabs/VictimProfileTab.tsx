@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useCallback, useEffect } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList,
 } from 'recharts';
 import { useVictimData } from '../../hooks/useVictimData';
+import { useRefreshProgress } from '../../hooks/useRefreshProgress';
+import RefreshButton from '../RefreshButton';
 import WidgetSkeleton from '../shared/WidgetSkeleton';
 import WidgetErrorBoundary from '../shared/WidgetErrorBoundary';
 import { COLORS } from '../../theme';
@@ -19,7 +21,25 @@ function truncate(str: string, max = 22): string {
 }
 
 const VictimProfileTab: React.FC = () => {
-  const { data, loading, errors, refresh } = useVictimData();
+  const { data, loading, errors, refresh, setOnProgress } = useVictimData();
+  const progressState = useRefreshProgress();
+
+  // Register progress callback
+  useEffect(() => {
+    setOnProgress?.(progressState.markItemComplete);
+  }, [setOnProgress, progressState.markItemComplete]);
+
+  // Reset progress when loading completes
+  useEffect(() => {
+    if (!loading && progressState.isActive) {
+      progressState.reset();
+    }
+  }, [loading, progressState]);
+
+  const handleRefresh = useCallback(() => {
+    progressState.start(['Attack types', 'Industry risk']);
+    refresh();
+  }, [refresh, progressState]);
 
   const topLossByAttack = [...data.attackTypes]
     .sort((a, b) => b.total_loss - a.total_loss)
@@ -39,7 +59,13 @@ const VictimProfileTab: React.FC = () => {
   return (
     <div className="tab-page">
       <div className="overview-toolbar">
-        <button className="overview-refresh-btn" onClick={refresh}>↻ Refresh</button>
+        <RefreshButton
+          onClick={handleRefresh}
+          loading={loading}
+          items={progressState.items}
+          progress={progressState.progress}
+          label="Refresh"
+        />
         <span style={{ fontSize: 12, color: 'var(--text-muted, #6b7280)' }}>
           Based on IC3 complaint data — no individual victim data is stored.
         </span>

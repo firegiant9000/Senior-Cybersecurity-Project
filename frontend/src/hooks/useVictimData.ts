@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { fetchAttackTypes, fetchIndustryRisk, type AttackTypeStats, type IndustryRiskProfile } from '../api/dashboardSummary'
 
 export interface VictimData {
@@ -11,6 +11,7 @@ export interface UseVictimResult {
   loading: boolean
   errors: string[]
   refresh: () => void
+  setOnProgress?: (callback: (itemName: string) => void) => void
 }
 
 function settled<T>(p: Promise<T>): Promise<PromiseSettledResult<T>> {
@@ -25,7 +26,17 @@ export function useVictimData(): UseVictimResult {
   const [loading, setLoading] = useState(true)
   const [errors, setErrors] = useState<string[]>([])
   const [refreshKey, setRefreshKey] = useState(0)
+  const onProgressRef = useRef<((itemName: string) => void) | undefined>()
+
   const refresh = useCallback(() => setRefreshKey(k => k + 1), [])
+
+  const setOnProgress = useCallback((callback: (itemName: string) => void) => {
+    onProgressRef.current = callback
+  }, [])
+
+  const trackProgress = (label: string) => {
+    onProgressRef.current?.(label)
+  }
 
   useEffect(() => {
     const controller = new AbortController()
@@ -34,8 +45,8 @@ export function useVictimData(): UseVictimResult {
     setErrors([])
 
     Promise.all([
-      settled(fetchAttackTypes(signal)),
-      settled(fetchIndustryRisk(signal)),
+      settled(fetchAttackTypes(signal)).then(r => { trackProgress('Attack types'); return r; }),
+      settled(fetchIndustryRisk(signal)).then(r => { trackProgress('Industry risk'); return r; }),
     ]).then(([attackR, industryR]) => {
       if (signal.aborted) return
       const errs: string[] = []
@@ -60,5 +71,5 @@ export function useVictimData(): UseVictimResult {
     return () => controller.abort()
   }, [refreshKey])
 
-  return { data, loading, errors, refresh }
+  return { data, loading, errors, refresh, setOnProgress }
 }

@@ -11,7 +11,7 @@
  * `loadingHeavy` is true during wave 2 (wave 1 already resolved).
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import {
   fetchDashboardSummary,
@@ -68,6 +68,7 @@ export interface UseDashboardDataResult {
   errors:       string[]
   lastUpdated:  Date | null
   refresh:      () => void
+  setOnProgress?: (callback: (itemName: string) => void) => void
 }
 
 const EMPTY_DATA: DashboardData = {
@@ -115,8 +116,13 @@ export function useDashboardData(): UseDashboardDataResult {
   const [errors,       setErrors]       = useState<string[]>([])
   const [lastUpdated,  setLastUpdated]  = useState<Date | null>(null)
   const [refreshKey,   setRefreshKey]   = useState(0)
+  const onProgressRef = useRef<((itemName: string) => void) | undefined>()
 
   const refresh = useCallback(() => setRefreshKey(k => k + 1), [])
+
+  const setOnProgress = useCallback((callback: (itemName: string) => void) => {
+    onProgressRef.current = callback
+  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -128,6 +134,10 @@ export function useDashboardData(): UseDashboardDataResult {
 
     const t = <T>(p: Promise<T>, label: string) =>
       settled(withTimeout(p, TIMEOUT_MS, label))
+
+    const trackProgress = (label: string) => {
+      onProgressRef.current?.(label)
+    }
 
     const collectErrors = (results: PromiseSettledResult<unknown>[], labels: string[]): string[] => {
       const errs: string[] = []
@@ -144,14 +154,14 @@ export function useDashboardData(): UseDashboardDataResult {
 
     // ── Wave 1: fast endpoints that drive the stat cards ─────────────────────
     Promise.all([
-      t(fetchDashboardSummary(signal),     'Dashboard summary'),
-      t(fetchAttackTypes(signal),          'Attack types'),
-      t(fetchSeverityDistribution(signal), 'Severity distribution'),
-      t(fetchTemporalTrends(signal),       'Temporal trends'),
-      t(fetchKevTotal(signal),             'KEV total'),
-      t(fetchExecutiveSummary(signal),     'Executive summary'),
-      t(fetchLossProjection(signal),       'Loss projection'),
-      t(fetchRiskScoreStats(signal),       'Risk score stats'),
+      t(fetchDashboardSummary(signal),     'Dashboard summary').then(r => { trackProgress('Dashboard summary'); return r; }),
+      t(fetchAttackTypes(signal),          'Attack types').then(r => { trackProgress('Attack types'); return r; }),
+      t(fetchSeverityDistribution(signal), 'Severity distribution').then(r => { trackProgress('Severity distribution'); return r; }),
+      t(fetchTemporalTrends(signal),       'Temporal trends').then(r => { trackProgress('Temporal trends'); return r; }),
+      t(fetchKevTotal(signal),             'KEV total').then(r => { trackProgress('KEV total'); return r; }),
+      t(fetchExecutiveSummary(signal),     'Executive summary').then(r => { trackProgress('Executive summary'); return r; }),
+      t(fetchLossProjection(signal),       'Loss projection').then(r => { trackProgress('Loss projection'); return r; }),
+      t(fetchRiskScoreStats(signal),       'Risk score stats').then(r => { trackProgress('Risk score stats'); return r; }),
     ]).then(([summaryR, attackR, severityR, trendsR, kevR, execR, lossR, riskR]) => {
       if (signal.aborted) return
 
@@ -186,11 +196,11 @@ export function useDashboardData(): UseDashboardDataResult {
 
       // ── Wave 2: heavy endpoints loaded in the background ───────────────────
       Promise.all([
-        t(fetchGeographicHeatmap(signal),       'Geographic heatmap'),
-        t(fetchSectorAttackMatrix(signal),      'Sector attack matrix'),
-        t(fetchIndustryRisk(signal),            'Industry risk'),
-        t(fetchIC3AnomalyCount(signal),         'IC3 anomalies'),
-        t(fetchEscalatingSectorCount(signal),   'Escalating sectors'),
+        t(fetchGeographicHeatmap(signal),       'Geographic heatmap').then(r => { trackProgress('Geographic heatmap'); return r; }),
+        t(fetchSectorAttackMatrix(signal),      'Sector attack matrix').then(r => { trackProgress('Sector attack matrix'); return r; }),
+        t(fetchIndustryRisk(signal),            'Industry risk').then(r => { trackProgress('Industry risk'); return r; }),
+        t(fetchIC3AnomalyCount(signal),         'IC3 anomalies').then(r => { trackProgress('IC3 anomalies'); return r; }),
+        t(fetchEscalatingSectorCount(signal),   'Escalating sectors').then(r => { trackProgress('Escalating sectors'); return r; }),
       ]).then(([geoR, matrixR, industryR, anomalyR, escalatingR]) => {
         if (signal.aborted) return
 
@@ -224,5 +234,5 @@ export function useDashboardData(): UseDashboardDataResult {
     return () => controller.abort()
   }, [refreshKey, user?.uid])
 
-  return { data, loading, loadingHeavy, errors, lastUpdated, refresh }
+  return { data, loading, loadingHeavy, errors, lastUpdated, refresh, setOnProgress }
 }
