@@ -52,6 +52,7 @@ const InfoTip: React.FC<InfoTipProps> = ({ text, label }) => {
         position: 'relative',
         display: 'inline-flex',
         alignItems: 'center',
+        verticalAlign: 'middle',
         pointerEvents: 'auto',
       }}
       onMouseEnter={() => setOpen(true)}
@@ -77,6 +78,7 @@ const InfoTip: React.FC<InfoTipProps> = ({ text, label }) => {
           border: 'none',
           padding: 0,
           lineHeight: 1,
+          verticalAlign: 'middle',
           pointerEvents: 'auto',
         }}
       >
