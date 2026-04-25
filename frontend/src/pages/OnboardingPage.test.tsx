@@ -115,7 +115,7 @@ describe("OnboardingPage", () => {
         expect.objectContaining({ method: "POST" }),
       );
       expect(mockOnComplete).toHaveBeenCalled();
-      expect(mockNavigate).toHaveBeenCalledWith("/");
+      expect(mockNavigate).toHaveBeenCalledWith("/dashboard");
     });
   });
 

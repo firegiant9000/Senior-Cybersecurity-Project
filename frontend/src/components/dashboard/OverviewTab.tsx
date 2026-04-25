@@ -26,6 +26,7 @@ import { canSeePipeline as checkCanSeePipeline } from '../../utils/roleUtils';
 import WidgetSkeleton from '../shared/WidgetSkeleton';
 import AssessmentBanner from '../shared/AssessmentBanner';
 import { COLORS } from '../../theme';
+import InfoTip, { getAcronymDefinition } from '../shared/InfoTip';
 
 function fmtMoney(v: number): string {
   if (v >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(1)}B`;
@@ -39,7 +40,9 @@ function truncate(str: string, max = 22): string {
 }
 
 const VICTIM_BADGE = (
-    <span className="victim-impact-badge">IC3 Victim Financial Impact</span>
+    <span className="victim-impact-badge">
+      IC3<InfoTip text={getAcronymDefinition('IC3')!} label="IC3" /> Victim Financial Impact
+    </span>
 );
 
 const OVERVIEW_WIDGETS = [
@@ -376,7 +379,9 @@ function renderGridWidget(
                             <span className="stat-chart-value" style={{ color: '#3f51b5' }}>
                                 {dashboardLoading ? '—' : (totalNvdCves > 0 ? totalNvdCves.toLocaleString() : '—')}
                             </span>
-                            <span className="stat-chart-note">in NVD database</span>
+                            <span className="stat-chart-note">
+                              in NVD<InfoTip text={getAcronymDefinition('NVD')!} label="NVD" /> database
+                            </span>
                         </div>
                         {!dashboardLoading && visibleSevs.length > 0 && (
                             <>
@@ -825,29 +830,33 @@ const OverviewTab: React.FC<Props> = ({
             {/* Toolbar */}
             <div className="overview-toolbar-wrapper">
                 <div className="overview-toolbar">
-                    <DataFreshness />
-                    <button
-                        ref={gearRef}
-                        className="overview-customize-btn"
-                        aria-label="Customize widgets"
-                        title="Customize widgets"
-                        onClick={() => setShowCustomize((v) => !v)}
-                    >
-                        ⚙
-                    </button>
-                    <button className="overview-refresh-btn" onClick={() => { refresh(); setFreshnessRevision((r) => r + 1); }}>
-                        ↻ Refresh
-                    </button>
-                    {lastUpdated && (
-                        <span className="overview-last-updated">
-                            Updated {formatTimeWithTz(lastUpdated)}
-                        </span>
-                    )}
-                    {!pipelineVisible && lastIngestAt && (
-                        <span className="overview-last-updated" style={{ marginLeft: 'auto' }}>
-                            Data last refreshed: {formatDateWithTz(lastIngestAt)}
-                        </span>
-                    )}
+                    <div className="overview-toolbar-actions">
+                        <button
+                            ref={gearRef}
+                            className="overview-customize-btn"
+                            aria-label="Customize dashboard tabs"
+                            title="Customize dashboard tabs"
+                            onClick={() => setShowCustomize((v) => !v)}
+                        >
+                            ⚙ <span className="overview-customize-btn-label">Tabs</span>
+                        </button>
+                        <button className="overview-refresh-btn" onClick={() => { refresh(); setFreshnessRevision((r) => r + 1); }}>
+                            ↻ Refresh
+                        </button>
+                        {lastUpdated && (
+                            <span className="overview-last-updated">
+                                Updated {formatTimeWithTz(lastUpdated)}
+                            </span>
+                        )}
+                    </div>
+                    <div className="overview-toolbar-status">
+                        <DataFreshness />
+                        {!pipelineVisible && lastIngestAt && (
+                            <span className="overview-last-updated overview-last-updated--ingest">
+                                Data as of: {formatDateWithTz(lastIngestAt)}
+                            </span>
+                        )}
+                    </div>
                 </div>
 
                 {showCustomize && (

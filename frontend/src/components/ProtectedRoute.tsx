@@ -28,7 +28,7 @@ export default function ProtectedRoute({ children, requireOrg = true }: { childr
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
 
   // If profile fetch failed, show error instead of wrongly redirecting

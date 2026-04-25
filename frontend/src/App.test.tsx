@@ -38,7 +38,7 @@ describe('App', () => {
     expect(document.body).toBeTruthy()
   })
 
-  it('shows login page when unauthenticated', async () => {
+  it('shows landing page when unauthenticated at root', async () => {
     render(
       <MemoryRouter initialEntries={['/']}>
         <AuthProvider>
@@ -47,8 +47,7 @@ describe('App', () => {
       </MemoryRouter>
     )
 
-    expect(await screen.findByRole('heading', { name: /cyber threat intelligence/i })).toBeInTheDocument()
-    expect(screen.getByText(/sign in to your account/i)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /know your cyber risk/i })).toBeInTheDocument()
     expect(screen.queryByTestId('dashboard')).not.toBeInTheDocument()
   })
 })

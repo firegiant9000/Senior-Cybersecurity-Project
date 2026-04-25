@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useUserContext } from '../../context/UserContext';
 import './SmBAdvisorTab.css';
 import DisclaimerBanner from '../shared/DisclaimerBanner';
+import InfoTip from '../shared/InfoTip';
 import { SMB_ADVISOR_DISCLAIMER } from '../../constants/disclaimers';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
@@ -21,14 +22,6 @@ import { fetchSmbRiskScore, type SmbRiskScore } from '../../api/smbRiskScore';
 import WidgetSkeleton from '../shared/WidgetSkeleton';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const US_STATES = [
-  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA',
-  'HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
-  'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
-  'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
-  'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC',
-];
 
 const STATE_NAMES: Record<string, string> = {
   AL:'Alabama', AK:'Alaska', AZ:'Arizona', AR:'Arkansas', CA:'California',
@@ -424,7 +417,7 @@ function CostEstimateCard({ sectorProfile, allSectors, loading }: {
               }
             </p>
             <p className="smb-cost-note">
-              These figures come from FBI IC3 complaint data and represent direct financial losses. Recovery costs, downtime, and reputational damage can add significantly more.
+              These figures come from FBI IC3<InfoTip text="IC3 (Internet Crime Complaint Center) — FBI's cybercrime reporting database" /> complaint data and represent direct financial losses. Recovery costs, downtime, and reputational damage can add significantly more.
             </p>
           </div>
         </>
@@ -708,7 +701,13 @@ function OrgRiskScoreCard() {
   return (
     <div className="card smb-org-risk-card">
       <h3 className="smb-section-title">🎯 Your Organization's Risk Score</h3>
-      <p className="smb-section-sub">Calculated from your org's industry and employee range</p>
+      <p className="smb-section-sub">
+        Calculated from your org's industry and employee range.{' '}
+        <Link to="/org-profile" style={{ color: 'var(--accent)', textDecoration: 'underline', fontSize: 'inherit' }}>
+          Update profile
+        </Link>{' '}
+        to recalculate — this card reflects your saved settings, not the dropdowns above.
+      </p>
       {loading ? (
         <WidgetSkeleton />
       ) : !data ? null : (
@@ -723,7 +722,7 @@ function OrgRiskScoreCard() {
             <div className="smb-org-risk-label" style={{ color: scoreColor(data.score) }}>
               {scoreLabel(data.score)} Risk
             </div>
-            <div className="smb-org-risk-scale">out of 100</div>
+            <div className="smb-org-risk-scale">out of 100<InfoTip text="Risk score from 0–100. Higher = more exposure based on your industry and size." /></div>
           </div>
 
           <div className="smb-org-risk-breakdown">
@@ -824,7 +823,7 @@ const SmBAdvisorTab: React.FC = () => {
       {/* Header Banner */}
       <div className="smb-hero">
         <div className="smb-hero-text">
-          <h2 className="smb-hero-title">SMB Risk Advisor</h2>
+          <h2 className="smb-hero-title">SMB Risk Advisor<InfoTip text="SMB (Small and Medium-Sized Business) — typically defined as businesses with fewer than 500 employees" /></h2>
           <p className="smb-hero-sub">
             Personalized cybersecurity insights for small business owners — in plain English, no technical jargon.
           </p>
@@ -836,55 +835,45 @@ const SmBAdvisorTab: React.FC = () => {
         <div className="overview-partial-errors">⚠ {error}</div>
       )}
 
-      {/* Profile Selector */}
+      {/* Profile Context — read-only; driven by saved org profile */}
       <div className="card smb-profile-card">
-        <h3 className="smb-profile-title">Tell us about your business</h3>
-        <p className="smb-profile-sub">Your answers personalize the risk data shown below.</p>
-        <div className="smb-profile-selectors">
-          <div className="smb-selector-group">
-            <label className="smb-selector-label" htmlFor="sector-select">🏢 Your Industry</label>
-            <select
-              id="sector-select"
-              className="trends-select smb-select"
-              value={selectedSector}
-              onChange={e => setSelectedSector(e.target.value)}
-            >
-              <option value="">— Select your industry —</option>
-              {loading && sectors.length === 0 ? (
-                <option disabled>Loading…</option>
-              ) : (
-                sectors.map(s => <option key={s} value={s}>{s}</option>)
-              )}
-            </select>
+        <h3 className="smb-profile-title">Your Risk Profile</h3>
+        <p className="smb-profile-sub">Risk data below is personalized to your organization's saved industry and state.</p>
+        <div className="smb-profile-display">
+          <div className="smb-profile-display-item">
+            <span className="smb-profile-display-label">🏢 Industry</span>
+            <span className="smb-profile-display-value">
+              {selectedSector || (loading ? '—' : 'Not set')}
+            </span>
           </div>
-          <div className="smb-selector-group">
-            <label className="smb-selector-label" htmlFor="state-select">📍 Your State</label>
-            <select
-              id="state-select"
-              className="trends-select smb-select"
-              value={selectedState}
-              onChange={e => setSelectedState(e.target.value)}
-            >
-              <option value="">— Select your state —</option>
-              {US_STATES.map(s => (
-                <option key={s} value={s}>{STATE_NAMES[s]} ({s})</option>
-              ))}
-            </select>
+          <div className="smb-profile-display-item">
+            <span className="smb-profile-display-label">📍 State</span>
+            <span className="smb-profile-display-value">
+              {selectedState ? `${STATE_NAMES[selectedState] ?? selectedState} (${selectedState})` : (loading ? '—' : 'Not set')}
+            </span>
           </div>
         </div>
-        {!selectedSector && !loading && (
-          <p className="smb-profile-hint">👆 Select your industry above to unlock your personalized risk profile.</p>
-        )}
-        {!loading && (
-          <p className="smb-profile-hint" style={{ marginTop: 6 }}>
-            💡 Set your industry and state in{' '}
-            <Link to="/org-profile" style={{ color: 'var(--accent, #3b82f6)', textDecoration: 'underline' }}>
-              Organization Profile
+        {(!selectedSector || !selectedState) && !loading && (
+          <p className="smb-profile-hint">
+            ⚙️ Industry or state not configured.{' '}
+            <Link to="/org-profile" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>
+              Update Organization Profile
             </Link>{' '}
-            so your risk score is always pre-calculated against your actual profile.
+            to unlock your full personalized risk report.
+          </p>
+        )}
+        {selectedSector && selectedState && !loading && (
+          <p className="smb-profile-hint" style={{ marginTop: 4 }}>
+            <Link to="/org-profile" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>
+              Update Organization Profile
+            </Link>{' '}
+            to change your industry or state.
           </p>
         )}
       </div>
+
+      {/* Action Plan — shown early so SMB users see their next steps immediately */}
+      <ActionPlanCard topThreats={sectorThreats} loading={loading} />
 
       {/* Org-level parameterized risk score */}
       <OrgRiskScoreCard />
@@ -905,9 +894,6 @@ const SmBAdvisorTab: React.FC = () => {
         allStates={data.geographicThreats}
         loading={loading}
       />
-
-      {/* Action Plan */}
-      <ActionPlanCard topThreats={sectorThreats} loading={loading} />
 
       {/* Footer disclaimer */}
       <DisclaimerBanner disclaimerBlock={SMB_ADVISOR_DISCLAIMER} variant="full" className="smb-disclaimer" />

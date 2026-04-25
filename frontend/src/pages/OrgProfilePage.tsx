@@ -136,6 +136,16 @@ export default function OrgProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    company: true,
+    security: false,
+    vendors: false,
+    domains: false,
+    uploads: false,
+  });
+  const toggleSection = (key: string) =>
+    setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
+
   const [companyNameField, setCompanyNameField] = useState("");
   const [logoUrlField, setLogoUrlField] = useState("");
   const [primaryDomainField, setPrimaryDomainField] = useState("");
@@ -216,6 +226,20 @@ export default function OrgProfilePage() {
       loadVendors(profile.org_id, vendorPage);
     }
   }, [profile?.org_id, vendorPage, loadVendors]);
+
+  useEffect(() => {
+    if (loading || !location.hash) return;
+    const hashToSection: Record<string, string> = {
+      '#section-security-profile': 'security',
+      '#section-vendors': 'vendors',
+      '#section-domains': 'domains',
+      '#section-uploads': 'uploads',
+    };
+    const sectionKey = hashToSection[location.hash];
+    if (sectionKey) setOpenSections(prev => ({ ...prev, [sectionKey]: true }));
+    const el = document.getElementById(location.hash.slice(1));
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [location.hash, loading]);
 
   const handleAddVendor = async () => {
     if (!profile?.org_id || !newVendor.trim()) return;
@@ -584,6 +608,18 @@ export default function OrgProfilePage() {
       }
       setSecProfileSaveMsg("Security profile saved.");
       await refreshOrganization();
+      // Sync checked cloud providers into the vendor tech stack (deduplication via name match)
+      const orgId = profile.org_id;
+      if (orgId != null && cloudProviders.length > 0) {
+        const existingNames = new Set(vendors.map((v) => v.vendor_name.toLowerCase()));
+        const toAdd = cloudProviders.filter((p) => !existingNames.has(p.toLowerCase()));
+        if (toAdd.length > 0) {
+          await Promise.allSettled(
+            toAdd.map((p) => createVendor(orgId, p, "")),
+          );
+          loadVendors(orgId, 1);
+        }
+      }
     } catch (err) {
       setSecProfileSaveErr(err instanceof Error ? err.message : "Save failed");
     } finally {
@@ -651,12 +687,16 @@ export default function OrgProfilePage() {
 
               {profile.org_id != null && (
                 <section className="settings-section">
-                  <h2>Company profile</h2>
-                  <p className="tech-stack-description">
-                    Name, logo URL, and primary domain for your organization.
-                    These align with dashboard branding where shown.
-                  </p>
-                  {!canEditOrgProfile && (
+                  <button className="section-accordion-header" onClick={() => toggleSection('company')} aria-expanded={openSections.company}>
+                    <div className="section-accordion-header-text">
+                      <span className="section-accordion-title">Company profile</span>
+                      <span className="section-accordion-desc">Name, logo URL, and primary domain for your organization.</span>
+                    </div>
+                    <span className={`section-accordion-chevron${openSections.company ? ' open' : ''}`}>›</span>
+                  </button>
+                  {openSections.company && (
+                    <div className="section-accordion-body">
+                      {!canEditOrgProfile && (
                     <p className="settings-readonly-hint">
                       Only organization owners, organization admins, or platform
                       admins can edit these fields.
@@ -768,18 +808,23 @@ export default function OrgProfilePage() {
                       )}
                     </>
                   )}
+                    </div>
+                  )}
                 </section>
               )}
 
               {profile.org_id != null && organization && canEditOrgProfile && (
                 <section id="section-security-profile" className="settings-section">
-                  <h2>Security Profile</h2>
-                  <p className="tech-stack-description">
-                    Security controls, compliance, data handling, and incident history.
-                    This data powers your findings and CIS IG1 scoring.
-                  </p>
-
-                  {secProfileSaveMsg && (
+                  <button className="section-accordion-header" onClick={() => toggleSection('security')} aria-expanded={openSections.security}>
+                    <div className="section-accordion-header-text">
+                      <span className="section-accordion-title">Security Profile</span>
+                      <span className="section-accordion-desc">Security controls, compliance, data handling, and incident history.</span>
+                    </div>
+                    <span className={`section-accordion-chevron${openSections.security ? ' open' : ''}`}>›</span>
+                  </button>
+                  {openSections.security && (
+                    <div className="section-accordion-body">
+                      {secProfileSaveMsg && (
                     <div className="settings-action-msg">{secProfileSaveMsg}</div>
                   )}
                   {secProfileSaveErr && (
@@ -833,6 +878,9 @@ export default function OrgProfilePage() {
                         </label>
                       ))}
                     </div>
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
+                      Checked providers are automatically added to Your Technology Stack for vulnerability monitoring.
+                    </p>
                   </div>
 
                   <div className="sec-profile-subsection">
@@ -909,18 +957,23 @@ export default function OrgProfilePage() {
                       {secProfileSaving ? "Saving..." : "Save security profile"}
                     </button>
                   </div>
+                    </div>
+                  )}
                 </section>
               )}
 
               {profile.org_id && (
                 <section id="section-vendors" className="settings-section">
-                  <h2>Your Technology Stack</h2>
-                  <p className="tech-stack-description">
-                    Track the vendors and products your organization uses. We'll
-                    highlight relevant vulnerabilities from the KEV catalog.
-                  </p>
-
-                  {vendorMsg && (
+                  <button className="section-accordion-header" onClick={() => toggleSection('vendors')} aria-expanded={openSections.vendors}>
+                    <div className="section-accordion-header-text">
+                      <span className="section-accordion-title">Your Technology Stack</span>
+                      <span className="section-accordion-desc">Track vendors and products your organization uses.</span>
+                    </div>
+                    <span className={`section-accordion-chevron${openSections.vendors ? ' open' : ''}`}>›</span>
+                  </button>
+                  {openSections.vendors && (
+                    <div className="section-accordion-body">
+                      {vendorMsg && (
                     <div className="settings-action-msg">{vendorMsg}</div>
                   )}
                   {vendorError && (
@@ -964,7 +1017,7 @@ export default function OrgProfilePage() {
                               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}
                             >
                               <span>{s.vendor_name}</span>
-                              <span style={{ fontSize: '11px', color: '#6b7280', flexShrink: 0 }}>
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)', flexShrink: 0 }}>
                                 {Math.round(s.score * 100)}%
                               </span>
                             </li>
@@ -1143,17 +1196,23 @@ export default function OrgProfilePage() {
                       )}
                     </>
                   )}
+                    </div>
+                  )}
                 </section>
               )}
 
               {profile.org_id && (
                 <section id="section-domains" className="settings-section">
-                  <h2>Organization Domains</h2>
-                  <p className="tech-stack-description">
-                    Track domains your organization owns or monitors.
-                  </p>
-
-                  {domainMsg && (
+                  <button className="section-accordion-header" onClick={() => toggleSection('domains')} aria-expanded={openSections.domains}>
+                    <div className="section-accordion-header-text">
+                      <span className="section-accordion-title">Organization Domains</span>
+                      <span className="section-accordion-desc">Track domains your organization owns or monitors.</span>
+                    </div>
+                    <span className={`section-accordion-chevron${openSections.domains ? ' open' : ''}`}>›</span>
+                  </button>
+                  {openSections.domains && (
+                    <div className="section-accordion-body">
+                      {domainMsg && (
                     <div className="settings-action-msg">{domainMsg}</div>
                   )}
                   {domainError && (
@@ -1250,18 +1309,23 @@ export default function OrgProfilePage() {
                       )}
                     </>
                   )}
+                    </div>
+                  )}
                 </section>
               )}
 
               {profile.org_id && (
                 <section id="section-uploads" className="settings-section">
-                  <h2>File Uploads</h2>
-                  <p className="tech-stack-description">
-                    Upload files for your organization (CSV, PDF, TXT, JSON —
-                    max 10 MB).
-                  </p>
-
-                  {uploadMsg && (
+                  <button className="section-accordion-header" onClick={() => toggleSection('uploads')} aria-expanded={openSections.uploads}>
+                    <div className="section-accordion-header-text">
+                      <span className="section-accordion-title">File Uploads</span>
+                      <span className="section-accordion-desc">Upload files for your organization (CSV, PDF, TXT, JSON — max 10 MB).</span>
+                    </div>
+                    <span className={`section-accordion-chevron${openSections.uploads ? ' open' : ''}`}>›</span>
+                  </button>
+                  {openSections.uploads && (
+                    <div className="section-accordion-body">
+                      {uploadMsg && (
                     <div className="settings-action-msg">{uploadMsg}</div>
                   )}
                   {uploadError && (
@@ -1376,6 +1440,8 @@ export default function OrgProfilePage() {
                         </div>
                       )}
                     </>
+                  )}
+                    </div>
                   )}
                 </section>
               )}

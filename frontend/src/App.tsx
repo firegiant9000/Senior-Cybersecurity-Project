@@ -1,6 +1,7 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Dashboard from "./Dashboard.tsx";
 import LoginPage from "./pages/LoginPage.tsx";
+import LandingPage from "./pages/LandingPage.tsx";
 import OnboardingPage from "./pages/OnboardingPage.tsx";
 import SettingsPage from "./pages/SettingsPage.tsx";
 import AssessmentDebugPage from "./pages/AssessmentDebugPage.tsx";
@@ -9,11 +10,19 @@ import AcceptInvitePage from "./pages/AcceptInvitePage.tsx";
 import ProtectedRoute from "./components/ProtectedRoute.tsx";
 import { useAuth } from "./context/AuthContext.tsx";
 
+function RootRoute() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (user) return <Navigate to="/dashboard" replace />;
+  return <LandingPage />;
+}
+
 function App() {
   const { refreshProfile } = useAuth();
 
   return (
     <Routes>
+      <Route path="/" element={<RootRoute />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<LoginPage defaultSignUp={true} />} />
       <Route
