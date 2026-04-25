@@ -216,9 +216,17 @@ async def get_vendor_alerts(
     """Return exploited vulnerabilities matching the org's vendor stack."""
     try:
         return await VendorAlertService(db).get_alerts(org.id, page, page_size)
-    except SQLAlchemyError:
-        logger.exception("Failed to fetch vendor alerts for org %s", org.id)
-        raise HTTPException(status_code=500, detail="Failed to fetch vendor alerts")
+    except SQLAlchemyError as exc:
+        logger.exception(
+            "Failed to fetch vendor alerts for org %s (%s: %s)",
+            org.id,
+            type(exc).__name__,
+            exc,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Vendor alerts temporarily unavailable — see server logs",
+        )
 
 
 @router.get("/mine/findings", response_model=FindingsReport)
