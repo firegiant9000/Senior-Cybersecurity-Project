@@ -5,6 +5,7 @@ import LandingPage from "./pages/LandingPage.tsx";
 import OnboardingPage from "./pages/OnboardingPage.tsx";
 import SettingsPage from "./pages/SettingsPage.tsx";
 import AssessmentDebugPage from "./pages/AssessmentDebugPage.tsx";
+import AssessmentIntakePage from "./pages/AssessmentIntakePage.tsx";
 import OrgProfilePage from "./pages/OrgProfilePage.tsx";
 import AcceptInvitePage from "./pages/AcceptInvitePage.tsx";
 import ProtectedRoute from "./components/ProtectedRoute.tsx";
@@ -54,6 +55,14 @@ function App() {
         element={
           <ProtectedRoute>
             <AssessmentDebugPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/assessment-intake"
+        element={
+          <ProtectedRoute>
+            <AssessmentIntakePage />
           </ProtectedRoute>
         }
       />
