@@ -458,20 +458,15 @@ class AISummaryService:
                     and isinstance(getattr(last_good, "output_format", None), str)
                     and isinstance(getattr(last_good, "model_name", None), str)
                 ):
-                    narrative = (
-                        last_good.output_text
-                        if last_good.output_format == "prose"
-                        else (
-                            _parse_structured_response(last_good.output_text).narrative
-                            if _parse_structured_response(last_good.output_text)
-                            else last_good.output_text
-                        )
-                    )
                     parsed = (
                         _parse_structured_response(last_good.output_text)
                         if last_good.output_format == "json"
                         else None
                     )
+                    narrative = (
+                        parsed.narrative if parsed else last_good.output_text
+                    )
+                    ai_generated = True
                     status = "stale_cache"
                     source = "gemini_cached"
                     persist_model_name = last_good.model_name

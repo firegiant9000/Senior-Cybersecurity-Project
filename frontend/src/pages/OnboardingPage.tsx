@@ -245,7 +245,7 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
       industry_label: form.industry_label,
       primary_state: form.primary_state,
       employee_range: form.employee_range,
-      revenue_range: form.revenue_range || "",
+      revenue_range: form.revenue_range || null,
       security_controls: Object.keys(form.security_controls).length > 0 ? form.security_controls : null,
       cloud_providers: form.cloud_vendors.length > 0 ? form.cloud_vendors.map((v) => v.name) : null,
       compliance_frameworks: form.compliance_frameworks.length > 0 ? form.compliance_frameworks : null,
