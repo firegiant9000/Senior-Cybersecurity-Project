@@ -53,12 +53,12 @@ const ThreatIntelTab: React.FC = () => {
     if (!loading && progressState.isActive) {
       progressState.reset();
     }
-  }, [loading, progressState]);
+  }, [loading, progressState.reset, progressState.isActive]);
 
   const handleRefresh = useCallback(() => {
     progressState.start(['CVE timeline', 'Severity distribution', 'Recent KEV', 'Recent CVEs']);
     refresh();
-  }, [refresh, progressState]);
+  }, [refresh, progressState.start]);
 
   // Aggregate top vendors from KEV data
   const topVendors = useMemo(() => {

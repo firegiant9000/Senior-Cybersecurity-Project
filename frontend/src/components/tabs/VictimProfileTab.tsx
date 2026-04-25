@@ -34,12 +34,12 @@ const VictimProfileTab: React.FC = () => {
     if (!loading && progressState.isActive) {
       progressState.reset();
     }
-  }, [loading, progressState]);
+  }, [loading, progressState.reset, progressState.isActive]);
 
   const handleRefresh = useCallback(() => {
     progressState.start(['Attack types', 'Industry risk']);
     refresh();
-  }, [refresh, progressState]);
+  }, [refresh, progressState.start]);
 
   const topLossByAttack = [...data.attackTypes]
     .sort((a, b) => b.total_loss - a.total_loss)

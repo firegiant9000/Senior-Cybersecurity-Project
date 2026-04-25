@@ -810,7 +810,7 @@ const OverviewTab: React.FC<Props> = ({
         if (!dashboardLoading && !dashboardLoadingHeavy && progressState.isActive) {
             progressState.reset();
         }
-    }, [dashboardLoading, dashboardLoadingHeavy, progressState]);
+    }, [dashboardLoading, dashboardLoadingHeavy, progressState.reset, progressState.isActive]);
 
     const handleRefresh = useCallback(() => {
         // Start progress tracking with all items
@@ -831,7 +831,7 @@ const OverviewTab: React.FC<Props> = ({
         ]);
         refresh();
         setFreshnessRevision((r) => r + 1);
-    }, [refresh, progressState]);
+    }, [refresh, progressState.start]);
 
     const sortedTrends = useMemo(
         () => [...dashboardData.temporalTrends].sort((a, b) => b.year - a.year),
