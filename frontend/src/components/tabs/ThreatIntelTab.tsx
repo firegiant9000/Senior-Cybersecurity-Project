@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useEffect } from 'react';
+import React, { useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList,
   LineChart, Line, PieChart, Pie, Cell, Legend,
@@ -42,6 +42,7 @@ const ThreatIntelTab: React.FC = () => {
   const { data, loading, errors, refresh, setOnProgress } = useThreatIntelData();
   const isDark = useIsDark();
   const progressState = useRefreshProgress();
+  const wasLoadingRef = useRef(loading);
 
   // Register progress callback
   useEffect(() => {
@@ -50,9 +51,10 @@ const ThreatIntelTab: React.FC = () => {
 
   // Reset progress when loading completes
   useEffect(() => {
-    if (!loading && progressState.isActive) {
+    if (wasLoadingRef.current && !loading && progressState.isActive) {
       progressState.reset();
     }
+    wasLoadingRef.current = loading;
   }, [loading, progressState.reset, progressState.isActive]);
 
   const handleRefresh = useCallback(() => {

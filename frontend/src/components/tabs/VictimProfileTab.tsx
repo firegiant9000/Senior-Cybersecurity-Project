@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList,
 } from 'recharts';
@@ -23,6 +23,7 @@ function truncate(str: string, max = 22): string {
 const VictimProfileTab: React.FC = () => {
   const { data, loading, errors, refresh, setOnProgress } = useVictimData();
   const progressState = useRefreshProgress();
+  const wasLoadingRef = useRef(loading);
 
   // Register progress callback
   useEffect(() => {
@@ -31,9 +32,10 @@ const VictimProfileTab: React.FC = () => {
 
   // Reset progress when loading completes
   useEffect(() => {
-    if (!loading && progressState.isActive) {
+    if (wasLoadingRef.current && !loading && progressState.isActive) {
       progressState.reset();
     }
+    wasLoadingRef.current = loading;
   }, [loading, progressState.reset, progressState.isActive]);
 
   const handleRefresh = useCallback(() => {

@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useEffect } from 'react';
+import React, { useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
@@ -81,6 +81,7 @@ const TrendsTab: React.FC = () => {
   const { data, loading, errors, setAttackType, setSector, setYearFrom, setYearTo, refresh, setOnProgress } = useTrendsData();
   const { trends, attackTypeOptions, selectedAttackType, selectedSector, yearFrom, yearTo } = data;
   const progressState = useRefreshProgress();
+  const wasLoadingRef = useRef(loading);
 
   // Register progress callback
   useEffect(() => {
@@ -89,9 +90,10 @@ const TrendsTab: React.FC = () => {
 
   // Reset progress when loading completes
   useEffect(() => {
-    if (!loading && progressState.isActive) {
+    if (wasLoadingRef.current && !loading && progressState.isActive) {
       progressState.reset();
     }
+    wasLoadingRef.current = loading;
   }, [loading, progressState.reset, progressState.isActive]);
 
   const handleRefresh = useCallback(() => {

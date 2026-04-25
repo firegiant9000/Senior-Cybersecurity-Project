@@ -745,6 +745,7 @@ const OverviewTab: React.FC<Props> = ({
     const [lastIngestAt, setLastIngestAt] = useState<string | null>(null);
     const [freshnessRevision, setFreshnessRevision] = useState(0);
     const [showCustomize, setShowCustomize] = useState(false);
+    const wasAnyLoadingRef = useRef(dashboardLoading || dashboardLoadingHeavy);
     const gearRef = useRef<HTMLButtonElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
 
@@ -807,9 +808,11 @@ const OverviewTab: React.FC<Props> = ({
 
     // Reset progress when loading completes
     useEffect(() => {
-        if (!dashboardLoading && !dashboardLoadingHeavy && progressState.isActive) {
+        const isAnyLoading = dashboardLoading || dashboardLoadingHeavy;
+        if (wasAnyLoadingRef.current && !isAnyLoading && progressState.isActive) {
             progressState.reset();
         }
+        wasAnyLoadingRef.current = isAnyLoading;
     }, [dashboardLoading, dashboardLoadingHeavy, progressState.reset, progressState.isActive]);
 
     const handleRefresh = useCallback(() => {
