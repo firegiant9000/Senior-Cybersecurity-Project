@@ -463,9 +463,7 @@ class AISummaryService:
                         if last_good.output_format == "json"
                         else None
                     )
-                    narrative = (
-                        parsed.narrative if parsed else last_good.output_text
-                    )
+                    narrative = parsed.narrative if parsed else last_good.output_text
                     ai_generated = True
                     status = "stale_cache"
                     source = "gemini_cached"
