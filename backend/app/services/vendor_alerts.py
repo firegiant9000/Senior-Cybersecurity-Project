@@ -1,7 +1,9 @@
 """Service for vendor-matched vulnerability alerts."""
 
+import logging
 
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import CVE, KEV
@@ -14,6 +16,8 @@ from app.schemas.vendor_alert import (
     VendorAlertsResponse,
 )
 from app.services.risk_scoring import basic_vuln_risk_score
+
+logger = logging.getLogger(__name__)
 
 _FUZZY_THRESHOLD = 0.75
 
@@ -118,6 +122,52 @@ class VendorAlertService:
                 )
         return rows
 
+    async def _run_fuzzy_pass(self, org_id: int, unmatched: set[str]) -> list:
+        """Trigram-based fuzzy match. Degrades to [] if pg_trgm is unavailable."""
+        if not unmatched:
+            return []
+        stmt = (
+            select(
+                OrgVendor.vendor_name,
+                OrgVendor.product_name.label("org_product"),
+                KEV.vendor.label("kev_vendor"),
+                KEV.cve_id,
+                KEV.product.label("kev_product"),
+                KEV.due_date,
+                CVE.description,
+                CVE.cvss_score,
+                CVE.severity,
+                CVE.published_date,
+                func.similarity(KEV.vendor, OrgVendor.vendor_name).label("score"),
+            )
+            .join(KEV, KEV.vendor.op("%")(OrgVendor.vendor_name))
+            .join(CVE, CVE.cve_id == KEV.cve_id)
+            .where(OrgVendor.org_id == org_id)
+            .where(OrgVendor.vendor_name.in_(list(unmatched)))
+            .where(func.similarity(KEV.vendor, OrgVendor.vendor_name) > _FUZZY_THRESHOLD)
+            .where(
+                or_(
+                    OrgVendor.product_name == "",
+                    func.lower(KEV.product) == func.lower(OrgVendor.product_name),
+                )
+            )
+            .order_by(func.similarity(KEV.vendor, OrgVendor.vendor_name).desc())
+        )
+        try:
+            return list((await self._session.execute(stmt)).all())
+        except SQLAlchemyError:
+            # pg_trgm extension may be unavailable. Degrade gracefully so the
+            # endpoint still returns exact + alias matches instead of 500.
+            logger.warning(
+                "vendor fuzzy match failed for org %s — degrading to exact+alias only",
+                org_id,
+                exc_info=True,
+            )
+            # Async session is poisoned after a query error — roll back so
+            # subsequent queries (e.g. _last_kev_ingest) succeed.
+            await self._session.rollback()
+            return []
+
     async def get_alerts(
         self, org_id: int, page: int = 1, page_size: int = 20
     ) -> VendorAlertsResponse:
@@ -179,52 +229,18 @@ class VendorAlertService:
         unmatched_vendor_names -= alias_matched_names
 
         # ── Second pass: fuzzy match for vendors with no exact match ─────────
-        fuzzy_rows = []
+        fuzzy_rows = await self._run_fuzzy_pass(org_id, unmatched_vendor_names)
         fuzzy_matched_vendor_names: set[str] = set()
-
-        if unmatched_vendor_names:
-            fuzzy_stmt = (
-                select(
-                    OrgVendor.vendor_name,
-                    OrgVendor.product_name.label("org_product"),
-                    KEV.vendor.label("kev_vendor"),
-                    KEV.cve_id,
-                    KEV.product.label("kev_product"),
-                    KEV.due_date,
-                    CVE.description,
-                    CVE.cvss_score,
-                    CVE.severity,
-                    CVE.published_date,
-                    func.similarity(KEV.vendor, OrgVendor.vendor_name).label("score"),
-                )
-                .join(KEV, KEV.vendor.op("%")(OrgVendor.vendor_name))
-                .join(CVE, CVE.cve_id == KEV.cve_id)
-                .where(OrgVendor.org_id == org_id)
-                .where(OrgVendor.vendor_name.in_(list(unmatched_vendor_names)))
-                .where(func.similarity(KEV.vendor, OrgVendor.vendor_name) > _FUZZY_THRESHOLD)
-                .where(
-                    or_(
-                        OrgVendor.product_name == "",
-                        func.lower(KEV.product) == func.lower(OrgVendor.product_name),
-                    )
-                )
-                .order_by(func.similarity(KEV.vendor, OrgVendor.vendor_name).desc())
+        for row in fuzzy_rows:
+            fuzzy_matched_vendor_names.add(row.vendor_name)
+            fire_and_forget_normalization_log(
+                org_id=org_id,
+                data_type="vendor",
+                raw_value=row.vendor_name,
+                normalized_value=row.kev_vendor,
+                method="fuzzy",
+                confidence=float(row.score),
             )
-            fuzzy_result = await self._session.execute(fuzzy_stmt)
-            fuzzy_rows = fuzzy_result.all()
-
-            # Log fuzzy matches to normalization_log (fire-and-forget)
-            if fuzzy_rows:
-                for row in fuzzy_rows:
-                    fuzzy_matched_vendor_names.add(row.vendor_name)
-                    fire_and_forget_normalization_log(
-                        org_id=org_id,
-                        data_type="vendor",
-                        raw_value=row.vendor_name,
-                        normalized_value=row.kev_vendor,
-                        method="fuzzy",
-                        confidence=float(row.score),
-                    )
 
         # ── Combine exact + alias + fuzzy results ────────────────────────────
         # Build unified list of dicts for sorting / pagination

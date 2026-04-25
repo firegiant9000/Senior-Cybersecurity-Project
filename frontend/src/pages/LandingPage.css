@@ -84,17 +84,15 @@
 }
 
 .landing-footer-sources {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
   margin: 0;
+  line-height: 1.9;
 }
 
 .landing-footer-term {
   display: inline-flex;
   align-items: center;
+  vertical-align: middle;
+  white-space: nowrap;
 }
 
 .landing-hero-title {
