@@ -591,7 +591,7 @@
 .risk-band-bar-track {
     flex: 1;
     height: 5px;
-    background: rgba(255,255,255,0.08);
+    background: var(--border);
     border-radius: 3px;
     overflow: hidden;
     min-width: 30px;

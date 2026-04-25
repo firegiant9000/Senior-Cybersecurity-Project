@@ -478,21 +478,24 @@ function renderGridWidget(
                     <div className="card stat-chart-card">
                         <span className="widget-title">CVE Risk Distribution</span>
                         {dashboardLoading ? <WidgetSkeleton variant="chart" /> : (
-                            <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                                <div className="stat-chart-donut-wrapper" style={{ flex: '0 0 110px' }}>
-                                    <PieChart width={110} height={110} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                            <div style={{ display: 'flex', gap: 16, alignItems: 'center', flex: 1 }}>
+                                <div className="stat-chart-donut-wrapper" style={{ flex: '0 0 160px', width: 160, height: 160 }}>
+                                    <PieChart width={160} height={160} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                                         <Pie
                                             data={riskTotal > 0 ? critDonutData : [{ name: 'No data', value: 1 }]}
-                                            cx={55} cy={55} innerRadius={33} outerRadius={50}
+                                            cx={80} cy={80} innerRadius={48} outerRadius={72}
                                             dataKey="value" startAngle={90} endAngle={-270} strokeWidth={0}
                                         >
                                             <Cell fill="#d32f2f" />
                                             <Cell fill="rgba(255,255,255,0.08)" />
                                         </Pie>
-                                        <Tooltip formatter={(v: unknown, name: unknown) => [(v as number).toLocaleString(), name as string]} />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 12, borderRadius: 6 }}
+                                            formatter={(v: unknown, name: unknown) => [(v as number).toLocaleString(), name as string]}
+                                        />
                                     </PieChart>
                                     <div className="stat-chart-donut-center">
-                                        <span style={{ color: '#d32f2f', fontSize: 13, fontWeight: 700, lineHeight: 1 }}>
+                                        <span style={{ color: '#d32f2f', fontSize: 16, fontWeight: 700, lineHeight: 1 }}>
                                             {criticalCount.toLocaleString()}
                                         </span>
                                     </div>
