@@ -608,17 +608,17 @@ export default function OrgProfilePage() {
       }
       setSecProfileSaveMsg("Security profile saved.");
       await refreshOrganization();
-      // Sync checked cloud providers into the vendor tech stack (deduplication via name match)
+      // Sync checked cloud providers into the vendor tech stack. Backend
+      // dedupes via the (org, vendor, product) unique constraint when
+      // ?idempotent=true, so existing rows are returned unchanged instead
+      // of duplicated. We can't dedupe on the client because `vendors`
+      // only holds the current paginated page.
       const orgId = profile.org_id;
       if (orgId != null && cloudProviders.length > 0) {
-        const existingNames = new Set(vendors.map((v) => v.vendor_name.toLowerCase()));
-        const toAdd = cloudProviders.filter((p) => !existingNames.has(p.toLowerCase()));
-        if (toAdd.length > 0) {
-          await Promise.allSettled(
-            toAdd.map((p) => createVendor(orgId, p, "")),
-          );
-          loadVendors(orgId, 1);
-        }
+        await Promise.allSettled(
+          cloudProviders.map((p) => createVendor(orgId, p, "", { idempotent: true })),
+        );
+        loadVendors(orgId, 1);
       }
     } catch (err) {
       setSecProfileSaveErr(err instanceof Error ? err.message : "Save failed");
