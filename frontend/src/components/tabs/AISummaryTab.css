@@ -639,8 +639,10 @@
   }
 
   .ai-summary-printable {
-    position: fixed;
-    inset: 0;
+    position: static;
+    width: 100%;
+    height: auto;
+    overflow: visible;
     padding: 2.5rem 3rem;
     background: #ffffff;
     color: #111827;

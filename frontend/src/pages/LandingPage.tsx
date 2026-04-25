@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import InfoTip from '../components/shared/InfoTip';
 import { getAcronymDefinition } from '../components/shared/InfoTip';
@@ -56,6 +56,15 @@ const FEATURES = [
 
 const LandingPage: React.FC = () => {
   const [stats, setStats] = useState<PublicStats>(FALLBACK_STATS);
+
+  useLayoutEffect(() => {
+    const prev = document.documentElement.getAttribute('data-theme');
+    document.documentElement.setAttribute('data-theme', 'light');
+    return () => {
+      if (prev) document.documentElement.setAttribute('data-theme', prev);
+      else document.documentElement.removeAttribute('data-theme');
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -137,8 +146,8 @@ const LandingPage: React.FC = () => {
     </section>
 
     <footer className="landing-footer">
-      <p>
-        Data sourced from{' '}
+      <p className="landing-footer-sources">
+        <span>Data sourced from</span>{' '}
         <span className="landing-footer-term">
           CISA<InfoTip text={getAcronymDefinition('CISA')!} label="CISA" />
         </span>{' '}

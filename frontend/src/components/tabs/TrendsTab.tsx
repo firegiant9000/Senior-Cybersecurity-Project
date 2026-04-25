@@ -122,7 +122,6 @@ const TrendsTab: React.FC = () => {
   return (
     <div className="tab-page">
       <div className="overview-toolbar">
-        <button className="overview-refresh-btn" onClick={refresh}>↻ Refresh</button>
         <div className="trends-filter">
           <label htmlFor="attack-type-filter" style={{ fontSize: 13, color: '#555' }}>
             Attack type:
@@ -184,6 +183,9 @@ const TrendsTab: React.FC = () => {
             value={yearTo ?? ''}
             onChange={e => setYearTo(e.target.value ? Number(e.target.value) : undefined)}
           />
+        </div>
+        <div className="overview-toolbar-actions">
+          <button className="overview-refresh-btn" onClick={refresh}>↻ Refresh</button>
         </div>
       </div>
 
