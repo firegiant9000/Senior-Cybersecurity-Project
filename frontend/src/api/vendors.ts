@@ -43,9 +43,11 @@ export async function createVendor(
   orgId: number,
   vendorName: string,
   productName: string,
+  options: { idempotent?: boolean } = {},
 ): Promise<OrgVendor> {
+  const qs = options.idempotent ? "?idempotent=true" : "";
   const resp = await fetchWithAuth(
-    `${API_BASE_URL}/api/v1/organizations/${orgId}/vendors`,
+    `${API_BASE_URL}/api/v1/organizations/${orgId}/vendors${qs}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

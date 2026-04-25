@@ -5,7 +5,7 @@ import io
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -352,13 +352,20 @@ async def list_vendors(
 @limiter.limit(settings.RATE_LIMIT_DATA)
 async def create_vendor(
     request: Request,
+    response: Response,
     org_id: int,
     body: OrgVendorCreate,
+    idempotent: Annotated[bool, Query()] = False,
     current_user: User = Depends(get_current_user),
     repo: SqlOrgVendorRepository = Depends(get_vendor_repo),
     session: AsyncSession = Depends(get_session),
 ):
-    """Add a vendor to the organization's technology stack."""
+    """Add a vendor to the organization's technology stack.
+
+    When ``idempotent=true`` (used by the security-profile cloud-provider
+    sync), an existing (vendor_name, product_name) row is returned with
+    status 200 instead of raising 409.
+    """
     # Capture raw value before Pydantic whitespace normalization
     try:
         raw_body = await request.json()
@@ -367,13 +374,25 @@ async def create_vendor(
         raw_vendor = body.vendor_name
 
     await _check_org_access(current_user, org_id, session)
-    try:
-        vendor = await repo.create(org_id, body)
-    except IntegrityError:
-        raise HTTPException(status_code=409, detail="Vendor/product combination already exists")
-    except SQLAlchemyError:
-        logger.exception("Failed to create vendor for org %s", org_id)
-        raise HTTPException(status_code=500, detail="Failed to add vendor")
+
+    if idempotent:
+        try:
+            vendor, created = await repo.create_or_get(org_id, body)
+        except SQLAlchemyError:
+            logger.exception("Failed to upsert vendor for org %s", org_id)
+            raise HTTPException(status_code=500, detail="Failed to add vendor")
+        if not created:
+            response.status_code = 200
+    else:
+        try:
+            vendor = await repo.create(org_id, body)
+        except IntegrityError:
+            raise HTTPException(
+                status_code=409, detail="Vendor/product combination already exists"
+            )
+        except SQLAlchemyError:
+            logger.exception("Failed to create vendor for org %s", org_id)
+            raise HTTPException(status_code=500, detail="Failed to add vendor")
 
     fire_and_forget_normalization_log(
         org_id=org_id,
