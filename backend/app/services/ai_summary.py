@@ -442,12 +442,49 @@ class AISummaryService:
             except Exception as e:
                 logger.exception("Gemini API call failed for org %s — using fallback", org.id)
                 error_message = str(e)
-                narrative = _build_fallback(org, report, risk_score)
-                status = "fallback_used"
-                source = "fallback"
-                persist_model_name = settings.GEMINI_MODEL
-                model_used = None
-                raw = narrative
+                # Try last successful Gemini generation before falling to the template
+                try:
+                    last_good = await SqlAISummaryGenerationRepository(
+                        self._db
+                    ).get_last_successful_gemini(org.id)
+                except Exception:
+                    logger.exception(
+                        "Failed to look up last-successful Gemini row for org %s", org.id
+                    )
+                    last_good = None
+                if (
+                    last_good is not None
+                    and isinstance(getattr(last_good, "output_text", None), str)
+                    and isinstance(getattr(last_good, "output_format", None), str)
+                    and isinstance(getattr(last_good, "model_name", None), str)
+                ):
+                    narrative = (
+                        last_good.output_text
+                        if last_good.output_format == "prose"
+                        else (
+                            _parse_structured_response(last_good.output_text).narrative
+                            if _parse_structured_response(last_good.output_text)
+                            else last_good.output_text
+                        )
+                    )
+                    parsed = (
+                        _parse_structured_response(last_good.output_text)
+                        if last_good.output_format == "json"
+                        else None
+                    )
+                    status = "stale_cache"
+                    source = "gemini_cached"
+                    persist_model_name = last_good.model_name
+                    model_used = last_good.model_name
+                    raw = last_good.output_text
+                    output_format = last_good.output_format
+                else:
+                    narrative = _build_fallback(org, report, risk_score)
+                    status = "fallback_used"
+                    source = "fallback"
+                    persist_model_name = settings.GEMINI_MODEL
+                    model_used = None
+                    raw = narrative
         else:
             narrative = _build_fallback(org, report, risk_score)
             status = "success"

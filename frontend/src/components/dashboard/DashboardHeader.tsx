@@ -31,7 +31,7 @@ const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout }
                         {canDebug && (
                             <button onClick={() => navigate('/settings/assessment-debug')}>Assessment Debug</button>
                         )}
-                        <button onClick={async () => { await onLogout(); navigate('/login'); }}>Log Out</button>
+                        <button onClick={async () => { await onLogout(); navigate('/'); }}>Log Out</button>
                     </>
                 ) : (
                     <>

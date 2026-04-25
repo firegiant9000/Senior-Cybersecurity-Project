@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.core.dependencies import get_current_org, require_org_role, require_role
 from app.core.limiter import limiter
 from app.db.engine import get_session
+from app.db.membership import Membership
 from app.db.organization import Organization
 from app.db.user import User
 from app.repositories.organization import SqlOrganizationRepository, get_org_repo
@@ -246,9 +247,16 @@ async def get_findings(
         )
     try:
         return await FindingsEngine(db).build(org, persist=True)
-    except Exception:
+    except Exception as exc:
         logger.exception("Failed to build findings report for org %s", org.id)
-        raise HTTPException(status_code=500, detail="Failed to build findings report")
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Findings service temporarily unavailable. "
+                "This usually resolves on retry; if it persists, "
+                f"an upstream data source may be failing ({type(exc).__name__})."
+            ),
+        ) from exc
 
 
 @router.get("/mine/debug", response_model=DebugAssessmentResponse)
@@ -271,7 +279,7 @@ async def get_assessment_debug(
 @limiter.limit("5/minute")
 async def get_ai_summary(
     request: Request,  # noqa: ARG001
-    current_user: User = Depends(require_role("member")),
+    current_user: User = Depends(get_current_user),
     org: Organization = Depends(get_current_org),
     db: AsyncSession = Depends(get_session),
 ):
@@ -490,10 +498,20 @@ async def get_organization(
     org_id: int,
     current_user: User = Depends(require_role("viewer")),
     repo: SqlOrganizationRepository = Depends(get_org_repo),
+    session: AsyncSession = Depends(get_session),
 ):
-    """Get a single organization. Viewers can access their own org; admins can access any."""
+    """Get a single organization. Viewers can access their own org or any org they're a member of; admins can access any."""
     if current_user.role != "admin" and current_user.org_id != org_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        # Legacy users.org_id check failed — fall back to Membership table
+        result = await session.execute(
+            select(Membership).where(
+                Membership.user_id == current_user.id,
+                Membership.org_id == org_id,
+                Membership.status == "active",
+            )
+        )
+        if result.scalar_one_or_none() is None:
+            raise HTTPException(status_code=403, detail="Access denied")
 
     try:
         org = await repo.get_by_id(org_id)
