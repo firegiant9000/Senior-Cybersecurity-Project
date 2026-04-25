@@ -92,12 +92,12 @@ const TrendsTab: React.FC = () => {
     if (!loading && progressState.isActive) {
       progressState.reset();
     }
-  }, [loading, progressState]);
+  }, [loading, progressState.reset, progressState.isActive]);
 
   const handleRefresh = useCallback(() => {
     progressState.start(['Trends data']);
     refresh();
-  }, [refresh, progressState]);
+  }, [refresh, progressState.start]);
 
   const projected = useMemo(() => projectLinear(trends), [trends]);
 
