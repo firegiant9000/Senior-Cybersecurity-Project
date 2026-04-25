@@ -183,7 +183,7 @@ export default function SettingsPage() {
 
   const handleLogout = async () => {
     await logout();
-    navigate("/login");
+    navigate("/");
   };
 
   const handleResendVerification = async () => {

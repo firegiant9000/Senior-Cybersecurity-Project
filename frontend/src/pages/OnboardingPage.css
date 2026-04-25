@@ -13,7 +13,7 @@
   border-radius: 12px;
   padding: 2.5rem;
   width: 100%;
-  max-width: 520px;
+  max-width: 600px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
 }
 
@@ -211,9 +211,9 @@
 
 .onboarding-control-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  padding: 0.6rem 0.875rem;
+  padding: 0.7rem 0.875rem;
   background: #1e293b;
   border-bottom: 1px solid #334155;
   gap: 1rem;
@@ -223,16 +223,30 @@
   border-bottom: none;
 }
 
+.control-label-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
 .control-label {
   font-size: 0.9rem;
   font-weight: 500;
-  flex: 1;
   color: #e2e8f0;
+}
+
+.control-hint {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  line-height: 1.4;
 }
 
 .control-toggle {
   display: flex;
   gap: 0.35rem;
+  flex-shrink: 0;
+  padding-top: 0.1rem;
 }
 
 .control-option {
@@ -252,7 +266,73 @@
   border-color: #3b82f6;
 }
 
-/* Multi-select checklist (cloud, compliance, data types) */
+/* Vendor list with optional product field */
+.onboarding-vendor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.onboarding-vendor-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  transition: border-color 0.15s;
+}
+
+.onboarding-vendor-row.selected {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.onboarding-vendor-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  min-width: 160px;
+  flex-shrink: 0;
+}
+
+.onboarding-vendor-check input[type="checkbox"] {
+  accent-color: #3b82f6;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+.onboarding-vendor-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #e2e8f0;
+}
+
+.onboarding-vendor-product {
+  flex: 1;
+  background: #0f172a;
+  border: 1px solid #475569;
+  border-radius: 5px;
+  padding: 0.3rem 0.6rem;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.onboarding-vendor-product:focus {
+  border-color: #3b82f6;
+}
+
+.onboarding-vendor-product::placeholder {
+  color: #64748b;
+}
+
+/* Multi-select checklist (compliance, data types) */
 .onboarding-checklist {
   display: grid;
   grid-template-columns: 1fr 1fr;

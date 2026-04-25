@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { API_BASE_URL, fetchWithAuth } from "../api/fetchWithAuth";
+import { createVendor } from "../api/vendors";
 import "./OnboardingPage.css";
 
 const INDUSTRY_OPTIONS = [
@@ -87,25 +88,46 @@ const DATA_TYPES = [
 ] as const;
 
 const SECURITY_CONTROLS = [
-  { key: "mfa_enabled", label: "MFA enabled for all users", category: "Identity & Access" },
-  { key: "password_policy", label: "Password policy enforced", category: "Identity & Access" },
-  { key: "sso_in_use", label: "SSO in use", category: "Identity & Access" },
-  { key: "edr_deployed", label: "EDR/antivirus deployed", category: "Endpoint Protection" },
-  { key: "devices_encrypted", label: "Devices encrypted", category: "Endpoint Protection" },
-  { key: "auto_patching", label: "Auto-patching enabled", category: "Endpoint Protection" },
-  { key: "email_filtering", label: "Email filtering / gateway", category: "Email Security" },
-  { key: "phishing_training", label: "Phishing training conducted", category: "Email Security" },
-  { key: "firewall_in_place", label: "Firewall in place", category: "Network" },
-  { key: "vpn_remote_access", label: "VPN for remote access", category: "Network" },
-  { key: "network_segmentation", label: "Network segmentation", category: "Network" },
-  { key: "regular_backups", label: "Regular data backups", category: "Data Protection" },
-  { key: "backup_testing", label: "Backup restoration tested", category: "Data Protection" },
-  { key: "data_classification", label: "Data classification policy", category: "Data Protection" },
-  { key: "ir_plan_documented", label: "IR plan documented", category: "Incident Response" },
-  { key: "ir_plan_tested", label: "IR plan tested within 12 months", category: "Incident Response" },
+  { key: "mfa_enabled", label: "MFA enabled for all users", category: "Identity & Access",
+    hint: "Multi-Factor Authentication requires employees to verify their identity with a second step (e.g. a code texted to their phone) in addition to a password. e.g. Google Authenticator, Microsoft Authenticator, or SMS codes." },
+  { key: "password_policy", label: "Password policy enforced", category: "Identity & Access",
+    hint: "A written rule (enforced by your IT system) that requires passwords to meet minimum standards — e.g. at least 12 characters, no reuse of old passwords, and automatic lockout after failed attempts." },
+  { key: "sso_in_use", label: "SSO in use", category: "Identity & Access",
+    hint: "Single Sign-On lets employees log in once to access multiple apps (e.g. email, Slack, Salesforce) without separate passwords for each. e.g. Okta, Microsoft Entra ID (Azure AD), Google Workspace SSO." },
+  { key: "edr_deployed", label: "EDR/antivirus deployed", category: "Endpoint Protection",
+    hint: "Endpoint Detection & Response software monitors laptops and desktops for malicious activity and can automatically block or quarantine threats. e.g. CrowdStrike, SentinelOne, Microsoft Defender, or standard antivirus like Malwarebytes." },
+  { key: "devices_encrypted", label: "Devices encrypted", category: "Endpoint Protection",
+    hint: "Encryption scrambles the data on a device so it can't be read if stolen or lost. On Windows this is called BitLocker; on Mac it's FileVault. Answer Yes if this is turned on for company laptops and phones." },
+  { key: "auto_patching", label: "Auto-patching enabled", category: "Endpoint Protection",
+    hint: "Automatic patching means software updates (including security fixes) install themselves without requiring someone to manually approve each one. Unpatched software is one of the most common ways attackers get in." },
+  { key: "email_filtering", label: "Email filtering / gateway", category: "Email Security",
+    hint: "A service that scans incoming emails before they reach employees' inboxes, blocking spam, phishing attempts, and malicious attachments. e.g. Microsoft Defender for Office 365, Google Workspace spam filtering, Proofpoint, Mimecast." },
+  { key: "phishing_training", label: "Phishing training conducted", category: "Email Security",
+    hint: "Regular training that teaches employees how to spot fake emails designed to steal passwords or trick them into wiring money. Often includes simulated phishing tests. e.g. KnowBe4, Proofpoint Security Awareness." },
+  { key: "firewall_in_place", label: "Firewall in place", category: "Network",
+    hint: "A firewall acts as a gatekeeper between your internal network and the internet, blocking unauthorized traffic. Most business routers include a basic firewall; dedicated solutions offer stronger protection." },
+  { key: "vpn_remote_access", label: "VPN for remote access", category: "Network",
+    hint: "A Virtual Private Network creates an encrypted tunnel so remote employees connect to company resources securely — like having a private hallway over the public internet. e.g. Cisco AnyConnect, Palo Alto GlobalProtect, NordLayer." },
+  { key: "network_segmentation", label: "Network segmentation", category: "Network",
+    hint: "Dividing your network into separate zones so that if an attacker breaks into one area (e.g. guest Wi-Fi), they can't automatically reach sensitive systems (e.g. accounting or patient records). Common in healthcare and finance." },
+  { key: "regular_backups", label: "Regular data backups", category: "Data Protection",
+    hint: "Automatic, scheduled copies of your important files and systems stored somewhere separate (e.g. cloud storage or an offsite drive). Critical for recovering from ransomware attacks without paying a ransom." },
+  { key: "backup_testing", label: "Backup restoration tested", category: "Data Protection",
+    hint: "Having backups is only useful if they actually work when you need them. This means periodically doing a test restore to confirm you can recover your data. Many businesses discover their backups were broken only after a disaster." },
+  { key: "data_classification", label: "Data classification policy", category: "Data Protection",
+    hint: "A written policy that labels data by sensitivity level (e.g. Public, Internal, Confidential, Restricted) and specifies how each level must be stored, shared, and deleted. Helps employees know what data needs extra protection." },
+  { key: "ir_plan_documented", label: "IR plan documented", category: "Incident Response",
+    hint: "An Incident Response plan is a written playbook for what your team does when a cyberattack or data breach occurs — who to call, what to shut down, how to notify customers. Having one reduces chaos and recovery time." },
+  { key: "ir_plan_tested", label: "IR plan tested within 12 months", category: "Incident Response",
+    hint: "A tabletop exercise or drill where your team walks through a simulated attack scenario to practice the IR plan. Testing reveals gaps before a real incident. Regulators like HIPAA and PCI-DSS often require this." },
 ] as const;
 
 const TOTAL_STEPS = 9;
+
+interface CloudVendor {
+  name: string;
+  product: string;
+}
 
 interface FormData {
   name: string;
@@ -114,7 +136,7 @@ interface FormData {
   employee_range: string;
   revenue_range: string;
   security_controls: Record<string, "yes" | "no" | "unsure">;
-  cloud_providers: string[];
+  cloud_vendors: CloudVendor[];
   compliance_frameworks: string[];
   data_types: string[];
 }
@@ -138,7 +160,7 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
     employee_range: "",
     revenue_range: "",
     security_controls: {},
-    cloud_providers: [],
+    cloud_vendors: [],
     compliance_frameworks: [],
     data_types: [],
   });
@@ -148,7 +170,7 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
     setError("");
   };
 
-  const toggleListItem = (field: "cloud_providers" | "compliance_frameworks" | "data_types", value: string) => {
+  const toggleListItem = (field: "compliance_frameworks" | "data_types", value: string) => {
     setForm((prev) => {
       const current = prev[field] as string[];
       const next = current.includes(value)
@@ -156,6 +178,27 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
         : [...current, value];
       return { ...prev, [field]: next };
     });
+  };
+
+  const toggleVendor = (name: string) => {
+    setForm((prev) => {
+      const exists = prev.cloud_vendors.some((v) => v.name === name);
+      return {
+        ...prev,
+        cloud_vendors: exists
+          ? prev.cloud_vendors.filter((v) => v.name !== name)
+          : [...prev.cloud_vendors, { name, product: "" }],
+      };
+    });
+  };
+
+  const setVendorProduct = (name: string, product: string) => {
+    setForm((prev) => ({
+      ...prev,
+      cloud_vendors: prev.cloud_vendors.map((v) =>
+        v.name === name ? { ...v, product } : v,
+      ),
+    }));
   };
 
   const setControlValue = (key: string, value: "yes" | "no" | "unsure") => {
@@ -204,7 +247,7 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
       employee_range: form.employee_range,
       revenue_range: form.revenue_range || null,
       security_controls: Object.keys(form.security_controls).length > 0 ? form.security_controls : null,
-      cloud_providers: form.cloud_providers.length > 0 ? form.cloud_providers : null,
+      cloud_providers: form.cloud_vendors.length > 0 ? form.cloud_vendors.map((v) => v.name) : null,
       compliance_frameworks: form.compliance_frameworks.length > 0 ? form.compliance_frameworks : null,
       data_types: form.data_types.length > 0 ? form.data_types : null,
     };
@@ -221,8 +264,15 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
         throw new Error((body as { detail?: string }).detail ?? "Failed to create organization");
       }
 
+      const created = await resp.json().catch(() => null) as { id?: number } | null;
+      if (created?.id && form.cloud_vendors.length > 0) {
+        await Promise.allSettled(
+          form.cloud_vendors.map((v) => createVendor(created.id as number, v.name, v.product)),
+        );
+      }
+
       onComplete();
-      navigate("/");
+      navigate("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -347,7 +397,10 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
                   const val = form.security_controls[control.key] ?? "unsure";
                   return (
                     <div key={control.key} className="onboarding-control-row">
-                      <span className="control-label">{control.label}</span>
+                      <div className="control-label-group">
+                        <span className="control-label">{control.label}</span>
+                        <span className="control-hint">{control.hint}</span>
+                      </div>
                       <div className="control-toggle">
                         {(["yes", "no", "unsure"] as const).map((opt) => (
                           <button
@@ -375,17 +428,32 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
             <p className="step-description">
               Select cloud platforms and SaaS tools your organization uses. This helps match CVEs to your stack.
             </p>
-            <div className="onboarding-checklist">
-              {CLOUD_PROVIDERS.map((provider) => (
-                <label key={provider} className="onboarding-check-item">
-                  <input
-                    type="checkbox"
-                    checked={form.cloud_providers.includes(provider)}
-                    onChange={() => toggleListItem("cloud_providers", provider)}
-                  />
-                  {provider}
-                </label>
-              ))}
+            <div className="onboarding-vendor-list">
+              {CLOUD_PROVIDERS.map((provider) => {
+                const entry = form.cloud_vendors.find((v) => v.name === provider);
+                const checked = !!entry;
+                return (
+                  <div key={provider} className={`onboarding-vendor-row${checked ? " selected" : ""}`}>
+                    <label className="onboarding-vendor-check">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleVendor(provider)}
+                      />
+                      <span className="onboarding-vendor-name">{provider}</span>
+                    </label>
+                    {checked && (
+                      <input
+                        type="text"
+                        className="onboarding-vendor-product"
+                        placeholder="Product / plan (optional)"
+                        value={entry?.product ?? ""}
+                        onChange={(e) => setVendorProduct(provider, e.target.value)}
+                      />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         );
@@ -438,7 +506,7 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
 
   const handleLogout = async () => {
     await logout();
-    navigate("/login");
+    navigate("/");
   };
 
   return (

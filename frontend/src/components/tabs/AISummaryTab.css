@@ -103,6 +103,28 @@
   text-decoration: none;
 }
 
+.ai-summary-setup-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text-secondary, #555);
+}
+
+.ai-summary-setup-checklist li {
+  padding: 3px 0 3px 22px;
+  position: relative;
+  line-height: 1.5;
+}
+
+.ai-summary-setup-checklist li::before {
+  content: '☐';
+  position: absolute;
+  left: 0;
+  color: var(--accent, #0b1060);
+}
+
 .ai-summary-error-action:hover {
   background: var(--accent-hover, #1a2080);
 }

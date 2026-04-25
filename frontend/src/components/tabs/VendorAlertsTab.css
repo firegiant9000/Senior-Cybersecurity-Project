@@ -1,0 +1,115 @@
+/* ── Vendor Alerts Tab ──────────────────────────────────────────────────────── */
+
+/* No-matches state card */
+.vendor-no-matches-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 28px 28px 24px;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vendor-no-matches-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.vendor-no-matches-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-low);
+  margin: 0;
+}
+
+.vendor-no-matches-sub {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Unmatched vendor list — shared between no-matches card and inline table banner */
+.vendor-unmatched-list {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vendor-unmatched-list--inline {
+  margin-top: 0;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.vendor-unmatched-heading {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.vendor-unmatched-row {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.vendor-unmatched-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.vendor-unmatched-suggestion {
+  color: var(--warn-text);
+}
+
+.vendor-unmatched-none {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.vendor-unmatched-more {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 4px 0 0;
+}
+
+.vendor-add-btn {
+  margin-left: 6px;
+  padding: 1px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.vendor-add-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.vendor-add-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.vendor-add-btn--done {
+  background: transparent;
+  color: var(--color-low);
+  cursor: default;
+}

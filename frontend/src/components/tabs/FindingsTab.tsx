@@ -11,6 +11,7 @@ import { useAuth } from '../../context/AuthContext';
 import { downloadCsv } from '../../utils/csvExport';
 import SeverityBadge from '../shared/SeverityBadge';
 import DisclaimerBanner from '../shared/DisclaimerBanner';
+import InfoTip from '../shared/InfoTip';
 import './FindingsTab.css';
 
 const TYPE_LABELS: Record<string, { label: string; icon: string }> = {
@@ -148,17 +149,30 @@ const FindingsTab: React.FC = () => {
   }
 
   if (error) {
-    const isIncomplete = error.includes('incomplete');
+    const lower = error.toLowerCase();
+    const isIncomplete =
+      lower.includes('incomplete') ||
+      lower.includes('enhanced tier') ||
+      lower.includes('profile') && (lower.includes('required') || lower.includes('missing')) ||
+      lower.includes('no vendor') ||
+      lower.includes('no domain');
     return (
       <div className="tab-page">
         <div className="findings-error-card">
           {isIncomplete ? (
             <>
               <span className="findings-error-icon">{'\ud83d\udccb'}</span>
-              <p className="findings-error-title">Profile Incomplete</p>
+              <p className="findings-error-title">Setup Required</p>
               <p className="findings-error-detail">
-                Complete all required fields in your organization profile before viewing findings.
+                Complete these steps to unlock your Security Findings report:
               </p>
+              <ul className="findings-setup-checklist">
+                <li>Organization name</li>
+                <li>Industry &amp; state</li>
+                <li>At least one vendor (Technology Stack)</li>
+                <li>At least one domain</li>
+                <li>At least one security question answered</li>
+              </ul>
               <Link to="/org-profile" className="findings-error-action">
                 Complete Profile
               </Link>
@@ -166,11 +180,21 @@ const FindingsTab: React.FC = () => {
           ) : (
             <>
               <span className="findings-error-icon">{'\u26a0'}</span>
-              <p className="findings-error-title">Failed to Load Findings</p>
-              <p className="findings-error-detail">{error}</p>
-              <button className="findings-error-action" onClick={load}>
-                Retry
-              </button>
+              <p className="findings-error-title">Couldn't Load Findings</p>
+              <p className="findings-error-detail">
+                We hit a snag fetching your security findings. This is usually temporary — try again, or check your Organization Profile if the problem persists.
+              </p>
+              <p className="findings-error-detail" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                Details: {error}
+              </p>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button className="findings-error-action" onClick={load}>
+                  Retry
+                </button>
+                <Link to="/org-profile" className="findings-error-action" style={{ background: 'transparent', color: 'var(--accent)', border: '1px solid var(--accent)' }}>
+                  Review Profile
+                </Link>
+              </div>
             </>
           )}
         </div>
@@ -281,6 +305,7 @@ const FindingsTab: React.FC = () => {
       {report.data_sources_used.length > 0 && (
         <div className="findings-sources">
           Data sources: {report.data_sources_used.join(', ')}
+          <InfoTip text="KEV = CISA Known Exploited Vulnerabilities — CVEs confirmed exploited in the wild" />
         </div>
       )}
 

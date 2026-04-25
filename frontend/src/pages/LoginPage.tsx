@@ -44,7 +44,7 @@ export default function LoginPage({ defaultSignUp = false }: { defaultSignUp?: b
       } else {
         await login(email, password);
       }
-      navigate("/");
+      navigate("/dashboard");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Authentication failed";
       if (message.includes("user-not-found") || message.includes("wrong-password") || message.includes("invalid-credential")) {
