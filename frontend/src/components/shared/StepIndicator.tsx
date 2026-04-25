@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 export interface StepIndicatorProps {
   currentStep: number;
   totalSteps: number;
@@ -9,22 +11,26 @@ export default function StepIndicator({
   totalSteps,
   steps,
 }: StepIndicatorProps) {
+  const stepGridStyle = {
+    ["--intake-step-count" as string]: totalSteps,
+  } as CSSProperties;
+
   return (
     <div className="intake-step-indicator">
-      <div className="intake-step-progress-bar">
+      <div className="intake-step-progress-bar" style={stepGridStyle}>
         {Array.from({ length: totalSteps }).map((_, i) => (
           <div
             key={i}
             className={`intake-progress-dot ${
-              i < currentStep ? "completed" : i === currentStep - 1 ? "active" : ""
+              i < currentStep - 1 ? "completed" : i === currentStep - 1 ? "active" : ""
             }`}
             title={steps[i]?.title}
           >
-            {i < currentStep ? "✓" : i + 1}
+            {i < currentStep - 1 ? "✓" : i + 1}
           </div>
         ))}
       </div>
-      <div className="intake-step-labels">
+      <div className="intake-step-labels" style={stepGridStyle}>
         {steps.map((step, i) => (
           <div
             key={i}
