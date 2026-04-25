@@ -19,6 +19,8 @@ import VendorAlertsCard from '../shared/VendorAlertsCard';
 import type { DashboardData } from '../../hooks/useDashboardData';
 import { fmtLoss } from '../../utils/fmtLoss';
 import { useWidgetPrefs } from '../../hooks/useWidgetPrefs';
+import { useRefreshProgress } from '../../hooks/useRefreshProgress';
+import RefreshButton from '../RefreshButton';
 
 import { fetchIngestFreshness } from '../../api/ingest';
 import { useAuth } from '../../context/AuthContext';
@@ -181,6 +183,7 @@ interface Props {
     errors: string[];
     lastUpdated: Date | null;
     onRefresh: () => void;
+    onSetRefreshProgress?: (callback: (itemName: string) => void) => void;
 }
 
 function renderGridWidget(
@@ -735,6 +738,7 @@ const OverviewTab: React.FC<Props> = ({
     errors: dashboardErrors,
     lastUpdated,
     onRefresh: refresh,
+    onSetRefreshProgress,
 }) => {
     const { role, orgRole } = useAuth();
     const pipelineVisible = checkCanSeePipeline(role, orgRole);
@@ -743,6 +747,14 @@ const OverviewTab: React.FC<Props> = ({
     const [showCustomize, setShowCustomize] = useState(false);
     const gearRef = useRef<HTMLButtonElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
+
+    // Progress tracking for refresh
+    const progressState = useRefreshProgress();
+
+    // Register progress callback with the data hook
+    useEffect(() => {
+        onSetRefreshProgress?.(progressState.markItemComplete);
+    }, [onSetRefreshProgress, progressState.markItemComplete]);
 
     const { hiddenSet, gridOrder, toggle, move, reorder, insertAtEnd, reset } = useWidgetPrefs(ALL_WIDGET_IDS, MOVEABLE_IDS, 'overviewWidgetPrefs');
     const show = useCallback((id: string) => !hiddenSet.has(id), [hiddenSet]);
@@ -792,6 +804,34 @@ const OverviewTab: React.FC<Props> = ({
             .catch(() => { /* non-fatal */ });
         return () => controller.abort();
     }, [pipelineVisible, freshnessRevision]);
+
+    // Reset progress when loading completes
+    useEffect(() => {
+        if (!dashboardLoading && !dashboardLoadingHeavy && progressState.isActive) {
+            progressState.reset();
+        }
+    }, [dashboardLoading, dashboardLoadingHeavy, progressState]);
+
+    const handleRefresh = useCallback(() => {
+        // Start progress tracking with all items
+        progressState.start([
+            'Dashboard summary',
+            'Attack types',
+            'Severity distribution',
+            'Temporal trends',
+            'KEV total',
+            'Executive summary',
+            'Loss projection',
+            'Risk score stats',
+            'Geographic heatmap',
+            'Sector attack matrix',
+            'Industry risk',
+            'IC3 anomalies',
+            'Escalating sectors',
+        ]);
+        refresh();
+        setFreshnessRevision((r) => r + 1);
+    }, [refresh, progressState]);
 
     const sortedTrends = useMemo(
         () => [...dashboardData.temporalTrends].sort((a, b) => b.year - a.year),
@@ -843,9 +883,13 @@ const OverviewTab: React.FC<Props> = ({
                         >
                             ⚙ <span className="overview-customize-btn-label">Tabs</span>
                         </button>
-                        <button className="overview-refresh-btn" onClick={() => { refresh(); setFreshnessRevision((r) => r + 1); }}>
-                            ↻ Refresh
-                        </button>
+                        <RefreshButton
+                            onClick={handleRefresh}
+                            loading={dashboardLoading || dashboardLoadingHeavy}
+                            items={progressState.items}
+                            progress={progressState.progress}
+                            label="Refresh"
+                        />
                         {lastUpdated && (
                             <span className="overview-last-updated">
                                 Updated {formatTimeWithTz(lastUpdated)}

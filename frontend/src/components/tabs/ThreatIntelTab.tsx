@@ -1,9 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback, useEffect } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList,
   LineChart, Line, PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import { useThreatIntelData } from '../../hooks/useThreatIntelData';
+import { useRefreshProgress } from '../../hooks/useRefreshProgress';
+import RefreshButton from '../RefreshButton';
 import { useIsDark } from '../../hooks/useDarkMode';
 import WidgetSkeleton from '../shared/WidgetSkeleton';
 import WidgetErrorBoundary from '../shared/WidgetErrorBoundary';
@@ -37,8 +39,26 @@ function severityBadge(label: string) {
 }
 
 const ThreatIntelTab: React.FC = () => {
-  const { data, loading, errors, refresh } = useThreatIntelData();
+  const { data, loading, errors, refresh, setOnProgress } = useThreatIntelData();
   const isDark = useIsDark();
+  const progressState = useRefreshProgress();
+
+  // Register progress callback
+  useEffect(() => {
+    setOnProgress?.(progressState.markItemComplete);
+  }, [setOnProgress, progressState.markItemComplete]);
+
+  // Reset progress when loading completes
+  useEffect(() => {
+    if (!loading && progressState.isActive) {
+      progressState.reset();
+    }
+  }, [loading, progressState]);
+
+  const handleRefresh = useCallback(() => {
+    progressState.start(['CVE timeline', 'Severity distribution', 'Recent KEV', 'Recent CVEs']);
+    refresh();
+  }, [refresh, progressState]);
 
   // Aggregate top vendors from KEV data
   const topVendors = useMemo(() => {
@@ -64,7 +84,13 @@ const ThreatIntelTab: React.FC = () => {
       {/* Toolbar */}
       <div className="overview-toolbar">
         <div className="overview-toolbar-actions">
-          <button className="overview-refresh-btn" onClick={refresh}>↻ Refresh</button>
+          <RefreshButton
+            onClick={handleRefresh}
+            loading={loading}
+            items={progressState.items}
+            progress={progressState.progress}
+            label="Refresh"
+          />
         </div>
       </div>
 

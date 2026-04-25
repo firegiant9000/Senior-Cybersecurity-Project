@@ -1,8 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback, useEffect } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { useTrendsData } from '../../hooks/useTrendsData';
+import { useRefreshProgress } from '../../hooks/useRefreshProgress';
+import RefreshButton from '../RefreshButton';
 import WidgetSkeleton from '../shared/WidgetSkeleton';
 import WidgetErrorBoundary from '../shared/WidgetErrorBoundary';
 import { COLORS } from '../../theme';
@@ -76,8 +78,26 @@ function fmtK(v: number): string {
 }
 
 const TrendsTab: React.FC = () => {
-  const { data, loading, errors, setAttackType, setSector, setYearFrom, setYearTo, refresh } = useTrendsData();
+  const { data, loading, errors, setAttackType, setSector, setYearFrom, setYearTo, refresh, setOnProgress } = useTrendsData();
   const { trends, attackTypeOptions, selectedAttackType, selectedSector, yearFrom, yearTo } = data;
+  const progressState = useRefreshProgress();
+
+  // Register progress callback
+  useEffect(() => {
+    setOnProgress?.(progressState.markItemComplete);
+  }, [setOnProgress, progressState.markItemComplete]);
+
+  // Reset progress when loading completes
+  useEffect(() => {
+    if (!loading && progressState.isActive) {
+      progressState.reset();
+    }
+  }, [loading, progressState]);
+
+  const handleRefresh = useCallback(() => {
+    progressState.start(['Trends data']);
+    refresh();
+  }, [refresh, progressState]);
 
   const projected = useMemo(() => projectLinear(trends), [trends]);
 
@@ -185,7 +205,13 @@ const TrendsTab: React.FC = () => {
           />
         </div>
         <div className="overview-toolbar-actions">
-          <button className="overview-refresh-btn" onClick={refresh}>↻ Refresh</button>
+          <RefreshButton
+            onClick={handleRefresh}
+            loading={loading}
+            items={progressState.items}
+            progress={progressState.progress}
+            label="Refresh"
+          />
         </div>
       </div>
 
