@@ -3,7 +3,7 @@
 import logging
 
 from sqlalchemy import func, or_, select
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import CVE, KEV
@@ -155,9 +155,11 @@ class VendorAlertService:
         )
         try:
             return list((await self._session.execute(stmt)).all())
-        except SQLAlchemyError:
-            # pg_trgm extension may be unavailable. Degrade gracefully so the
-            # endpoint still returns exact + alias matches instead of 500.
+        except ProgrammingError:
+            # pg_trgm function/operator missing on the DB (SQLSTATE 42883).
+            # Degrade gracefully so the endpoint still returns exact + alias
+            # matches instead of 500. Connectivity / permission / integrity
+            # failures (other SQLAlchemyError subclasses) keep bubbling up.
             logger.warning(
                 "vendor fuzzy match failed for org %s — degrading to exact+alias only",
                 org_id,
