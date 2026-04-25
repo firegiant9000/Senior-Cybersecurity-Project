@@ -38,7 +38,7 @@ export const RefreshButton: React.FC<RefreshButtonProps> = ({
   const containerRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
 
-  const showProgress = loading && items.length > 0 && isHovering
+  const showProgress = items.length > 0 && isHovering
 
   return (
     <div
