@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlalchemy.exc import ProgrammingError
 
 from app.services.vendor_alerts import VendorAlertService
 
@@ -235,3 +236,53 @@ async def test_exact_and_fuzzy_combined_total():
     confidences = {item.match_confidence for item in result.items}
     assert 1.0 in confidences
     assert any(c < 1.0 for c in confidences)
+
+
+# ---------------------------------------------------------------------------
+# Graceful degradation — pg_trgm unavailable (ProgrammingError on fuzzy)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_fuzzy_pg_trgm_unavailable_degrades_to_exact_only():
+    """When the fuzzy query raises ProgrammingError (e.g. pg_trgm/`%` missing),
+    the service must roll back the poisoned session, skip fuzzy, and still
+    return the exact matches plus a successful _last_kev_ingest call."""
+    session = _mock_session()
+    session.rollback = AsyncMock()
+    exact = _exact_row(vendor_name="Microsoft", cvss=9.8)
+
+    fuzzy_err = ProgrammingError(
+        statement="SELECT ... similarity(...)",
+        params={},
+        orig=Exception("function similarity(text, text) does not exist"),
+    )
+
+    # Order: vendor count → exact pass → all vendor names → fuzzy (raises) → last kev ingest
+    call_results = [
+        _count_result(2),
+        _rows_result([exact]),
+        _rows_result([("Microsoft",), ("Apche",)]),  # Apche not in aliases → goes to fuzzy
+        fuzzy_err,
+        _scalar_or_none_result(None),
+    ]
+
+    async def execute_side_effect(*_args, **_kwargs):
+        nxt = call_results.pop(0)
+        if isinstance(nxt, Exception):
+            raise nxt
+        return nxt
+
+    session.execute = AsyncMock(side_effect=execute_side_effect)
+
+    with patch("app.services.vendor_alerts.fire_and_forget_normalization_log"):
+        svc = VendorAlertService(session)
+        result = await svc.get_alerts(org_id=1)
+
+    # Rollback ran exactly once — proves the poisoned-session recovery path.
+    session.rollback.assert_awaited_once()
+    # Exact match still present, fuzzy skipped, no 500 raised.
+    assert result.total_matched == 1
+    assert len(result.items) == 1
+    assert result.items[0].match_confidence == 1.0
+    assert "Apche" in result.unmatched_vendors
