@@ -15,6 +15,8 @@ import {
 } from "../api/aiSummaryHistory";
 import type { AssessmentValidation } from "../api/assessmentValidation";
 import type { FindingsReport } from "../api/findings";
+import SeverityBadge from "../components/shared/SeverityBadge";
+import InfoTip from "../components/shared/InfoTip";
 import "../Dashboard.css";
 import "./SettingsPage.css";
 
@@ -228,7 +230,7 @@ function ValidationSection({ validation }: { validation: AssessmentValidation })
     <section className="settings-section">
       <h2>Validation</h2>
       <div className="settings-field">
-        <label>Quality Score</label>
+        <label>Quality Score <InfoTip text="0–100 completeness score: measures how fully your org profile is filled out. Higher scores unlock more accurate risk findings and AI summaries." /></label>
         <span>{validation.score.toFixed(1)} / 100</span>
       </div>
       <div className="settings-field">
@@ -466,8 +468,8 @@ function FindingsSection({ readiness }: { readiness: FindingsReadinessBlock }) {
       <div className="settings-field" style={{ gap: "0.5rem" }}>
         <label>By Severity</label>
         {Object.entries(report.summary.by_severity).map(([sev, count]) => (
-          <span key={sev} className="role-badge" style={{ background: "#555" }}>
-            {sev}: {count}
+          <span key={sev} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <SeverityBadge label={sev.charAt(0).toUpperCase() + sev.slice(1)} /> {count}
           </span>
         ))}
       </div>
@@ -484,7 +486,7 @@ function FindingsSection({ readiness }: { readiness: FindingsReadinessBlock }) {
             {report.findings.map((f) => (
               <tr key={f.id}>
                 <td>
-                  <span className="role-badge" style={{ background: "#555" }}>{f.severity}</span>
+                  <SeverityBadge label={f.severity.charAt(0).toUpperCase() + f.severity.slice(1)} />
                 </td>
                 <td style={{ fontSize: "0.85rem" }}>{f.finding_type}</td>
                 <td style={{ fontSize: "0.85rem" }}>{f.title}</td>

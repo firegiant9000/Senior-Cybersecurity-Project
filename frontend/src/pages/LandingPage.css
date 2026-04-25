@@ -83,6 +83,15 @@
   margin: 0 0 12px;
 }
 
+.landing-footer-sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+}
+
 .landing-footer-term {
   display: inline-flex;
   align-items: center;

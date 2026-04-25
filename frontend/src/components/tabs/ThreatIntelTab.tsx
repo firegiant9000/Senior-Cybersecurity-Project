@@ -63,7 +63,9 @@ const ThreatIntelTab: React.FC = () => {
     <div className="tab-page">
       {/* Toolbar */}
       <div className="overview-toolbar">
-        <button className="overview-refresh-btn" onClick={refresh}>↻ Refresh</button>
+        <div className="overview-toolbar-actions">
+          <button className="overview-refresh-btn" onClick={refresh}>↻ Refresh</button>
+        </div>
       </div>
 
       {errors.length > 0 && (
