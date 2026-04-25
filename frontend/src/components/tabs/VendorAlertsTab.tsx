@@ -21,7 +21,7 @@ const VendorAlertsTab: React.FC = () => {
     if (!orgId) return;
     setAdding((m) => ({ ...m, [vendorName]: 'pending' }));
     try {
-      await createVendor(orgId, vendorName, productName ?? vendorName);
+      await createVendor(orgId, vendorName, productName ?? '');
       setAdding((m) => ({ ...m, [vendorName]: 'added' }));
       load(page);
     } catch {
