@@ -1,4 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+
+const INDUSTRY_LABEL_TO_SECTOR: Record<string, string> = {
+  'Finance & Insurance': 'Finance',
+  'Healthcare': 'Healthcare',
+  'Tech & Software': 'Technology',
+  'Government': 'Government',
+  'Retail & E-Commerce': 'Retail',
+  'Education': 'Education',
+  'Manufacturing': 'Manufacturing',
+  'Professional Services': 'Professional Services',
+};
 import { Link } from 'react-router-dom';
 import { useUserContext } from '../../context/UserContext';
 import './SmBAdvisorTab.css';
@@ -808,9 +819,8 @@ const SmBAdvisorTab: React.FC = () => {
       setSelectedState(organization.primary_state);
     }
     if (organization.industry_label && sectors.length > 0) {
-      const match = sectors.find(
-        s => s.toLowerCase() === organization.industry_label.toLowerCase(),
-      );
+      const mapped = INDUSTRY_LABEL_TO_SECTOR[organization.industry_label] ?? organization.industry_label;
+      const match = sectors.find(s => s.toLowerCase() === mapped.toLowerCase());
       if (match) {
         setSelectedSector(match);
         autoFilled.current = true;
