@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import type { ProgressItem } from '../hooks/useRefreshProgress'
 import './RefreshButton.css'
 
@@ -35,17 +35,60 @@ export const RefreshButton: React.FC<RefreshButtonProps> = ({
   title,
 }) => {
   const [isHovering, setIsHovering] = useState(false)
+  const [isLingering, setIsLingering] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
+  const lingerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const showProgress = items.length > 0 && isHovering
+  useEffect(() => {
+    if (items.length === 0) {
+      setIsLingering(false)
+      if (lingerTimeoutRef.current) {
+        clearTimeout(lingerTimeoutRef.current)
+        lingerTimeoutRef.current = null
+      }
+    }
+  }, [items.length])
+
+  useEffect(() => {
+    return () => {
+      if (lingerTimeoutRef.current) {
+        clearTimeout(lingerTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const handleMouseEnter = () => {
+    if (lingerTimeoutRef.current) {
+      clearTimeout(lingerTimeoutRef.current)
+      lingerTimeoutRef.current = null
+    }
+    setIsLingering(false)
+    setIsHovering(true)
+  }
+
+  const handleMouseLeave = () => {
+    setIsHovering(false)
+    if (items.length === 0) return
+
+    setIsLingering(true)
+    if (lingerTimeoutRef.current) {
+      clearTimeout(lingerTimeoutRef.current)
+    }
+    lingerTimeoutRef.current = setTimeout(() => {
+      setIsLingering(false)
+      lingerTimeoutRef.current = null
+    }, 3000)
+  }
+
+  const showProgress = items.length > 0 && (isHovering || isLingering)
 
   return (
     <div
       ref={containerRef}
       className="refresh-button-container"
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       <button
         className="overview-refresh-btn"
