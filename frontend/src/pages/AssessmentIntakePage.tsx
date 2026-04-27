@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useAssessmentIntake } from "../hooks/useAssessmentIntake";
@@ -14,10 +14,13 @@ import {
   REVENUE_RANGES,
   US_STATES,
   COMPLIANCE_FRAMEWORKS,
+  COMPLIANCE_FRAMEWORK_EXCLUSIVE,
   DATA_TYPES,
   CLOUD_PROVIDERS,
   SECURITY_CONTROLS,
+  DOMAIN_PATTERN,
 } from "../types/assessmentIntake";
+import { createVendor } from "../api/vendors";
 import "./AssessmentIntakePage.css";
 
 const TOTAL_STEPS = 5;
@@ -53,7 +56,7 @@ const STEPS = [
 export default function AssessmentIntakePage() {
   const navigate = useNavigate();
   const { user, orgId } = useAuth();
-  const { data: intakeData, loading: intakeLoading, error: intakeError } = useAssessmentIntake();
+  const { data: intakeData, loading: intakeLoading } = useAssessmentIntake();
 
   // Redirect if not in org
   useEffect(() => {
@@ -65,11 +68,14 @@ export default function AssessmentIntakePage() {
   const [step, setStep] = useState(1);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const vendorSyncedRef = useRef<string>("");
   const [form, setForm] = useState<AssessmentIntakeFormData>({
     name: "",
     industry_label: "",
     primary_state: "",
     employee_range: "",
+    primary_domain: "",
+    primary_vendor: "",
     revenue_range: "",
     security_controls: {},
     compliance_frameworks: [],
@@ -92,6 +98,8 @@ export default function AssessmentIntakePage() {
             industry_label: org.industry_label || "",
             primary_state: org.primary_state || "",
             employee_range: org.employee_range || "",
+            primary_domain: org.primary_domain || "",
+            primary_vendor: prev.primary_vendor,
             revenue_range: org.revenue_range || "",
             security_controls: org.security_controls || {},
             compliance_frameworks: org.compliance_frameworks || [],
@@ -120,11 +128,26 @@ export default function AssessmentIntakePage() {
   ) => {
     setForm((prev) => {
       const current = prev[field] as string[];
-      const next = current.includes(value)
-        ? current.filter((v) => v !== value)
-        : [...current, value];
+      const isOn = current.includes(value);
+      let next = isOn ? current.filter((v) => v !== value) : [...current, value];
+
+      if (field === "compliance_frameworks" && !isOn) {
+        const exclusives = COMPLIANCE_FRAMEWORK_EXCLUSIVE as readonly string[];
+        if (exclusives.includes(value)) {
+          // Selecting "None" or "Unsure" clears all other choices.
+          next = [value];
+        } else {
+          // Selecting a substantive framework clears the exclusive options.
+          next = next.filter((v) => !exclusives.includes(v));
+        }
+      }
       return { ...prev, [field]: next };
     });
+  };
+
+  const domainIsValid = (value: string): boolean => {
+    const trimmed = value.trim();
+    return trimmed === "" || DOMAIN_PATTERN.test(trimmed);
   };
 
   const setControlValue = (key: string, value: "yes" | "no" | "unsure") => {
@@ -141,7 +164,8 @@ export default function AssessmentIntakePage() {
           form.name.trim().length > 0 &&
           form.industry_label !== "" &&
           form.primary_state !== "" &&
-          form.employee_range !== ""
+          form.employee_range !== "" &&
+          domainIsValid(form.primary_domain)
         );
       case 2:
         return true; // financial & compliance optional
@@ -173,6 +197,7 @@ export default function AssessmentIntakePage() {
             industry_label: form.industry_label,
             primary_state: form.primary_state,
             employee_range: form.employee_range,
+            primary_domain: form.primary_domain.trim() || null,
             revenue_range: form.revenue_range || null,
             security_controls:
               Object.keys(form.security_controls).length > 0 ? form.security_controls : null,
@@ -223,6 +248,16 @@ export default function AssessmentIntakePage() {
         throw new Error(
           (body as { detail?: string }).detail ?? "Failed to save assessment"
         );
+      }
+
+      const vendorName = form.primary_vendor.trim();
+      if (vendorName && orgId && vendorSyncedRef.current !== vendorName) {
+        try {
+          await createVendor(orgId, vendorName, "");
+          vendorSyncedRef.current = vendorName;
+        } catch (vendorErr) {
+          console.warn("Failed to add primary vendor:", vendorErr);
+        }
       }
 
       navigate("/dashboard");
@@ -314,6 +349,51 @@ export default function AssessmentIntakePage() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="intake-form-group">
+                <label htmlFor="primary_domain">
+                  Primary Domain
+                  <RequiredBadge optional />
+                </label>
+                <p className="intake-field-hint">
+                  Used for domain-based threat exposure checks (DNS, SSL, breach data).
+                </p>
+                <input
+                  id="primary_domain"
+                  type="text"
+                  value={form.primary_domain}
+                  onChange={(e) => updateField("primary_domain", e.target.value)}
+                  placeholder="acme.com"
+                  maxLength={255}
+                  autoComplete="off"
+                />
+                {form.primary_domain.trim() !== "" &&
+                  !domainIsValid(form.primary_domain) && (
+                    <p className="intake-field-error">
+                      Enter a valid domain (e.g. acme.com).
+                    </p>
+                  )}
+              </div>
+
+              <div className="intake-form-group">
+                <label htmlFor="primary_vendor">
+                  Primary Vendor
+                  <RequiredBadge optional />
+                </label>
+                <p className="intake-field-hint">
+                  Your most important software vendor. We'll seed your vendor stack
+                  so you immediately see relevant alerts. You can add more later.
+                </p>
+                <input
+                  id="primary_vendor"
+                  type="text"
+                  value={form.primary_vendor}
+                  onChange={(e) => updateField("primary_vendor", e.target.value)}
+                  placeholder="Microsoft, Cisco, Atlassian…"
+                  maxLength={255}
+                  autoComplete="off"
+                />
               </div>
             </FormSection>
           </div>
@@ -518,6 +598,18 @@ export default function AssessmentIntakePage() {
                     <span className="intake-review-label">Employee Count:</span>
                     <span className="intake-review-value">
                       {form.employee_range || "-"}
+                    </span>
+                  </div>
+                  <div className="intake-review-item">
+                    <span className="intake-review-label">Primary Domain:</span>
+                    <span className="intake-review-value">
+                      {form.primary_domain.trim() || "-"}
+                    </span>
+                  </div>
+                  <div className="intake-review-item">
+                    <span className="intake-review-label">Primary Vendor:</span>
+                    <span className="intake-review-value">
+                      {form.primary_vendor.trim() || "-"}
                     </span>
                   </div>
                 </div>

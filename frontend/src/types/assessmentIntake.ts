@@ -8,6 +8,8 @@ export interface AssessmentIntakeFormData {
   industry_label: string;
   primary_state: string;
   employee_range: string;
+  primary_domain: string;
+  primary_vendor: string;
 
   // ENHANCED tier additions
   security_controls: Record<string, "yes" | "no" | "unsure">;
@@ -125,7 +127,14 @@ export const COMPLIANCE_FRAMEWORKS = [
   "NIST CSF",
   "ISO 27001",
   "None",
+  "Unsure",
 ] as const;
+
+// Mutually exclusive framework choices: selecting one of these clears the
+// substantive frameworks (and vice versa).
+export const COMPLIANCE_FRAMEWORK_EXCLUSIVE = ["None", "Unsure"] as const;
+
+export const DOMAIN_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i;
 
 export const DATA_TYPES = [
   "PII (names, SSNs)",
