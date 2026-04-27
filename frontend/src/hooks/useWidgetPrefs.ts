@@ -5,6 +5,19 @@ interface Prefs {
     gridOrder: string[];
 }
 
+const DEFAULT_HIDDEN = [
+    'ic3Anomalies', 'incidentMgmt', 'heatmap',
+    'lossAttack', 'avgLossSector', 'complaintsSector', 'sectorTable',
+    'attackTypeCount', 'stateCount',
+];
+
+function defaultPrefs(allIds: string[], moveableIds: string[]): Prefs {
+    return {
+        hidden: DEFAULT_HIDDEN.filter((id) => allIds.includes(id)),
+        gridOrder: [...moveableIds],
+    };
+}
+
 function loadPrefs(allIds: string[], moveableIds: string[], storageKey: string): Prefs {
     try {
         const raw = localStorage.getItem(storageKey);
@@ -23,14 +36,7 @@ function loadPrefs(allIds: string[], moveableIds: string[], storageKey: string):
     } catch {
         // corrupted — fall through
     }
-    return {
-        hidden: [
-            'ic3Anomalies', 'incidentMgmt', 'heatmap',
-            'lossAttack', 'avgLossSector', 'complaintsSector', 'sectorTable',
-            'attackTypeCount', 'stateCount',
-        ].filter((id) => allIds.includes(id)),
-        gridOrder: [...moveableIds],
-    };
+    return defaultPrefs(allIds, moveableIds);
 }
 
 export function useWidgetPrefs(allIds: string[], moveableIds: string[], storageKey: string) {
@@ -89,8 +95,8 @@ export function useWidgetPrefs(allIds: string[], moveableIds: string[], storageK
     }, []);
 
     const reset = useCallback(() => {
-        setPrefs({ hidden: [], gridOrder: [...moveableIds] });
-    }, [moveableIds]);
+        setPrefs(defaultPrefs(allIds, moveableIds));
+    }, [allIds, moveableIds]);
 
     return {
         hiddenSet: new Set(prefs.hidden),
