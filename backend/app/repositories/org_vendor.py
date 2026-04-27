@@ -31,9 +31,7 @@ class SqlOrgVendorRepository:
         await self._session.refresh(vendor)
         return vendor
 
-    async def create_or_get(
-        self, org_id: int, data: OrgVendorCreate
-    ) -> tuple[OrgVendor, bool]:
+    async def create_or_get(self, org_id: int, data: OrgVendorCreate) -> tuple[OrgVendor, bool]:
         """Insert a vendor if (org, vendor, product) doesn't exist; otherwise
         return the existing row.
 
