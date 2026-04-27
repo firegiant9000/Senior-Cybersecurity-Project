@@ -341,7 +341,16 @@ function renderGridWidget(
                                                 <Cell key={i} fill={STATE_COLORS[i] ?? 'rgba(255,255,255,0.1)'} />
                                             ))}
                                         </Pie>
-                                        <Tooltip formatter={(v: unknown, name: unknown) => [(v as number).toLocaleString(), name as string]} />
+                                        <Tooltip
+                                            contentStyle={{
+                                                backgroundColor: 'var(--card-bg)',
+                                                border: '1px solid var(--border)',
+                                                color: 'var(--text-primary)',
+                                                fontSize: 12,
+                                                borderRadius: 6,
+                                            }}
+                                            formatter={(v: unknown, name: unknown) => [(v as number).toLocaleString(), name as string]}
+                                        />
                                     </PieChart>
                                 )}
                                 <div className="stat-chart-donut-center">
@@ -393,7 +402,16 @@ function renderGridWidget(
                                         <BarChart data={sevBarData} layout="vertical" margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                             <XAxis type="number" hide />
                                             <YAxis type="category" hide />
-                                            <Tooltip formatter={(v: unknown, name: unknown) => [(v as number).toLocaleString(), name as string]} />
+                                            <Tooltip
+                                            contentStyle={{
+                                                backgroundColor: 'var(--card-bg)',
+                                                border: '1px solid var(--border)',
+                                                color: 'var(--text-primary)',
+                                                fontSize: 12,
+                                                borderRadius: 6,
+                                            }}
+                                            formatter={(v: unknown, name: unknown) => [(v as number).toLocaleString(), name as string]}
+                                        />
                                             {visibleSevs.map((sev) => (
                                                 <Bar key={sev} dataKey={sev} stackId="sev" fill={SEV_COLORS[sev]} />
                                             ))}
@@ -615,7 +633,11 @@ function renderGridWidget(
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                                         <XAxis type="number" tickFormatter={fmtMoney} tick={{ fontSize: 10 }} />
                                         <YAxis type="category" dataKey="label" width={160} tick={{ fontSize: 10 }} />
-                                        <Tooltip formatter={(v: unknown) => [`$${(v as number).toLocaleString()}`, 'Total Loss']} labelFormatter={(label: unknown) => { const m = data.find((d) => d.label === label); return m?.attack_type ?? String(label); }} />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 12, borderRadius: 6 }}
+                                            formatter={(v: unknown) => [`$${(v as number).toLocaleString()}`, 'Total Loss']}
+                                            labelFormatter={(label: unknown) => { const m = data.find((d) => d.label === label); return m?.attack_type ?? String(label); }}
+                                        />
                                         <Bar dataKey="total_loss" fill={COLORS.red} radius={[0, 4, 4, 0]}>
                                             <LabelList dataKey="total_loss" position="right" formatter={(v: unknown) => fmtMoney(v as number)} style={{ fontSize: 10, fill: '#555', fontWeight: 600 }} />
                                         </Bar>
@@ -646,7 +668,11 @@ function renderGridWidget(
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                                         <XAxis type="number" tickFormatter={fmtMoney} tick={{ fontSize: 10 }} />
                                         <YAxis type="category" dataKey="label" width={140} tick={{ fontSize: 10 }} />
-                                        <Tooltip formatter={(v: unknown) => [`$${(v as number).toLocaleString()}`, 'Avg Loss']} labelFormatter={(label: unknown) => { const m = data.find((d) => d.label === label); return m?.sector ?? String(label); }} />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 12, borderRadius: 6 }}
+                                            formatter={(v: unknown) => [`$${(v as number).toLocaleString()}`, 'Avg Loss']}
+                                            labelFormatter={(label: unknown) => { const m = data.find((d) => d.label === label); return m?.sector ?? String(label); }}
+                                        />
                                         <Bar dataKey="avg_loss_per_incident" fill={COLORS.navy} radius={[0, 4, 4, 0]}>
                                             <LabelList dataKey="avg_loss_per_incident" position="right" formatter={(v: unknown) => fmtMoney(v as number)} style={{ fontSize: 10, fill: '#555', fontWeight: 600 }} />
                                         </Bar>
@@ -677,7 +703,11 @@ function renderGridWidget(
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                                         <XAxis type="number" tick={{ fontSize: 10 }} />
                                         <YAxis type="category" dataKey="label" width={140} tick={{ fontSize: 10 }} />
-                                        <Tooltip formatter={(v: unknown) => [(v as number).toLocaleString(), 'Complaints']} labelFormatter={(label: unknown) => { const m = data.find((d) => d.label === label); return m?.sector ?? String(label); }} />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 12, borderRadius: 6 }}
+                                            formatter={(v: unknown) => [(v as number).toLocaleString(), 'Complaints']}
+                                            labelFormatter={(label: unknown) => { const m = data.find((d) => d.label === label); return m?.sector ?? String(label); }}
+                                        />
                                         <Bar dataKey="complaint_count" fill={COLORS.teal} radius={[0, 4, 4, 0]}>
                                             <LabelList dataKey="complaint_count" position="right" formatter={(v: unknown) => (v as number).toLocaleString()} style={{ fontSize: 10, fill: '#555', fontWeight: 600 }} />
                                         </Bar>
