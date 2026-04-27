@@ -3,7 +3,7 @@
 import logging
 
 from sqlalchemy import func, or_, select
-from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.exc import ProgrammingError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import CVE, KEV
@@ -16,28 +16,13 @@ from app.schemas.vendor_alert import (
     VendorAlertsResponse,
 )
 from app.services.risk_scoring import basic_vuln_risk_score
+from app.services.vendor_matching import VENDOR_ALIASES
 
 logger = logging.getLogger(__name__)
 
 _FUZZY_THRESHOLD = 0.75
 
-# Common cloud/SaaS display names that don't appear in the KEV catalog under those names.
-# Maps lowercase org-entered name → canonical KEV vendor name.
-VENDOR_ALIASES: dict[str, str] = {
-    "aws": "Amazon",
-    "amazon aws": "Amazon",
-    "azure": "Microsoft",
-    "azure ad": "Microsoft",
-    "microsoft azure": "Microsoft",
-    "microsoft 365": "Microsoft",
-    "office 365": "Microsoft",
-    "ms 365": "Microsoft",
-    "gcp": "Google",
-    "google cloud": "Google",
-    "google cloud platform": "Google",
-    "google workspace": "Google",
-    "g suite": "Google",
-}
+__all__ = ["VENDOR_ALIASES", "VendorAlertService"]
 
 
 def _compute_severity_breakdown(combined: list[dict]) -> SeverityBreakdown:
@@ -109,7 +94,19 @@ class VendorAlertService:
                     )
                 )
             )
-            matched = (await self._session.execute(stmt)).all()
+            try:
+                matched = (await self._session.execute(stmt)).all()
+            except SQLAlchemyError:
+                # Don't let one bad alias query 500 the whole endpoint —
+                # exact matches were already collected upstream.
+                logger.warning(
+                    "vendor alias match failed for org %s alias %r — skipping",
+                    org_id,
+                    org_name,
+                    exc_info=True,
+                )
+                await self._session.rollback()
+                continue
             rows.extend(matched)
             if matched:
                 fire_and_forget_normalization_log(
