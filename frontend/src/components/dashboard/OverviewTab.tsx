@@ -323,7 +323,7 @@ function renderGridWidget(
                 ...top3States.map((s) => ({ name: s.state, value: s.complaint_count })),
                 ...(otherStateCount > 0 ? [{ name: 'Other', value: otherStateCount }] : []),
             ];
-            const STATE_COLORS = ['#00bcd4', '#3f51b5', '#7c4dff', 'rgba(255,255,255,0.12)'];
+            const STATE_COLORS = ['#00bcd4', '#3f51b5', '#7c4dff', 'rgba(148,163,184,0.35)'];
             return (
                 <WidgetErrorBoundary key={id} title="States with Incidents">
                     <div className="card stat-chart-card">
@@ -338,7 +338,7 @@ function renderGridWidget(
                                             dataKey="value" startAngle={90} endAngle={-270} strokeWidth={0}
                                         >
                                             {stateDonutData.map((_, i) => (
-                                                <Cell key={i} fill={STATE_COLORS[i] ?? 'rgba(255,255,255,0.1)'} />
+                                                <Cell key={i} fill={STATE_COLORS[i] ?? 'rgba(148,163,184,0.35)'} />
                                             ))}
                                         </Pie>
                                         <Tooltip
@@ -435,7 +435,7 @@ function renderGridWidget(
         case 'avgRiskScore': {
             const avg = dashboardData.riskScoreStats?.avg_risk ?? 0;
             const gaugeFillEnd = Math.round(180 - (avg / 100) * 180);
-            const GAUGE_BG = [{ value: 1, fill: 'rgba(255,255,255,0.15)' }];
+            const GAUGE_BG = [{ value: 1, fill: 'rgba(148,163,184,0.35)' }];
             const GAUGE_FG = [{ value: 1, fill: '#7c4dff' }];
             return (
                 <WidgetErrorBoundary key={id} title="Avg CVE Risk Score">
@@ -462,7 +462,7 @@ function renderGridWidget(
                                         <span className="gauge-sublabel">{dashboardData.riskScoreStats.total.toLocaleString()} CVEs scored</span>
                                     )}
                                 </div>
-                                <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.38)', textAlign: 'center', margin: '6px 8px 0', lineHeight: 1.4 }}>
+                                <p style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', margin: '6px 8px 0', lineHeight: 1.4 }}>
                                     Composite score derived from CVSS severity and active exploitation status (KEV). Higher % = greater risk.
                                 </p>
                             </>
@@ -508,7 +508,7 @@ function renderGridWidget(
                                             dataKey="value" startAngle={90} endAngle={-270} strokeWidth={0}
                                         >
                                             <Cell fill="#d32f2f" />
-                                            <Cell fill="rgba(255,255,255,0.08)" />
+                                            <Cell fill="rgba(148,163,184,0.35)" />
                                         </Pie>
                                         <Tooltip
                                             contentStyle={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 12, borderRadius: 6 }}
