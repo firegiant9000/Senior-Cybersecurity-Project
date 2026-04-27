@@ -19,6 +19,8 @@ import VendorAlertsCard from '../shared/VendorAlertsCard';
 import type { DashboardData } from '../../hooks/useDashboardData';
 import { fmtLoss } from '../../utils/fmtLoss';
 import { useWidgetPrefs } from '../../hooks/useWidgetPrefs';
+import { useRefreshProgress } from '../../hooks/useRefreshProgress';
+import RefreshButton from '../RefreshButton';
 
 import { fetchIngestFreshness } from '../../api/ingest';
 import { useAuth } from '../../context/AuthContext';
@@ -38,6 +40,16 @@ function fmtMoney(v: number): string {
 function truncate(str: string, max = 22): string {
   return str.length > max ? str.slice(0, max) + '…' : str;
 }
+
+const TOOLTIP_CONTENT_STYLE = {
+  backgroundColor: 'var(--card-bg)',
+  border: '1px solid var(--border)',
+  color: 'var(--text-primary)',
+  fontSize: 12,
+  borderRadius: 6,
+} as const;
+const TOOLTIP_ITEM_STYLE = { color: 'var(--text-primary)' } as const;
+const TOOLTIP_LABEL_STYLE = { color: 'var(--text-primary)', fontWeight: 600 } as const;
 
 const VICTIM_BADGE = (
     <span className="victim-impact-badge">
@@ -181,6 +193,7 @@ interface Props {
     errors: string[];
     lastUpdated: Date | null;
     onRefresh: () => void;
+    onSetRefreshProgress?: (callback: (itemName: string) => void) => void;
 }
 
 function renderGridWidget(
@@ -320,7 +333,7 @@ function renderGridWidget(
                 ...top3States.map((s) => ({ name: s.state, value: s.complaint_count })),
                 ...(otherStateCount > 0 ? [{ name: 'Other', value: otherStateCount }] : []),
             ];
-            const STATE_COLORS = ['#00bcd4', '#3f51b5', '#7c4dff', 'rgba(255,255,255,0.12)'];
+            const STATE_COLORS = ['#00bcd4', '#3f51b5', '#7c4dff', 'rgba(148,163,184,0.35)'];
             return (
                 <WidgetErrorBoundary key={id} title="States with Incidents">
                     <div className="card stat-chart-card">
@@ -335,10 +348,15 @@ function renderGridWidget(
                                             dataKey="value" startAngle={90} endAngle={-270} strokeWidth={0}
                                         >
                                             {stateDonutData.map((_, i) => (
-                                                <Cell key={i} fill={STATE_COLORS[i] ?? 'rgba(255,255,255,0.1)'} />
+                                                <Cell key={i} fill={STATE_COLORS[i] ?? 'rgba(148,163,184,0.35)'} />
                                             ))}
                                         </Pie>
-                                        <Tooltip formatter={(v: unknown, name: unknown) => [(v as number).toLocaleString(), name as string]} />
+                                        <Tooltip
+                                            contentStyle={TOOLTIP_CONTENT_STYLE}
+                                            itemStyle={TOOLTIP_ITEM_STYLE}
+                                            labelStyle={TOOLTIP_LABEL_STYLE}
+                                            formatter={(v: unknown, name: unknown) => [(v as number).toLocaleString(), name as string]}
+                                        />
                                     </PieChart>
                                 )}
                                 <div className="stat-chart-donut-center">
@@ -390,7 +408,12 @@ function renderGridWidget(
                                         <BarChart data={sevBarData} layout="vertical" margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                             <XAxis type="number" hide />
                                             <YAxis type="category" hide />
-                                            <Tooltip formatter={(v: unknown, name: unknown) => [(v as number).toLocaleString(), name as string]} />
+                                            <Tooltip
+                                            contentStyle={TOOLTIP_CONTENT_STYLE}
+                                            itemStyle={TOOLTIP_ITEM_STYLE}
+                                            labelStyle={TOOLTIP_LABEL_STYLE}
+                                            formatter={(v: unknown, name: unknown) => [(v as number).toLocaleString(), name as string]}
+                                        />
                                             {visibleSevs.map((sev) => (
                                                 <Bar key={sev} dataKey={sev} stackId="sev" fill={SEV_COLORS[sev]} />
                                             ))}
@@ -414,7 +437,7 @@ function renderGridWidget(
         case 'avgRiskScore': {
             const avg = dashboardData.riskScoreStats?.avg_risk ?? 0;
             const gaugeFillEnd = Math.round(180 - (avg / 100) * 180);
-            const GAUGE_BG = [{ value: 1, fill: 'rgba(255,255,255,0.15)' }];
+            const GAUGE_BG = [{ value: 1, fill: 'rgba(148,163,184,0.35)' }];
             const GAUGE_FG = [{ value: 1, fill: '#7c4dff' }];
             return (
                 <WidgetErrorBoundary key={id} title="Avg CVE Risk Score">
@@ -441,7 +464,7 @@ function renderGridWidget(
                                         <span className="gauge-sublabel">{dashboardData.riskScoreStats.total.toLocaleString()} CVEs scored</span>
                                     )}
                                 </div>
-                                <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.38)', textAlign: 'center', margin: '6px 8px 0', lineHeight: 1.4 }}>
+                                <p style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', margin: '6px 8px 0', lineHeight: 1.4 }}>
                                     Composite score derived from CVSS severity and active exploitation status (KEV). Higher % = greater risk.
                                 </p>
                             </>
@@ -487,10 +510,12 @@ function renderGridWidget(
                                             dataKey="value" startAngle={90} endAngle={-270} strokeWidth={0}
                                         >
                                             <Cell fill="#d32f2f" />
-                                            <Cell fill="rgba(255,255,255,0.08)" />
+                                            <Cell fill="rgba(148,163,184,0.35)" />
                                         </Pie>
                                         <Tooltip
-                                            contentStyle={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 12, borderRadius: 6 }}
+                                            contentStyle={TOOLTIP_CONTENT_STYLE}
+                                            itemStyle={TOOLTIP_ITEM_STYLE}
+                                            labelStyle={TOOLTIP_LABEL_STYLE}
                                             formatter={(v: unknown, name: unknown) => [(v as number).toLocaleString(), name as string]}
                                         />
                                     </PieChart>
@@ -612,7 +637,13 @@ function renderGridWidget(
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                                         <XAxis type="number" tickFormatter={fmtMoney} tick={{ fontSize: 10 }} />
                                         <YAxis type="category" dataKey="label" width={160} tick={{ fontSize: 10 }} />
-                                        <Tooltip formatter={(v: unknown) => [`$${(v as number).toLocaleString()}`, 'Total Loss']} labelFormatter={(label: unknown) => { const m = data.find((d) => d.label === label); return m?.attack_type ?? String(label); }} />
+                                        <Tooltip
+                                            contentStyle={TOOLTIP_CONTENT_STYLE}
+                                            itemStyle={TOOLTIP_ITEM_STYLE}
+                                            labelStyle={TOOLTIP_LABEL_STYLE}
+                                            formatter={(v: unknown) => [`$${(v as number).toLocaleString()}`, 'Total Loss']}
+                                            labelFormatter={(label: unknown) => { const m = data.find((d) => d.label === label); return m?.attack_type ?? String(label); }}
+                                        />
                                         <Bar dataKey="total_loss" fill={COLORS.red} radius={[0, 4, 4, 0]}>
                                             <LabelList dataKey="total_loss" position="right" formatter={(v: unknown) => fmtMoney(v as number)} style={{ fontSize: 10, fill: '#555', fontWeight: 600 }} />
                                         </Bar>
@@ -643,7 +674,13 @@ function renderGridWidget(
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                                         <XAxis type="number" tickFormatter={fmtMoney} tick={{ fontSize: 10 }} />
                                         <YAxis type="category" dataKey="label" width={140} tick={{ fontSize: 10 }} />
-                                        <Tooltip formatter={(v: unknown) => [`$${(v as number).toLocaleString()}`, 'Avg Loss']} labelFormatter={(label: unknown) => { const m = data.find((d) => d.label === label); return m?.sector ?? String(label); }} />
+                                        <Tooltip
+                                            contentStyle={TOOLTIP_CONTENT_STYLE}
+                                            itemStyle={TOOLTIP_ITEM_STYLE}
+                                            labelStyle={TOOLTIP_LABEL_STYLE}
+                                            formatter={(v: unknown) => [`$${(v as number).toLocaleString()}`, 'Avg Loss']}
+                                            labelFormatter={(label: unknown) => { const m = data.find((d) => d.label === label); return m?.sector ?? String(label); }}
+                                        />
                                         <Bar dataKey="avg_loss_per_incident" fill={COLORS.navy} radius={[0, 4, 4, 0]}>
                                             <LabelList dataKey="avg_loss_per_incident" position="right" formatter={(v: unknown) => fmtMoney(v as number)} style={{ fontSize: 10, fill: '#555', fontWeight: 600 }} />
                                         </Bar>
@@ -674,7 +711,13 @@ function renderGridWidget(
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                                         <XAxis type="number" tick={{ fontSize: 10 }} />
                                         <YAxis type="category" dataKey="label" width={140} tick={{ fontSize: 10 }} />
-                                        <Tooltip formatter={(v: unknown) => [(v as number).toLocaleString(), 'Complaints']} labelFormatter={(label: unknown) => { const m = data.find((d) => d.label === label); return m?.sector ?? String(label); }} />
+                                        <Tooltip
+                                            contentStyle={TOOLTIP_CONTENT_STYLE}
+                                            itemStyle={TOOLTIP_ITEM_STYLE}
+                                            labelStyle={TOOLTIP_LABEL_STYLE}
+                                            formatter={(v: unknown) => [(v as number).toLocaleString(), 'Complaints']}
+                                            labelFormatter={(label: unknown) => { const m = data.find((d) => d.label === label); return m?.sector ?? String(label); }}
+                                        />
                                         <Bar dataKey="complaint_count" fill={COLORS.teal} radius={[0, 4, 4, 0]}>
                                             <LabelList dataKey="complaint_count" position="right" formatter={(v: unknown) => (v as number).toLocaleString()} style={{ fontSize: 10, fill: '#555', fontWeight: 600 }} />
                                         </Bar>
@@ -735,14 +778,25 @@ const OverviewTab: React.FC<Props> = ({
     errors: dashboardErrors,
     lastUpdated,
     onRefresh: refresh,
+    onSetRefreshProgress,
 }) => {
     const { role, orgRole } = useAuth();
     const pipelineVisible = checkCanSeePipeline(role, orgRole);
     const [lastIngestAt, setLastIngestAt] = useState<string | null>(null);
     const [freshnessRevision, setFreshnessRevision] = useState(0);
     const [showCustomize, setShowCustomize] = useState(false);
+    const wasAnyLoadingRef = useRef(dashboardLoading || dashboardLoadingHeavy);
     const gearRef = useRef<HTMLButtonElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
+
+    // Progress tracking for refresh
+    const progressState = useRefreshProgress();
+    const { markItemComplete, reset: resetProgress, start: startProgress, isActive: progressActive } = progressState;
+
+    // Register progress callback with the data hook
+    useEffect(() => {
+        onSetRefreshProgress?.(markItemComplete);
+    }, [onSetRefreshProgress, markItemComplete]);
 
     const { hiddenSet, gridOrder, toggle, move, reorder, insertAtEnd, reset } = useWidgetPrefs(ALL_WIDGET_IDS, MOVEABLE_IDS, 'overviewWidgetPrefs');
     const show = useCallback((id: string) => !hiddenSet.has(id), [hiddenSet]);
@@ -792,6 +846,36 @@ const OverviewTab: React.FC<Props> = ({
             .catch(() => { /* non-fatal */ });
         return () => controller.abort();
     }, [pipelineVisible, freshnessRevision]);
+
+    // Reset progress when loading completes
+    useEffect(() => {
+        const isAnyLoading = dashboardLoading || dashboardLoadingHeavy;
+        if (wasAnyLoadingRef.current && !isAnyLoading && progressActive) {
+            resetProgress();
+        }
+        wasAnyLoadingRef.current = isAnyLoading;
+    }, [dashboardLoading, dashboardLoadingHeavy, resetProgress, progressActive]);
+
+    const handleRefresh = useCallback(() => {
+        // Start progress tracking with all items
+        startProgress([
+            'Dashboard summary',
+            'Attack types',
+            'Severity distribution',
+            'Temporal trends',
+            'KEV total',
+            'Executive summary',
+            'Loss projection',
+            'Risk score stats',
+            'Geographic heatmap',
+            'Sector attack matrix',
+            'Industry risk',
+            'IC3 anomalies',
+            'Escalating sectors',
+        ]);
+        refresh();
+        setFreshnessRevision((r) => r + 1);
+    }, [refresh, startProgress]);
 
     const sortedTrends = useMemo(
         () => [...dashboardData.temporalTrends].sort((a, b) => b.year - a.year),
@@ -843,9 +927,13 @@ const OverviewTab: React.FC<Props> = ({
                         >
                             ⚙ <span className="overview-customize-btn-label">Tabs</span>
                         </button>
-                        <button className="overview-refresh-btn" onClick={() => { refresh(); setFreshnessRevision((r) => r + 1); }}>
-                            ↻ Refresh
-                        </button>
+                        <RefreshButton
+                            onClick={handleRefresh}
+                            loading={dashboardLoading || dashboardLoadingHeavy}
+                            items={progressState.items}
+                            progress={progressState.progress}
+                            label="Refresh"
+                        />
                         {lastUpdated && (
                             <span className="overview-last-updated">
                                 Updated {formatTimeWithTz(lastUpdated)}

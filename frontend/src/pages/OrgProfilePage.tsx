@@ -132,6 +132,21 @@ export default function OrgProfilePage() {
     }
   }, [location.state]);
 
+  // UserContext caches the org from first load; the assessment intake wizard
+  // writes through PUT but doesn't notify the context, so the cache can be
+  // stale on first navigation here. Force a refresh on mount so the form
+  // fields always reflect the latest server state.
+  useEffect(() => {
+    void refreshOrganization();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Bump to force the AssessmentReadinessWidget to re-fetch /mine/readiness
+  // whenever a save happens on this page (org profile, security profile,
+  // vendor add/remove, domain add/remove, CSV import).
+  const [readinessKey, setReadinessKey] = useState(0);
+  const bumpReadiness = useCallback(() => setReadinessKey((k) => k + 1), []);
+
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -262,6 +277,7 @@ export default function OrgProfilePage() {
       setVendorMsg("Vendor added");
       setVendorPage(1);
       loadVendors(profile.org_id, 1);
+      bumpReadiness();
     } catch (err) {
       setVendorError(
         err instanceof Error ? err.message : "Failed to add vendor",
@@ -276,6 +292,7 @@ export default function OrgProfilePage() {
       await deleteVendor(profile.org_id, vendorId);
       setVendorPage(1);
       loadVendors(profile.org_id, 1);
+      bumpReadiness();
     } catch {
       setVendorError("Failed to remove vendor");
     }
@@ -319,6 +336,7 @@ export default function OrgProfilePage() {
       }
       loadVendors(profile.org_id, 1);
       setVendorPage(1);
+      bumpReadiness();
     } catch (err) {
       setVendorError(err instanceof Error ? err.message : "CSV import failed");
     } finally {
@@ -371,6 +389,7 @@ export default function OrgProfilePage() {
       setDomainMsg("Domain added");
       setDomainPage(1);
       loadDomains(profile.org_id, 1);
+      bumpReadiness();
     } catch (err) {
       setDomainError(
         err instanceof Error ? err.message : "Failed to add domain",
@@ -385,6 +404,7 @@ export default function OrgProfilePage() {
       await deleteDomain(profile.org_id, domainId);
       setDomainPage(1);
       loadDomains(profile.org_id, 1);
+      bumpReadiness();
     } catch {
       setDomainError("Failed to remove domain");
     }
@@ -419,6 +439,7 @@ export default function OrgProfilePage() {
       setUploadMsg(`"${file.name}" uploaded successfully`);
       loadUploads(profile.org_id, 1);
       setUploadPage(1);
+      bumpReadiness();
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Upload failed");
     }
@@ -432,6 +453,7 @@ export default function OrgProfilePage() {
       await deleteUpload(profile.org_id, uploadId);
       setUploadPage(1);
       loadUploads(profile.org_id, 1);
+      bumpReadiness();
     } catch {
       setUploadError("Failed to delete upload");
     }
@@ -559,6 +581,7 @@ export default function OrgProfilePage() {
       }
       setCompanySaveMsg("Company profile saved.");
       await refreshOrganization();
+      bumpReadiness();
     } catch (err) {
       setCompanySaveErr(err instanceof Error ? err.message : "Save failed");
     } finally {
@@ -620,6 +643,7 @@ export default function OrgProfilePage() {
         );
         loadVendors(orgId, 1);
       }
+      bumpReadiness();
     } catch (err) {
       setSecProfileSaveErr(err instanceof Error ? err.message : "Save failed");
     } finally {
@@ -682,7 +706,7 @@ export default function OrgProfilePage() {
                   </p>
                 </div>
               )}
-              {profile.org_id != null && <AssessmentReadinessWidget />}
+              {profile.org_id != null && <AssessmentReadinessWidget refreshKey={readinessKey} />}
               {profile.org_id != null && <ValidationPanel />}
 
               {profile.org_id != null && (

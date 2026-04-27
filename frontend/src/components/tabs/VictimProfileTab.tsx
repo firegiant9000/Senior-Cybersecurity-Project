@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList,
 } from 'recharts';
 import { useVictimData } from '../../hooks/useVictimData';
+import { useRefreshProgress } from '../../hooks/useRefreshProgress';
+import RefreshButton from '../RefreshButton';
 import WidgetSkeleton from '../shared/WidgetSkeleton';
 import WidgetErrorBoundary from '../shared/WidgetErrorBoundary';
 import { COLORS } from '../../theme';
@@ -19,7 +21,28 @@ function truncate(str: string, max = 22): string {
 }
 
 const VictimProfileTab: React.FC = () => {
-  const { data, loading, errors, refresh } = useVictimData();
+  const { data, loading, errors, refresh, setOnProgress } = useVictimData();
+  const progressState = useRefreshProgress();
+  const { markItemComplete, reset, start, isActive } = progressState;
+  const wasLoadingRef = useRef(loading);
+
+  // Register progress callback
+  useEffect(() => {
+    setOnProgress?.(markItemComplete);
+  }, [setOnProgress, markItemComplete]);
+
+  // Reset progress when loading completes
+  useEffect(() => {
+    if (wasLoadingRef.current && !loading && isActive) {
+      reset();
+    }
+    wasLoadingRef.current = loading;
+  }, [loading, reset, isActive]);
+
+  const handleRefresh = useCallback(() => {
+    start(['Attack types', 'Industry risk']);
+    refresh();
+  }, [refresh, start]);
 
   const topLossByAttack = [...data.attackTypes]
     .sort((a, b) => b.total_loss - a.total_loss)
@@ -39,7 +62,13 @@ const VictimProfileTab: React.FC = () => {
   return (
     <div className="tab-page">
       <div className="overview-toolbar">
-        <button className="overview-refresh-btn" onClick={refresh}>↻ Refresh</button>
+        <RefreshButton
+          onClick={handleRefresh}
+          loading={loading}
+          items={progressState.items}
+          progress={progressState.progress}
+          label="Refresh"
+        />
         <span style={{ fontSize: 12, color: 'var(--text-muted, #6b7280)' }}>
           Based on IC3 complaint data — no individual victim data is stored.
         </span>

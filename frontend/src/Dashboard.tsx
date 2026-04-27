@@ -29,7 +29,7 @@ const Dashboard: React.FC = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const [dark, toggleDark] = useDarkMode();
     const { user, logout, orgId, orgLoading, role, orgRole } = useAuth();
-    const { data, loading, loadingHeavy, errors, lastUpdated, refresh } = useDashboardData();
+    const { data, loading, loadingHeavy, errors, lastUpdated, refresh, setOnProgress } = useDashboardData();
 
     const visibleGroups = useMemo(
         () => getVisibleGroups(TAB_GROUPS, { orgId: orgId ?? null, role, orgRole, orgLoading }),
@@ -138,6 +138,7 @@ const Dashboard: React.FC = () => {
                         errors={errors}
                         lastUpdated={lastUpdated}
                         onRefresh={refresh}
+                        onSetRefreshProgress={setOnProgress}
                     />
                 )}
 
