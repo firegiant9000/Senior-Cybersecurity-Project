@@ -1,8 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { useTrendsData } from '../../hooks/useTrendsData';
+import { useRefreshProgress } from '../../hooks/useRefreshProgress';
+import RefreshButton from '../RefreshButton';
 import WidgetSkeleton from '../shared/WidgetSkeleton';
 import WidgetErrorBoundary from '../shared/WidgetErrorBoundary';
 import { COLORS } from '../../theme';
@@ -76,8 +78,29 @@ function fmtK(v: number): string {
 }
 
 const TrendsTab: React.FC = () => {
-  const { data, loading, errors, setAttackType, setSector, setYearFrom, setYearTo, refresh } = useTrendsData();
+  const { data, loading, errors, setAttackType, setSector, setYearFrom, setYearTo, refresh, setOnProgress } = useTrendsData();
   const { trends, attackTypeOptions, selectedAttackType, selectedSector, yearFrom, yearTo } = data;
+  const progressState = useRefreshProgress();
+  const { markItemComplete, reset, start, isActive } = progressState;
+  const wasLoadingRef = useRef(loading);
+
+  // Register progress callback
+  useEffect(() => {
+    setOnProgress?.(markItemComplete);
+  }, [setOnProgress, markItemComplete]);
+
+  // Reset progress when loading completes
+  useEffect(() => {
+    if (wasLoadingRef.current && !loading && isActive) {
+      reset();
+    }
+    wasLoadingRef.current = loading;
+  }, [loading, reset, isActive]);
+
+  const handleRefresh = useCallback(() => {
+    start(['Trends data']);
+    refresh();
+  }, [refresh, start]);
 
   const projected = useMemo(() => projectLinear(trends), [trends]);
 
@@ -185,7 +208,13 @@ const TrendsTab: React.FC = () => {
           />
         </div>
         <div className="overview-toolbar-actions">
-          <button className="overview-refresh-btn" onClick={refresh}>↻ Refresh</button>
+          <RefreshButton
+            onClick={handleRefresh}
+            loading={loading}
+            items={progressState.items}
+            progress={progressState.progress}
+            label="Refresh"
+          />
         </div>
       </div>
 

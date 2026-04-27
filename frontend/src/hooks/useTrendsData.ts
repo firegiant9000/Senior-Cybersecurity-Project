@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { fetchTemporalTrends, fetchAttackTypeOptions, type TemporalTrend } from '../api/tabsApi'
 
 export interface TrendsData {
@@ -19,6 +19,7 @@ export interface UseTrendsResult {
   setYearFrom: (v: number | undefined) => void
   setYearTo: (v: number | undefined) => void
   refresh: () => void
+  setOnProgress?: (callback: (itemName: string) => void) => void
 }
 
 function settled<T>(p: Promise<T>): Promise<PromiseSettledResult<T>> {
@@ -38,7 +39,17 @@ export function useTrendsData(): UseTrendsResult {
   const [loading, setLoading] = useState(true)
   const [errors, setErrors] = useState<string[]>([])
   const [refreshKey, setRefreshKey] = useState(0)
+  const onProgressRef = useRef<((itemName: string) => void) | undefined>()
+
   const refresh = useCallback(() => setRefreshKey(k => k + 1), [])
+
+  const setOnProgress = useCallback((callback: (itemName: string) => void) => {
+    onProgressRef.current = callback
+  }, [])
+
+  const trackProgress = (label: string) => {
+    onProgressRef.current?.(label)
+  }
 
   // Load filter options once
   useEffect(() => {
@@ -58,6 +69,7 @@ export function useTrendsData(): UseTrendsResult {
     settled(fetchTemporalTrends(controller.signal, selectedAttackType, selectedSector, yearFrom, yearTo))
       .then(r => {
         if (r.status === 'fulfilled') {
+          trackProgress('Trends data')
           setTrends(r.value.items)
         } else {
           const err = r.reason
@@ -81,5 +93,6 @@ export function useTrendsData(): UseTrendsResult {
     setYearFrom,
     setYearTo,
     refresh,
+    setOnProgress,
   }
 }

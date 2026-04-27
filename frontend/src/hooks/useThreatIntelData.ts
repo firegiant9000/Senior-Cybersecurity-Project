@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   fetchNvdTimeline,
   fetchRecentKev,
@@ -21,6 +21,7 @@ export interface UseThreatIntelResult {
   loading: boolean
   errors: string[]
   refresh: () => void
+  setOnProgress?: (callback: (itemName: string) => void) => void
 }
 
 const EMPTY: ThreatIntelData = { nvdTimeline: [], severityDistribution: [], recentKev: [], recentCves: [] }
@@ -37,7 +38,17 @@ export function useThreatIntelData(): UseThreatIntelResult {
   const [loading, setLoading] = useState(true)
   const [errors, setErrors] = useState<string[]>([])
   const [refreshKey, setRefreshKey] = useState(0)
+  const onProgressRef = useRef<((itemName: string) => void) | undefined>()
+
   const refresh = useCallback(() => setRefreshKey(k => k + 1), [])
+
+  const setOnProgress = useCallback((callback: (itemName: string) => void) => {
+    onProgressRef.current = callback
+  }, [])
+
+  const trackProgress = (label: string) => {
+    onProgressRef.current?.(label)
+  }
 
   useEffect(() => {
     const controller = new AbortController()
@@ -46,10 +57,10 @@ export function useThreatIntelData(): UseThreatIntelResult {
     setErrors([])
 
     Promise.all([
-      settled(fetchNvdTimeline(signal)),
-      settled(fetchSeverityDistribution(signal)),
-      settled(fetchRecentKev(signal, 50)),
-      settled(fetchRecentNvdCves(signal, 20)),
+      settled(fetchNvdTimeline(signal)).then(r => { trackProgress('CVE timeline'); return r; }),
+      settled(fetchSeverityDistribution(signal)).then(r => { trackProgress('Severity distribution'); return r; }),
+      settled(fetchRecentKev(signal, 50)).then(r => { trackProgress('Recent KEV'); return r; }),
+      settled(fetchRecentNvdCves(signal, 20)).then(r => { trackProgress('Recent CVEs'); return r; }),
     ]).then(([timelineR, severityR, kevR, cveR]) => {
       if (signal.aborted) return
       const errs: string[] = []
@@ -78,5 +89,5 @@ export function useThreatIntelData(): UseThreatIntelResult {
     return () => controller.abort()
   }, [refreshKey])
 
-  return { data, loading, errors, refresh }
+  return { data, loading, errors, refresh, setOnProgress }
 }

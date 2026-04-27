@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import UTC, datetime
 
@@ -27,10 +26,9 @@ async def build_assessment_debug_snapshot(
     org: Organization,
     db: AsyncSession,
 ) -> DebugAssessmentResponse:
-    intake, validation_result = await asyncio.gather(
-        evaluate_intake(org, db),
-        run_validation(org, db),
-    )
+    # AsyncSession is not safe for concurrent use — run sequentially.
+    intake = await evaluate_intake(org, db)
+    validation_result = await run_validation(org, db)
     validation = build_response(validation_result)
     findings_readiness = await _build_findings_readiness(org, db, intake.current_tier)
     raw_profile = RawOrgProfile.model_validate(org)

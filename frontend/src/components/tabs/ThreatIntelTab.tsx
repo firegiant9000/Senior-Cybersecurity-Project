@@ -1,9 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList,
   LineChart, Line, PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import { useThreatIntelData } from '../../hooks/useThreatIntelData';
+import { useRefreshProgress } from '../../hooks/useRefreshProgress';
+import RefreshButton from '../RefreshButton';
 import { useIsDark } from '../../hooks/useDarkMode';
 import WidgetSkeleton from '../shared/WidgetSkeleton';
 import WidgetErrorBoundary from '../shared/WidgetErrorBoundary';
@@ -37,8 +39,29 @@ function severityBadge(label: string) {
 }
 
 const ThreatIntelTab: React.FC = () => {
-  const { data, loading, errors, refresh } = useThreatIntelData();
+  const { data, loading, errors, refresh, setOnProgress } = useThreatIntelData();
   const isDark = useIsDark();
+  const progressState = useRefreshProgress();
+  const { markItemComplete, reset, start, isActive } = progressState;
+  const wasLoadingRef = useRef(loading);
+
+  // Register progress callback
+  useEffect(() => {
+    setOnProgress?.(markItemComplete);
+  }, [setOnProgress, markItemComplete]);
+
+  // Reset progress when loading completes
+  useEffect(() => {
+    if (wasLoadingRef.current && !loading && isActive) {
+      reset();
+    }
+    wasLoadingRef.current = loading;
+  }, [loading, reset, isActive]);
+
+  const handleRefresh = useCallback(() => {
+    start(['CVE timeline', 'Severity distribution', 'Recent KEV', 'Recent CVEs']);
+    refresh();
+  }, [refresh, start]);
 
   // Aggregate top vendors from KEV data
   const topVendors = useMemo(() => {
@@ -64,7 +87,13 @@ const ThreatIntelTab: React.FC = () => {
       {/* Toolbar */}
       <div className="overview-toolbar">
         <div className="overview-toolbar-actions">
-          <button className="overview-refresh-btn" onClick={refresh}>↻ Refresh</button>
+          <RefreshButton
+            onClick={handleRefresh}
+            loading={loading}
+            items={progressState.items}
+            progress={progressState.progress}
+            label="Refresh"
+          />
         </div>
       </div>
 

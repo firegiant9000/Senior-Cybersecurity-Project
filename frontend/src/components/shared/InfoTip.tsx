@@ -1,8 +1,19 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 
 interface InfoTipProps {
   text: string;
   label?: string;
+}
+
+const TIP_MAX_WIDTH = 280;
+const VIEWPORT_MARGIN = 8;
+const TIP_GAP = 6;
+
+interface TipCoords {
+  top: number;
+  left: number;
+  placement: 'top' | 'bottom';
 }
 
 const ACRONYM_GLOSSARY: Record<string, string> = {
@@ -27,23 +38,47 @@ export const getAcronymDefinition = (acronym: string): string | undefined =>
 
 const InfoTip: React.FC<InfoTipProps> = ({ text, label }) => {
   const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState<TipCoords | null>(null);
   const ref = useRef<HTMLElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  const recompute = useCallback(() => {
+    const btn = buttonRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const placement: 'top' | 'bottom' = rect.top > 140 ? 'top' : 'bottom';
+    const top = placement === 'top' ? rect.top - TIP_GAP : rect.bottom + TIP_GAP;
+    let left = rect.left + rect.width / 2 - TIP_MAX_WIDTH / 2;
+    left = Math.max(
+      VIEWPORT_MARGIN,
+      Math.min(left, window.innerWidth - TIP_MAX_WIDTH - VIEWPORT_MARGIN),
+    );
+    setCoords({ top, left, placement });
+  }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setCoords(null);
+      return;
+    }
+    recompute();
     const onDocClick = (e: Event) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
     };
+    window.addEventListener('scroll', recompute, true);
+    window.addEventListener('resize', recompute);
     document.addEventListener('mousedown', onDocClick);
     document.addEventListener('keydown', onKey);
     return () => {
+      window.removeEventListener('scroll', recompute, true);
+      window.removeEventListener('resize', recompute);
       document.removeEventListener('mousedown', onDocClick);
       document.removeEventListener('keydown', onKey);
     };
-  }, [open]);
+  }, [open, recompute]);
 
   return (
     <span
@@ -59,6 +94,7 @@ const InfoTip: React.FC<InfoTipProps> = ({ text, label }) => {
       onMouseLeave={() => setOpen(false)}
     >
       <button
+        ref={buttonRef}
         type="button"
         aria-label={label ? `Info: ${label}` : `Info: ${text}`}
         aria-expanded={open}
@@ -84,17 +120,17 @@ const InfoTip: React.FC<InfoTipProps> = ({ text, label }) => {
       >
         ⓘ
       </button>
-      {open && (
+      {open && coords && createPortal(
         <span
           role="tooltip"
           style={{
-            position: 'absolute',
-            bottom: 'calc(100% + 6px)',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 1000,
+            position: 'fixed',
+            top: coords.top,
+            left: coords.left,
+            transform: coords.placement === 'top' ? 'translateY(-100%)' : 'none',
+            zIndex: 2000,
             minWidth: 180,
-            maxWidth: 280,
+            maxWidth: TIP_MAX_WIDTH,
             padding: '8px 10px',
             background: 'var(--card-bg)',
             color: 'var(--text-primary)',
@@ -110,7 +146,8 @@ const InfoTip: React.FC<InfoTipProps> = ({ text, label }) => {
           }}
         >
           {text}
-        </span>
+        </span>,
+        document.body,
       )}
     </span>
   );
