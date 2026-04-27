@@ -20,7 +20,7 @@ interface GaugeProps {
     color: string;
 }
 
-const BG_DATA = [{ value: 1, fill: 'rgba(255,255,255,0.15)' }];
+const BG_DATA = [{ value: 1, fill: 'rgba(148,163,184,0.35)' }];
 
 const Gauge: React.FC<GaugeProps> = ({ value, label, sublabel, color }) => {
     const fillEndAngle = Math.round(180 - (value / 100) * 180);
