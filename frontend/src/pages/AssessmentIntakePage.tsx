@@ -20,7 +20,8 @@ import {
   SECURITY_CONTROLS,
   DOMAIN_PATTERN,
 } from "../types/assessmentIntake";
-import { createVendor } from "../api/vendors";
+import { createVendor, listVendors } from "../api/vendors";
+import { addDomain, listDomains } from "../api/domains";
 import "./AssessmentIntakePage.css";
 
 const TOTAL_STEPS = 5;
@@ -56,12 +57,20 @@ const STEPS = [
 export default function AssessmentIntakePage() {
   const navigate = useNavigate();
   const { user, orgId, refreshProfile } = useAuth();
-  const { data: intakeData, loading: intakeLoading } = useAssessmentIntake();
+  const { data: intakeData, loading: intakeLoading, refresh: refreshIntake } = useAssessmentIntake();
 
   const [step, setStep] = useState(1);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const vendorSyncedRef = useRef<string>("");
+  const domainSyncedRef = useRef<string>("");
+  // Default every security control to "unsure" so the UI's default highlight
+  // and the persisted state agree. Without this, controls the user never
+  // touches stay absent from state and the tier check counts them as
+  // unanswered even though the form looks fully filled in.
+  const defaultSecurityControls = (): Record<string, "yes" | "no" | "unsure"> =>
+    Object.fromEntries(SECURITY_CONTROLS.map((c) => [c.key, "unsure" as const]));
+
   const [form, setForm] = useState<AssessmentIntakeFormData>({
     name: "",
     industry_label: "",
@@ -70,17 +79,24 @@ export default function AssessmentIntakePage() {
     primary_domain: "",
     primary_vendor: "",
     revenue_range: "",
-    security_controls: {},
+    security_controls: defaultSecurityControls(),
     compliance_frameworks: [],
     data_types: [],
     cloud_providers: [],
   });
 
+  // The tier preview on step 5 reflects whatever the backend has. Re-fetch
+  // when the user lands on it so the saves they just made show up.
+  useEffect(() => {
+    if (step === 5) refreshIntake();
+  }, [step, refreshIntake]);
+
   // Load existing org data
   useEffect(() => {
     const loadOrgData = async () => {
+      if (!orgId) return;
       try {
-        const resp = await fetchWithAuth(`${API_BASE_URL}/api/v1/organizations/mine`, {
+        const resp = await fetchWithAuth(`${API_BASE_URL}/api/v1/organizations/${orgId}`, {
           method: "GET",
         });
         if (resp.ok) {
@@ -94,7 +110,9 @@ export default function AssessmentIntakePage() {
             primary_domain: org.primary_domain || "",
             primary_vendor: prev.primary_vendor,
             revenue_range: org.revenue_range || "",
-            security_controls: org.security_controls || {},
+            // Merge so any control the backend doesn't have yet falls back
+            // to the "unsure" default rather than dropping out of state.
+            security_controls: { ...defaultSecurityControls(), ...(org.security_controls || {}) },
             compliance_frameworks: org.compliance_frameworks || [],
             data_types: org.data_types || [],
             cloud_providers: org.cloud_providers || [],
@@ -102,6 +120,36 @@ export default function AssessmentIntakePage() {
         }
       } catch (err) {
         console.error("Failed to load org data:", err);
+      }
+
+      // Pre-seed the sync refs from existing rows so we don't POST duplicates
+      // (and pop a 409 in the network tab) on a returning user's wizard run.
+      try {
+        const [domainList, vendorList] = await Promise.all([
+          listDomains(orgId, 1, 100),
+          listVendors(orgId, 1, 100),
+        ]);
+        const domains = new Set(
+          (domainList.items || []).map((d) => d.domain_name.toLowerCase()),
+        );
+        const vendors = new Set(
+          (vendorList.items || []).map((v) => v.vendor_name.toLowerCase()),
+        );
+        // Mark any matching primary_* as already synced.
+        // (Match against current form state via setForm so we don't race the
+        // org GET above.)
+        setForm((prev) => {
+          if (prev.primary_domain && domains.has(prev.primary_domain.trim().toLowerCase())) {
+            domainSyncedRef.current = prev.primary_domain.trim();
+          }
+          if (prev.primary_vendor && vendors.has(prev.primary_vendor.trim().toLowerCase())) {
+            vendorSyncedRef.current = prev.primary_vendor.trim();
+          }
+          return prev;
+        });
+      } catch (err) {
+        // Non-fatal — worst case we'll still try to POST and swallow the 409.
+        console.warn("Failed to pre-seed vendor/domain sync refs:", err);
       }
     };
 
@@ -203,6 +251,38 @@ export default function AssessmentIntakePage() {
     await refreshProfile();
   };
 
+  // Vendor and domain are stored in their own tables (the tier preview counts
+  // those rows, not the form fields), so push them as soon as we have an orgId.
+  const syncVendorAndDomain = async (targetOrgId: number): Promise<void> => {
+    const vendorName = form.primary_vendor.trim();
+    if (vendorName && vendorSyncedRef.current !== vendorName) {
+      try {
+        // idempotent=true so re-runs of the wizard don't 409 on the same vendor.
+        await createVendor(targetOrgId, vendorName, "", { idempotent: true });
+      } catch (vendorErr) {
+        console.warn("Failed to add primary vendor:", vendorErr);
+      } finally {
+        vendorSyncedRef.current = vendorName;
+      }
+    }
+    const domainName = form.primary_domain.trim();
+    if (domainName && domainSyncedRef.current !== domainName) {
+      try {
+        await addDomain(targetOrgId, domainName);
+      } catch (domainErr) {
+        // Duplicate (409) just means the row already exists from a prior run -
+        // benign for the wizard, so swallow it without a console warning.
+        const msg = domainErr instanceof Error ? domainErr.message : "";
+        if (!/already exists/i.test(msg)) {
+          console.warn("Failed to add primary domain:", domainErr);
+        }
+      } finally {
+        // Either way, don't retry this domain again in the same session.
+        domainSyncedRef.current = domainName;
+      }
+    }
+  };
+
   const handleNext = async () => {
     if (!canAdvanceFromStep()) {
       setError("Please fill in all required fields");
@@ -212,15 +292,33 @@ export default function AssessmentIntakePage() {
 
     // Save form on each step
     if (step < TOTAL_STEPS) {
+      let effectiveOrgId = orgId;
       try {
         if (!orgId) {
           await createOrg();
+          // refreshProfile() updates the auth context but our closure still
+          // sees the old null orgId until the next render. Read it back from
+          // /auth/me so we can sync vendor/domain right away.
+          const meResp = await fetchWithAuth(`${API_BASE_URL}/api/v1/auth/me`);
+          if (meResp.ok) {
+            const me = await meResp.json();
+            effectiveOrgId = me.org_id ?? null;
+          }
         } else {
-          await fetchWithAuth(`${API_BASE_URL}/api/v1/organizations/mine`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(buildPayload()),
-          });
+          const resp = await fetchWithAuth(
+            `${API_BASE_URL}/api/v1/organizations/${orgId}`,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(buildPayload()),
+            },
+          );
+          if (!resp.ok) {
+            const body = await resp.json().catch(() => ({}));
+            throw new Error(
+              (body as { detail?: string }).detail ?? `Save failed (${resp.status})`,
+            );
+          }
         }
       } catch (err) {
         if (!orgId) {
@@ -228,7 +326,12 @@ export default function AssessmentIntakePage() {
           setError(err instanceof Error ? err.message : "Failed to create organization");
           return;
         }
-        console.warn("Auto-save failed, continuing anyway:", err);
+        // Surface PUT failures so we don't silently lose user input.
+        setError(err instanceof Error ? err.message : "Failed to save");
+        return;
+      }
+      if (effectiveOrgId) {
+        await syncVendorAndDomain(effectiveOrgId);
       }
       setStep(step + 1);
     } else {
@@ -248,8 +351,8 @@ export default function AssessmentIntakePage() {
       if (!orgId) {
         await createOrg();
       } else {
-        const resp = await fetchWithAuth(`${API_BASE_URL}/api/v1/organizations/mine`, {
-          method: "PATCH",
+        const resp = await fetchWithAuth(`${API_BASE_URL}/api/v1/organizations/${orgId}`, {
+          method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(buildPayload()),
         });
@@ -261,20 +364,8 @@ export default function AssessmentIntakePage() {
         }
       }
 
-      const vendorName = form.primary_vendor.trim();
-      if (vendorName && vendorSyncedRef.current !== vendorName) {
-        try {
-          // Re-read orgId via auth refresh in createOrg path; fall back to
-          // current state otherwise. createVendor needs the numeric org id.
-          const targetOrgId = orgId;
-          if (targetOrgId) {
-            await createVendor(targetOrgId, vendorName, "");
-            vendorSyncedRef.current = vendorName;
-          }
-        } catch (vendorErr) {
-          console.warn("Failed to add primary vendor:", vendorErr);
-        }
-      }
+      // Final pass to catch anything skipped (e.g. user edited domain on step 5).
+      if (orgId) await syncVendorAndDomain(orgId);
 
       navigate("/dashboard");
     } catch (err) {
@@ -711,7 +802,7 @@ export default function AssessmentIntakePage() {
     }
   };
 
-  if (!user || !orgId) return null;
+  if (!user) return null;
 
   return (
     <div className="intake-page">
