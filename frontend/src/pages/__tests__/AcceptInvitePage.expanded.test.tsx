@@ -69,11 +69,6 @@ const mockAdminInviteData = {
   org_role: 'admin',
 }
 
-const mockExpiredInviteData = {
-  ...mockInviteData,
-  expires_at: '2020-01-01T00:00:00Z',
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper Functions
 // ─────────────────────────────────────────────────────────────────────────────

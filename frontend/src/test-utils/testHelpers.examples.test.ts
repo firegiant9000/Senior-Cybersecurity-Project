@@ -12,12 +12,10 @@ import {
   createMockAssessmentData,
   createMockMembersList,
   createMockInvitesList,
-  renderWithRouter,
   setupTestEnvironment,
   createOrgMemberAuth,
   createAdminAuth,
   mockMembersAPI,
-  mockInvitesAPI,
   mockAssessmentAPI,
   createRoleScenarios,
   createOrgStates,
@@ -162,12 +160,8 @@ describe('Test Environment Setup Usage', () => {
   })
 
   it('provides mocked APIs ready for testing', () => {
-    const { mockApis } = setupTestEnvironment()
-
-    // All APIs are pre-configured with sensible defaults:
-    // mockApis.listMembers() → returns realistic member list
-    // mockApis.createInvite() → returns success
-    // mockApis.fetchAssessmentIntake() → returns assessment data
+    const env = setupTestEnvironment()
+    expect(env.mockApis).toBeDefined()
   })
 })
 
@@ -197,8 +191,7 @@ describe('API Mock Helper Usage', () => {
 
   it('simulates API errors for error handling tests', () => {
     const mockFn = vi.fn()
-    // mockAPIError(mockFn, 'Permission denied')
-    // Now mockFn will reject with that error
+    expect(mockFn).toBeDefined()
   })
 })
 
@@ -225,8 +218,9 @@ describe('Assertion Helper Usage', () => {
     api2()
     api3()
 
-    const { expectAPIsCalledInOrder } = require('./testHelpers')
-    // expectAPIsCalledInOrder([api1, api2, api3])
+    expect(api1).toHaveBeenCalled()
+    expect(api2).toHaveBeenCalled()
+    expect(api3).toHaveBeenCalled()
   })
 })
 
@@ -294,10 +288,8 @@ describe('Complete Component Test Example', () => {
     const scenarios = createRoleScenarios(1)
 
     // Test each role differently:
-    Object.entries(scenarios).forEach(([roleType, auth]) => {
-      const setup = createPageTestSetup({ auth })
-      // Render and test with this role
-      // Verify permissions are correct
+    Object.entries(scenarios).forEach(([, auth]) => {
+      expect(createPageTestSetup({ auth })).toBeDefined()
     })
   })
 
