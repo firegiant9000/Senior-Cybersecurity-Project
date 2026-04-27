@@ -51,6 +51,12 @@
     margin-right: 4px;
 }
 
+.dashboard-header-logo {
+    height: 52px;
+    width: auto;
+    border-radius: 6px;
+}
+
 /* Dark mode toggle button */
 .dark-mode-btn {
     background: transparent;

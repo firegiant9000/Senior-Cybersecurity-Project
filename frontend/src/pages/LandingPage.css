@@ -24,8 +24,10 @@
   font-weight: 700;
 }
 
-.landing-logo-icon {
-  font-size: 1.3rem;
+.landing-logo-img {
+  height: 52px;
+  width: auto;
+  border-radius: 6px;
 }
 
 .landing-nav {

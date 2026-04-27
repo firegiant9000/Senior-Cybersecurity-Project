@@ -355,6 +355,7 @@ async def create_vendor(
     response: Response,
     org_id: int,
     body: OrgVendorCreate,
+    *,
     idempotent: Annotated[bool, Query()] = False,
     current_user: User = Depends(get_current_user),
     repo: SqlOrgVendorRepository = Depends(get_vendor_repo),
@@ -387,9 +388,7 @@ async def create_vendor(
         try:
             vendor = await repo.create(org_id, body)
         except IntegrityError:
-            raise HTTPException(
-                status_code=409, detail="Vendor/product combination already exists"
-            )
+            raise HTTPException(status_code=409, detail="Vendor/product combination already exists")
         except SQLAlchemyError:
             logger.exception("Failed to create vendor for org %s", org_id)
             raise HTTPException(status_code=500, detail="Failed to add vendor")
