@@ -75,8 +75,10 @@ const CLOUD_PROVIDERS = [
 ] as const;
 
 const COMPLIANCE_FRAMEWORKS = [
-  "HIPAA", "PCI-DSS", "SOC 2", "CMMC", "NIST CSF", "ISO 27001", "None",
+  "HIPAA", "PCI-DSS", "SOC 2", "CMMC", "NIST CSF", "ISO 27001", "None", "Unsure",
 ] as const;
+
+const COMPLIANCE_EXCLUSIVE = ["None", "Unsure"];
 
 const DATA_TYPES = [
   "PII (names, SSNs)",
@@ -173,9 +175,15 @@ export default function OnboardingPage({ onComplete }: { onComplete: () => void 
   const toggleListItem = (field: "compliance_frameworks" | "data_types", value: string) => {
     setForm((prev) => {
       const current = prev[field] as string[];
-      const next = current.includes(value)
-        ? current.filter((v) => v !== value)
-        : [...current, value];
+      const isOn = current.includes(value);
+      let next = isOn ? current.filter((v) => v !== value) : [...current, value];
+      if (field === "compliance_frameworks" && !isOn) {
+        if (COMPLIANCE_EXCLUSIVE.includes(value)) {
+          next = [value];
+        } else {
+          next = next.filter((v) => !COMPLIANCE_EXCLUSIVE.includes(v));
+        }
+      }
       return { ...prev, [field]: next };
     });
   };
