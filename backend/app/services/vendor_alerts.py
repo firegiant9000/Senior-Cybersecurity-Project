@@ -83,6 +83,7 @@ class VendorAlertService:
                     CVE.severity,
                     CVE.published_date,
                 )
+                .select_from(OrgVendor)
                 .join(KEV, func.lower(KEV.vendor) == kev_name.lower())
                 .join(CVE, CVE.cve_id == KEV.cve_id)
                 .where(OrgVendor.org_id == org_id)
@@ -137,6 +138,7 @@ class VendorAlertService:
                 CVE.published_date,
                 func.similarity(KEV.vendor, OrgVendor.vendor_name).label("score"),
             )
+            .select_from(OrgVendor)
             .join(KEV, KEV.vendor.op("%")(OrgVendor.vendor_name))
             .join(CVE, CVE.cve_id == KEV.cve_id)
             .where(OrgVendor.org_id == org_id)
