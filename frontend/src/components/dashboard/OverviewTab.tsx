@@ -41,6 +41,16 @@ function truncate(str: string, max = 22): string {
   return str.length > max ? str.slice(0, max) + '…' : str;
 }
 
+const TOOLTIP_CONTENT_STYLE = {
+  backgroundColor: 'var(--card-bg)',
+  border: '1px solid var(--border)',
+  color: 'var(--text-primary)',
+  fontSize: 12,
+  borderRadius: 6,
+} as const;
+const TOOLTIP_ITEM_STYLE = { color: 'var(--text-primary)' } as const;
+const TOOLTIP_LABEL_STYLE = { color: 'var(--text-primary)', fontWeight: 600 } as const;
+
 const VICTIM_BADGE = (
     <span className="victim-impact-badge">
       IC3<InfoTip text={getAcronymDefinition('IC3')!} label="IC3" /> Victim Financial Impact
@@ -342,13 +352,9 @@ function renderGridWidget(
                                             ))}
                                         </Pie>
                                         <Tooltip
-                                            contentStyle={{
-                                                backgroundColor: 'var(--card-bg)',
-                                                border: '1px solid var(--border)',
-                                                color: 'var(--text-primary)',
-                                                fontSize: 12,
-                                                borderRadius: 6,
-                                            }}
+                                            contentStyle={TOOLTIP_CONTENT_STYLE}
+                                            itemStyle={TOOLTIP_ITEM_STYLE}
+                                            labelStyle={TOOLTIP_LABEL_STYLE}
                                             formatter={(v: unknown, name: unknown) => [(v as number).toLocaleString(), name as string]}
                                         />
                                     </PieChart>
@@ -403,13 +409,9 @@ function renderGridWidget(
                                             <XAxis type="number" hide />
                                             <YAxis type="category" hide />
                                             <Tooltip
-                                            contentStyle={{
-                                                backgroundColor: 'var(--card-bg)',
-                                                border: '1px solid var(--border)',
-                                                color: 'var(--text-primary)',
-                                                fontSize: 12,
-                                                borderRadius: 6,
-                                            }}
+                                            contentStyle={TOOLTIP_CONTENT_STYLE}
+                                            itemStyle={TOOLTIP_ITEM_STYLE}
+                                            labelStyle={TOOLTIP_LABEL_STYLE}
                                             formatter={(v: unknown, name: unknown) => [(v as number).toLocaleString(), name as string]}
                                         />
                                             {visibleSevs.map((sev) => (
@@ -511,7 +513,9 @@ function renderGridWidget(
                                             <Cell fill="rgba(148,163,184,0.35)" />
                                         </Pie>
                                         <Tooltip
-                                            contentStyle={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 12, borderRadius: 6 }}
+                                            contentStyle={TOOLTIP_CONTENT_STYLE}
+                                            itemStyle={TOOLTIP_ITEM_STYLE}
+                                            labelStyle={TOOLTIP_LABEL_STYLE}
                                             formatter={(v: unknown, name: unknown) => [(v as number).toLocaleString(), name as string]}
                                         />
                                     </PieChart>
@@ -634,7 +638,9 @@ function renderGridWidget(
                                         <XAxis type="number" tickFormatter={fmtMoney} tick={{ fontSize: 10 }} />
                                         <YAxis type="category" dataKey="label" width={160} tick={{ fontSize: 10 }} />
                                         <Tooltip
-                                            contentStyle={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 12, borderRadius: 6 }}
+                                            contentStyle={TOOLTIP_CONTENT_STYLE}
+                                            itemStyle={TOOLTIP_ITEM_STYLE}
+                                            labelStyle={TOOLTIP_LABEL_STYLE}
                                             formatter={(v: unknown) => [`$${(v as number).toLocaleString()}`, 'Total Loss']}
                                             labelFormatter={(label: unknown) => { const m = data.find((d) => d.label === label); return m?.attack_type ?? String(label); }}
                                         />
@@ -669,7 +675,9 @@ function renderGridWidget(
                                         <XAxis type="number" tickFormatter={fmtMoney} tick={{ fontSize: 10 }} />
                                         <YAxis type="category" dataKey="label" width={140} tick={{ fontSize: 10 }} />
                                         <Tooltip
-                                            contentStyle={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 12, borderRadius: 6 }}
+                                            contentStyle={TOOLTIP_CONTENT_STYLE}
+                                            itemStyle={TOOLTIP_ITEM_STYLE}
+                                            labelStyle={TOOLTIP_LABEL_STYLE}
                                             formatter={(v: unknown) => [`$${(v as number).toLocaleString()}`, 'Avg Loss']}
                                             labelFormatter={(label: unknown) => { const m = data.find((d) => d.label === label); return m?.sector ?? String(label); }}
                                         />
@@ -704,7 +712,9 @@ function renderGridWidget(
                                         <XAxis type="number" tick={{ fontSize: 10 }} />
                                         <YAxis type="category" dataKey="label" width={140} tick={{ fontSize: 10 }} />
                                         <Tooltip
-                                            contentStyle={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 12, borderRadius: 6 }}
+                                            contentStyle={TOOLTIP_CONTENT_STYLE}
+                                            itemStyle={TOOLTIP_ITEM_STYLE}
+                                            labelStyle={TOOLTIP_LABEL_STYLE}
                                             formatter={(v: unknown) => [(v as number).toLocaleString(), 'Complaints']}
                                             labelFormatter={(label: unknown) => { const m = data.find((d) => d.label === label); return m?.sector ?? String(label); }}
                                         />
