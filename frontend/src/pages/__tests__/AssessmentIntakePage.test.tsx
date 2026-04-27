@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // Hoisted Mocks
 // ─────────────────────────────────────────────────────────────────────────────
 
-const { mockNavigate, mockAuthValues, mockFetchWithAuth, mockFetchIntake } = vi.hoisted(() => {
+const { mockNavigate, mockAuthValues, mockFetchWithAuth, mockFetchIntake, mockCreateVendor } = vi.hoisted(() => {
   const mockNavigate = vi.fn()
   const mockAuthValues = {
     user: { uid: 'u1', email: 'user@example.com' } as unknown,
@@ -24,8 +24,9 @@ const { mockNavigate, mockAuthValues, mockFetchWithAuth, mockFetchIntake } = vi.
   }
   const mockFetchWithAuth = vi.fn()
   const mockFetchIntake = vi.fn()
+  const mockCreateVendor = vi.fn()
 
-  return { mockNavigate, mockAuthValues, mockFetchWithAuth, mockFetchIntake }
+  return { mockNavigate, mockAuthValues, mockFetchWithAuth, mockFetchIntake, mockCreateVendor }
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -67,6 +68,10 @@ vi.mock('../../api/assessmentIntake', () => ({
   fetchAssessmentIntake: (...args: unknown[]) => mockFetchIntake(...args),
 }))
 
+vi.mock('../../api/vendors', () => ({
+  createVendor: (...args: unknown[]) => mockCreateVendor(...args),
+}))
+
 // Import component AFTER mocks
 import AssessmentIntakePage from '../AssessmentIntakePage'
 
@@ -84,14 +89,15 @@ function renderPage() {
 
 function mockSuccessfulOrgFetch(orgData: Record<string, unknown> = {}) {
   mockFetchWithAuth.mockImplementation((url: string, options?: Record<string, unknown>) => {
-    if (url.includes('/organizations/mine') && options?.method === 'GET') {
+    if (url.includes('/organizations/mine') && (!options || options?.method === 'GET')) {
       return Promise.resolve({
         ok: true,
         json: async () => ({
-          name: 'Acme Corp',
-          industry_label: 'Technology',
-          primary_state: 'CA',
-          employee_range: '51-200',
+          name: '',
+          industry_label: '',
+          primary_state: '',
+          employee_range: '',
+          primary_domain: '',
           security_controls: {},
           compliance_frameworks: [],
           data_types: [],
@@ -111,6 +117,48 @@ function mockSuccessfulOrgFetch(orgData: Record<string, unknown> = {}) {
       json: async () => ({}),
     })
   })
+}
+
+// Fill step 1 with values that match real option lists. Tests previously used
+// 'Technology' (not in INDUSTRY_OPTIONS) so the controlled <select> rejected the
+// value, keeping form.industry_label empty and Next disabled.
+function fillStep1() {
+  fireEvent.change(screen.getByLabelText(/Company Name/i), {
+    target: { value: 'Test Corp' },
+  })
+  fireEvent.change(screen.getByLabelText(/Industry/i), {
+    target: { value: 'Tech & Software' },
+  })
+  fireEvent.change(screen.getByLabelText(/Primary State/i), {
+    target: { value: 'CA' },
+  })
+  fireEvent.change(screen.getByLabelText(/Number of Employees/i), {
+    target: { value: '51-200' },
+  })
+}
+
+// Step heading helpers — the page never renders "Step N of 5" text, so tests
+// must assert on the FormSection h3 (or h1 review heading) for the active step.
+const stepHeading = {
+  1: { level: 3, name: /^Company Information$/ },
+  2: { level: 3, name: /^Financial & Compliance/ },
+  3: { level: 3, name: /^Security Controls$/ },
+  4: { level: 3, name: /^Technology & Infrastructure$/ },
+  5: { level: 3, name: /^Review Your Assessment Intake$/ },
+} as const
+
+function expectOnStep(step: 1 | 2 | 3 | 4 | 5) {
+  return waitFor(() => {
+    expect(
+      screen.getByRole('heading', stepHeading[step]),
+    ).toBeInTheDocument()
+  })
+}
+
+// Click the first security control's "Yes" button so step 3 becomes valid.
+function selectFirstSecurityControl() {
+  const yesButtons = screen.getAllByRole('button', { name: /^Yes$/i })
+  fireEvent.click(yesButtons[0])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -144,15 +192,15 @@ describe('AssessmentIntakePage', () => {
   it('renders without crashing on step 1', async () => {
     renderPage()
     await waitFor(() => {
-      expect(screen.getByText(/Set Up Your Organization|company|Company/i)).toBeInTheDocument()
+      expect(
+        screen.getByRole('heading', { level: 1, name: /Assessment Intake Wizard/i }),
+      ).toBeInTheDocument()
     })
   })
 
   it('shows step indicator', async () => {
     renderPage()
-    await waitFor(() => {
-      expect(screen.getByText('Step 1 of 5')).toBeInTheDocument()
-    })
+    await expectOnStep(1)
   })
 
   it('renders company basics form fields', async () => {
@@ -163,175 +211,88 @@ describe('AssessmentIntakePage', () => {
     })
   })
 
-  it('requires all step 1 fields before advancing', () => {
+  it('requires all step 1 fields before advancing', async () => {
     renderPage()
-    const nextBtn = screen.getByRole('button', { name: /Next/i })
 
+    // Wait for org load to settle so it doesn't overwrite our values mid-test.
+    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
+
+    const nextBtn = screen.getByRole('button', { name: /Next/i })
     expect(nextBtn).toBeDisabled()
 
-    fireEvent.change(screen.getByLabelText(/Company Name/i), {
-      target: { value: 'Test Corp' },
-    })
-    fireEvent.change(screen.getByLabelText(/Industry/i), {
-      target: { value: 'Technology' },
-    })
-    fireEvent.change(screen.getByLabelText(/Primary State/i), {
-      target: { value: 'CA' },
-    })
-    fireEvent.change(screen.getByLabelText(/Number of Employees/i), {
-      target: { value: '51-200' },
-    })
+    fillStep1()
 
     expect(nextBtn).not.toBeDisabled()
   })
 
   it('advances to step 2 with valid step 1 data', async () => {
     renderPage()
+    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByLabelText(/Company Name/i), {
-      target: { value: 'Test Corp' },
-    })
-    fireEvent.change(screen.getByLabelText(/Industry/i), {
-      target: { value: 'Technology' },
-    })
-    fireEvent.change(screen.getByLabelText(/Primary State/i), {
-      target: { value: 'CA' },
-    })
-    fireEvent.change(screen.getByLabelText(/Number of Employees/i), {
-      target: { value: '51-200' },
-    })
-
+    fillStep1()
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
 
-    await waitFor(() => {
-      expect(screen.getByText('Step 2 of 5')).toBeInTheDocument()
-    })
+    await expectOnStep(2)
   })
 
   it('shows previous button on step 2+', async () => {
     renderPage()
+    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
 
-    expect(screen.queryByRole('button', { name: /Previous/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Previous/i })).toBeDisabled()
 
-    fireEvent.change(screen.getByLabelText(/Company Name/i), {
-      target: { value: 'Test Corp' },
-    })
-    fireEvent.change(screen.getByLabelText(/Industry/i), {
-      target: { value: 'Technology' },
-    })
-    fireEvent.change(screen.getByLabelText(/Primary State/i), {
-      target: { value: 'CA' },
-    })
-    fireEvent.change(screen.getByLabelText(/Number of Employees/i), {
-      target: { value: '51-200' },
-    })
-
+    fillStep1()
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Previous/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Previous/i })).not.toBeDisabled()
     })
   })
 
   it('navigates back to previous step', async () => {
     renderPage()
+    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByLabelText(/Company Name/i), {
-      target: { value: 'Test Corp' },
-    })
-    fireEvent.change(screen.getByLabelText(/Industry/i), {
-      target: { value: 'Technology' },
-    })
-    fireEvent.change(screen.getByLabelText(/Primary State/i), {
-      target: { value: 'CA' },
-    })
-    fireEvent.change(screen.getByLabelText(/Number of Employees/i), {
-      target: { value: '51-200' },
-    })
-
+    fillStep1()
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText('Step 2 of 5')).toBeInTheDocument()
-    })
+    await expectOnStep(2)
 
     fireEvent.click(screen.getByRole('button', { name: /Previous/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText('Step 1 of 5')).toBeInTheDocument()
-    })
+    await expectOnStep(1)
   })
 
   it('shows Financial & Compliance section on step 2', async () => {
     renderPage()
+    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByLabelText(/Company Name/i), {
-      target: { value: 'Test Corp' },
-    })
-    fireEvent.change(screen.getByLabelText(/Industry/i), {
-      target: { value: 'Technology' },
-    })
-    fireEvent.change(screen.getByLabelText(/Primary State/i), {
-      target: { value: 'CA' },
-    })
-    fireEvent.change(screen.getByLabelText(/Number of Employees/i), {
-      target: { value: '51-200' },
-    })
+    fillStep1()
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
 
-    await waitFor(() => {
-      expect(screen.getByText(/Annual Revenue|Revenue|financial/i)).toBeInTheDocument()
-    })
+    await expectOnStep(2)
+    expect(screen.getByText(/Annual Revenue/i)).toBeInTheDocument()
   })
 
   it('shows Security Controls on step 3', async () => {
     renderPage()
+    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByLabelText(/Company Name/i), {
-      target: { value: 'Test Corp' },
-    })
-    fireEvent.change(screen.getByLabelText(/Industry/i), {
-      target: { value: 'Technology' },
-    })
-    fireEvent.change(screen.getByLabelText(/Primary State/i), {
-      target: { value: 'CA' },
-    })
-    fireEvent.change(screen.getByLabelText(/Number of Employees/i), {
-      target: { value: '51-200' },
-    })
+    fillStep1()
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
-
-    await waitFor(() => expect(screen.getByText('Step 2 of 5')).toBeInTheDocument())
+    await expectOnStep(2)
 
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText('Step 3 of 5')).toBeInTheDocument()
-    })
+    await expectOnStep(3)
   })
 
   it('requires security control selection on step 3', async () => {
     renderPage()
+    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByLabelText(/Company Name/i), {
-      target: { value: 'Test Corp' },
-    })
-    fireEvent.change(screen.getByLabelText(/Industry/i), {
-      target: { value: 'Technology' },
-    })
-    fireEvent.change(screen.getByLabelText(/Primary State/i), {
-      target: { value: 'CA' },
-    })
-    fireEvent.change(screen.getByLabelText(/Number of Employees/i), {
-      target: { value: '51-200' },
-    })
+    fillStep1()
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
-
-    await waitFor(() => expect(screen.getByText('Step 2 of 5')).toBeInTheDocument())
-
+    await expectOnStep(2)
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
-
-    await waitFor(() => expect(screen.getByText('Step 3 of 5')).toBeInTheDocument())
+    await expectOnStep(3)
 
     const nextBtn = screen.getByRole('button', { name: /Next/i })
     expect(nextBtn).toBeDisabled()
@@ -353,20 +314,9 @@ describe('AssessmentIntakePage', () => {
 
   it('saves form data when advancing steps', async () => {
     renderPage()
+    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByLabelText(/Company Name/i), {
-      target: { value: 'Test Corp' },
-    })
-    fireEvent.change(screen.getByLabelText(/Industry/i), {
-      target: { value: 'Technology' },
-    })
-    fireEvent.change(screen.getByLabelText(/Primary State/i), {
-      target: { value: 'CA' },
-    })
-    fireEvent.change(screen.getByLabelText(/Number of Employees/i), {
-      target: { value: '51-200' },
-    })
-
+    fillStep1()
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
 
     await waitFor(() => {
@@ -379,33 +329,17 @@ describe('AssessmentIntakePage', () => {
 
   it('retains form data when navigating back', async () => {
     renderPage()
+    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
 
-    const companyName = 'Test Corp'
-    fireEvent.change(screen.getByLabelText(/Company Name/i), {
-      target: { value: companyName },
-    })
-    fireEvent.change(screen.getByLabelText(/Industry/i), {
-      target: { value: 'Technology' },
-    })
-    fireEvent.change(screen.getByLabelText(/Primary State/i), {
-      target: { value: 'CA' },
-    })
-    fireEvent.change(screen.getByLabelText(/Number of Employees/i), {
-      target: { value: '51-200' },
-    })
-
+    fillStep1()
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText('Step 2 of 5')).toBeInTheDocument()
-    })
+    await expectOnStep(2)
 
     fireEvent.click(screen.getByRole('button', { name: /Previous/i }))
+    await expectOnStep(1)
 
-    await waitFor(() => {
-      const nameInput = screen.getByLabelText(/Company Name/i) as HTMLInputElement
-      expect(nameInput.value).toBe(companyName)
-    })
+    const nameInput = screen.getByLabelText(/Company Name/i) as HTMLInputElement
+    expect(nameInput.value).toBe('Test Corp')
   })
 
   it('redirects to onboarding when user has no org', () => {
@@ -418,35 +352,23 @@ describe('AssessmentIntakePage', () => {
 
   it('navigates to dashboard on form submission', async () => {
     renderPage()
+    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
 
-    // Fill and submit through all steps
-    fireEvent.change(screen.getByLabelText(/Company Name/i), {
-      target: { value: 'Test Corp' },
-    })
-    fireEvent.change(screen.getByLabelText(/Industry/i), {
-      target: { value: 'Technology' },
-    })
-    fireEvent.change(screen.getByLabelText(/Primary State/i), {
-      target: { value: 'CA' },
-    })
-    fireEvent.change(screen.getByLabelText(/Number of Employees/i), {
-      target: { value: '51-200' },
-    })
+    fillStep1()
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
+    await expectOnStep(2)
 
-    await waitFor(() => expect(screen.getByText('Step 2 of 5')).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
+    await expectOnStep(3)
 
-    await waitFor(() => expect(screen.getByText('Step 3 of 5')).toBeInTheDocument())
+    selectFirstSecurityControl()
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
+    await expectOnStep(4)
 
-    await waitFor(() => expect(screen.getByText('Step 4 of 5')).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
+    await expectOnStep(5)
 
-    await waitFor(() => expect(screen.getByText('Step 5 of 5')).toBeInTheDocument())
-
-    const submitBtn = screen.getByRole('button', { name: /Submit|Finish/i })
-    fireEvent.click(submitBtn)
+    fireEvent.click(screen.getByRole('button', { name: /Complete/i }))
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
@@ -454,51 +376,64 @@ describe('AssessmentIntakePage', () => {
   })
 
   it('shows error message on submission failure', async () => {
+    let patchCount = 0
     mockFetchWithAuth.mockImplementation((url: string, options?: Record<string, unknown>) => {
       if (url.includes('/organizations/mine') && options?.method === 'PATCH') {
+        patchCount += 1
+        // Step 5 submit is the final PATCH; earlier auto-saves succeed so we
+        // can actually reach step 5.
+        if (patchCount >= 4) {
+          return Promise.resolve({
+            ok: false,
+            json: async () => ({ detail: 'Validation failed' }),
+          })
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) })
+      }
+      if (url.includes('/organizations/mine')) {
         return Promise.resolve({
-          ok: false,
-          json: async () => ({ detail: 'Validation failed' }),
+          ok: true,
+          json: async () => ({
+            name: '',
+            industry_label: '',
+            primary_state: '',
+            employee_range: '',
+            primary_domain: '',
+            security_controls: {},
+            compliance_frameworks: [],
+            data_types: [],
+            cloud_providers: [],
+          }),
         })
       }
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({}),
-      })
+      return Promise.resolve({ ok: true, json: async () => ({}) })
     })
 
     renderPage()
+    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByLabelText(/Company Name/i), {
-      target: { value: 'Test Corp' },
-    })
-    fireEvent.change(screen.getByLabelText(/Industry/i), {
-      target: { value: 'Technology' },
-    })
-    fireEvent.change(screen.getByLabelText(/Primary State/i), {
-      target: { value: 'CA' },
-    })
-    fireEvent.change(screen.getByLabelText(/Number of Employees/i), {
-      target: { value: '51-200' },
-    })
+    fillStep1()
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
+    await expectOnStep(2)
 
-    await waitFor(() => expect(screen.getByText('Step 2 of 5')).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
+    await expectOnStep(3)
 
-    await waitFor(() => expect(screen.getByText('Step 3 of 5')).toBeInTheDocument())
+    selectFirstSecurityControl()
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
+    await expectOnStep(4)
 
-    await waitFor(() => expect(screen.getByText('Step 4 of 5')).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
+    await expectOnStep(5)
 
-    await waitFor(() => expect(screen.getByText('Step 5 of 5')).toBeInTheDocument())
-
-    const submitBtn = screen.getByRole('button', { name: /Submit|Finish/i })
-    fireEvent.click(submitBtn)
+    fireEvent.click(screen.getByRole('button', { name: /Complete/i }))
 
     await waitFor(() => {
+      // Error renders inside `.intake-error` div above the form actions.
       expect(screen.getByText(/Validation failed/i)).toBeInTheDocument()
     })
   })
 })
+
+// Silence the unused import warning if `within` isn't referenced in any test.
+void within
