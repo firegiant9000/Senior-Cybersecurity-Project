@@ -791,11 +791,12 @@ const OverviewTab: React.FC<Props> = ({
 
     // Progress tracking for refresh
     const progressState = useRefreshProgress();
+    const { markItemComplete, reset: resetProgress, start: startProgress, isActive: progressActive } = progressState;
 
     // Register progress callback with the data hook
     useEffect(() => {
-        onSetRefreshProgress?.(progressState.markItemComplete);
-    }, [onSetRefreshProgress, progressState.markItemComplete]);
+        onSetRefreshProgress?.(markItemComplete);
+    }, [onSetRefreshProgress, markItemComplete]);
 
     const { hiddenSet, gridOrder, toggle, move, reorder, insertAtEnd, reset } = useWidgetPrefs(ALL_WIDGET_IDS, MOVEABLE_IDS, 'overviewWidgetPrefs');
     const show = useCallback((id: string) => !hiddenSet.has(id), [hiddenSet]);
@@ -849,15 +850,15 @@ const OverviewTab: React.FC<Props> = ({
     // Reset progress when loading completes
     useEffect(() => {
         const isAnyLoading = dashboardLoading || dashboardLoadingHeavy;
-        if (wasAnyLoadingRef.current && !isAnyLoading && progressState.isActive) {
-            progressState.reset();
+        if (wasAnyLoadingRef.current && !isAnyLoading && progressActive) {
+            resetProgress();
         }
         wasAnyLoadingRef.current = isAnyLoading;
-    }, [dashboardLoading, dashboardLoadingHeavy, progressState.reset, progressState.isActive]);
+    }, [dashboardLoading, dashboardLoadingHeavy, resetProgress, progressActive]);
 
     const handleRefresh = useCallback(() => {
         // Start progress tracking with all items
-        progressState.start([
+        startProgress([
             'Dashboard summary',
             'Attack types',
             'Severity distribution',
@@ -874,7 +875,7 @@ const OverviewTab: React.FC<Props> = ({
         ]);
         refresh();
         setFreshnessRevision((r) => r + 1);
-    }, [refresh, progressState.start]);
+    }, [refresh, startProgress]);
 
     const sortedTrends = useMemo(
         () => [...dashboardData.temporalTrends].sort((a, b) => b.year - a.year),

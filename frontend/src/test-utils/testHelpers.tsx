@@ -146,7 +146,7 @@ export function createMockInvitesList(count = 2): { items: MockInvite[]; total: 
 interface CustomRenderOptions extends Omit<RenderOptions, 'wrapper'> {
   initialEntries?: MemoryRouterProps['initialEntries']
   initialIndex?: MemoryRouterProps['initialIndex']
-  authContext?: Partial<any>
+  authContext?: Partial<Record<string, unknown>>
 }
 
 /**
@@ -254,7 +254,7 @@ export function createUnauthenticatedAuth() {
 /**
  * Create mock auth context value for an authenticated user without org
  */
-export function createAuthenticatedAuth(overrides: Partial<any> = {}) {
+export function createAuthenticatedAuth(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     user: createMockUser(),
     loading: false,
@@ -275,7 +275,7 @@ export function createAuthenticatedAuth(overrides: Partial<any> = {}) {
 /**
  * Create mock auth context value for user with organization membership
  */
-export function createOrgMemberAuth(orgId = 1, orgRole: string = 'member', overrides: Partial<any> = {}) {
+export function createOrgMemberAuth(orgId = 1, orgRole: string = 'member', overrides: Partial<Record<string, unknown>> = {}) {
   return {
     user: createMockUser(),
     loading: false,
@@ -296,7 +296,7 @@ export function createOrgMemberAuth(orgId = 1, orgRole: string = 'member', overr
 /**
  * Create mock auth context value for global admin
  */
-export function createAdminAuth(overrides: Partial<any> = {}) {
+export function createAdminAuth(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     user: createMockUser({ email: 'admin@example.com' }),
     loading: false,
@@ -317,7 +317,7 @@ export function createAdminAuth(overrides: Partial<any> = {}) {
 /**
  * Create mock auth context value for org admin
  */
-export function createOrgAdminAuth(orgId = 1, overrides: Partial<any> = {}) {
+export function createOrgAdminAuth(orgId = 1, overrides: Partial<Record<string, unknown>> = {}) {
   return {
     user: createMockUser(),
     loading: false,
@@ -342,7 +342,7 @@ export function createOrgAdminAuth(orgId = 1, overrides: Partial<any> = {}) {
 /**
  * Setup realistic member list API response
  */
-export function mockMembersAPI(mockFn: any, count = 3) {
+export function mockMembersAPI(mockFn: { mockResolvedValue: (v: unknown) => void }, count = 3) {
   const membersList = createMockMembersList(count)
   mockFn.mockResolvedValue(membersList)
   return membersList
@@ -351,7 +351,7 @@ export function mockMembersAPI(mockFn: any, count = 3) {
 /**
  * Setup realistic invites API response
  */
-export function mockInvitesAPI(mockFn: any, count = 2) {
+export function mockInvitesAPI(mockFn: { mockResolvedValue: (v: unknown) => void }, count = 2) {
   const invitesList = createMockInvitesList(count)
   mockFn.mockResolvedValue(invitesList)
   return invitesList
@@ -360,7 +360,7 @@ export function mockInvitesAPI(mockFn: any, count = 2) {
 /**
  * Setup assessment intake API with typical response
  */
-export function mockAssessmentAPI(mockFn: any, tierNumber = 1) {
+export function mockAssessmentAPI(mockFn: { mockResolvedValue: (v: unknown) => void }, tierNumber = 1) {
   const data = createMockAssessmentData({ current_tier: tierNumber })
   mockFn.mockResolvedValue(data)
   return data
@@ -369,7 +369,7 @@ export function mockAssessmentAPI(mockFn: any, tierNumber = 1) {
 /**
  * Setup API to simulate error response
  */
-export function mockAPIError(mockFn: any, errorMessage = 'Network error') {
+export function mockAPIError(mockFn: { mockRejectedValue: (v: unknown) => void }, errorMessage = 'Network error') {
   mockFn.mockRejectedValue(new Error(errorMessage))
 }
 
@@ -428,7 +428,7 @@ export function createOrgStates() {
 /**
  * Assert that API was called with expected parameters
  */
-export function expectAPICall(mockFn: any, expectedArgs: any, callIndex = 0) {
+export function expectAPICall(mockFn: { mock: { calls: unknown[][] } }, expectedArgs: unknown, callIndex = 0) {
   expect(mockFn).toHaveBeenCalled()
   expect(mockFn.mock.calls[callIndex]).toEqual(expectedArgs)
 }
@@ -436,7 +436,7 @@ export function expectAPICall(mockFn: any, expectedArgs: any, callIndex = 0) {
 /**
  * Assert that a list of APIs were all called
  */
-export function expectAPIsCalledInOrder(mocks: any[]) {
+export function expectAPIsCalledInOrder(mocks: unknown[]) {
   mocks.forEach(mock => {
     expect(mock).toHaveBeenCalled()
   })
@@ -457,7 +457,7 @@ export function expectRequiresRole(role: string | string[]) {
 /**
  * Assert that user requires org membership
  */
-export function expectRequiresOrg(authContext: any) {
+export function expectRequiresOrg(authContext: { orgId: number | null | undefined }) {
   expect(authContext.orgId).not.toBeNull()
   expect(authContext.orgId).not.toBe(undefined)
 }
@@ -470,9 +470,9 @@ export function expectRequiresOrg(authContext: any) {
  * Create standardized test setup for page components
  */
 export function createPageTestSetup(options: {
-  auth?: any
+  auth?: unknown
   route?: string
-  apis?: any
+  apis?: unknown
 } = {}) {
   const auth = options.auth || createOrgMemberAuth(1, 'owner')
   const apis = options.apis || setupTestEnvironment().mockApis
