@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 
 export interface ProgressItem {
   name: string
@@ -29,33 +29,48 @@ export interface UseRefreshProgressResult {
 export function useRefreshProgress(): UseRefreshProgressResult {
   const [items, setItems] = useState<ProgressItem[]>([])
   const [isActive, setIsActive] = useState(false)
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearResetTimer = useCallback(() => {
+    if (resetTimerRef.current !== null) {
+      clearTimeout(resetTimerRef.current)
+      resetTimerRef.current = null
+    }
+  }, [])
 
   const reset = useCallback(() => {
+    clearResetTimer()
     setItems([])
     setIsActive(false)
-  }, [])
+  }, [clearResetTimer])
 
   const start = useCallback((itemNames: string[]) => {
+    clearResetTimer()
     setItems(itemNames.map(name => ({ name, completed: false })))
     setIsActive(true)
-  }, [])
+  }, [clearResetTimer])
 
   const markItemComplete = useCallback((itemName: string) => {
     setItems(prev => {
       const updated = prev.map(item =>
         item.name === itemName ? { ...item, completed: true } : item
       )
-      
-      // Auto-reset when all items are complete
+
       const allComplete = updated.every(item => item.completed)
       if (allComplete) {
-        // Small delay to show 100% before resetting
-        setTimeout(() => reset(), 300)
+        // Brief delay so users see 100% before the bar disappears.
+        clearResetTimer()
+        resetTimerRef.current = setTimeout(() => {
+          resetTimerRef.current = null
+          reset()
+        }, 300)
       }
-      
+
       return updated
     })
-  }, [reset])
+  }, [reset, clearResetTimer])
+
+  useEffect(() => clearResetTimer, [clearResetTimer])
 
   const progress = items.length === 0 
     ? 0 
