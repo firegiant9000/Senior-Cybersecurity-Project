@@ -8,7 +8,7 @@
 import { render, RenderOptions, RenderResult } from '@testing-library/react'
 import { MemoryRouter, MemoryRouterProps } from 'react-router-dom'
 import React from 'react'
-import { vi } from 'vitest'
+import { vi, expect } from 'vitest'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mock Data Factories
