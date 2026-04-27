@@ -96,7 +96,7 @@ export default function LoginPage({ defaultSignUp = false }: { defaultSignUp?: b
   // Forgot password view
   if (isForgotPassword) {
     return (
-      <div className="login-page">
+      <div className={`login-page${isSignUp ? " login-page--signup" : ""}`}>
         <div className="login-card">
           <div className="login-header">
             <h1>Cyber Threat Intelligence</h1>
@@ -145,7 +145,7 @@ export default function LoginPage({ defaultSignUp = false }: { defaultSignUp?: b
 
   // Login / Signup view
   return (
-    <div className="login-page">
+    <div className={`login-page${isSignUp ? " login-page--signup" : ""}`}>
       <div className="login-card">
         <div className="login-header">
           <h1>Cyber Threat Intelligence</h1>

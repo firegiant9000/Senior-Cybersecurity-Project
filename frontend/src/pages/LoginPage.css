@@ -135,3 +135,44 @@
 .forgot-btn:hover {
   color: var(--accent, #3b82f6);
 }
+
+/* ───────────── Sign-up mode: white text on black panel on blue ───────────── */
+.login-page--signup {
+  background: #1d4ed8;
+}
+
+.login-page--signup .login-card {
+  background: #000;
+  border-color: #1d4ed8;
+  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.55);
+}
+
+.login-page--signup .login-header h1,
+.login-page--signup .login-header p,
+.login-page--signup label,
+.login-page--signup .toggle-btn {
+  color: #ffffff;
+}
+
+.login-page--signup input {
+  background: #0a0a0a;
+  border-color: #1d4ed8;
+  color: #ffffff;
+}
+
+.login-page--signup input::placeholder {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.login-page--signup .login-btn {
+  background: #ffffff;
+  color: #000000;
+}
+
+.login-page--signup .login-btn:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+.login-page--signup .toggle-btn:hover {
+  color: #93c5fd;
+}
