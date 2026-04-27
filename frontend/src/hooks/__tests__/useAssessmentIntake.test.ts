@@ -1,11 +1,13 @@
-import { renderHook, waitFor } from '@testing-library/react'
+import { renderHook, waitFor, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Mock auth context FIRST
+// Mock auth context FIRST. Return a stable user reference so the hook's
+// useEffect dependency array doesn't churn on every render.
+const mockAuthState: { user: { uid: string; email: string } | null } = {
+  user: { uid: 'u1', email: 'test@example.com' },
+}
 vi.mock('../../context/AuthContext', () => ({
-  useAuth: vi.fn(() => ({
-    user: { uid: 'u1', email: 'test@example.com' },
-  })),
+  useAuth: vi.fn(() => mockAuthState),
   AuthProvider: ({ children }: { children: React.ReactNode }) => children,
 }))
 
@@ -17,7 +19,6 @@ vi.mock('../../api/assessmentIntake', () => ({
 
 import { useAssessmentIntake } from '../useAssessmentIntake'
 import type { AssessmentIntakeResponse } from '../../api/assessmentIntake'
-import { useAuth } from '../../context/AuthContext'
 
 describe('useAssessmentIntake', () => {
   beforeEach(() => {
@@ -137,21 +138,20 @@ describe('useAssessmentIntake', () => {
     })
   })
 
-  it('clears data and error when user is not logged in', () => {
-    vi.resetModules()
-    vi.mock('../../context/AuthContext', () => ({
-      useAuth: () => ({
-        user: null,
-      }),
-    }))
-
-    // Create a new hook with no user
-    const hookModule = require('../useAssessmentIntake')
-    const { result } = renderHook(() => hookModule.useAssessmentIntake())
-
-    expect(result.current.data).toBe(null)
-    expect(result.current.error).toBe(null)
-    expect(result.current.loading).toBe(false)
+  it('clears data and error when user is not logged in', async () => {
+    const original = mockAuthState.user
+    mockAuthState.user = null
+    try {
+      const { result } = renderHook(() => useAssessmentIntake())
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+      })
+      expect(result.current.data).toBe(null)
+      expect(result.current.error).toBe(null)
+      expect(mockFetchAssessmentIntake).not.toHaveBeenCalled()
+    } finally {
+      mockAuthState.user = original
+    }
   })
 
   it('retries fetch when refresh is called multiple times', async () => {
@@ -162,9 +162,11 @@ describe('useAssessmentIntake', () => {
       expect(result.current.loading).toBe(false)
     })
 
-    result.current.refresh()
-    result.current.refresh()
-    result.current.refresh()
+    for (let i = 0; i < 3; i++) {
+      await act(async () => {
+        result.current.refresh()
+      })
+    }
 
     await waitFor(() => {
       expect(mockFetchAssessmentIntake).toHaveBeenCalledTimes(4)
