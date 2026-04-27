@@ -87,8 +87,7 @@ const LandingPage: React.FC = () => {
   <div className="landing-page">
     <header className="landing-header">
       <div className="landing-logo">
-        <span className="landing-logo-icon">🔍</span>
-        <span className="landing-logo-text">Hacker Tracker</span>
+        <img src="/logo.png" alt="Hacker Tracker" className="landing-logo-img" />
       </div>
       <nav className="landing-nav">
         <Link to="/login" className="landing-nav-link">Sign In</Link>
