@@ -2,7 +2,6 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Dashboard from "./Dashboard.tsx";
 import LoginPage from "./pages/LoginPage.tsx";
 import LandingPage from "./pages/LandingPage.tsx";
-import OnboardingPage from "./pages/OnboardingPage.tsx";
 import SettingsPage from "./pages/SettingsPage.tsx";
 import AssessmentDebugPage from "./pages/AssessmentDebugPage.tsx";
 import AssessmentIntakePage from "./pages/AssessmentIntakePage.tsx";
@@ -10,6 +9,7 @@ import OrgProfilePage from "./pages/OrgProfilePage.tsx";
 import AcceptInvitePage from "./pages/AcceptInvitePage.tsx";
 import ProtectedRoute from "./components/ProtectedRoute.tsx";
 import { useAuth } from "./context/AuthContext.tsx";
+
 
 function RootRoute() {
   const { user, loading } = useAuth();
@@ -19,8 +19,6 @@ function RootRoute() {
 }
 
 function App() {
-  const { refreshProfile } = useAuth();
-
   return (
     <Routes>
       <Route path="/" element={<RootRoute />} />
@@ -30,7 +28,7 @@ function App() {
         path="/onboarding"
         element={
           <ProtectedRoute requireOrg={false}>
-            <OnboardingPage onComplete={refreshProfile} />
+            <AssessmentIntakePage />
           </ProtectedRoute>
         }
       />
@@ -61,7 +59,7 @@ function App() {
       <Route
         path="/assessment-intake"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requireOrg={false}>
             <AssessmentIntakePage />
           </ProtectedRoute>
         }
