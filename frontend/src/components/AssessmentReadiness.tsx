@@ -45,7 +45,12 @@ function handleFix(key: string, navigate: ReturnType<typeof useNavigate>, locati
   }
 }
 
-export default function AssessmentReadinessWidget() {
+interface AssessmentReadinessWidgetProps {
+  /** Bump to force a re-fetch (e.g. after a save in the parent page). */
+  refreshKey?: number;
+}
+
+export default function AssessmentReadinessWidget({ refreshKey = 0 }: AssessmentReadinessWidgetProps = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const [data, setData] = useState<AssessmentReadiness | null>(null);
@@ -68,7 +73,7 @@ export default function AssessmentReadinessWidget() {
         if (!ac.signal.aborted) setLoading(false);
       });
     return () => ac.abort();
-  }, []);
+  }, [refreshKey]);
 
   if (loading)
     return (
