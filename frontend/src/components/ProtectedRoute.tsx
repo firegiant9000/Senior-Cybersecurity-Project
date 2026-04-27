@@ -1,6 +1,7 @@
 import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 /**
  * Aligns with backend ``PUT /organizations/{org_id}``: global ``role === "admin"``
@@ -16,8 +17,9 @@ export function canEditOrganizationProfile(
 }
 
 export default function ProtectedRoute({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
-  const { user, loading, orgId, orgLoading, profileError, refreshProfile } = useAuth();
+  const { user, loading, orgId, orgLoading, profileError, refreshProfile, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
   if (loading || orgLoading) {
     return (
@@ -38,6 +40,9 @@ export default function ProtectedRoute({ children, requireOrg = true }: { childr
         <p>Failed to load your profile. Please check your connection.</p>
         <button onClick={() => refreshProfile()} style={{ padding: "0.5rem 1rem", cursor: "pointer" }}>
           Retry
+        </button>
+        <button onClick={async () => { await logout(); navigate("/"); }} style={{ padding: "0.5rem 1rem", cursor: "pointer", opacity: 0.7 }}>
+          Log Out
         </button>
       </div>
     );

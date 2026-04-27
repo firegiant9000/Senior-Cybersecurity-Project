@@ -18,7 +18,7 @@ const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout }
 
     return (
         <header className="dashboard-header">
-            <h1>Hacker Tracker</h1>
+            <img src="/logo.png" alt="Hacker Tracker" className="dashboard-header-logo" />
             <div className="header-buttons">
                 <button className="dark-mode-btn" onClick={onToggleDark} title="Toggle dark mode">
                     {dark ? '☀' : '🌙'}

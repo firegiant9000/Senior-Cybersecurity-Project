@@ -99,6 +99,7 @@ export default function LoginPage({ defaultSignUp = false }: { defaultSignUp?: b
       <div className="login-page">
         <div className="login-card">
           <div className="login-header">
+            <img src="/logo.png" alt="Hacker Tracker" className="login-logo" />
             <h1>Cyber Threat Intelligence</h1>
             <p>Reset your password</p>
           </div>
@@ -148,6 +149,7 @@ export default function LoginPage({ defaultSignUp = false }: { defaultSignUp?: b
     <div className="login-page">
       <div className="login-card">
         <div className="login-header">
+          <img src="/logo.png" alt="Hacker Tracker" className="login-logo" />
           <h1>Cyber Threat Intelligence</h1>
           <p>{isSignUp ? "Create your account" : "Sign in to your account"}</p>
         </div>
