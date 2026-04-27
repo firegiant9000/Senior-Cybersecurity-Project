@@ -92,6 +92,15 @@ vi.mock('./pages/LandingPage.tsx', () => ({
   default: () => <div data-testid="landing-page">Landing Page</div>,
 }))
 
+vi.mock('./pages/OnboardingPage.tsx', () => ({
+  default: ({ onComplete }: any) => (
+    <div data-testid="onboarding-page">
+      <h1>Onboarding</h1>
+      <button onClick={() => onComplete?.()}>Complete Onboarding</button>
+    </div>
+  ),
+}))
+
 vi.mock('./pages/SettingsPage.tsx', () => ({
   default: () => <div data-testid="settings-page">Settings Page</div>,
 }))
@@ -227,14 +236,14 @@ describe('App - Routing & Navigation', () => {
     it('shows onboarding page when user is authenticated', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       renderApp(['/onboarding'])
-      expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
+      expect(screen.getByTestId('onboarding-page')).toBeInTheDocument()
     })
 
     it('allows onboarding without requiring org (requireOrg={false})', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = null
       renderApp(['/onboarding'])
-      expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
+      expect(screen.getByTestId('onboarding-page')).toBeInTheDocument()
     })
 
     it('redirects unauthenticated users from onboarding', () => {
@@ -446,7 +455,7 @@ describe('App - Routing & Navigation', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = null
       renderApp(['/onboarding'])
-      expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
+      expect(screen.getByTestId('onboarding-page')).toBeInTheDocument()
     })
 
     it('waits for org loading before redirecting', () => {
@@ -474,14 +483,14 @@ describe('App - Routing & Navigation', () => {
 
       mockAuthContext.orgId = 1
       renderApp(['/onboarding'])
-      expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
+      expect(screen.getByTestId('onboarding-page')).toBeInTheDocument()
     })
 
     it('supports navigation from onboarding to dashboard', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = 1
       renderApp(['/onboarding'])
-      expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
+      expect(screen.getByTestId('onboarding-page')).toBeInTheDocument()
 
       renderApp(['/dashboard'])
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
@@ -553,7 +562,7 @@ describe('App - Routing & Navigation', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = null
       renderApp(['/onboarding'])
-      expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
+      expect(screen.getByTestId('onboarding-page')).toBeInTheDocument()
 
       mockAuthContext.orgId = 42
       renderApp(['/dashboard'])
