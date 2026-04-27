@@ -18,7 +18,7 @@ export default function FormSection({
     <div className="intake-form-section">
       <div className="intake-section-header">
         <h3 className="intake-section-title">{title}</h3>
-        <RequiredBadge required={required} optional={!required} />
+        <RequiredBadge required={required} optional={required === false} />
       </div>
       {description && <p className="intake-section-description">{description}</p>}
       <div className="intake-section-fields">{children}</div>
