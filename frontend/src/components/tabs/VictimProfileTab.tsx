@@ -23,25 +23,26 @@ function truncate(str: string, max = 22): string {
 const VictimProfileTab: React.FC = () => {
   const { data, loading, errors, refresh, setOnProgress } = useVictimData();
   const progressState = useRefreshProgress();
+  const { markItemComplete, reset, start, isActive } = progressState;
   const wasLoadingRef = useRef(loading);
 
   // Register progress callback
   useEffect(() => {
-    setOnProgress?.(progressState.markItemComplete);
-  }, [setOnProgress, progressState.markItemComplete]);
+    setOnProgress?.(markItemComplete);
+  }, [setOnProgress, markItemComplete]);
 
   // Reset progress when loading completes
   useEffect(() => {
-    if (wasLoadingRef.current && !loading && progressState.isActive) {
-      progressState.reset();
+    if (wasLoadingRef.current && !loading && isActive) {
+      reset();
     }
     wasLoadingRef.current = loading;
-  }, [loading, progressState.reset, progressState.isActive]);
+  }, [loading, reset, isActive]);
 
   const handleRefresh = useCallback(() => {
-    progressState.start(['Attack types', 'Industry risk']);
+    start(['Attack types', 'Industry risk']);
     refresh();
-  }, [refresh, progressState.start]);
+  }, [refresh, start]);
 
   const topLossByAttack = [...data.attackTypes]
     .sort((a, b) => b.total_loss - a.total_loss)

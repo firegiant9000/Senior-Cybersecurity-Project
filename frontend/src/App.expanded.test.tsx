@@ -81,7 +81,7 @@ vi.mock('./Dashboard.tsx', () => ({
 }))
 
 vi.mock('./pages/LoginPage.tsx', () => ({
-  default: ({ defaultSignUp }: any) => (
+  default: ({ defaultSignUp }: { defaultSignUp?: boolean }) => (
     <div data-testid={defaultSignUp ? 'signup-page' : 'login-page'}>
       {defaultSignUp ? 'Sign Up Page' : 'Login Page'}
     </div>
@@ -113,7 +113,7 @@ vi.mock('./pages/AcceptInvitePage.tsx', () => ({
 }))
 
 vi.mock('./components/ProtectedRoute.tsx', () => ({
-  default: ({ children, requireOrg }: any) => {
+  default: ({ children, requireOrg }: { children: React.ReactNode; requireOrg?: boolean }) => {
     const authContext = mockAuthContext
     if (!authContext.user && !authContext.loading) {
       return <div data-testid="protected-redirect">Redirecting to login...</div>

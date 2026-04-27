@@ -81,7 +81,7 @@ vi.mock('./components/dashboard/OverviewTab', () => ({
 }))
 
 vi.mock('./components/dashboard/DashboardHeader', () => ({
-  default: ({ dark, onToggleDark, user }: any) => (
+  default: ({ dark, onToggleDark, user }: { dark: boolean; onToggleDark: () => void; user?: { email?: string } }) => (
     <header data-testid="dashboard-header">
       <button data-testid="dark-mode-toggle" onClick={onToggleDark}>
         Dark: {dark ? 'on' : 'off'}
@@ -95,9 +95,9 @@ vi.mock('./components/dashboard/DashboardHeader', () => ({
 }))
 
 vi.mock('./components/dashboard/TabBar', () => ({
-  default: ({ groups, activeGroup, onGroupChange }: any) => (
+  default: ({ groups, activeGroup, onGroupChange }: { groups: Array<{ id: string; label: string; locked?: boolean }>; activeGroup: string; onGroupChange: (id: string) => void }) => (
     <nav data-testid="tab-bar">
-      {groups.map((g: any) => (
+      {groups.map((g) => (
         <button
           key={g.id}
           data-testid={`tab-${g.id}`}
@@ -114,9 +114,9 @@ vi.mock('./components/dashboard/TabBar', () => ({
 }))
 
 vi.mock('./components/dashboard/SubTabBar', () => ({
-  default: ({ subTabs, activeSubTab, onSubTabChange }: any) => (
+  default: ({ subTabs, activeSubTab, onSubTabChange }: { subTabs: Array<{ id: string; label: string }>; activeSubTab: string; onSubTabChange: (id: string) => void }) => (
     <nav data-testid="sub-tab-bar">
-      {subTabs.map((s: any) => (
+      {subTabs.map((s) => (
         <button
           key={s.id}
           data-testid={`sub-tab-${s.id}`}

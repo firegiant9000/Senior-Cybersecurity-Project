@@ -355,6 +355,7 @@ async def create_vendor(
     response: Response,
     org_id: int,
     body: OrgVendorCreate,
+    *,
     idempotent: Annotated[bool, Query()] = False,
     current_user: User = Depends(get_current_user),
     repo: SqlOrgVendorRepository = Depends(get_vendor_repo),

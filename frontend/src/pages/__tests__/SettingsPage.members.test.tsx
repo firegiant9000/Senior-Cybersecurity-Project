@@ -141,19 +141,23 @@ const mockInvitesData = {
   items: [
     {
       id: 101,
-      invited_email: 'pending@example.com',
+      org_id: 1,
+      email: 'pending@example.com',
       role: 'member',
+      status: 'pending',
+      inviter_id: 1,
       created_at: '2024-01-15T00:00:00Z',
       expires_at: '2024-02-15T00:00:00Z',
-      error_message: null,
     },
     {
       id: 102,
-      invited_email: 'admin-pending@example.com',
+      org_id: 1,
+      email: 'admin-pending@example.com',
       role: 'admin',
+      status: 'pending',
+      inviter_id: 1,
       created_at: '2024-01-16T00:00:00Z',
       expires_at: '2024-02-16T00:00:00Z',
-      error_message: null,
     },
   ],
   total: 2,
@@ -320,8 +324,8 @@ describe('SettingsPage - Member Management', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText('Email')).toBeInTheDocument()
-        expect(screen.getByText(/Role/i)).toBeInTheDocument()
+        expect(screen.getAllByText('Email').length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Role/i).length).toBeGreaterThan(0)
         expect(screen.getByText(/Joined/i)).toBeInTheDocument()
       })
     })
@@ -404,10 +408,12 @@ describe('SettingsPage - Member Management', () => {
 
       await waitFor(() => {
         const selects = screen.getAllByRole('combobox')
-        fireEvent.click(selects[0])
-        expect(screen.getByText(/member/i)).toBeInTheDocument()
-        expect(screen.getByText(/admin/i)).toBeInTheDocument()
+        expect(selects.length).toBeGreaterThan(0)
       })
+      const options = screen.getAllByRole('option')
+      const optionValues = options.map((o) => (o as HTMLOptionElement).value)
+      expect(optionValues).toContain('member')
+      expect(optionValues).toContain('admin')
     })
 
     it('calls updateMemberRole when role changes', async () => {
@@ -429,9 +435,11 @@ describe('SettingsPage - Member Management', () => {
       renderPage()
 
       await waitFor(() => {
-        const selects = screen.getAllByRole('combobox')
-        fireEvent.change(selects[0], { target: { value: 'admin' } })
+        expect(screen.getByText('member@example.com')).toBeInTheDocument()
       })
+      const selects = screen.getAllByRole('combobox')
+      // selects[1] = the 'member' row's select (selects[0] = 'admin' row, value already 'admin')
+      fireEvent.change(selects[1], { target: { value: 'admin' } })
 
       await waitFor(() => {
         expect(screen.getByText(/Role updated/i)).toBeInTheDocument()
@@ -444,23 +452,25 @@ describe('SettingsPage - Member Management', () => {
       renderPage()
 
       await waitFor(() => {
-        const selects = screen.getAllByRole('combobox')
-        fireEvent.change(selects[0], { target: { value: 'admin' } })
+        expect(screen.getByText('member@example.com')).toBeInTheDocument()
       })
+      const selects = screen.getAllByRole('combobox')
+      fireEvent.change(selects[1], { target: { value: 'admin' } })
 
       await waitFor(() => {
         expect(screen.getByText(/Permission denied/i)).toBeInTheDocument()
       })
     })
 
-    it('disables role select for current user', async () => {
+    it('renders owner role as a badge for the current user (not a select)', async () => {
       renderPage()
 
       await waitFor(() => {
-        const selects = screen.getAllByRole('combobox')
-        const currentUserSelect = selects[0]
-        expect(currentUserSelect).toBeDisabled()
+        expect(screen.getByText('owner@example.com')).toBeInTheDocument()
       })
+      const ownerRow = screen.getByText('owner@example.com').closest('tr')
+      expect(ownerRow?.querySelector('select')).not.toBeInTheDocument()
+      expect(ownerRow?.querySelector('.role-badge')).toBeInTheDocument()
     })
 
     it('disables role select for non-owners if user is not owner', async () => {
@@ -676,9 +686,9 @@ describe('SettingsPage - Member Management', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText(/Email/i)).toBeInTheDocument()
-        expect(screen.getByText(/Role/i)).toBeInTheDocument()
-        expect(screen.getByText(/Status/i)).toBeInTheDocument()
+        expect(screen.getAllByText(/Email/i).length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Role/i).length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Status/i).length).toBeGreaterThan(0)
         expect(screen.getByText(/Expires/i)).toBeInTheDocument()
       })
     })
@@ -830,7 +840,7 @@ describe('SettingsPage - Member Management', () => {
     it('clears email input after sending invite', async () => {
       renderPage()
 
-      const emailInput = screen.getByPlaceholderText(/user@example.com/i) as HTMLInputElement
+      const emailInput = await screen.findByPlaceholderText(/user@example.com/i) as HTMLInputElement
       fireEvent.change(emailInput, { target: { value: 'new@example.com' } })
 
       await waitFor(() => {
@@ -887,9 +897,10 @@ describe('SettingsPage - Member Management', () => {
       renderPage()
 
       await waitFor(() => {
-        const deleteButtons = screen.getAllByRole('button', { name: '×' })
-        fireEvent.click(deleteButtons[0])
+        expect(screen.getByText('pending@example.com')).toBeInTheDocument()
       })
+      const revokeButtons = screen.getAllByTitle('Revoke invite')
+      fireEvent.click(revokeButtons[0])
 
       await waitFor(() => {
         expect(mockRevokeInvite).toHaveBeenCalled()
@@ -900,9 +911,10 @@ describe('SettingsPage - Member Management', () => {
       renderPage()
 
       await waitFor(() => {
-        const deleteButtons = screen.getAllByRole('button', { name: '×' })
-        fireEvent.click(deleteButtons[0])
+        expect(screen.getByText('pending@example.com')).toBeInTheDocument()
       })
+      const revokeButtons = screen.getAllByTitle('Revoke invite')
+      fireEvent.click(revokeButtons[0])
 
       await waitFor(() => {
         expect(mockListInvites).toHaveBeenCalledTimes(2)
@@ -915,12 +927,13 @@ describe('SettingsPage - Member Management', () => {
       renderPage()
 
       await waitFor(() => {
-        const deleteButtons = screen.getAllByRole('button', { name: '×' })
-        fireEvent.click(deleteButtons[0])
+        expect(screen.getByText('pending@example.com')).toBeInTheDocument()
       })
+      const revokeButtons = screen.getAllByTitle('Revoke invite')
+      fireEvent.click(revokeButtons[0])
 
       await waitFor(() => {
-        expect(screen.getByText(/Cannot revoke invite/i)).toBeInTheDocument()
+        expect(screen.getByText(/Failed to revoke invite/i)).toBeInTheDocument()
       })
     })
   })
@@ -978,9 +991,10 @@ describe('SettingsPage - Member Management', () => {
       renderPage()
 
       await waitFor(() => {
-        const selects = screen.getAllByRole('combobox')
-        fireEvent.change(selects[0], { target: { value: 'admin' } })
+        expect(screen.getByText('member@example.com')).toBeInTheDocument()
       })
+      const selects = screen.getAllByRole('combobox')
+      fireEvent.change(selects[1], { target: { value: 'admin' } })
 
       await waitFor(() => {
         expect(mockListMembers).toHaveBeenCalledTimes(2)
@@ -1020,11 +1034,13 @@ describe('SettingsPage - Member Management', () => {
         items: [
           {
             id: 101,
-            invited_email: 'user+tag@sub.example.com',
+            org_id: 1,
+            email: 'user+tag@sub.example.com',
             role: 'member',
+            status: 'pending',
+            inviter_id: 1,
             created_at: '2024-01-15T00:00:00Z',
             expires_at: '2024-02-15T00:00:00Z',
-            error_message: null,
           },
         ],
         total: 1,

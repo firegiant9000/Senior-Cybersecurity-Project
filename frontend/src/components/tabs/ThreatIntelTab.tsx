@@ -42,25 +42,26 @@ const ThreatIntelTab: React.FC = () => {
   const { data, loading, errors, refresh, setOnProgress } = useThreatIntelData();
   const isDark = useIsDark();
   const progressState = useRefreshProgress();
+  const { markItemComplete, reset, start, isActive } = progressState;
   const wasLoadingRef = useRef(loading);
 
   // Register progress callback
   useEffect(() => {
-    setOnProgress?.(progressState.markItemComplete);
-  }, [setOnProgress, progressState.markItemComplete]);
+    setOnProgress?.(markItemComplete);
+  }, [setOnProgress, markItemComplete]);
 
   // Reset progress when loading completes
   useEffect(() => {
-    if (wasLoadingRef.current && !loading && progressState.isActive) {
-      progressState.reset();
+    if (wasLoadingRef.current && !loading && isActive) {
+      reset();
     }
     wasLoadingRef.current = loading;
-  }, [loading, progressState.reset, progressState.isActive]);
+  }, [loading, reset, isActive]);
 
   const handleRefresh = useCallback(() => {
-    progressState.start(['CVE timeline', 'Severity distribution', 'Recent KEV', 'Recent CVEs']);
+    start(['CVE timeline', 'Severity distribution', 'Recent KEV', 'Recent CVEs']);
     refresh();
-  }, [refresh, progressState.start]);
+  }, [refresh, start]);
 
   // Aggregate top vendors from KEV data
   const topVendors = useMemo(() => {

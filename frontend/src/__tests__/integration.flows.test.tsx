@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -108,7 +109,7 @@ vi.mock('../Dashboard', () => ({
 }))
 
 vi.mock('../pages/LoginPage', () => ({
-  default: ({ defaultSignUp }: any) => (
+  default: ({ defaultSignUp }: { defaultSignUp?: boolean }) => (
     <div data-testid={defaultSignUp ? 'signup-page' : 'login-page'}>
       {defaultSignUp ? 'Sign Up' : 'Login'}
     </div>
@@ -132,7 +133,7 @@ vi.mock('../pages/AcceptInvitePage', () => ({
 }))
 
 vi.mock('../components/ProtectedRoute', () => ({
-  default: ({ children }: any) => {
+  default: ({ children }: { children: ReactNode }) => {
     const auth = mockAuthContext
     if (!auth.user && !auth.loading) {
       return <div data-testid="redirect-login">Redirecting...</div>

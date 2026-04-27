@@ -81,25 +81,26 @@ const TrendsTab: React.FC = () => {
   const { data, loading, errors, setAttackType, setSector, setYearFrom, setYearTo, refresh, setOnProgress } = useTrendsData();
   const { trends, attackTypeOptions, selectedAttackType, selectedSector, yearFrom, yearTo } = data;
   const progressState = useRefreshProgress();
+  const { markItemComplete, reset, start, isActive } = progressState;
   const wasLoadingRef = useRef(loading);
 
   // Register progress callback
   useEffect(() => {
-    setOnProgress?.(progressState.markItemComplete);
-  }, [setOnProgress, progressState.markItemComplete]);
+    setOnProgress?.(markItemComplete);
+  }, [setOnProgress, markItemComplete]);
 
   // Reset progress when loading completes
   useEffect(() => {
-    if (wasLoadingRef.current && !loading && progressState.isActive) {
-      progressState.reset();
+    if (wasLoadingRef.current && !loading && isActive) {
+      reset();
     }
     wasLoadingRef.current = loading;
-  }, [loading, progressState.reset, progressState.isActive]);
+  }, [loading, reset, isActive]);
 
   const handleRefresh = useCallback(() => {
-    progressState.start(['Trends data']);
+    start(['Trends data']);
     refresh();
-  }, [refresh, progressState.start]);
+  }, [refresh, start]);
 
   const projected = useMemo(() => projectLinear(trends), [trends]);
 
