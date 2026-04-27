@@ -119,6 +119,14 @@ vi.mock('../pages/LandingPage', () => ({
   default: () => <div data-testid="landing-page">Landing</div>,
 }))
 
+vi.mock('../pages/OnboardingPage', () => ({
+  default: ({ onComplete }: any) => (
+    <div data-testid="onboarding-page">
+      <button onClick={() => onComplete?.()}>Complete</button>
+    </div>
+  ),
+}))
+
 vi.mock('../pages/SettingsPage', () => ({
   default: () => <div data-testid="settings-page">Settings</div>,
 }))
@@ -227,7 +235,7 @@ describe('Integration Tests - User Flows', () => {
 
       // After signup, user is authenticated but has no org
       renderApp(['/onboarding'])
-      expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
+      expect(screen.getByTestId('onboarding-page')).toBeInTheDocument()
     })
   })
 
@@ -235,7 +243,7 @@ describe('Integration Tests - User Flows', () => {
     it('authenticated user without org reaches onboarding page', () => {
       setupAuthenticatedUser()
       renderApp(['/onboarding'])
-      expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
+      expect(screen.getByTestId('onboarding-page')).toBeInTheDocument()
     })
 
     it('onboarding completion calls refreshProfile', async () => {
@@ -458,7 +466,7 @@ describe('Integration Tests - User Flows', () => {
       mockAuthContext.orgId = null
 
       renderApp(['/onboarding'])
-      expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
+      expect(screen.getByTestId('onboarding-page')).toBeInTheDocument()
 
       // User creates/joins org
       mockAuthContext.orgId = 42

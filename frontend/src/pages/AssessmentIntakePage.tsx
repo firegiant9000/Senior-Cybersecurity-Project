@@ -55,8 +55,15 @@ const STEPS = [
 
 export default function AssessmentIntakePage() {
   const navigate = useNavigate();
-  const { user, orgId, refreshProfile } = useAuth();
+  const { user, orgId } = useAuth();
   const { data: intakeData, loading: intakeLoading } = useAssessmentIntake();
+
+  // Redirect if not in org
+  useEffect(() => {
+    if (user && !orgId) {
+      navigate("/onboarding");
+    }
+  }, [user, orgId, navigate]);
 
   const [step, setStep] = useState(1);
   const [error, setError] = useState("");
@@ -173,61 +180,34 @@ export default function AssessmentIntakePage() {
     }
   };
 
-  const buildPayload = () => ({
-    name: form.name.trim(),
-    industry_label: form.industry_label,
-    primary_state: form.primary_state,
-    employee_range: form.employee_range,
-    primary_domain: form.primary_domain.trim() || null,
-    revenue_range: form.revenue_range || null,
-    security_controls:
-      Object.keys(form.security_controls).length > 0 ? form.security_controls : null,
-    compliance_frameworks:
-      form.compliance_frameworks.length > 0 ? form.compliance_frameworks : null,
-    data_types: form.data_types.length > 0 ? form.data_types : null,
-    cloud_providers: form.cloud_providers.length > 0 ? form.cloud_providers : null,
-  });
-
-  const createOrg = async (): Promise<void> => {
-    const resp = await fetchWithAuth(`${API_BASE_URL}/api/v1/onboarding/complete`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(buildPayload()),
-    });
-    if (!resp.ok) {
-      const body = await resp.json().catch(() => ({}));
-      throw new Error(
-        (body as { detail?: string }).detail ?? "Failed to create organization",
-      );
-    }
-    await refreshProfile();
-  };
-
   const handleNext = async () => {
     if (!canAdvanceFromStep()) {
       setError("Please fill in all required fields");
       return;
     }
-    setError("");
 
     // Save form on each step
     if (step < TOTAL_STEPS) {
       try {
-        if (!orgId) {
-          await createOrg();
-        } else {
-          await fetchWithAuth(`${API_BASE_URL}/api/v1/organizations/mine`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(buildPayload()),
-          });
-        }
+        await fetchWithAuth(`${API_BASE_URL}/api/v1/organizations/mine`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: form.name.trim(),
+            industry_label: form.industry_label,
+            primary_state: form.primary_state,
+            employee_range: form.employee_range,
+            primary_domain: form.primary_domain.trim() || null,
+            revenue_range: form.revenue_range || null,
+            security_controls:
+              Object.keys(form.security_controls).length > 0 ? form.security_controls : null,
+            compliance_frameworks:
+              form.compliance_frameworks.length > 0 ? form.compliance_frameworks : null,
+            data_types: form.data_types.length > 0 ? form.data_types : null,
+            cloud_providers: form.cloud_providers.length > 0 ? form.cloud_providers : null,
+          }),
+        });
       } catch (err) {
-        if (!orgId) {
-          // Org creation must succeed before we can advance — surface the error.
-          setError(err instanceof Error ? err.message : "Failed to create organization");
-          return;
-        }
         console.warn("Auto-save failed, continuing anyway:", err);
       }
       setStep(step + 1);
@@ -245,32 +225,36 @@ export default function AssessmentIntakePage() {
     setError("");
 
     try {
-      if (!orgId) {
-        await createOrg();
-      } else {
-        const resp = await fetchWithAuth(`${API_BASE_URL}/api/v1/organizations/mine`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(buildPayload()),
-        });
-        if (!resp.ok) {
-          const body = await resp.json().catch(() => ({}));
-          throw new Error(
-            (body as { detail?: string }).detail ?? "Failed to save assessment",
-          );
-        }
+      const resp = await fetchWithAuth(`${API_BASE_URL}/api/v1/organizations/mine`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          industry_label: form.industry_label,
+          primary_state: form.primary_state,
+          employee_range: form.employee_range,
+          revenue_range: form.revenue_range || null,
+          security_controls:
+            Object.keys(form.security_controls).length > 0 ? form.security_controls : null,
+          compliance_frameworks:
+            form.compliance_frameworks.length > 0 ? form.compliance_frameworks : null,
+          data_types: form.data_types.length > 0 ? form.data_types : null,
+          cloud_providers: form.cloud_providers.length > 0 ? form.cloud_providers : null,
+        }),
+      });
+
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({}));
+        throw new Error(
+          (body as { detail?: string }).detail ?? "Failed to save assessment"
+        );
       }
 
       const vendorName = form.primary_vendor.trim();
-      if (vendorName && vendorSyncedRef.current !== vendorName) {
+      if (vendorName && orgId && vendorSyncedRef.current !== vendorName) {
         try {
-          // Re-read orgId via auth refresh in createOrg path; fall back to
-          // current state otherwise. createVendor needs the numeric org id.
-          const targetOrgId = orgId;
-          if (targetOrgId) {
-            await createVendor(targetOrgId, vendorName, "");
-            vendorSyncedRef.current = vendorName;
-          }
+          await createVendor(orgId, vendorName, "");
+          vendorSyncedRef.current = vendorName;
         } catch (vendorErr) {
           console.warn("Failed to add primary vendor:", vendorErr);
         }
