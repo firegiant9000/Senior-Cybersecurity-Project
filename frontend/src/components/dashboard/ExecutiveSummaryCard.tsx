@@ -52,9 +52,9 @@ const ExecutiveSummaryCard: React.FC<Props> = ({ data, loading, error }) => {
             {/* ── Header ── */}
             <div className="exec-summary-header">
                 <div className="exec-summary-title-group">
-                    <span className="exec-summary-title">Threat Landscape Overview</span>
+                    <span className="exec-summary-title">Cyber Risk Snapshot for Your Industry</span>
                     <span className="exec-summary-subtitle">
-                        SMB Cyber Threat Landscape · {data.data_year_range}
+                        Small-Business Threat Landscape · {data.data_year_range}
                     </span>
                 </div>
             </div>
@@ -64,15 +64,15 @@ const ExecutiveSummaryCard: React.FC<Props> = ({ data, loading, error }) => {
                 {/* Key metrics */}
                 <div className="exec-metrics-row">
                     <div className="exec-metric">
-                        <div className="exec-metric-label">Est. Total Losses</div>
+                        <div className="exec-metric-label">Estimated Cyber Losses (your industry)</div>
                         <div className="exec-metric-value">{data.loss_estimate_formatted}</div>
                     </div>
                     <div className="exec-metric">
-                        <div className="exec-metric-label">Actively Exploited CVEs</div>
+                        <div className="exec-metric-label">Vulnerabilities Being Actively Attacked</div>
                         <div className="exec-metric-value">{data.kev_count.toLocaleString()}</div>
                     </div>
                     <div className="exec-metric">
-                        <div className="exec-metric-label">Critical CVEs</div>
+                        <div className="exec-metric-label">Severe Vulnerabilities in the Wild</div>
                         <div className="exec-metric-value">{data.critical_cve_count.toLocaleString()}</div>
                     </div>
                 </div>
@@ -80,7 +80,7 @@ const ExecutiveSummaryCard: React.FC<Props> = ({ data, loading, error }) => {
                 {/* Top threats */}
                 {data.top_threats.length > 0 && (
                     <div className="exec-threats-section">
-                        <div className="exec-threats-label">Top Threats by Financial Impact</div>
+                        <div className="exec-threats-label">Most Costly Attack Types</div>
                         <div className="exec-threats-list">
                             {data.top_threats.map((t, i) => (
                                 <div key={t.name} className="exec-threat-chip">
@@ -105,7 +105,7 @@ const ExecutiveSummaryCard: React.FC<Props> = ({ data, loading, error }) => {
                         onClick={() => setShowMethodology(v => !v)}
                         aria-expanded={showMethodology}
                     >
-                        {showMethodology ? '▲' : '▼'} Methodology
+                        {showMethodology ? '▲' : '▼'} How we score this
                     </button>
                 </div>
 

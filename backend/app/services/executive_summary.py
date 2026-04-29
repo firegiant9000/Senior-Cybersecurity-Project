@@ -12,20 +12,18 @@ from app.schemas.executive_summary import ExecutiveSummaryResponse, TopThreat
 from app.services.disclaimers import DisclaimerContext, get_disclaimer
 
 _METHODOLOGY = (
-    "This risk score combines three public threat-intelligence sources: "
-    "(1) CISA Known Exploited Vulnerabilities (KEV) — CVEs actively exploited in the wild "
-    "weighted at 40 %; "
-    "(2) FBI Internet Crime Complaint Center (IC3) historical loss data weighted at 30 %; "
-    "(3) NIST National Vulnerability Database (NVD) critical-CVE concentration weighted at 20 %; "
-    "and (4) year-over-year IC3 complaint growth weighted at 10 %. "
-    "All inputs are drawn from publicly available aggregate data; no proprietary telemetry is used."
+    "This score combines four publicly available government sources: "
+    "CISA's list of vulnerabilities actively exploited by attackers, "
+    "FBI Internet Crime Complaint Center (IC3) financial loss data, "
+    "NIST's database of known software vulnerabilities, "
+    "and year-over-year trends in reported cybercrime. "
+    "No proprietary data or internal network scanning is used."
 )
 
 _DISCLAIMER = (
-    "This summary is generated from aggregate public threat-intelligence data and does not "
-    "reflect your organisation's specific security posture, installed software, or network "
-    "configuration. Do not use this score as the sole basis for security decisions. "
-    "Consult a qualified cybersecurity professional for organisation-specific assessments."
+    "This summary is based on publicly available threat data and does not "
+    "reflect your organization's specific software, network, or security controls. "
+    "Use it as a starting point — not a substitute — for advice from a cybersecurity professional."
 )
 
 

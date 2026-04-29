@@ -60,7 +60,7 @@ const VICTIM_BADGE = (
 const OVERVIEW_WIDGETS = [
     { id: 'executiveSummary',    label: 'Executive Summary',             moveable: false },
     { id: 'vendorAlerts',        label: 'Vendor Alerts',                 moveable: false },
-    { id: 'cyberMap',            label: 'Complaints Map',                moveable: true  },
+    { id: 'cyberMap',            label: 'Where Cyber Crime Hits Hardest (FBI IC3)', moveable: true  },
     { id: 'malwareChart',        label: 'Intrusion Attempts Chart',      moveable: true  },
     { id: 'totalAttempts',       label: 'Total Intrusion Attempts',      moveable: true  },
     { id: 'totalLosses',         label: 'Total Financial Losses',        moveable: true  },
@@ -210,9 +210,9 @@ function renderGridWidget(
     switch (id) {
         case 'cyberMap':
             return (
-                <WidgetErrorBoundary key={id} title="Cyber Security Map">
+                <WidgetErrorBoundary key={id} title="Cyber Crime Map">
                     <div className="card map-widget chart-widget">
-                        <span className="widget-title">Cyber Security Complaints Map</span>
+                        <span className="widget-title">Where Cyber Crime Hits Hardest (FBI IC3)</span>
                         <div className="chart-body">
                             <CyberSecurityMap data={dashboardData.geographicThreats} loading={dashboardLoadingHeavy} />
                         </div>
