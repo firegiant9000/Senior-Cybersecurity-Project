@@ -202,12 +202,16 @@ def _build_fallback(org: Organization, report: FindingsReport, risk_score: float
         for f in report.findings
         if f.finding_type == "vendor_exposure" and f.severity == "critical"
     ]
-    vendor_text = (
-        f"Your technology stack has {critical_count} critical known-exploited "
-        "vulnerabilities requiring immediate attention."
-        if vendor_findings
-        else "No critical vendor vulnerabilities were matched at this time."
-    )
+    if vendor_findings:
+        affected = [v for f in vendor_findings for v in (f.affected_assets or [])]
+        unique_vendors = list(dict.fromkeys(affected))
+        vendor_clause = f" in {', '.join(unique_vendors[:3])}" if unique_vendors else ""
+        vendor_text = (
+            f"Your technology stack has {critical_count} critical known-exploited "
+            f"vulnerabilit{'y' if critical_count == 1 else 'ies'}{vendor_clause} requiring immediate attention."
+        )
+    else:
+        vendor_text = "No critical vendor vulnerabilities were matched at this time."
 
     data_gaps = [
         f for f in report.findings if f.finding_type == "data_gap" and f.evidence.get("required")
