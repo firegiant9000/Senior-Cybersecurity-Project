@@ -466,23 +466,50 @@ export function expectRequiresOrg(authContext: { orgId: number | null | undefine
 // Test Setup Utilities
 // ─────────────────────────────────────────────────────────────────────────────
 
+export interface MockAuthContext {
+  user: MockUser | null
+  loading: boolean
+  orgId: number | null
+  orgLoading: boolean
+  profileError: boolean
+  role: string | null
+  orgRole: string | null
+  logout: ReturnType<typeof vi.fn>
+  login: ReturnType<typeof vi.fn>
+  signup: ReturnType<typeof vi.fn>
+  refreshProfile: ReturnType<typeof vi.fn>
+  getIdToken: ReturnType<typeof vi.fn>
+}
+
+export interface MockApis {
+  listMembers: ReturnType<typeof vi.fn>
+  listInvites: ReturnType<typeof vi.fn>
+  createInvite: ReturnType<typeof vi.fn>
+  revokeInvite: ReturnType<typeof vi.fn>
+  updateMemberRole: ReturnType<typeof vi.fn>
+  removeMember: ReturnType<typeof vi.fn>
+  fetchAssessmentIntake: ReturnType<typeof vi.fn>
+  fetchAssessmentDebug: ReturnType<typeof vi.fn>
+  fetchAISummaryHistory: ReturnType<typeof vi.fn>
+}
+
 /**
  * Create standardized test setup for page components
  */
 export function createPageTestSetup(options: {
-  auth?: unknown
+  auth?: MockAuthContext
   route?: string
-  apis?: unknown
-} = {}) {
-  const auth = options.auth || createOrgMemberAuth(1, 'owner')
-  const apis = options.apis || setupTestEnvironment().mockApis
+  apis?: Partial<MockApis>
+} = {}): { auth: MockAuthContext; apis: MockApis; route: string; render: (component: React.ReactElement) => RenderResult } {
+  const auth = (options.auth ?? createOrgMemberAuth(1, 'owner')) as MockAuthContext
+  const apis = { ...setupTestEnvironment().mockApis, ...options.apis } as MockApis
 
   return {
     auth,
     apis,
-    route: options.route || '/',
+    route: options.route ?? '/',
     render: (component: React.ReactElement) => {
-      return renderWithRouter(component, { initialEntries: [options.route || '/'] })
+      return renderWithRouter(component, { initialEntries: [options.route ?? '/'] })
     },
   }
 }
