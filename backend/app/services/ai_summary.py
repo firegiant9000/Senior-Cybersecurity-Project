@@ -236,7 +236,9 @@ def _build_fallback(org: Organization, report: FindingsReport, risk_score: float
 
     recs = [f for f in report.findings if f.finding_type == "recommended_action"]
     rec_text = (
-        "The three most important actions to take this week: " + "; ".join(r.title for r in recs[:3]) + ". "
+        "The three most important actions to take this week: "
+        + "; ".join(r.title for r in recs[:3])
+        + ". "
         "Share these with your IT provider and ask them to prioritize accordingly."
         if recs
         else "Check back regularly as new threat data is added to keep this assessment current."
