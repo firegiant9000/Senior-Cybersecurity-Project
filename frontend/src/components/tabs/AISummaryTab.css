@@ -341,14 +341,24 @@
 }
 
 /* Posture */
-.ai-posture-card {
-  border-left: 3px solid var(--accent, #0b1060);
+.ai-posture-banner {
+  background: rgba(11, 16, 96, 0.06);
+  border-left: 4px solid var(--accent, #0b1060);
+  border-radius: 6px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+}
+
+[data-theme="dark"] .ai-posture-banner {
+  background: rgba(59, 130, 246, 0.14);
+  border-left-color: var(--accent, #3b82f6);
 }
 
 .ai-posture-statement {
-  font-size: 14px;
-  line-height: 1.65;
-  color: var(--text-primary, #333);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.55;
+  color: var(--text-primary, #1a1a2e);
   margin: 0;
 }
 
@@ -677,7 +687,7 @@
   .ai-structured-card,
   .ai-summary-narrative-card,
   .ai-summary-metrics,
-  .ai-posture-card {
+  .ai-posture-banner {
     background: transparent !important;
     border: 1px solid #d1d5db !important;
     border-radius: 4px !important;
