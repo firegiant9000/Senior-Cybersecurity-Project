@@ -87,9 +87,12 @@ function renderPage() {
   )
 }
 
+// Matches /organizations/{orgId} but not sub-resource URLs like /organizations/1/domains
+const isMainOrgUrl = (url: string) => /\/organizations\/(\d+|mine)$/.test(url)
+
 function mockSuccessfulOrgFetch(orgData: Record<string, unknown> = {}) {
   mockFetchWithAuth.mockImplementation((url: string, options?: Record<string, unknown>) => {
-    if (url.includes('/organizations/mine') && (!options || options?.method === 'GET')) {
+    if (isMainOrgUrl(url) && (!options?.method || options.method === 'GET')) {
       return Promise.resolve({
         ok: true,
         json: async () => ({
@@ -106,7 +109,7 @@ function mockSuccessfulOrgFetch(orgData: Record<string, unknown> = {}) {
         }),
       })
     }
-    if (url.includes('/organizations/mine') && options?.method === 'PATCH') {
+    if (isMainOrgUrl(url) && options?.method === 'PUT') {
       return Promise.resolve({
         ok: true,
         json: async () => ({}),
@@ -294,8 +297,9 @@ describe('AssessmentIntakePage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
     await expectOnStep(3)
 
+    // Controls default to 'unsure', so the step is always advanceable
     const nextBtn = screen.getByRole('button', { name: /Next/i })
-    expect(nextBtn).toBeDisabled()
+    expect(nextBtn).not.toBeDisabled()
   })
 
   it('loads existing organization data', async () => {
@@ -321,8 +325,8 @@ describe('AssessmentIntakePage', () => {
 
     await waitFor(() => {
       expect(mockFetchWithAuth).toHaveBeenCalledWith(
-        expect.stringContaining('/organizations/mine'),
-        expect.objectContaining({ method: 'PATCH' }),
+        expect.stringMatching(/\/organizations\/\d+$/),
+        expect.objectContaining({ method: 'PUT' }),
       )
     })
   })
@@ -342,12 +346,19 @@ describe('AssessmentIntakePage', () => {
     expect(nameInput.value).toBe('Test Corp')
   })
 
-  it('redirects to onboarding when user has no org', () => {
+  it('renders the intake form when user has no org (new-user creation flow)', async () => {
+    // orgId === null is valid: the wizard creates the org on first Next click.
+    // No redirect happens — the page stays mounted so the user can fill step 1.
     mockAuthValues.orgId = null
 
     renderPage()
 
-    expect(mockNavigate).toHaveBeenCalledWith('/onboarding')
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: /Assessment Intake Wizard/i }),
+      ).toBeInTheDocument()
+    })
+    expect(mockNavigate).not.toHaveBeenCalledWith('/onboarding')
   })
 
   it('navigates to dashboard on form submission', async () => {
@@ -376,13 +387,14 @@ describe('AssessmentIntakePage', () => {
   })
 
   it('shows error message on submission failure', async () => {
-    let patchCount = 0
+    // The component PUTs to /api/v1/organizations/{orgId} (not PATCH to /mine).
+    // Advancement steps: 1→2, 2→3, 3→4, 4→5 (4 PUTs) + Complete (1 PUT) = 5 total.
+    // Fail the 5th PUT so the final submission surfaces the error.
+    let putCount = 0
     mockFetchWithAuth.mockImplementation((url: string, options?: Record<string, unknown>) => {
-      if (url.includes('/organizations/mine') && options?.method === 'PATCH') {
-        patchCount += 1
-        // Step 5 submit is the final PATCH; earlier auto-saves succeed so we
-        // can actually reach step 5.
-        if (patchCount >= 4) {
+      if (isMainOrgUrl(url) && options?.method === 'PUT') {
+        putCount += 1
+        if (putCount >= 5) {
           return Promise.resolve({
             ok: false,
             json: async () => ({ detail: 'Validation failed' }),
@@ -390,7 +402,7 @@ describe('AssessmentIntakePage', () => {
         }
         return Promise.resolve({ ok: true, json: async () => ({}) })
       }
-      if (url.includes('/organizations/mine')) {
+      if (isMainOrgUrl(url)) {
         return Promise.resolve({
           ok: true,
           json: async () => ({
