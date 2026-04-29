@@ -208,7 +208,7 @@ const AISummaryTab: React.FC = () => {
               <p className="ai-summary-error-detail" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>
                 Details: {error}
               </p>
-              <button className="ai-summary-error-action" onClick={load}>
+              <button className="ai-summary-error-action" onClick={() => load()}>
                 Retry
               </button>
             </>

@@ -287,7 +287,7 @@ async def get_assessment_debug(
 @limiter.limit("5/minute")
 async def get_ai_summary(
     request: Request,  # noqa: ARG001
-    force_refresh: bool = Query(default=False),
+    force_refresh: bool = Query(default=False),  # noqa: FBT001
     current_user: User = Depends(get_current_user),
     org: Organization = Depends(get_current_org),
     db: AsyncSession = Depends(get_session),

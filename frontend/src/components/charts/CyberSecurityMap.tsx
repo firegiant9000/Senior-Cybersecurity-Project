@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
     ComposableMap,
     Geographies,
@@ -79,6 +79,7 @@ function fmtLossShort(v: number): string {
 
 const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
     const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+    const mapContainerRef = useRef<HTMLDivElement | null>(null);
 
     const complaintByState = useMemo(() => {
         const map: Record<string, number> = {};
@@ -126,7 +127,7 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
 
     return (
         <div style={{ width: '100%', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            <div style={{ flex: 1, position: 'relative', minHeight: 0 }} role="img" aria-label={ariaLabel}>
+            <div ref={mapContainerRef} style={{ flex: 1, position: 'relative', minHeight: 0 }} role="img" aria-label={ariaLabel}>
             {/* Custom hover tooltip */}
             {tooltip && (
                 <div style={{
@@ -187,9 +188,7 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
                                         pressed: { outline: 'none' },
                                     }}
                                     onMouseEnter={(e) => {
-                                        const parentRect = (e.currentTarget as Element)
-                                            .closest('[style]')
-                                            ?.getBoundingClientRect();
+                                        const parentRect = mapContainerRef.current?.getBoundingClientRect();
                                         const loss = stateCode ? (totalLossByState[stateCode] ?? 0) : 0;
                                         setTooltip({
                                             stateCode: stateCode ?? String(geo.id),
@@ -202,9 +201,7 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
                                         });
                                     }}
                                     onMouseMove={(e) => {
-                                        const parentRect = (e.currentTarget as Element)
-                                            .closest('[style]')
-                                            ?.getBoundingClientRect();
+                                        const parentRect = mapContainerRef.current?.getBoundingClientRect();
                                         setTooltip(prev => prev ? {
                                             ...prev,
                                             x: e.clientX - (parentRect?.left ?? 0),
@@ -242,7 +239,7 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
                     })}
             </ComposableMap>
             </div>
-            {/* Legend */}
+            {/* Legend — built from the same color function the map uses */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 4px 2px', flexShrink: 0 }}>
                 <span style={{ fontSize: 10, color: 'var(--text-muted, #6b7280)', whiteSpace: 'nowrap' }}>
                     {minComplaints.toLocaleString()}
@@ -251,7 +248,7 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
                     flex: 1,
                     height: 8,
                     borderRadius: 4,
-                    background: 'linear-gradient(to right, #e8eaf0, #4db6c8, #006064)',
+                    background: `linear-gradient(to right, #e8eaf0 0%, #e8eaf0 4%, ${interpolateTeal(0)} 4%, ${interpolateTeal(0.25)} 28%, ${interpolateTeal(0.5)} 52%, ${interpolateTeal(0.75)} 76%, ${interpolateTeal(1)} 100%)`,
                 }} />
                 <span style={{ fontSize: 10, color: 'var(--text-muted, #6b7280)', whiteSpace: 'nowrap' }}>
                     {maxComplaints.toLocaleString()}
