@@ -45,11 +45,11 @@ function severityItemClass(severity: string): string {
 }
 
 const AI_LOADING_STAGES = [
-  'Reviewing findings...',
-  'Analyzing threat exposure...',
-  'Scoring vendor risk...',
-  'Synthesizing narrative...',
-  'Finalizing executive summary...',
+  'Reviewing your findings...',
+  'Checking which threats affect your business...',
+  'Reviewing software vulnerabilities...',
+  'Writing your plain-English summary...',
+  'Almost ready...',
 ];
 
 const AISummaryLoadingBar: React.FC = () => {
@@ -117,7 +117,7 @@ const AISummaryTab: React.FC = () => {
     [],
   );
 
-  const load = useCallback(() => {
+  const load = useCallback((forceRefresh = false) => {
     if (!userId) return;
     let cancelled = false;
     const controller = new AbortController();
@@ -125,7 +125,7 @@ const AISummaryTab: React.FC = () => {
     setError('');
     setMinElapsed(false);
     const minTimer = setTimeout(() => { if (!cancelled) setMinElapsed(true); }, 1500);
-    fetchAISummary(controller.signal)
+    fetchAISummary(controller.signal, forceRefresh)
       .then((result) => { if (!cancelled) setData(result); })
       .catch((err) => {
         if (cancelled) return;
@@ -266,7 +266,7 @@ const AISummaryTab: React.FC = () => {
         <div className="ai-summary-header-actions">
           <button
             className="overview-refresh-btn"
-            onClick={load}
+            onClick={() => load(true)}
             disabled={loading}
           >
             {loading ? 'Regenerating...' : 'Regenerate'}
@@ -310,10 +310,9 @@ const AISummaryTab: React.FC = () => {
         )}
       </div>
 
-      {/* Posture statement */}
+      {/* Posture statement — prominent single-sentence summary */}
       {data.posture_statement && (
-        <div className="ai-structured-card ai-posture-card">
-          <h3 className="ai-structured-card-title">Security Posture</h3>
+        <div className="ai-posture-banner">
           <p className="ai-posture-statement">{data.posture_statement}</p>
         </div>
       )}
@@ -332,7 +331,7 @@ const AISummaryTab: React.FC = () => {
       {/* Notable risks */}
       {data.notable_risks && data.notable_risks.length > 0 && (
         <div className="ai-structured-card">
-          <h3 className="ai-structured-card-title">Notable Risks</h3>
+          <h3 className="ai-structured-card-title">Threats That Need Attention</h3>
           <div className="ai-risk-list">
             {data.notable_risks.map((risk, i) => (
               <div key={i} className={`ai-risk-item ${severityItemClass(risk.severity)}`}>
@@ -352,7 +351,7 @@ const AISummaryTab: React.FC = () => {
       {/* Data gaps */}
       {data.data_gaps && data.data_gaps.length > 0 && (
         <div className="ai-structured-card">
-          <h3 className="ai-structured-card-title">Data Gaps</h3>
+          <h3 className="ai-structured-card-title">Missing Information</h3>
           <ul className="ai-gap-list">
             {data.data_gaps.map((gap, i) => (
               <li key={i} className="ai-gap-item">
@@ -367,7 +366,7 @@ const AISummaryTab: React.FC = () => {
       {/* Next steps / action plan */}
       {data.next_steps && data.next_steps.length > 0 && (
         <div className="ai-structured-card">
-          <h3 className="ai-structured-card-title">Recommended Actions</h3>
+          <h3 className="ai-structured-card-title">What to Do Next</h3>
           <ol className="ai-steps-list">
             {data.next_steps
               .slice()
