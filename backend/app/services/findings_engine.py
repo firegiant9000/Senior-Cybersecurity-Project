@@ -283,51 +283,79 @@ def _vendor_exposure_findings(  # noqa: C901
     critical_count = severity_breakdown.get("critical", 0)
     high_count = severity_breakdown.get("high", 0)
 
+    # Build per-severity vendor name lists from the top items (sorted by CVSS desc)
+    items = vendor_alerts_data.get("items", [])
+    critical_vendors: list[str] = []
+    high_vendors: list[str] = []
+    seen_crit: set[str] = set()
+    seen_high: set[str] = set()
+    for item in items:
+        vn = item.get("vendor_name", "")
+        sev = (item.get("severity_label") or "").lower()
+        if sev == "critical" and vn and vn not in seen_crit:
+            critical_vendors.append(vn)
+            seen_crit.add(vn)
+        elif sev == "high" and vn and vn not in seen_high:
+            high_vendors.append(vn)
+            seen_high.add(vn)
+
+    def _vendor_list(names: list[str], limit: int = 3) -> str:
+        shown = names[:limit]
+        rest = len(names) - len(shown)
+        s = ", ".join(shown)
+        return f"{s} and {rest} more" if rest > 0 else s
+
     if critical_count > 0:
-        # More critical CVEs → higher score within critical range
         crit_weight = min(1.0, critical_count / 10)
+        vendor_clause = (
+            f" in {_vendor_list(critical_vendors)}" if critical_vendors else " in your tech stack"
+        )
+        crit_vendor_names = critical_vendors or []
         findings.append(
             Finding(
                 id=_finding_id("vendor_critical_cves", str(critical_count)),
                 finding_type="vendor_exposure",
                 severity="critical",
                 severity_score=_severity_score("critical", crit_weight),
-                title=f"{critical_count} critical known-exploited CVE(s) match your tech stack",
+                title=f"{critical_count} critical known-exploited CVE(s) affect {_vendor_list(critical_vendors) if critical_vendors else 'your tech stack'}",
                 description=(
-                    f"CISA's Known Exploited Vulnerabilities catalog contains {critical_count} "
-                    f"critical-severity CVE(s) that match vendors in your technology stack. "
+                    f"CISA's Known Exploited Vulnerabilities catalog lists {critical_count} "
+                    f"critical-severity CVE(s){vendor_clause}. "
                     "These vulnerabilities have confirmed active exploitation in the wild "
-                    "and require immediate patching."
+                    "and carry CISA patch mandates — apply available patches immediately."
                 ),
-                evidence={"critical_count": critical_count, "total_matched": total_matched},
+                evidence={"critical_count": critical_count, "total_matched": total_matched, "vendors": crit_vendor_names},
                 source="kev_vendor_match",
-                affected_assets=[],
+                affected_assets=crit_vendor_names,
             )
         )
 
     if high_count > 0:
         high_weight = min(1.0, high_count / 15)
+        high_vendor_clause = (
+            f" affecting {_vendor_list(high_vendors)}" if high_vendors else " in your tech stack"
+        )
+        high_vendor_names = high_vendors or []
         findings.append(
             Finding(
                 id=_finding_id("vendor_high_cves", str(high_count)),
                 finding_type="vendor_exposure",
                 severity="high",
                 severity_score=_severity_score("high", high_weight),
-                title=f"{high_count} high-severity exploited CVE(s) match your tech stack",
+                title=f"{high_count} high-severity exploited CVE(s){' affect ' + _vendor_list(high_vendors) if high_vendors else ' match your tech stack'}",
                 description=(
-                    f"CISA KEV contains {high_count} high-severity CVE(s) affecting vendors in your "
-                    "stack. While less severe than critical, these are actively exploited and "
-                    "should be patched on an accelerated schedule."
+                    f"CISA KEV lists {high_count} high-severity CVE(s){high_vendor_clause}. "
+                    "These are actively exploited in the wild and should be patched on an "
+                    "accelerated schedule — within 30 days where vendor patches are available."
                 ),
-                evidence={"high_count": high_count, "total_matched": total_matched},
+                evidence={"high_count": high_count, "total_matched": total_matched, "vendors": high_vendor_names},
                 source="kev_vendor_match",
-                affected_assets=[],
+                affected_assets=high_vendor_names,
             )
         )
 
     # Check for upcoming CISA deadlines from top items
-    items = vendor_alerts_data.get("items", [])
-    upcoming_deadline_vendors: list[str] = []
+    upcoming_deadline_items: list[dict] = []
     now = datetime.now(UTC)
     for item in items:
         due_date = item.get("due_date")
@@ -341,45 +369,52 @@ def _vendor_exposure_findings(  # noqa: C901
                     due_dt = due_date
                 days_left = (due_dt - now).days
                 if 0 <= days_left <= 30:
-                    upcoming_deadline_vendors.append(item.get("vendor_name", ""))
+                    upcoming_deadline_items.append({"vendor": item.get("vendor_name", ""), "days_left": days_left})
             except (ValueError, TypeError):
                 pass
 
-    if upcoming_deadline_vendors:
-        count = len(upcoming_deadline_vendors)
+    if upcoming_deadline_items:
+        count = len(upcoming_deadline_items)
+        deadline_vendors = list({d["vendor"] for d in upcoming_deadline_items if d["vendor"]})
+        min_days = min(d["days_left"] for d in upcoming_deadline_items)
+        urgency = f"The nearest deadline is in {min_days} day{'s' if min_days != 1 else ''}."
+        vendor_str = _vendor_list(sorted(deadline_vendors))
         findings.append(
             Finding(
                 id=_finding_id("vendor_cisa_deadline", str(count)),
                 finding_type="vendor_exposure",
                 severity="high",
                 severity_score=_severity_score("high", 0.8),
-                title=f"{count} vendor CVE(s) have CISA remediation deadlines within 30 days",
+                title=f"{count} CVE(s) affecting {vendor_str} have CISA patch deadlines within 30 days",
                 description=(
-                    f"CISA requires federal agencies to remediate {count} CVE(s) affecting your "
-                    "vendor stack within 30 days. While this mandate applies to federal agencies, "
-                    "these deadlines indicate the highest-priority vulnerabilities requiring "
-                    "immediate attention."
+                    f"CISA's binding patch mandate requires federal agencies to remediate {count} CVE(s) "
+                    f"affecting {vendor_str}. {urgency} "
+                    "Even for non-federal orgs, these deadlines mark the highest-priority vulnerabilities — "
+                    "prioritize patching these above other open issues."
                 ),
-                evidence={"count": count, "vendors": list(set(upcoming_deadline_vendors))},
+                evidence={"count": count, "vendors": deadline_vendors, "min_days_left": min_days},
                 source="kev_vendor_match",
-                affected_assets=list(set(upcoming_deadline_vendors)),
+                affected_assets=deadline_vendors,
             )
         )
 
-    # Positive signal for unmatched vendors
+    # Clean finding for vendors with no KEV matches
     if unmatched_vendors:
+        shown = unmatched_vendors[:5]
+        overflow = len(unmatched_vendors) - len(shown)
+        vendor_list_str = ", ".join(shown) + (f" and {overflow} more" if overflow else "")
         findings.append(
             Finding(
                 id=_finding_id("vendor_no_kev_match", ",".join(sorted(unmatched_vendors))),
                 finding_type="vendor_exposure",
                 severity="info",
                 severity_score=_severity_score("info", 0.3),
-                title=f"{len(unmatched_vendors)} vendor(s) have no known exploited vulnerabilities",
+                title=f"No CISA KEV matches for {vendor_list_str}",
                 description=(
-                    f"The following vendors in your stack have no entries in CISA KEV: "
-                    f"{', '.join(unmatched_vendors[:5])}{'...' if len(unmatched_vendors) > 5 else ''}. "
-                    "This is a positive signal — it does not mean these products are vulnerability-free, "
-                    "but they have not been actively exploited in a way that reached CISA's catalog."
+                    f"CISA's Known Exploited Vulnerabilities catalog has no entries for: {vendor_list_str}. "
+                    "These vendors have not appeared in CISA's confirmed-exploitation list, "
+                    "but this does not mean their products are free of vulnerabilities — "
+                    "check vendor security advisories directly for patches and CVEs."
                 ),
                 evidence={"unmatched_vendors": unmatched_vendors},
                 source="kev_vendor_match",
@@ -402,17 +437,17 @@ def _data_gap_findings(readiness_data: dict) -> list[Finding]:
     tier = readiness_data.get("tier", "minimal")
 
     item_impact: dict[str, str] = {
-        "org_name": "accurate org identification in reports",
-        "industry": "sector-specific threat exposure analysis",
-        "state": "geographic IC3 loss projection data",
-        "employee_range": "size-adjusted risk scoring and loss estimates",
-        "vendors": "vendor CVE matching against CISA KEV",
-        "domains": "DNS, HTTP header, and SSL security checks",
-        "revenue": "more accurate annual loss projections",
-        "uploads": "document-based context for findings",
-        "security_controls": "CIS IG1 baseline scoring and control gap analysis",
-        "compliance_frameworks": "regulatory compliance gap detection and industry-specific findings",
-        "data_types": "data-type-to-framework mapping and regulatory exposure analysis",
+        "org_name": "identifying your organization accurately across all generated reports",
+        "industry": "matching your sector to FBI IC3 attack statistics and surfacing industry-specific threats",
+        "state": "applying your state's IC3 loss data to produce a localized financial risk estimate",
+        "employee_range": "calibrating risk scores and projected losses to your organization's size",
+        "vendors": "scanning your technology stack against CISA's Known Exploited Vulnerabilities (KEV) catalog",
+        "domains": "running DNS, HTTP security header, and SSL certificate checks against your public presence",
+        "revenue": "improving the accuracy of annual expected-loss projections in your risk score",
+        "uploads": "incorporating policy documents and configurations into your assessment context",
+        "security_controls": "scoring your CIS IG1 control coverage and identifying specific control gaps",
+        "compliance_frameworks": "detecting regulatory compliance gaps and surfacing framework-specific findings",
+        "data_types": "mapping your handled data to applicable regulations and assessing regulatory exposure",
     }
 
     incomplete_required = [i for i in items if not i.get("complete") and i.get("required")]
@@ -421,18 +456,18 @@ def _data_gap_findings(readiness_data: dict) -> list[Finding]:
     for item in incomplete_required:
         key = item.get("key", "")
         label = item.get("label", key)
-        impact = item_impact.get(key, "complete risk assessment")
+        impact = item_impact.get(key, "a complete risk assessment")
         findings.append(
             Finding(
                 id=_finding_id("data_gap_required", key),
                 finding_type="data_gap",
                 severity="medium",
                 severity_score=_severity_score("medium", 0.5),
-                title=f"Required profile field missing: {label}",
+                title=f"Profile incomplete: '{label}' is required",
                 description=(
-                    f"'{label}' is not set in your organization profile. "
-                    f"This field is required for {impact}. "
-                    "Complete your profile to unlock a fuller risk assessment."
+                    f"'{label}' has not been set in your organization profile. "
+                    f"This field is needed for {impact}. "
+                    "Until it is filled in, related findings will be skipped or less accurate."
                 ),
                 evidence={"key": key, "label": label, "required": True},
                 source="assessment_readiness",
@@ -443,15 +478,18 @@ def _data_gap_findings(readiness_data: dict) -> list[Finding]:
     for item in incomplete_optional:
         key = item.get("key", "")
         label = item.get("label", key)
-        impact = item_impact.get(key, "assessment accuracy")
+        impact = item_impact.get(key, "overall assessment accuracy")
         findings.append(
             Finding(
                 id=_finding_id("data_gap_optional", key),
                 finding_type="data_gap",
                 severity="low",
                 severity_score=_severity_score("low", 0.4),
-                title=f"Optional profile field missing: {label}",
-                description=(f"'{label}' is not provided. Adding it improves {impact}."),
+                title=f"Profile incomplete: '{label}' is not set",
+                description=(
+                    f"'{label}' is not provided. "
+                    f"Adding it enables {impact}."
+                ),
                 evidence={"key": key, "label": label, "required": False},
                 source="assessment_readiness",
                 affected_assets=[],
