@@ -64,8 +64,17 @@ interface TooltipState {
     stateCode: string;
     stateName: string;
     complaints: number;
+    totalLoss: number;
+    avgLoss: number;
     x: number;
     y: number;
+}
+
+function fmtLossShort(v: number): string {
+    if (v >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(1)}B`;
+    if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+    if (v >= 1_000) return `$${Math.round(v / 1_000)}k`;
+    return `$${v.toLocaleString()}`;
 }
 
 const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
@@ -81,10 +90,25 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
         return map;
     }, [data]);
 
+    const totalLossByState = useMemo(() => {
+        const map: Record<string, number> = {};
+        for (const d of data) {
+            const stateCode = toStateCode(d.state);
+            if (!stateCode) continue;
+            map[stateCode] = (map[stateCode] ?? 0) + d.total_loss;
+        }
+        return map;
+    }, [data]);
+
     const maxComplaints = useMemo(
         () => Math.max(1, ...Object.values(complaintByState)),
         [complaintByState]
     );
+
+    const minComplaints = useMemo(() => {
+        const vals = Object.values(complaintByState).filter(v => v > 0);
+        return vals.length > 0 ? Math.min(...vals) : 0;
+    }, [complaintByState]);
 
     const topStateCodes = useMemo(
         () => Object.entries(complaintByState)
@@ -96,8 +120,13 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
 
     if (loading) return <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>Loading…</p>;
 
+    const ariaLabel = topStateCodes.length > 0
+        ? `US map of FBI IC3 cybercrime complaints by state. Top states: ${topStateCodes.map(c => `${STATE_NAMES[c] ?? c} (${(complaintByState[c] ?? 0).toLocaleString()} complaints)`).join(', ')}.`
+        : 'US map of FBI IC3 cybercrime complaints by state.';
+
     return (
-        <div style={{ width: '100%', height: '100%', minHeight: 0, position: 'relative' }}>
+        <div style={{ width: '100%', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ flex: 1, position: 'relative', minHeight: 0 }} role="img" aria-label={ariaLabel}>
             {/* Custom hover tooltip */}
             {tooltip && (
                 <div style={{
@@ -119,11 +148,22 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
                     <div style={{ color: '#00bcd4', marginTop: 2 }}>
                         {tooltip.complaints.toLocaleString()} complaints
                     </div>
+                    {tooltip.totalLoss > 0 && (
+                        <>
+                            <div style={{ color: '#b2ebf2', marginTop: 1 }}>
+                                {fmtLossShort(tooltip.totalLoss)} total losses
+                            </div>
+                            <div style={{ color: '#b2ebf2' }}>
+                                {fmtLossShort(tooltip.avgLoss)} avg per incident
+                            </div>
+                        </>
+                    )}
                 </div>
             )}
             <ComposableMap
                 projection="geoAlbersUsa"
                 style={{ width: '100%', height: '100%' }}
+                aria-hidden="true"
             >
                 <Geographies geography={GEO_URL}>
                     {({ geographies }) =>
@@ -150,10 +190,13 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
                                         const parentRect = (e.currentTarget as Element)
                                             .closest('[style]')
                                             ?.getBoundingClientRect();
+                                        const loss = stateCode ? (totalLossByState[stateCode] ?? 0) : 0;
                                         setTooltip({
                                             stateCode: stateCode ?? String(geo.id),
                                             stateName: STATE_NAMES[stateCode ?? ''] ?? stateCode ?? String(geo.id),
                                             complaints,
+                                            totalLoss: loss,
+                                            avgLoss: complaints > 0 ? loss / complaints : 0,
                                             x: e.clientX - (parentRect?.left ?? 0),
                                             y: e.clientY - (parentRect?.top  ?? 0),
                                         });
@@ -198,6 +241,25 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
                         );
                     })}
             </ComposableMap>
+            </div>
+            {/* Legend */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 4px 2px', flexShrink: 0 }}>
+                <span style={{ fontSize: 10, color: 'var(--text-muted, #6b7280)', whiteSpace: 'nowrap' }}>
+                    {minComplaints.toLocaleString()}
+                </span>
+                <div style={{
+                    flex: 1,
+                    height: 8,
+                    borderRadius: 4,
+                    background: 'linear-gradient(to right, #e8eaf0, #4db6c8, #006064)',
+                }} />
+                <span style={{ fontSize: 10, color: 'var(--text-muted, #6b7280)', whiteSpace: 'nowrap' }}>
+                    {maxComplaints.toLocaleString()}
+                </span>
+                <span style={{ fontSize: 10, color: 'var(--text-muted, #6b7280)', marginLeft: 6, whiteSpace: 'nowrap' }}>
+                    Complaints reported (FBI IC3)
+                </span>
+            </div>
         </div>
     );
 };
