@@ -195,10 +195,7 @@ class TestThreatExposureSsl:
     def test_self_signed_produces_high(self):
         ssl_r = SslCheckResult(domain="example.com", reachable=True, self_signed=True)
         findings = _threat_exposure_from_ssl("example.com", ssl_r)
-        assert any(
-            f.severity == "high" and f.evidence.get("self_signed") is True
-            for f in findings
-        )
+        assert any(f.severity == "high" and f.evidence.get("self_signed") is True for f in findings)
 
     def test_cert_expiring_7_days_is_critical(self):
         from datetime import UTC, datetime, timedelta
@@ -453,8 +450,7 @@ class TestSynthesizeRecommendations:
         )
         recs = _synthesize_recommendations(dns_finding)
         assert any(
-            r.finding_type == "recommended_action"
-            and r.evidence.get("dns_finding_count", 0) > 0
+            r.finding_type == "recommended_action" and r.evidence.get("dns_finding_count", 0) > 0
             for r in recs
         )
 
