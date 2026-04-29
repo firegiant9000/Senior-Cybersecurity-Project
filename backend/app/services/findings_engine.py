@@ -324,7 +324,11 @@ def _vendor_exposure_findings(  # noqa: C901
                     "These vulnerabilities have confirmed active exploitation in the wild "
                     "and carry CISA patch mandates — apply available patches immediately."
                 ),
-                evidence={"critical_count": critical_count, "total_matched": total_matched, "vendors": crit_vendor_names},
+                evidence={
+                    "critical_count": critical_count,
+                    "total_matched": total_matched,
+                    "vendors": crit_vendor_names,
+                },
                 source="kev_vendor_match",
                 affected_assets=crit_vendor_names,
             )
@@ -348,7 +352,11 @@ def _vendor_exposure_findings(  # noqa: C901
                     "These are actively exploited in the wild and should be patched on an "
                     "accelerated schedule — within 30 days where vendor patches are available."
                 ),
-                evidence={"high_count": high_count, "total_matched": total_matched, "vendors": high_vendor_names},
+                evidence={
+                    "high_count": high_count,
+                    "total_matched": total_matched,
+                    "vendors": high_vendor_names,
+                },
                 source="kev_vendor_match",
                 affected_assets=high_vendor_names,
             )
@@ -369,7 +377,9 @@ def _vendor_exposure_findings(  # noqa: C901
                     due_dt = due_date
                 days_left = (due_dt - now).days
                 if 0 <= days_left <= 30:
-                    upcoming_deadline_items.append({"vendor": item.get("vendor_name", ""), "days_left": days_left})
+                    upcoming_deadline_items.append(
+                        {"vendor": item.get("vendor_name", ""), "days_left": days_left}
+                    )
             except (ValueError, TypeError):
                 pass
 
@@ -486,10 +496,7 @@ def _data_gap_findings(readiness_data: dict) -> list[Finding]:
                 severity="low",
                 severity_score=_severity_score("low", 0.4),
                 title=f"Profile incomplete: '{label}' is not set",
-                description=(
-                    f"'{label}' is not provided. "
-                    f"Adding it enables {impact}."
-                ),
+                description=(f"'{label}' is not provided. " f"Adding it enables {impact}."),
                 evidence={"key": key, "label": label, "required": False},
                 source="assessment_readiness",
                 affected_assets=[],
