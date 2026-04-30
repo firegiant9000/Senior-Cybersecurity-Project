@@ -192,8 +192,10 @@ describe('AcceptInvitePage', () => {
     it('displays expiration date', async () => {
       renderPage()
 
+      // Locale-formatted date depends on the runner's timezone: UTC-midnight
+      // 2026-12-31 renders as 12/31/2026 in UTC but 12/30/2026 west of UTC.
       await waitFor(() => {
-        expect(screen.getByText(/12\/31\/2026|Expires/i)).toBeInTheDocument()
+        expect(screen.getByText(/12\/3[01]\/2026/)).toBeInTheDocument()
       })
     })
 

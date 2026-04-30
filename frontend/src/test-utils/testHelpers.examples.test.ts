@@ -274,7 +274,7 @@ describe('Complete Component Test Example', () => {
     })
 
     // Mock the member list API
-    mockMembersAPI(setup.apis.listMembers, 3)
+    mockMembersAPI(setup.apis.listMembers as { mockResolvedValue: (v: unknown) => void }, 3)
 
     // Render component (pseudo-code):
     // const { getByText } = setup.render(<SettingsPage />)

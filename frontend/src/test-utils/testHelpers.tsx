@@ -466,12 +466,12 @@ export function expectRequiresOrg(authContext: { orgId: number | null | undefine
  * Create standardized test setup for page components
  */
 export function createPageTestSetup(options: {
-  auth?: unknown
+  auth?: Record<string, unknown>
   route?: string
-  apis?: unknown
+  apis?: Record<string, unknown>
 } = {}) {
-  const auth = options.auth || createOrgMemberAuth(1, 'owner')
-  const apis = options.apis || setupTestEnvironment().mockApis
+  const auth: Record<string, unknown> = options.auth ?? createOrgMemberAuth(1, 'owner')
+  const apis: Record<string, unknown> = options.apis ?? setupTestEnvironment().mockApis
 
   return {
     auth,
