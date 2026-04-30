@@ -175,24 +175,6 @@
     color: var(--text-secondary);
 }
 
-.exec-confidence-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-weight: 600;
-}
-
-.exec-confidence-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    display: inline-block;
-}
-
-.exec-confidence-dot.High   { background: #22c55e; }
-.exec-confidence-dot.Medium { background: #f59e0b; }
-.exec-confidence-dot.Low    { background: #ef4444; }
-
 /* ── Methodology (collapsible) ───────────────────────────────────────────── */
 
 .exec-methodology-toggle {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { LossProjection } from '../../api/lossProjection';
 import ConfidenceBadge, { getConfidenceExplanation } from '../shared/ConfidenceBadge';
 import './ProjectedLossCard.css';
@@ -10,6 +10,10 @@ interface Props {
 
 const ProjectedLossCard: React.FC<Props> = ({ data, loading }) => {
     const [showMethodology, setShowMethodology] = useState(false);
+
+    useEffect(() => {
+        setShowMethodology(false);
+    }, [data?.sector, data?.state]);
 
     const value = loading || !data?.has_data ? '—' : data.projected_annual_loss_formatted;
     const tier = data?.confidence_level ?? 'Low';
@@ -56,7 +60,7 @@ const ProjectedLossCard: React.FC<Props> = ({ data, loading }) => {
                             </li>
                         )}
                         <li>
-                            <strong>Size multiplier ({data.employee_range}):</strong> ×{data.size_multiplier}
+                            <strong>Size multiplier{data.employee_range ? ` (${data.employee_range})` : ''}:</strong> ×{data.size_multiplier}
                         </li>
                     </ul>
                 </div>

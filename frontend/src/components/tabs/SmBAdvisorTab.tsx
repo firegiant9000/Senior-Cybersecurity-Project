@@ -388,6 +388,10 @@ function CostEstimateCard({ sectorProfile, allSectors, loading }: {
 }) {
   const [showMethodology, setShowMethodology] = useState(false);
 
+  useEffect(() => {
+    setShowMethodology(false);
+  }, [sectorProfile?.sector]);
+
   const nationalAvg = useMemo(() => {
     if (allSectors.length === 0) return 0;
     return allSectors.reduce((s, x) => s + x.avg_loss_per_incident, 0) / allSectors.length;

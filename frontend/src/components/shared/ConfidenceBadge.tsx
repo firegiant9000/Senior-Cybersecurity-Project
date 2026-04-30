@@ -25,7 +25,7 @@ const DEFAULT_EXPLANATIONS: Record<ConfidenceContext, Record<ConfidenceTier, str
     smb: {
         High: 'Multiple IC3 reports available for your industry.',
         Medium: 'Limited IC3 reports available for your industry.',
-        Low: 'Few IC3 reports available; figures are extrapolated from related sectors.',
+        Low: 'Very few IC3 reports available for your industry; figures may be less stable due to the small sample size.',
     },
 };
 
