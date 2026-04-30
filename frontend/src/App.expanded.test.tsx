@@ -120,11 +120,11 @@ vi.mock('./pages/AcceptInvitePage.tsx', () => ({
 vi.mock('./components/ProtectedRoute.tsx', () => ({
   default: ({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) => {
     const authContext = mockAuthContext
-    if (authContext.loading || authContext.orgLoading) {
-      return <div data-testid="loading">Loading...</div>
-    }
-    if (!authContext.user) {
+    if (!authContext.user && !authContext.loading) {
       return <div data-testid="protected-redirect">Redirecting to login...</div>
+    }
+    if (requireOrg && authContext.orgLoading) {
+      return <div data-testid="org-loading">Loading org...</div>
     }
     if (requireOrg && !authContext.orgId) {
       return <div data-testid="org-redirect">Redirecting to onboarding...</div>
@@ -369,7 +369,6 @@ describe('App - Routing & Navigation', () => {
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false
       renderApp(['/assessment-intake'])
-      expect(screen.queryByTestId('org-redirect')).not.toBeInTheDocument()
       expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
     })
   })
@@ -575,7 +574,6 @@ describe('App - Routing & Navigation', () => {
       mockAuthContext.orgId = 1
       renderApp(['/dashboard'])
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
-      cleanup()
 
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false

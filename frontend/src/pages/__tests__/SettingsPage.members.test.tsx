@@ -411,7 +411,7 @@ describe('SettingsPage - Member Management', () => {
         expect(selects.length).toBeGreaterThan(0)
       })
       const options = screen.getAllByRole('option')
-      const optionValues = options.map((o) => (o as HTMLOptionElement).value)
+      const optionValues = options.map((o) => (o as HTMLElement).getAttribute('value') ?? '')
       expect(optionValues).toContain('member')
       expect(optionValues).toContain('admin')
     })

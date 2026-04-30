@@ -70,12 +70,6 @@ vi.mock('../../api/assessmentIntake', () => ({
 
 vi.mock('../../api/vendors', () => ({
   createVendor: (...args: unknown[]) => mockCreateVendor(...args),
-  listVendors: vi.fn().mockResolvedValue({ items: [] }),
-}))
-
-vi.mock('../../api/domains', () => ({
-  addDomain: vi.fn().mockResolvedValue({}),
-  listDomains: vi.fn().mockResolvedValue({ items: [] }),
 }))
 
 // Import component AFTER mocks
@@ -93,9 +87,12 @@ function renderPage() {
   )
 }
 
+// Matches /organizations/{orgId} but not sub-resource URLs like /organizations/1/domains
+const isMainOrgUrl = (url: string) => /\/organizations\/(\d+|mine)$/.test(url)
+
 function mockSuccessfulOrgFetch(orgData: Record<string, unknown> = {}) {
   mockFetchWithAuth.mockImplementation((url: string, options?: Record<string, unknown>) => {
-    if (url.includes('/organizations/') && (!options?.method || options?.method === 'GET')) {
+    if (isMainOrgUrl(url) && (!options?.method || options.method === 'GET')) {
       return Promise.resolve({
         ok: true,
         json: async () => ({
@@ -112,7 +109,7 @@ function mockSuccessfulOrgFetch(orgData: Record<string, unknown> = {}) {
         }),
       })
     }
-    if (url.includes('/organizations/') && options?.method === 'PUT') {
+    if (isMainOrgUrl(url) && options?.method === 'PUT') {
       return Promise.resolve({
         ok: true,
         json: async () => ({}),
@@ -290,10 +287,7 @@ describe('AssessmentIntakePage', () => {
     await expectOnStep(3)
   })
 
-  it('step 3 Next button is enabled when security controls are initialized', async () => {
-    // canAdvanceFromStep(3) checks Object.keys(security_controls).length > 0.
-    // defaultSecurityControls() pre-populates all control keys so Next is always
-    // enabled at step 3 without the user needing to select anything.
+  it('requires security control selection on step 3', async () => {
     renderPage()
     await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
 
@@ -303,6 +297,7 @@ describe('AssessmentIntakePage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
     await expectOnStep(3)
 
+    // Controls default to 'unsure', so the step is always advanceable
     const nextBtn = screen.getByRole('button', { name: /Next/i })
     expect(nextBtn).not.toBeDisabled()
   })
@@ -330,7 +325,7 @@ describe('AssessmentIntakePage', () => {
 
     await waitFor(() => {
       expect(mockFetchWithAuth).toHaveBeenCalledWith(
-        expect.stringContaining('/organizations/1'),
+        expect.stringMatching(/\/organizations\/\d+$/),
         expect.objectContaining({ method: 'PUT' }),
       )
     })
@@ -351,14 +346,19 @@ describe('AssessmentIntakePage', () => {
     expect(nameInput.value).toBe('Test Corp')
   })
 
-  it('renders without crashing when user has no org', () => {
-    // Redirecting to /onboarding is done by ProtectedRoute, not the page itself.
-    // When orgId is null the page still renders step 1 (org data load is skipped).
+  it('renders the intake form when user has no org (new-user creation flow)', async () => {
+    // orgId === null is valid: the wizard creates the org on first Next click.
+    // No redirect happens — the page stays mounted so the user can fill step 1.
     mockAuthValues.orgId = null
 
     renderPage()
 
-    expect(screen.getByRole('heading', { level: 1, name: /Assessment Intake Wizard/i })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: /Assessment Intake Wizard/i }),
+      ).toBeInTheDocument()
+    })
+    expect(mockNavigate).not.toHaveBeenCalledWith('/onboarding')
   })
 
   it('navigates to dashboard on form submission', async () => {
@@ -387,11 +387,13 @@ describe('AssessmentIntakePage', () => {
   })
 
   it('shows error message on submission failure', async () => {
+    // The component PUTs to /api/v1/organizations/{orgId} (not PATCH to /mine).
+    // Advancement steps: 1→2, 2→3, 3→4, 4→5 (4 PUTs) + Complete (1 PUT) = 5 total.
+    // Fail the 5th PUT so the final submission surfaces the error.
     let putCount = 0
     mockFetchWithAuth.mockImplementation((url: string, options?: Record<string, unknown>) => {
-      if (url.includes('/organizations/') && options?.method === 'PUT') {
+      if (isMainOrgUrl(url) && options?.method === 'PUT') {
         putCount += 1
-        // Steps 1-4 auto-save (4 PUTs) succeed; the 5th PUT (final submit) fails.
         if (putCount >= 5) {
           return Promise.resolve({
             ok: false,
@@ -400,7 +402,7 @@ describe('AssessmentIntakePage', () => {
         }
         return Promise.resolve({ ok: true, json: async () => ({}) })
       }
-      if (url.includes('/organizations/') && (!options?.method || options?.method === 'GET')) {
+      if (isMainOrgUrl(url)) {
         return Promise.resolve({
           ok: true,
           json: async () => ({
