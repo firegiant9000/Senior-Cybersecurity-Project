@@ -15,6 +15,7 @@ import SectorAttackHeatmap from '../charts/SectorAttackHeatmap';
 import DataFreshness from '../shared/DataFreshness';
 import { formatDateWithTz, formatTimeWithTz } from '../../utils/formatTime';
 import ExecutiveSummaryCard from './ExecutiveSummaryCard';
+import ProjectedLossCard from './ProjectedLossCard';
 import VendorAlertsCard from '../shared/VendorAlertsCard';
 import type { DashboardData } from '../../hooks/useDashboardData';
 import { fmtLoss } from '../../utils/fmtLoss';
@@ -63,7 +64,7 @@ const OVERVIEW_WIDGETS = [
     { id: 'cyberMap',            label: 'Where Cyber Crime Hits Hardest (FBI IC3)', moveable: true  },
     { id: 'malwareChart',        label: 'Intrusion Attempts Chart',      moveable: true  },
     { id: 'totalAttempts',       label: 'Total Intrusion Attempts',      moveable: true  },
-    { id: 'totalLosses',         label: 'Total Financial Losses',        moveable: true  },
+    { id: 'totalLosses',         label: 'Reported Losses (FBI IC3)',     moveable: true  },
     { id: 'progression',         label: 'Security Posture Gauges',       moveable: true  },
     { id: 'avgLoss',             label: 'Avg Loss per Incident',         moveable: true  },
     { id: 'cvesExploited',       label: 'CVEs Actively Exploited',       moveable: true  },
@@ -244,9 +245,9 @@ function renderGridWidget(
             );
         case 'totalLosses':
             return (
-                <WidgetErrorBoundary key={id} title="Total Financial Losses">
+                <WidgetErrorBoundary key={id} title="Reported Losses (FBI IC3)">
                     <StatCard
-                        title="Total Financial Losses"
+                        title="Reported Losses (FBI IC3)"
                         value={dashboardLoading ? '—' : fmtLoss(dashboardData.summary?.total_losses)}
                         valueColor="#3f51b5"
                         change={lossChange}
@@ -284,12 +285,7 @@ function renderGridWidget(
         case 'projectedLoss':
             return (
                 <WidgetErrorBoundary key={id} title="Projected Annual Loss">
-                    <StatCard
-                        title="Projected Annual Loss"
-                        value={dashboardLoading ? '—' : (dashboardData.lossProjection?.has_data ? dashboardData.lossProjection.projected_annual_loss_formatted : '—')}
-                        valueColor="#7b1fa2"
-                        changeNote={dashboardData.lossProjection?.has_data ? `${dashboardData.lossProjection.confidence_level} confidence · ${dashboardData.lossProjection.sector}` : undefined}
-                    />
+                    <ProjectedLossCard data={dashboardData.lossProjection} loading={dashboardLoading} />
                 </WidgetErrorBoundary>
             );
 
