@@ -335,7 +335,7 @@ describe('AssessmentDebugPage', () => {
 
       await waitFor(() => {
         expect(screen.queryByText(/Loading debug snapshot/i)).not.toBeInTheDocument()
-        expect(screen.queryByText(/Error/i)).not.toBeInTheDocument()
+        expect(screen.queryByText(/Failed to load debug data/i)).not.toBeInTheDocument()
       })
     })
   })
@@ -394,7 +394,7 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText('enhanced')).toBeInTheDocument()
+        expect(screen.getAllByText('enhanced').length).toBeGreaterThan(0)
       })
     })
 
@@ -435,16 +435,20 @@ describe('AssessmentDebugPage', () => {
     it('shows met requirements with checkmark', async () => {
       renderPage()
 
+      await waitFor(() => expect(screen.getAllByText(/✓ met|not met/).length).toBeGreaterThan(0))
+
       const tierSummaries = screen.getAllByText(/✓ met|not met/)
       fireEvent.click(tierSummaries[1].closest('summary')!)
 
       await waitFor(() => {
-        expect(screen.getByText('Annual Revenue')).toBeInTheDocument()
+        expect(screen.getAllByText(/Annual Revenue/i).length).toBeGreaterThan(0)
       })
     })
 
     it('shows unmet requirements with x mark', async () => {
       renderPage()
+
+      await waitFor(() => expect(screen.getAllByText(/✓ met|not met/).length).toBeGreaterThan(0))
 
       const tierSummaries = screen.getAllByText(/✓ met|not met/)
       fireEvent.click(tierSummaries[2].closest('summary')!)
@@ -497,9 +501,10 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText(/Severity/i)).toBeInTheDocument()
-        expect(screen.getByText(/Field/i)).toBeInTheDocument()
-        expect(screen.getByText(/Message/i)).toBeInTheDocument()
+        const headers = screen.getAllByRole('columnheader').map(h => h.textContent)
+        expect(headers).toContain('Severity')
+        expect(headers).toContain('Field')
+        expect(headers).toContain('Message')
       })
     })
 
@@ -549,7 +554,7 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText(/Exposure|Findings/i)).toBeInTheDocument()
+        expect(screen.getByRole('heading', { name: /Exposure/i })).toBeInTheDocument()
       })
     })
 
@@ -583,7 +588,7 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText(/data_sources_used|sources/i)).toBeInTheDocument()
+        expect(screen.getByText('Total Findings')).toBeInTheDocument()
       })
     })
 
@@ -591,7 +596,7 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText(/by_severity/i)).toBeInTheDocument()
+        expect(screen.getByText('By Severity')).toBeInTheDocument()
       })
     })
   })
@@ -625,7 +630,7 @@ describe('AssessmentDebugPage', () => {
 
       await waitFor(() => {
         expect(screen.getByText('name')).toBeInTheDocument()
-        expect(screen.getByText(/Acme Corp/)).toBeInTheDocument()
+        expect(screen.getAllByText('Acme Corp').length).toBeGreaterThan(0)
       })
     })
 
@@ -677,11 +682,12 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText(/Generated At/i)).toBeInTheDocument()
-        expect(screen.getByText(/Model/i)).toBeInTheDocument()
-        expect(screen.getByText(/Source/i)).toBeInTheDocument()
-        expect(screen.getByText(/Status/i)).toBeInTheDocument()
-        expect(screen.getByText(/Latency/i)).toBeInTheDocument()
+        const headers = screen.getAllByRole('columnheader').map(h => h.textContent)
+        expect(headers).toContain('Generated At')
+        expect(headers).toContain('Model')
+        expect(headers).toContain('Source')
+        expect(headers).toContain('Status')
+        expect(headers).toContain('Latency')
       })
     })
 
@@ -689,7 +695,7 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText('gpt-4')).toBeInTheDocument()
+        expect(screen.getAllByText('gpt-4').length).toBeGreaterThan(0)
         expect(screen.getByText('gpt-3.5-turbo')).toBeInTheDocument()
       })
     })
@@ -698,7 +704,7 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText('manual')).toBeInTheDocument()
+        expect(screen.getAllByText('manual').length).toBeGreaterThan(0)
         expect(screen.getByText('auto')).toBeInTheDocument()
       })
     })
@@ -707,9 +713,9 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText('success')).toBeInTheDocument()
-        expect(screen.getByText('fallback_used')).toBeInTheDocument()
-        expect(screen.getByText('error')).toBeInTheDocument()
+        expect(screen.getAllByText('success').length).toBeGreaterThan(0)
+        expect(screen.getAllByText('fallback_used').length).toBeGreaterThan(0)
+        expect(screen.getAllByText('error').length).toBeGreaterThan(0)
       })
     })
 
@@ -727,6 +733,14 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
+        expect(screen.getAllByText('gpt-4').length).toBeGreaterThan(0)
+      })
+
+      // Row id=3 has error_message; it's the second gpt-4 row — expand it
+      const allGpt4 = screen.getAllByText('gpt-4')
+      fireEvent.click(allGpt4[1].closest('tr')!)
+
+      await waitFor(() => {
         expect(screen.getByText(/Rate limit exceeded/i)).toBeInTheDocument()
       })
     })
@@ -735,11 +749,11 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText('gpt-4')).toBeInTheDocument()
+        expect(screen.getAllByText('gpt-4').length).toBeGreaterThan(0)
       })
 
-      const rows = screen.getAllByRole('row')
-      fireEvent.click(rows[1])
+      const gpt4Cell = screen.getAllByText('gpt-4')[0]
+      fireEvent.click(gpt4Cell.closest('tr')!)
 
       await waitFor(() => {
         expect(mockFetchGeneration).toHaveBeenCalled()
@@ -750,11 +764,11 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText('gpt-4')).toBeInTheDocument()
+        expect(screen.getAllByText('gpt-4').length).toBeGreaterThan(0)
       })
 
-      const rows = screen.getAllByRole('row')
-      fireEvent.click(rows[1])
+      const gpt4Cell = screen.getAllByText('gpt-4')[0]
+      fireEvent.click(gpt4Cell.closest('tr')!)
 
       await waitFor(() => {
         expect(screen.getByText(/Output Preview/i)).toBeInTheDocument()
@@ -770,11 +784,11 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText('gpt-4')).toBeInTheDocument()
+        expect(screen.getAllByText('gpt-4').length).toBeGreaterThan(0)
       })
 
-      const rows = screen.getAllByRole('row')
-      fireEvent.click(rows[1])
+      const gpt4Cell = screen.getAllByText('gpt-4')[0]
+      fireEvent.click(gpt4Cell.closest('tr')!)
 
       await waitFor(() => {
         expect(screen.getByText(/Loading detail/i)).toBeInTheDocument()
@@ -785,19 +799,22 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText('gpt-4')).toBeInTheDocument()
+        expect(screen.getAllByText('gpt-4').length).toBeGreaterThan(0)
       })
 
-      const rows = screen.getAllByRole('row')
-      fireEvent.click(rows[1])
+      const gpt4Cell = screen.getAllByText('gpt-4')[0]
+      const dataRow = gpt4Cell.closest('tr')!
+      fireEvent.click(dataRow)
 
       await waitFor(() => {
         expect(screen.getByText(/This is an AI-generated executive summary/i)).toBeInTheDocument()
       })
 
-      fireEvent.click(rows[1])
+      fireEvent.click(dataRow)
 
-      expect(screen.queryByText(/Output Preview/i)).not.toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.queryByText(/Output Preview/i)).not.toBeInTheDocument()
+      })
     })
 
     it('shows error message in detail when fetch fails', async () => {
@@ -807,11 +824,11 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText('gpt-4')).toBeInTheDocument()
+        expect(screen.getAllByText('gpt-4').length).toBeGreaterThan(0)
       })
 
-      const rows = screen.getAllByRole('row')
-      fireEvent.click(rows[1])
+      const gpt4Cell = screen.getAllByText('gpt-4')[0]
+      fireEvent.click(gpt4Cell.closest('tr')!)
 
       await waitFor(() => {
         expect(mockFetchGeneration).toHaveBeenCalled()

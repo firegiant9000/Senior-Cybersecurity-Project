@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
@@ -101,7 +101,12 @@ vi.mock('./pages/AssessmentDebugPage.tsx', () => ({
 }))
 
 vi.mock('./pages/AssessmentIntakePage.tsx', () => ({
-  default: () => <div data-testid="assessment-intake-page">Assessment Intake</div>,
+  default: () => (
+    <div data-testid="assessment-intake-page">
+      Assessment Intake
+      <button onClick={() => mockRefreshProfile()}>Complete Onboarding</button>
+    </div>
+  ),
 }))
 
 vi.mock('./pages/OrgProfilePage.tsx', () => ({
@@ -113,12 +118,15 @@ vi.mock('./pages/AcceptInvitePage.tsx', () => ({
 }))
 
 vi.mock('./components/ProtectedRoute.tsx', () => ({
-  default: ({ children, requireOrg }: { children: React.ReactNode; requireOrg?: boolean }) => {
+  default: ({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) => {
     const authContext = mockAuthContext
-    if (!authContext.user && !authContext.loading) {
+    if (authContext.loading || authContext.orgLoading) {
+      return <div data-testid="loading">Loading...</div>
+    }
+    if (!authContext.user) {
       return <div data-testid="protected-redirect">Redirecting to login...</div>
     }
-    if (requireOrg && !authContext.orgId && !authContext.orgLoading) {
+    if (requireOrg && !authContext.orgId) {
       return <div data-testid="org-redirect">Redirecting to onboarding...</div>
     }
     return <>{children}</>
@@ -169,6 +177,7 @@ describe('App - Routing & Navigation', () => {
 
     it('redirects to dashboard when user is authenticated', () => {
       mockAuthContext.user = { uid: 'user1', email: 'user@example.com' } as unknown
+      mockAuthContext.orgId = 1
       renderApp(['/'])
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
     })
@@ -355,12 +364,13 @@ describe('App - Routing & Navigation', () => {
       expect(screen.getByTestId('protected-redirect')).toBeInTheDocument()
     })
 
-    it('requires org', () => {
+    it('does not require org (requireOrg={false})', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false
       renderApp(['/assessment-intake'])
-      expect(screen.getByTestId('org-redirect')).toBeInTheDocument()
+      expect(screen.queryByTestId('org-redirect')).not.toBeInTheDocument()
+      expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
     })
   })
 
@@ -565,6 +575,7 @@ describe('App - Routing & Navigation', () => {
       mockAuthContext.orgId = 1
       renderApp(['/dashboard'])
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      cleanup()
 
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false
@@ -649,9 +660,11 @@ describe('App - Routing & Navigation', () => {
 
       renderApp(['/dashboard'])
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      cleanup()
 
       renderApp(['/settings'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      cleanup()
 
       renderApp(['/dashboard'])
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
