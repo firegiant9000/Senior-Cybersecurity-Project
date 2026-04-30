@@ -3,6 +3,7 @@ import './ExecutiveSummaryCard.css';
 import type { ExecutiveSummary } from '../../api/executiveSummary';
 import { fmtLoss } from '../../utils/fmtLoss';
 import DisclaimerBanner from '../shared/DisclaimerBanner';
+import ConfidenceBadge from '../shared/ConfidenceBadge';
 
 interface Props {
     data: ExecutiveSummary | null;
@@ -64,8 +65,11 @@ const ExecutiveSummaryCard: React.FC<Props> = ({ data, loading, error }) => {
                 {/* Key metrics */}
                 <div className="exec-metrics-row">
                     <div className="exec-metric">
-                        <div className="exec-metric-label">Estimated Cyber Losses (your industry)</div>
+                        <div className="exec-metric-label">
+                            Reported Cyber Losses · {data.data_year_range}
+                        </div>
                         <div className="exec-metric-value">{data.loss_estimate_formatted}</div>
+                        <div className="exec-metric-sublabel">FBI IC3 historical sum (all sectors)</div>
                     </div>
                     <div className="exec-metric">
                         <div className="exec-metric-label">Vulnerabilities Being Actively Attacked</div>
@@ -95,10 +99,7 @@ const ExecutiveSummaryCard: React.FC<Props> = ({ data, loading, error }) => {
 
                 {/* Confidence + metadata */}
                 <div className="exec-meta-row">
-                    <span className="exec-confidence-badge">
-                        <span className={`exec-confidence-dot ${data.confidence_level}`} />
-                        {data.confidence_level} Confidence
-                    </span>
+                    <ConfidenceBadge tier={data.confidence_level} context="executive" />
                     <span>Generated {generatedDate}</span>
                     <button
                         className="exec-methodology-toggle"
