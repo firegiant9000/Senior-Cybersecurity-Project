@@ -1,0 +1,24 @@
+.confidence-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.confidence-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.confidence-dot.High   { background: #22c55e; }
+.confidence-dot.Medium { background: #f59e0b; }
+.confidence-dot.Low    { background: #ef4444; }
+
+.confidence-label {
+    line-height: 1;
+}
