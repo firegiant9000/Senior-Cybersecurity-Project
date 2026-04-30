@@ -89,6 +89,7 @@ function renderPage(token = 'test-token-123') {
 
 describe('AcceptInvitePage', () => {
   beforeEach(() => {
+    vi.useRealTimers()
     vi.clearAllMocks()
     mockGetInvite.mockResolvedValue(mockInviteData)
     mockAcceptInvite.mockResolvedValue(undefined)
@@ -103,7 +104,11 @@ describe('AcceptInvitePage', () => {
     })
 
     it('shows error when token is missing', async () => {
-      renderPage('')
+      render(
+        <MemoryRouter>
+          <AcceptInvitePage />
+        </MemoryRouter>,
+      )
 
       await waitFor(() => {
         expect(screen.getByText(/No invite token provided/i)).toBeInTheDocument()
@@ -187,8 +192,10 @@ describe('AcceptInvitePage', () => {
     it('displays expiration date', async () => {
       renderPage()
 
+      // Locale-formatted date depends on the runner's timezone: UTC-midnight
+      // 2026-12-31 renders as 12/31/2026 in UTC but 12/30/2026 west of UTC.
       await waitFor(() => {
-        expect(screen.getByText(/12\/31\/2026|Expires/i)).toBeInTheDocument()
+        expect(screen.getByText(/12\/3[01]\/2026/)).toBeInTheDocument()
       })
     })
 
@@ -196,10 +203,10 @@ describe('AcceptInvitePage', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText(/Organization/i)).toBeInTheDocument()
-        expect(screen.getByText(/Role/i)).toBeInTheDocument()
-        expect(screen.getByText(/Invited email/i)).toBeInTheDocument()
-        expect(screen.getByText(/Expires/i)).toBeInTheDocument()
+        expect(screen.getByText('Organization')).toBeInTheDocument()
+        expect(screen.getByText('Role')).toBeInTheDocument()
+        expect(screen.getByText('Invited email')).toBeInTheDocument()
+        expect(screen.getByText('Expires')).toBeInTheDocument()
       })
     })
 
@@ -309,12 +316,14 @@ describe('AcceptInvitePage', () => {
     })
 
     it('navigates to dashboard after success (with delay)', async () => {
-      vi.useFakeTimers()
+      vi.useFakeTimers({ shouldAdvanceTime: true })
       renderPage()
 
       await waitFor(() => {
-        fireEvent.click(screen.getByRole('button', { name: /Accept & Join/i }))
+        expect(screen.getByRole('button', { name: /Accept & Join/i })).toBeInTheDocument()
       })
+
+      fireEvent.click(screen.getByRole('button', { name: /Accept & Join/i }))
 
       await waitFor(() => {
         expect(screen.getByText(/You have joined the organization/i)).toBeInTheDocument()
@@ -323,8 +332,6 @@ describe('AcceptInvitePage', () => {
       vi.advanceTimersByTime(1500)
 
       expect(mockNavigate).toHaveBeenCalledWith('/')
-
-      vi.useRealTimers()
     })
   })
 
@@ -504,43 +511,30 @@ describe('AcceptInvitePage', () => {
 
   describe('Cleanup & Lifecycle', () => {
     it('cleans up redirect timer on unmount', async () => {
-      vi.useFakeTimers()
+      vi.useFakeTimers({ shouldAdvanceTime: true })
       const { unmount } = renderPage()
 
       await waitFor(() => {
-        fireEvent.click(screen.getByRole('button', { name: /Accept & Join/i }))
+        expect(screen.getByRole('button', { name: /Accept & Join/i })).toBeInTheDocument()
       })
+
+      fireEvent.click(screen.getByRole('button', { name: /Accept & Join/i }))
 
       await waitFor(() => {
         expect(screen.getByText(/You have joined the organization/i)).toBeInTheDocument()
       })
 
       unmount()
-
       vi.advanceTimersByTime(2000)
 
-      // Should not have called navigate due to cleanup
       expect(mockNavigate).not.toHaveBeenCalledWith('/')
-
-      vi.useRealTimers()
     })
 
-    it('prevents state updates after unmount', async () => {
-      vi.useFakeTimers()
+    it('prevents state updates after unmount', () => {
       const { unmount } = renderPage()
-
-      await waitFor(() => {
-        expect(screen.getByText(/Loading invite/i)).toBeInTheDocument()
-      })
-
+      expect(screen.getByText(/Loading invite/i)).toBeInTheDocument()
       unmount()
-
-      vi.advanceTimersByTime(100)
-
-      // Component should not attempt to render after unmount
       expect(screen.queryByText(/Loading invite/i)).not.toBeInTheDocument()
-
-      vi.useRealTimers()
     })
   })
 })
