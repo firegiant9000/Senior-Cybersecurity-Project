@@ -106,6 +106,7 @@
 /* Widgets */
 .map-widget {
     grid-column: span 1;
+    grid-row: span 2;
     overflow: hidden;
 }
 

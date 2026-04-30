@@ -1,6 +1,6 @@
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hoisted Mocks
@@ -74,12 +74,9 @@ const mockAdminInviteData = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function renderPage(token = 'test-token-123') {
-  // Empty token: render on /invite (no param) so useParams returns undefined token
-  const entries = token ? [`/invite/${token}`] : ['/invite']
   return render(
-    <MemoryRouter initialEntries={entries}>
+    <MemoryRouter initialEntries={[`/invite/${token}`]}>
       <Routes>
-        <Route path="/invite" element={<AcceptInvitePage />} />
         <Route path="/invite/:token" element={<AcceptInvitePage />} />
       </Routes>
     </MemoryRouter>,
@@ -92,14 +89,11 @@ function renderPage(token = 'test-token-123') {
 
 describe('AcceptInvitePage', () => {
   beforeEach(() => {
+    vi.useRealTimers()
     vi.clearAllMocks()
     mockGetInvite.mockResolvedValue(mockInviteData)
     mockAcceptInvite.mockResolvedValue(undefined)
     mockRefreshProfile.mockResolvedValue(undefined)
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
   })
 
   describe('Loading & Error States', () => {
@@ -110,7 +104,11 @@ describe('AcceptInvitePage', () => {
     })
 
     it('shows error when token is missing', async () => {
-      renderPage('')
+      render(
+        <MemoryRouter>
+          <AcceptInvitePage />
+        </MemoryRouter>,
+      )
 
       await waitFor(() => {
         expect(screen.getByText(/No invite token provided/i)).toBeInTheDocument()
@@ -194,8 +192,10 @@ describe('AcceptInvitePage', () => {
     it('displays expiration date', async () => {
       renderPage()
 
+      // Locale-formatted date depends on the runner's timezone: UTC-midnight
+      // 2026-12-31 renders as 12/31/2026 in UTC but 12/30/2026 west of UTC.
       await waitFor(() => {
-        expect(screen.getByText(/12\/31\/2026|Expires/i)).toBeInTheDocument()
+        expect(screen.getByText(/12\/3[01]\/2026/)).toBeInTheDocument()
       })
     })
 
@@ -203,7 +203,6 @@ describe('AcceptInvitePage', () => {
       renderPage()
 
       await waitFor(() => {
-        // Use exact strings to avoid matching the "Organization Invite" heading
         expect(screen.getByText('Organization')).toBeInTheDocument()
         expect(screen.getByText('Role')).toBeInTheDocument()
         expect(screen.getByText('Invited email')).toBeInTheDocument()
@@ -317,19 +316,18 @@ describe('AcceptInvitePage', () => {
     })
 
     it('navigates to dashboard after success (with delay)', async () => {
-      vi.useFakeTimers()
+      vi.useFakeTimers({ shouldAdvanceTime: true })
       renderPage()
 
-      // Flush the invite fetch promise (microtask) so the button appears
-      await act(async () => {})
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Accept & Join/i })).toBeInTheDocument()
+      })
 
       fireEvent.click(screen.getByRole('button', { name: /Accept & Join/i }))
 
-      // Flush acceptInvite and refreshProfile promises
-      await act(async () => {})
-      await act(async () => {})
-
-      expect(screen.getByText(/You have joined the organization/i)).toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.getByText(/You have joined the organization/i)).toBeInTheDocument()
+      })
 
       vi.advanceTimersByTime(1500)
 
@@ -513,40 +511,29 @@ describe('AcceptInvitePage', () => {
 
   describe('Cleanup & Lifecycle', () => {
     it('cleans up redirect timer on unmount', async () => {
-      vi.useFakeTimers()
+      vi.useFakeTimers({ shouldAdvanceTime: true })
       const { unmount } = renderPage()
 
-      // Flush invite fetch microtask so button appears
-      await act(async () => {})
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Accept & Join/i })).toBeInTheDocument()
+      })
 
       fireEvent.click(screen.getByRole('button', { name: /Accept & Join/i }))
 
-      // Flush acceptInvite and refreshProfile promises
-      await act(async () => {})
-      await act(async () => {})
-
-      expect(screen.getByText(/You have joined the organization/i)).toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.getByText(/You have joined the organization/i)).toBeInTheDocument()
+      })
 
       unmount()
-
       vi.advanceTimersByTime(2000)
 
-      // Should not have called navigate due to cleanup
       expect(mockNavigate).not.toHaveBeenCalledWith('/')
     })
 
     it('prevents state updates after unmount', () => {
-      vi.useFakeTimers()
       const { unmount } = renderPage()
-
-      // Loading state is synchronous — no waitFor needed
       expect(screen.getByText(/Loading invite/i)).toBeInTheDocument()
-
       unmount()
-
-      vi.advanceTimersByTime(100)
-
-      // Component should not attempt to render after unmount
       expect(screen.queryByText(/Loading invite/i)).not.toBeInTheDocument()
     })
   })

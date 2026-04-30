@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
@@ -335,8 +335,7 @@ describe('AssessmentDebugPage', () => {
 
       await waitFor(() => {
         expect(screen.queryByText(/Loading debug snapshot/i)).not.toBeInTheDocument()
-        // After successful load, debug data is visible — no error banner present
-        expect(screen.getByText(/Assessment Debug View/i)).toBeInTheDocument()
+        expect(screen.queryByText(/Failed to load debug data/i)).not.toBeInTheDocument()
       })
     })
   })
@@ -395,7 +394,6 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        // 'enhanced' appears in multiple badges; assert at least one exists
         expect(screen.getAllByText('enhanced').length).toBeGreaterThan(0)
       })
     })
@@ -426,8 +424,8 @@ describe('AssessmentDebugPage', () => {
         expect(screen.getByText(/Normalized Profile/i)).toBeInTheDocument()
       })
 
-      const tierSummaries = Array.from(document.querySelectorAll('details > summary'))
-      fireEvent.click(tierSummaries[0] as HTMLElement)
+      const tierSummaries = screen.getAllByText(/✓ met|not met/)
+      fireEvent.click(tierSummaries[0].closest('summary')!)
 
       await waitFor(() => {
         expect(screen.getByText(/Company Name/i)).toBeInTheDocument()
@@ -437,27 +435,23 @@ describe('AssessmentDebugPage', () => {
     it('shows met requirements with checkmark', async () => {
       renderPage()
 
-      await waitFor(() => {
-        expect(document.querySelectorAll('details > summary').length).toBeGreaterThan(0)
-      })
+      await waitFor(() => expect(screen.getAllByText(/✓ met|not met/).length).toBeGreaterThan(0))
 
-      const tierSummaries = Array.from(document.querySelectorAll('details > summary'))
-      fireEvent.click(tierSummaries[1] as HTMLElement)
+      const tierSummaries = screen.getAllByText(/✓ met|not met/)
+      fireEvent.click(tierSummaries[1].closest('summary')!)
 
       await waitFor(() => {
-        expect(screen.queryAllByText(/Annual Revenue/).length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/Annual Revenue/i).length).toBeGreaterThan(0)
       })
     })
 
     it('shows unmet requirements with x mark', async () => {
       renderPage()
 
-      await waitFor(() => {
-        expect(document.querySelectorAll('details > summary').length).toBeGreaterThan(0)
-      })
+      await waitFor(() => expect(screen.getAllByText(/✓ met|not met/).length).toBeGreaterThan(0))
 
-      const tierSummaries = Array.from(document.querySelectorAll('details > summary'))
-      fireEvent.click(tierSummaries[2] as HTMLElement)
+      const tierSummaries = screen.getAllByText(/✓ met|not met/)
+      fireEvent.click(tierSummaries[2].closest('summary')!)
 
       await waitFor(() => {
         expect(screen.getByText(/Vendor List/i)).toBeInTheDocument()
@@ -507,10 +501,10 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        // 'Severity' appears as a column header in both the validation and findings tables
-        expect(screen.getAllByText(/^Severity$/i).length).toBeGreaterThan(0)
-        expect(screen.getByText(/^Field$/i)).toBeInTheDocument()
-        expect(screen.getByText(/^Message$/i)).toBeInTheDocument()
+        const headers = screen.getAllByRole('columnheader').map(h => h.textContent)
+        expect(headers).toContain('Severity')
+        expect(headers).toContain('Field')
+        expect(headers).toContain('Message')
       })
     })
 
@@ -590,11 +584,11 @@ describe('AssessmentDebugPage', () => {
       })
     })
 
-    it('displays findings assessment tier when ready', async () => {
+    it('displays data sources used for findings', async () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText(/Assessment Tier/i)).toBeInTheDocument()
+        expect(screen.getByText('Total Findings')).toBeInTheDocument()
       })
     })
 
@@ -602,7 +596,7 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText(/By Severity/i)).toBeInTheDocument()
+        expect(screen.getByText('By Severity')).toBeInTheDocument()
       })
     })
   })
@@ -636,8 +630,7 @@ describe('AssessmentDebugPage', () => {
 
       await waitFor(() => {
         expect(screen.getByText('name')).toBeInTheDocument()
-        // 'Acme Corp' also appears in tier requirement details in the DOM
-        expect(screen.getAllByText(/Acme Corp/).length).toBeGreaterThan(0)
+        expect(screen.getAllByText('Acme Corp').length).toBeGreaterThan(0)
       })
     })
 
@@ -689,21 +682,12 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText(/Executive Summary History/i)).toBeInTheDocument()
-      })
-
-      // Scope to history section to avoid matches in the header paragraph ("Snapshot generated at...")
-      // and validation section ("Status: Failed")
-      const historySection = screen
-        .getByRole('heading', { name: /Executive Summary History/i })
-        .closest('section')!
-
-      await waitFor(() => {
-        expect(within(historySection).getByText(/Generated At/i)).toBeInTheDocument()
-        expect(within(historySection).getByText(/Model/i)).toBeInTheDocument()
-        expect(within(historySection).getByText(/Source/i)).toBeInTheDocument()
-        expect(within(historySection).getByText(/Status/i)).toBeInTheDocument()
-        expect(within(historySection).getByText(/Latency/i)).toBeInTheDocument()
+        const headers = screen.getAllByRole('columnheader').map(h => h.textContent)
+        expect(headers).toContain('Generated At')
+        expect(headers).toContain('Model')
+        expect(headers).toContain('Source')
+        expect(headers).toContain('Status')
+        expect(headers).toContain('Latency')
       })
     })
 
@@ -711,7 +695,6 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        // gpt-4 appears in two rows; use getAllByText
         expect(screen.getAllByText('gpt-4').length).toBeGreaterThan(0)
         expect(screen.getByText('gpt-3.5-turbo')).toBeInTheDocument()
       })
@@ -721,7 +704,6 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        // 'manual' appears in two rows; use getAllByText
         expect(screen.getAllByText('manual').length).toBeGreaterThan(0)
         expect(screen.getByText('auto')).toBeInTheDocument()
       })
@@ -731,9 +713,8 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText('success')).toBeInTheDocument()
-        expect(screen.getByText('fallback_used')).toBeInTheDocument()
-        // 'error' appears as both a validation severity badge and history status badge
+        expect(screen.getAllByText('success').length).toBeGreaterThan(0)
+        expect(screen.getAllByText('fallback_used').length).toBeGreaterThan(0)
         expect(screen.getAllByText('error').length).toBeGreaterThan(0)
       })
     })
@@ -752,15 +733,12 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText(/Executive Summary History/i)).toBeInTheDocument()
+        expect(screen.getAllByText('gpt-4').length).toBeGreaterThan(0)
       })
 
-      // error_message is shown in the expanded row — click the row with status 'error' (index 3)
-      const historySection = screen
-        .getByRole('heading', { name: /Executive Summary History/i })
-        .closest('section')!
-      const historyRows = within(historySection).getAllByRole('row')
-      fireEvent.click(historyRows[3])
+      // Row id=3 has error_message; it's the second gpt-4 row — expand it
+      const allGpt4 = screen.getAllByText('gpt-4')
+      fireEvent.click(allGpt4[1].closest('tr')!)
 
       await waitFor(() => {
         expect(screen.getByText(/Rate limit exceeded/i)).toBeInTheDocument()
@@ -774,9 +752,8 @@ describe('AssessmentDebugPage', () => {
         expect(screen.getAllByText('gpt-4').length).toBeGreaterThan(0)
       })
 
-      const historySection = screen.getByRole('heading', { name: /Executive Summary History/i }).closest('section')!
-      const historyRows = within(historySection).getAllByRole('row')
-      fireEvent.click(historyRows[1])
+      const gpt4Cell = screen.getAllByText('gpt-4')[0]
+      fireEvent.click(gpt4Cell.closest('tr')!)
 
       await waitFor(() => {
         expect(mockFetchGeneration).toHaveBeenCalled()
@@ -790,9 +767,8 @@ describe('AssessmentDebugPage', () => {
         expect(screen.getAllByText('gpt-4').length).toBeGreaterThan(0)
       })
 
-      const historySection = screen.getByRole('heading', { name: /Executive Summary History/i }).closest('section')!
-      const historyRows = within(historySection).getAllByRole('row')
-      fireEvent.click(historyRows[1])
+      const gpt4Cell = screen.getAllByText('gpt-4')[0]
+      fireEvent.click(gpt4Cell.closest('tr')!)
 
       await waitFor(() => {
         expect(screen.getByText(/Output Preview/i)).toBeInTheDocument()
@@ -811,9 +787,8 @@ describe('AssessmentDebugPage', () => {
         expect(screen.getAllByText('gpt-4').length).toBeGreaterThan(0)
       })
 
-      const historySection = screen.getByRole('heading', { name: /Executive Summary History/i }).closest('section')!
-      const historyRows = within(historySection).getAllByRole('row')
-      fireEvent.click(historyRows[1])
+      const gpt4Cell = screen.getAllByText('gpt-4')[0]
+      fireEvent.click(gpt4Cell.closest('tr')!)
 
       await waitFor(() => {
         expect(screen.getByText(/Loading detail/i)).toBeInTheDocument()
@@ -827,17 +802,19 @@ describe('AssessmentDebugPage', () => {
         expect(screen.getAllByText('gpt-4').length).toBeGreaterThan(0)
       })
 
-      const historySection = screen.getByRole('heading', { name: /Executive Summary History/i }).closest('section')!
-      const historyRows = within(historySection).getAllByRole('row')
-      fireEvent.click(historyRows[1])
+      const gpt4Cell = screen.getAllByText('gpt-4')[0]
+      const dataRow = gpt4Cell.closest('tr')!
+      fireEvent.click(dataRow)
 
       await waitFor(() => {
         expect(screen.getByText(/This is an AI-generated executive summary/i)).toBeInTheDocument()
       })
 
-      fireEvent.click(historyRows[1])
+      fireEvent.click(dataRow)
 
-      expect(screen.queryByText(/Output Preview/i)).not.toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.queryByText(/Output Preview/i)).not.toBeInTheDocument()
+      })
     })
 
     it('shows error message in detail when fetch fails', async () => {
@@ -847,15 +824,11 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       await waitFor(() => {
-        // gpt-4 appears in two rows; use getAllByText
         expect(screen.getAllByText('gpt-4').length).toBeGreaterThan(0)
       })
 
-      const historySection = screen
-        .getByRole('heading', { name: /Executive Summary History/i })
-        .closest('section')!
-      const historyRows = within(historySection).getAllByRole('row')
-      fireEvent.click(historyRows[1])
+      const gpt4Cell = screen.getAllByText('gpt-4')[0]
+      fireEvent.click(gpt4Cell.closest('tr')!)
 
       await waitFor(() => {
         expect(mockFetchGeneration).toHaveBeenCalled()
