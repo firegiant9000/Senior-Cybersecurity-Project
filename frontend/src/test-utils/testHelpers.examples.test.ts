@@ -67,7 +67,7 @@ describe('Mock Data Factory Usage Examples', () => {
     expect(invites.items).toHaveLength(5)
     expect(invites.total).toBe(5)
     invites.items.forEach(invite => {
-      expect(invite.invited_email).toBeDefined()
+      expect(invite.email).toBeDefined()
       expect(invite.expires_at).toBeDefined()
     })
   })
@@ -274,7 +274,7 @@ describe('Complete Component Test Example', () => {
     })
 
     // Mock the member list API
-    mockMembersAPI(setup.apis.listMembers, 3)
+    mockMembersAPI(setup.apis.listMembers as { mockResolvedValue: (v: unknown) => void }, 3)
 
     // Render component (pseudo-code):
     // const { getByText } = setup.render(<SettingsPage />)

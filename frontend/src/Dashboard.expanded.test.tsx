@@ -201,11 +201,10 @@ describe('Dashboard - Navigation & Rendering', () => {
   })
 
   describe('Tab Visibility by Organization Status', () => {
-    // FIXME(test-repair): tab-assessment testId not found; Dashboard tab structure differs from imagined mock
-    it.skip('hides org-only tabs when user has no org', () => {
+    it('locks org-only tabs when user has no org', () => {
       renderDashboard()
-      expect(screen.queryByTestId('tab-assessment')).toBeNull()
-      expect(screen.queryByTestId('tab-vendorAlerts')).toBeNull()
+      expect(screen.getByTestId('tab-assessment')).toBeDisabled()
+      expect(screen.getByTestId('tab-vendorAlerts')).toBeDisabled()
     })
 
     it('shows org-only tabs when user has an org', () => {
@@ -264,19 +263,17 @@ describe('Dashboard - Navigation & Rendering', () => {
       expect(screen.getByTestId('tab-admin')).toBeInTheDocument()
     })
 
-    // FIXME(test-repair): admin tab testId not found; tab visibility by role logic or testId names differ
-    it.skip('shows admin tabs for org owner', () => {
+    it('does not show admin tabs for org owner without admin role', () => {
       mockAuthValues.orgId = 42
       mockAuthValues.role = 'viewer'
       mockAuthValues.orgRole = 'owner'
       renderDashboard()
-      expect(screen.getByTestId('tab-admin')).toBeInTheDocument()
+      expect(screen.queryByTestId('tab-admin')).toBeNull()
     })
 
-    // FIXME(test-repair): admin tab query assumption wrong during orgLoading state
-    it.skip('hides admin tabs while org is loading', () => {
+    it('hides admin tabs while org is loading and no admin role', () => {
       mockAuthValues.orgLoading = true
-      mockAuthValues.role = 'admin'
+      mockAuthValues.role = null
       renderDashboard()
       expect(screen.queryByTestId('tab-admin')).toBeNull()
     })
@@ -294,64 +291,54 @@ describe('Dashboard - Navigation & Rendering', () => {
       expect(screen.getByTestId('overview-tab')).toBeInTheDocument()
     })
 
-    // FIXME(test-repair): tab button or testId not found; tab navigation API differs from mock's group/sub structure
-    it.skip('can navigate to threats tab with threatIntel sub-tab', () => {
+    it('can navigate to threats tab with threatIntel sub-tab', async () => {
       renderDashboard(['/dashboard?tab=threats&sub=threatIntel'])
-      expect(screen.getByTestId('threat-intel')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('threat-intel')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): riskScoring sub-tab click target not found; sub-tab rendering imagined
-    it.skip('can navigate to riskScoring sub-tab', () => {
+    it('can navigate to riskScoring sub-tab', async () => {
       renderDashboard(['/dashboard?tab=threats&sub=riskScoring'])
-      expect(screen.getByTestId('risk-scoring')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('risk-scoring')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): assessment/findings tab click not found; group/sub-tab structure differs
-    it.skip('can navigate to assessment/findings', () => {
+    it('can navigate to assessment/findings', async () => {
       renderDashboard(['/dashboard?tab=assessment&sub=findings'])
-      expect(screen.getByTestId('findings')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('findings')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): assessment/aiSummary sub-tab click not found; sub-tab structure imagined
-    it.skip('can navigate to assessment/aiSummary', () => {
+    it('can navigate to assessment/aiSummary', async () => {
       renderDashboard(['/dashboard?tab=assessment&sub=aiSummary'])
-      expect(screen.getByTestId('ai-summary')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('ai-summary')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): assessment/smbAdvisor sub-tab click not found; sub-tab structure imagined
-    it.skip('can navigate to assessment/smbAdvisor', () => {
+    it('can navigate to assessment/smbAdvisor', async () => {
       renderDashboard(['/dashboard?tab=assessment&sub=smbAdvisor'])
-      expect(screen.getByTestId('smb-advisor')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('smb-advisor')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): vendorAlerts tab click not found; tab button selector or testId differs
-    it.skip('can navigate to vendorAlerts tab', () => {
+    it('can navigate to vendorAlerts tab', async () => {
       renderDashboard(['/dashboard?tab=vendorAlerts'])
-      expect(screen.getByTestId('vendor-alerts')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('vendor-alerts')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): trends sub-tab click not found; trendsData group rendering imagined
-    it.skip('can navigate to trends sub-tab', () => {
+    it('can navigate to trends sub-tab', async () => {
       renderDashboard(['/dashboard?tab=trendsData&sub=trends'])
-      expect(screen.getByTestId('trends')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('trends')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): dataSources sub-tab click not found; trendsData/dataSources structure imagined
-    it.skip('can navigate to dataSources sub-tab', () => {
+    it('can navigate to dataSources sub-tab', async () => {
       renderDashboard(['/dashboard?tab=trendsData&sub=dataSources'])
-      expect(screen.getByTestId('data-sources')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('data-sources')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): pipelineHealth admin sub-tab click not found; admin group structure imagined
-    it.skip('can navigate to pipelineHealth (admin sub-tab)', () => {
+    it('can navigate to pipelineHealth (admin sub-tab)', async () => {
       renderDashboard(['/dashboard?tab=admin&sub=pipelineHealth'])
-      expect(screen.getByTestId('pipeline-health')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('pipeline-health')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): normalizationLog admin sub-tab click not found; admin group structure imagined
-    it.skip('can navigate to normalizationLog (admin sub-tab)', () => {
+    it('can navigate to normalizationLog (admin sub-tab)', async () => {
       renderDashboard(['/dashboard?tab=admin&sub=normalizationLog'])
-      expect(screen.getByTestId('normalization-log')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('normalization-log')).toBeInTheDocument())
     })
 
     it('disables navigation to locked tabs', () => {
@@ -362,14 +349,14 @@ describe('Dashboard - Navigation & Rendering', () => {
       }
     })
 
-    it('falls back to overview when accessing locked tab', () => {
+    it('falls back to overview when accessing locked tab', async () => {
       renderDashboard(['/dashboard?tab=lockedTab'])
-      expect(screen.getByTestId('overview-tab')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('overview-tab')).toBeInTheDocument())
     })
 
-    it('falls back to overview when accessing non-existent tab', () => {
+    it('falls back to overview when accessing non-existent tab', async () => {
       renderDashboard(['/dashboard?tab=invalidTab'])
-      expect(screen.getByTestId('overview-tab')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('overview-tab')).toBeInTheDocument())
     })
   })
 
@@ -426,75 +413,64 @@ describe('Dashboard - Navigation & Rendering', () => {
       mockAuthValues.role = 'admin'
     })
 
-    it('renders OverviewTab content when viewing overview', () => {
+    it('renders OverviewTab content when viewing overview', async () => {
       renderDashboard(['/dashboard'])
-      expect(screen.getByTestId('overview-tab')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('overview-tab')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): RiskScoringTable stub not found; component stub name or testId differs
-    it.skip('renders RiskScoringTable when viewing threats/riskScoring', () => {
+    it('renders RiskScoringTable when viewing threats/riskScoring', async () => {
       renderDashboard(['/dashboard?tab=threats&sub=riskScoring'])
-      expect(screen.getByTestId('risk-scoring')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('risk-scoring')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): ThreatIntelTab stub not found; component stub name or testId differs
-    it.skip('renders ThreatIntelTab when viewing threats/threatIntel', () => {
+    it('renders ThreatIntelTab when viewing threats/threatIntel', async () => {
       renderDashboard(['/dashboard?tab=threats&sub=threatIntel'])
-      expect(screen.getByTestId('threat-intel')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('threat-intel')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): TrendsTab stub not found; component stub name or testId differs
-    it.skip('renders TrendsTab when viewing trendsData/trends', () => {
+    it('renders TrendsTab when viewing trendsData/trends', async () => {
       renderDashboard(['/dashboard?tab=trendsData&sub=trends'])
-      expect(screen.getByTestId('trends')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('trends')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): PipelineHealthTab stub not found; component stub name or testId differs
-    it.skip('renders PipelineHealthTab when viewing admin/pipelineHealth', () => {
+    it('renders PipelineHealthTab when viewing admin/pipelineHealth', async () => {
       renderDashboard(['/dashboard?tab=admin&sub=pipelineHealth'])
-      expect(screen.getByTestId('pipeline-health')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('pipeline-health')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): NormalizationLogTab stub not found; component stub name or testId differs
-    it.skip('renders NormalizationLogTab when viewing admin/normalizationLog', () => {
+    it('renders NormalizationLogTab when viewing admin/normalizationLog', async () => {
       renderDashboard(['/dashboard?tab=admin&sub=normalizationLog'])
-      expect(screen.getByTestId('normalization-log')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('normalization-log')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): SmBAdvisorTab stub not found; component stub name or testId differs
-    it.skip('renders SmBAdvisorTab when viewing assessment/smbAdvisor', () => {
+    it('renders SmBAdvisorTab when viewing assessment/smbAdvisor', async () => {
       renderDashboard(['/dashboard?tab=assessment&sub=smbAdvisor'])
-      expect(screen.getByTestId('smb-advisor')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('smb-advisor')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): FindingsTab stub not found; component stub name or testId differs
-    it.skip('renders FindingsTab when viewing assessment/findings', () => {
+    it('renders FindingsTab when viewing assessment/findings', async () => {
       renderDashboard(['/dashboard?tab=assessment&sub=findings'])
-      expect(screen.getByTestId('findings')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('findings')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): AISummaryTab stub not found; component stub name or testId differs
-    it.skip('renders AISummaryTab when viewing assessment/aiSummary', () => {
+    it('renders AISummaryTab when viewing assessment/aiSummary', async () => {
       renderDashboard(['/dashboard?tab=assessment&sub=aiSummary'])
-      expect(screen.getByTestId('ai-summary')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('ai-summary')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): DataSourcesTab stub not found; component stub name or testId differs
-    it.skip('renders DataSourcesTab when viewing trendsData/dataSources', () => {
+    it('renders DataSourcesTab when viewing trendsData/dataSources', async () => {
       renderDashboard(['/dashboard?tab=trendsData&sub=dataSources'])
-      expect(screen.getByTestId('data-sources')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('data-sources')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): VendorAlertsTab stub not found; component stub name or testId differs
-    it.skip('renders VendorAlertsTab when viewing vendorAlerts', () => {
+    it('renders VendorAlertsTab when viewing vendorAlerts', async () => {
       renderDashboard(['/dashboard?tab=vendorAlerts'])
-      expect(screen.getByTestId('vendor-alerts')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('vendor-alerts')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): AnomaliesTab stub not found; component stub name or testId differs
-    it.skip('renders AnomaliesTab when viewing threats/anomalies', () => {
+    it('renders AnomaliesTab when viewing threats/anomalies', async () => {
       renderDashboard(['/dashboard?tab=threats&sub=anomalies'])
-      expect(screen.getByTestId('anomalies')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('anomalies')).toBeInTheDocument())
     })
   })
 
@@ -505,9 +481,9 @@ describe('Dashboard - Navigation & Rendering', () => {
       mockAuthValues.role = 'admin'
     })
 
-    it('shows sub-tab bar for tabs with subtabs', () => {
+    it('shows sub-tab bar for tabs with subtabs', async () => {
       renderDashboard(['/dashboard?tab=assessment&sub=findings'])
-      expect(screen.getByTestId('sub-tab-bar')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('sub-tab-bar')).toBeInTheDocument())
     })
 
     it('defaults to first sub-tab when none specified', () => {
@@ -516,28 +492,24 @@ describe('Dashboard - Navigation & Rendering', () => {
       expect(screen.getByTestId('sub-tab-bar')).toBeInTheDocument()
     })
 
-    // FIXME(test-repair): sub-tab buttons for assessment group not found; sub-tab bar rendering imagined
-    it.skip('navigates between sub-tabs in assessment group', () => {
+    it('navigates between sub-tabs in assessment group', async () => {
       renderDashboard(['/dashboard?tab=assessment&sub=findings'])
-      expect(screen.getByTestId('findings')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('findings')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): sub-tab buttons for threats group not found; sub-tab bar rendering imagined
-    it.skip('navigates between sub-tabs in threats group', () => {
+    it('navigates between sub-tabs in threats group', async () => {
       renderDashboard(['/dashboard?tab=threats&sub=threatIntel'])
-      expect(screen.getByTestId('threat-intel')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('threat-intel')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): sub-tab buttons for trendsData group not found; sub-tab bar rendering imagined
-    it.skip('navigates between sub-tabs in trendsData group', () => {
+    it('navigates between sub-tabs in trendsData group', async () => {
       renderDashboard(['/dashboard?tab=trendsData&sub=trends'])
-      expect(screen.getByTestId('trends')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('trends')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): sub-tab buttons for admin group not found; sub-tab bar rendering imagined
-    it.skip('navigates between sub-tabs in admin group', () => {
+    it('navigates between sub-tabs in admin group', async () => {
       renderDashboard(['/dashboard?tab=admin&sub=pipelineHealth'])
-      expect(screen.getByTestId('pipeline-health')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('pipeline-health')).toBeInTheDocument())
     })
 
     it('hides sub-tab bar for tabs without subtabs', () => {
@@ -622,99 +594,87 @@ describe('Dashboard - Navigation & Rendering', () => {
       mockAuthValues.role = 'admin'
     })
 
-    // FIXME(test-repair): legacy tab mapping assertion fails; URL-param → group/sub mapping logic imagined
-    it.skip('maps legacy findings tab to assessment/findings', () => {
+    it('maps legacy findings tab to assessment/findings', async () => {
       renderDashboard(['/dashboard?tab=findings'])
-      expect(screen.getByTestId('findings')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('findings')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): legacy tab mapping assertion fails; URL-param → group/sub mapping logic imagined
-    it.skip('maps legacy smbAdvisor to assessment/smbAdvisor', () => {
+    it('maps legacy smbAdvisor to assessment/smbAdvisor', async () => {
       renderDashboard(['/dashboard?tab=smbAdvisor'])
-      expect(screen.getByTestId('smb-advisor')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('smb-advisor')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): legacy tab mapping assertion fails; URL-param → group/sub mapping logic imagined
-    it.skip('maps legacy aiSummary to assessment/aiSummary', () => {
+    it('maps legacy aiSummary to assessment/aiSummary', async () => {
       renderDashboard(['/dashboard?tab=aiSummary'])
-      expect(screen.getByTestId('ai-summary')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('ai-summary')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): legacy tab mapping assertion fails; URL-param → group/sub mapping logic imagined
-    it.skip('maps legacy threatIntel to threats/threatIntel', () => {
+    it('maps legacy threatIntel to threats/threatIntel', async () => {
       renderDashboard(['/dashboard?tab=threatIntel'])
-      expect(screen.getByTestId('threat-intel')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('threat-intel')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): legacy tab mapping assertion fails; URL-param → group/sub mapping logic imagined
-    it.skip('maps legacy riskScoring to threats/riskScoring', () => {
+    it('maps legacy riskScoring to threats/riskScoring', async () => {
       renderDashboard(['/dashboard?tab=riskScoring'])
-      expect(screen.getByTestId('risk-scoring')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('risk-scoring')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): legacy tab mapping assertion fails; URL-param → group/sub mapping logic imagined
-    it.skip('maps legacy anomalies to threats/anomalies', () => {
+    it('maps legacy anomalies to threats/anomalies', async () => {
       renderDashboard(['/dashboard?tab=anomalies'])
-      expect(screen.getByTestId('anomalies')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('anomalies')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): legacy tab mapping assertion fails; URL-param → group/sub mapping logic imagined
-    it.skip('maps legacy trends to trendsData/trends', () => {
+    it('maps legacy trends to trendsData/trends', async () => {
       renderDashboard(['/dashboard?tab=trends'])
-      expect(screen.getByTestId('trends')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('trends')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): legacy tab mapping assertion fails; URL-param → group/sub mapping logic imagined
-    it.skip('maps legacy dataSources to trendsData/dataSources', () => {
+    it('maps legacy dataSources to trendsData/dataSources', async () => {
       renderDashboard(['/dashboard?tab=dataSources'])
-      expect(screen.getByTestId('data-sources')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('data-sources')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): legacy tab mapping assertion fails; URL-param → group/sub mapping logic imagined
-    it.skip('maps legacy pipelineHealth to admin/pipelineHealth', () => {
+    it('maps legacy pipelineHealth to admin/pipelineHealth', async () => {
       renderDashboard(['/dashboard?tab=pipelineHealth'])
-      expect(screen.getByTestId('pipeline-health')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('pipeline-health')).toBeInTheDocument())
     })
 
-    // FIXME(test-repair): legacy tab mapping assertion fails; URL-param → group/sub mapping logic imagined
-    it.skip('maps legacy normalizationLog to admin/normalizationLog', () => {
+    it('maps legacy normalizationLog to admin/normalizationLog', async () => {
       renderDashboard(['/dashboard?tab=normalizationLog'])
-      expect(screen.getByTestId('normalization-log')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('normalization-log')).toBeInTheDocument())
     })
   })
 
   describe('Multiple Role Scenarios', () => {
-    // FIXME(test-repair): expected tab testIds not found; multiple role scenario assertions imagined
-    it.skip('shows correct tabs for global admin with org', () => {
+    it('shows correct tabs for global admin with org', () => {
       mockAuthValues.orgId = 42
       mockAuthValues.role = 'admin'
       mockAuthValues.orgRole = 'admin'
       renderDashboard()
-      
-      expect(screen.getByTestId('tab-pipelineHealth')).toBeInTheDocument()
-      expect(screen.getByTestId('tab-findings')).toBeInTheDocument()
+
+      expect(screen.getByTestId('tab-admin')).toBeInTheDocument()
+      expect(screen.getByTestId('tab-assessment')).toBeInTheDocument()
     })
 
-    // FIXME(test-repair): expected tab testIds not found; role-based tab visibility assertion imagined
-    it.skip('shows correct tabs for org member without global admin', () => {
+    it('shows correct tabs for org member without global admin', () => {
       mockAuthValues.orgId = 42
       mockAuthValues.role = 'viewer'
       mockAuthValues.orgRole = 'member'
       renderDashboard()
-      
-      expect(screen.queryByTestId('tab-pipelineHealth')).toBeNull()
-      expect(screen.getByTestId('tab-findings')).toBeInTheDocument()
+
+      expect(screen.queryByTestId('tab-admin')).toBeNull()
+      expect(screen.getByTestId('tab-assessment')).toBeInTheDocument()
     })
 
-    // FIXME(test-repair): expected tab testIds not found; owner role tab visibility assertion imagined
-    it.skip('shows correct tabs for owner of org', () => {
+    it('shows correct tabs for owner of org', () => {
       mockAuthValues.orgId = 42
       mockAuthValues.role = 'viewer'
       mockAuthValues.orgRole = 'owner'
       renderDashboard()
-      
-      expect(screen.getByTestId('tab-pipelineHealth')).toBeInTheDocument()
-      expect(screen.getByTestId('tab-findings')).toBeInTheDocument()
+
+      // owner orgRole does not satisfy requiresAdmin (only 'admin' does)
+      expect(screen.queryByTestId('tab-admin')).toBeNull()
+      expect(screen.getByTestId('tab-assessment')).toBeInTheDocument()
     })
   })
 
@@ -725,8 +685,7 @@ describe('Dashboard - Navigation & Rendering', () => {
       expect(screen.getByTestId('overview-tab')).toBeInTheDocument()
     })
 
-    // FIXME(test-repair): tab state not updated after rerender with different role; mock swap pattern broken
-    it.skip('handles switching between users with different roles', () => {
+    it('handles switching between users with different roles', () => {
       mockAuthValues.orgId = 42
       mockAuthValues.role = 'viewer'
       renderDashboard()
@@ -736,8 +695,7 @@ describe('Dashboard - Navigation & Rendering', () => {
       expect(screen.getByTestId('pipeline-health')).toBeInTheDocument()
     })
 
-    // FIXME(test-repair): tab selection persistence assertion imagined; no state-retention mechanism tested
-    it.skip('persists tab selection across navigation', () => {
+    it('persists tab selection across navigation', () => {
       mockAuthValues.orgId = 42
       renderDashboard(['/dashboard?tab=riskScoring'])
       expect(screen.getByTestId('risk-scoring')).toBeInTheDocument()
