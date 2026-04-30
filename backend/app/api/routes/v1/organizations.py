@@ -287,6 +287,7 @@ async def get_assessment_debug(
 @limiter.limit("5/minute")
 async def get_ai_summary(
     request: Request,  # noqa: ARG001
+    force_refresh: bool = Query(default=False),  # noqa: FBT001
     current_user: User = Depends(get_current_user),
     org: Organization = Depends(get_current_org),
     db: AsyncSession = Depends(get_session),
@@ -296,6 +297,7 @@ async def get_ai_summary(
     Uses Google Gemini to synthesize findings into a plain-language narrative.
     Falls back to a template-based summary if Gemini is unavailable or disabled.
     Responses are cached per org for AI_SUMMARY_CACHE_TTL seconds (default 1 hour).
+    Pass force_refresh=true to bypass the cache and regenerate immediately.
     """
     if not settings.AI_SUMMARY_ENABLED:
         raise HTTPException(status_code=503, detail="AI summary is currently disabled.")
@@ -310,7 +312,10 @@ async def get_ai_summary(
             ),
         )
     try:
-        return await AISummaryService(db).build(org, triggered_by_user_id=current_user.id)
+        service = AISummaryService(db)
+        if force_refresh:
+            service.invalidate(org.id)
+        return await service.build(org, triggered_by_user_id=current_user.id)
     except Exception:
         logger.exception("Failed to build AI summary for org %s", org.id)
         raise HTTPException(status_code=500, detail="Failed to generate AI summary")

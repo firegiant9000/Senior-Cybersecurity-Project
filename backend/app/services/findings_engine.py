@@ -127,9 +127,9 @@ def _threat_exposure_from_sector(
                 severity_score=_severity_score(severity, score_weight),
                 title=f"{industry_label or ic3_sector} is a top target for {attack_type}",
                 description=(
-                    f"FBI IC3 data and industry research indicate that {ic3_sector} organizations "
+                    f"FBI IC3 data shows that {ic3_sector} organizations "
                     f"account for approximately {pct}% of {attack_type} incidents. "
-                    f"Organizations in this sector should prioritize defenses against this attack type."
+                    f"Ask your IT provider what protections are in place against this specific attack type."
                 ),
                 evidence={"sector": ic3_sector, "attack_type": attack_type, "weight": weight},
                 source="ic3_sector_weights",
@@ -152,11 +152,13 @@ def _threat_exposure_from_dns(domain: str, dns: DnsCheckResult) -> list[Finding]
                 finding_type="threat_exposure",
                 severity="high",
                 severity_score=_severity_score("high", 0.7),
-                title=f"No SPF record found for {domain}",
+                title=f"No SPF record for {domain} — your email address can be spoofed",
                 description=(
-                    f"The domain {domain} has no SPF (Sender Policy Framework) TXT record. "
-                    "Without SPF, attackers can send emails that appear to come from your domain, "
-                    "enabling phishing and impersonation attacks against your partners and customers."
+                    f"The domain {domain} has no SPF record — an email setting that tells other mail servers "
+                    "which senders are authorized to send on your behalf. "
+                    "Without it, attackers can send emails that appear to come from your business, "
+                    "making phishing attacks against your customers and partners more convincing. "
+                    "Ask your IT provider or email host to add an SPF record."
                 ),
                 evidence={"domain": domain, "spf_found": False},
                 source="dns_checks",
@@ -171,11 +173,13 @@ def _threat_exposure_from_dns(domain: str, dns: DnsCheckResult) -> list[Finding]
                 finding_type="threat_exposure",
                 severity="high",
                 severity_score=_severity_score("high", 0.8),
-                title=f"No DMARC record found for {domain}",
+                title=f"No DMARC policy for {domain} — spoofed emails from your address reach recipients",
                 description=(
-                    f"The domain {domain} has no DMARC policy. Without DMARC, spoofed emails "
-                    "from your domain will be delivered to recipients with no automated rejection. "
-                    "DMARC with a 'reject' or 'quarantine' policy prevents email spoofing."
+                    f"The domain {domain} has no DMARC policy. DMARC is an email protection setting "
+                    "that tells receiving mail servers what to do when they detect a spoofed message "
+                    "pretending to come from your domain. Without it, phishing emails that impersonate "
+                    "your business are delivered to your contacts instead of being blocked. "
+                    "Ask your IT provider to add a DMARC record with a 'quarantine' or 'reject' policy."
                 ),
                 evidence={"domain": domain, "dmarc_found": False},
                 source="dns_checks",
@@ -189,11 +193,12 @@ def _threat_exposure_from_dns(domain: str, dns: DnsCheckResult) -> list[Finding]
                 finding_type="threat_exposure",
                 severity="medium",
                 severity_score=_severity_score("medium", 0.6),
-                title=f"DMARC policy is set to 'none' for {domain}",
+                title=f"DMARC for {domain} is in monitor-only mode — spoofed emails still reach recipients",
                 description=(
-                    f"DMARC is configured for {domain} but the policy is 'p=none', which only "
-                    "monitors email traffic without rejecting or quarantining spoofed messages. "
-                    "Upgrade to 'p=quarantine' or 'p=reject' to actively block spoofed emails."
+                    f"DMARC is configured for {domain} but is set to 'monitor only', which logs "
+                    "suspicious emails without blocking or quarantining them. "
+                    "Ask your IT provider to change this to 'quarantine' or 'reject' to actively "
+                    "stop attackers from impersonating your business in email."
                 ),
                 evidence={"domain": domain, "dmarc_policy": dns.dmarc_policy},
                 source="dns_checks",
@@ -216,12 +221,12 @@ def _threat_exposure_from_ssl(domain: str, ssl_result: SslCheckResult) -> list[F
                 finding_type="threat_exposure",
                 severity="high",
                 severity_score=_severity_score("high", 0.6),
-                title=f"Self-signed SSL certificate detected on {domain}",
+                title=f"Untrusted security certificate on {domain} — visitors will see a browser warning",
                 description=(
-                    f"The domain {domain} is serving a self-signed TLS certificate. "
-                    "Self-signed certificates are not trusted by browsers and may indicate "
-                    "a misconfiguration or a man-in-the-middle interception. Replace with a "
-                    "certificate from a trusted Certificate Authority."
+                    f"The domain {domain} is using a self-signed certificate, which web browsers do not trust. "
+                    "Visitors will see a security warning before reaching your site, which harms credibility "
+                    "and may deter customers. Ask your IT provider to replace it with a certificate from a "
+                    "recognized authority — free options like Let's Encrypt are widely available."
                 ),
                 evidence={"domain": domain, "self_signed": True, "issuer": ssl_result.issuer},
                 source="ssl_checks",
@@ -317,12 +322,12 @@ def _vendor_exposure_findings(  # noqa: C901
                 finding_type="vendor_exposure",
                 severity="critical",
                 severity_score=_severity_score("critical", crit_weight),
-                title=f"{critical_count} critical known-exploited CVE(s) affect {_vendor_list(critical_vendors) if critical_vendors else 'your tech stack'}",
+                title=f"{critical_count} security flaw(s) in {_vendor_list(critical_vendors) if critical_vendors else 'your software'} are being actively exploited by attackers",
                 description=(
-                    f"CISA's Known Exploited Vulnerabilities catalog lists {critical_count} "
-                    f"critical-severity CVE(s){vendor_clause}. "
-                    "These vulnerabilities have confirmed active exploitation in the wild "
-                    "and carry CISA patch mandates — apply available patches immediately."
+                    f"CISA's Known Exploited Vulnerabilities list — a U.S. government catalog of software flaws "
+                    f"confirmed to be used in real attacks — contains {critical_count} critical flaw(s){vendor_clause}. "
+                    "These are not theoretical risks. "
+                    "Ask your IT provider to apply patches immediately."
                 ),
                 evidence={
                     "critical_count": critical_count,
@@ -346,11 +351,11 @@ def _vendor_exposure_findings(  # noqa: C901
                 finding_type="vendor_exposure",
                 severity="high",
                 severity_score=_severity_score("high", high_weight),
-                title=f"{high_count} high-severity exploited CVE(s){' affect ' + _vendor_list(high_vendors) if high_vendors else ' match your tech stack'}",
+                title=f"{high_count} high-severity exploited flaw(s) in {_vendor_list(high_vendors) if high_vendors else 'your software'} need urgent patching",
                 description=(
-                    f"CISA KEV lists {high_count} high-severity CVE(s){high_vendor_clause}. "
-                    "These are actively exploited in the wild and should be patched on an "
-                    "accelerated schedule — within 30 days where vendor patches are available."
+                    f"CISA's Known Exploited Vulnerabilities list contains {high_count} high-severity flaw(s){high_vendor_clause}. "
+                    "Attackers are actively exploiting these in the wild. "
+                    "While less urgent than critical flaws, ask your IT provider to patch them as soon as possible."
                 ),
                 evidence={
                     "high_count": high_count,
@@ -395,12 +400,12 @@ def _vendor_exposure_findings(  # noqa: C901
                 finding_type="vendor_exposure",
                 severity="high",
                 severity_score=_severity_score("high", 0.8),
-                title=f"{count} CVE(s) affecting {vendor_str} have CISA patch deadlines within 30 days",
+                title=f"{count} urgent patch(es) in {vendor_str} flagged by the U.S. government (due within 30 days)",
                 description=(
-                    f"CISA's binding patch mandate requires federal agencies to remediate {count} CVE(s) "
-                    f"affecting {vendor_str}. {urgency} "
-                    "Even for non-federal orgs, these deadlines mark the highest-priority vulnerabilities — "
-                    "prioritize patching these above other open issues."
+                    f"CISA — the U.S. government's cyber defense agency — has set 30-day deadlines "
+                    f"to fix {count} security flaw(s) affecting {vendor_str}. {urgency} "
+                    "While these deadlines apply to federal agencies, they identify the most actively dangerous vulnerabilities. "
+                    "Ask your IT provider to prioritize patching these immediately."
                 ),
                 evidence={"count": count, "vendors": deadline_vendors, "min_days_left": min_days},
                 source="kev_vendor_match",
@@ -421,10 +426,10 @@ def _vendor_exposure_findings(  # noqa: C901
                 severity_score=_severity_score("info", 0.3),
                 title=f"No CISA KEV matches for {vendor_list_str}",
                 description=(
-                    f"CISA's Known Exploited Vulnerabilities catalog has no entries for: {vendor_list_str}. "
-                    "These vendors have not appeared in CISA's confirmed-exploitation list, "
-                    "but this does not mean their products are free of vulnerabilities — "
-                    "check vendor security advisories directly for patches and CVEs."
+                    f"The following vendors in your stack have no entries in CISA KEV "
+                    f"(the U.S. government's list of actively exploited software flaws): {vendor_list_str}. "
+                    "This is a positive signal — it does not mean these products are vulnerability-free, "
+                    "but they have not been actively exploited in a way that reached CISA's catalog."
                 ),
                 evidence={"unmatched_vendors": unmatched_vendors},
                 source="kev_vendor_match",
@@ -447,17 +452,17 @@ def _data_gap_findings(readiness_data: dict) -> list[Finding]:
     tier = readiness_data.get("tier", "minimal")
 
     item_impact: dict[str, str] = {
-        "org_name": "identifying your organization accurately across all generated reports",
-        "industry": "matching your sector to FBI IC3 attack statistics and surfacing industry-specific threats",
-        "state": "applying your state's IC3 loss data to produce a localized financial risk estimate",
-        "employee_range": "calibrating risk scores and projected losses to your organization's size",
-        "vendors": "scanning your technology stack against CISA's Known Exploited Vulnerabilities (KEV) catalog",
-        "domains": "running DNS, HTTP security header, and SSL certificate checks against your public presence",
-        "revenue": "improving the accuracy of annual expected-loss projections in your risk score",
-        "uploads": "incorporating policy documents and configurations into your assessment context",
-        "security_controls": "scoring your CIS IG1 control coverage and identifying specific control gaps",
-        "compliance_frameworks": "detecting regulatory compliance gaps and surfacing framework-specific findings",
-        "data_types": "mapping your handled data to applicable regulations and assessing regulatory exposure",
+        "org_name": "accurate org identification in reports",
+        "industry": "sector-specific threat exposure analysis",
+        "state": "geographic IC3 loss projection data",
+        "employee_range": "size-adjusted risk scoring and loss estimates",
+        "vendors": "checking your software for known actively-exploited security flaws",
+        "domains": "DNS, HTTP header, and SSL security checks",
+        "revenue": "more accurate annual loss projections",
+        "uploads": "document-based context for findings",
+        "security_controls": "assessing your basic security controls against an industry baseline",
+        "compliance_frameworks": "regulatory compliance gap detection and industry-specific findings",
+        "data_types": "identifying which regulations may apply to the data you store",
     }
 
     incomplete_required = [i for i in items if not i.get("complete") and i.get("required")]
@@ -514,7 +519,7 @@ def _data_gap_findings(readiness_data: dict) -> list[Finding]:
                 description=(
                     "Your organization profile is missing required fields. "
                     "The findings in this report are based on partial data and may not "
-                    "reflect your actual risk posture. Complete your profile to get a "
+                    "reflect your actual risk level. Complete your profile to get a "
                     "full, accurate assessment."
                 ),
                 evidence={"tier": tier},
@@ -1286,12 +1291,13 @@ def _synthesize_recommendations(all_findings: list[Finding]) -> list[Finding]:
                 finding_type="recommended_action",
                 severity="high",
                 severity_score=_severity_score("high", 0.6),
-                title="Configure email security records (SPF/DMARC) to prevent spoofing",
+                title="Ask your IT provider to set up email protection records to prevent impersonation",
                 description=(
                     f"Your domain has {len(dns_findings)} email security gap(s). "
-                    "Add SPF to authorize legitimate mail servers, and set DMARC to "
-                    "'quarantine' or 'reject' to stop spoofed emails. "
-                    "This addresses a significant phishing and BEC risk at zero cost."
+                    "SPF and DMARC records — email settings that prove which senders are authorized "
+                    "and block spoofed messages — are missing or incomplete. "
+                    "Ask your IT or email hosting provider to add these. "
+                    "It's low-cost and stops attackers from impersonating your business."
                 ),
                 evidence={"dns_finding_count": len(dns_findings)},
                 source="findings_synthesis",
@@ -1311,13 +1317,12 @@ def _synthesize_recommendations(all_findings: list[Finding]) -> list[Finding]:
                 finding_type="recommended_action",
                 severity="critical",
                 severity_score=_severity_score("critical", 0.8),
-                title="Audit and patch critical CVEs in your technology stack immediately",
+                title="Ask your IT provider to apply urgent security patches to your software",
                 description=(
-                    "Your vendor stack has critical known-exploited vulnerabilities. "
-                    "Review the Vendor Alerts tab for the full list. "
-                    "Prioritize CVEs with upcoming CISA deadlines and those rated Critical. "
-                    "Apply vendor patches, enable auto-update where possible, or isolate "
-                    "affected systems until patched."
+                    "Your technology stack has critical known-exploited security flaws. "
+                    "Review the Vendor Alerts tab for the full list, prioritizing items marked Critical. "
+                    "Ask your IT provider or software vendors to apply available patches, "
+                    "enable automatic updates where possible, or isolate affected systems until patched."
                 ),
                 evidence={},
                 source="findings_synthesis",
@@ -1336,11 +1341,11 @@ def _synthesize_recommendations(all_findings: list[Finding]) -> list[Finding]:
                 finding_type="recommended_action",
                 severity="medium",
                 severity_score=_severity_score("medium", 0.5),
-                title=f"Complete {len(data_gap_required)} required profile field(s) to improve assessment accuracy",
+                title=f"Add {len(data_gap_required)} missing detail(s) to your profile to get a more complete risk picture",
                 description=(
                     "Several required fields in your organization profile are empty. "
-                    "Completing them enables sector-specific threat analysis, vendor CVE matching, "
-                    "and more accurate loss projections. "
+                    "Completing them lets us check for threats specific to your industry, "
+                    "match vulnerabilities to your software, and give you more accurate loss estimates. "
                     "Go to Settings → Company Profile to update them."
                 ),
                 evidence={"missing_required_count": len(data_gap_required)},

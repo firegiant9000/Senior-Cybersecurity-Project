@@ -10,6 +10,8 @@ import { MemoryRouter, MemoryRouterProps } from 'react-router-dom'
 import React from 'react'
 import { vi, expect } from 'vitest'
 
+import type { OrgInvite, OrgMember } from '../api/members'
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Mock Data Factories
 // ─────────────────────────────────────────────────────────────────────────────
@@ -21,21 +23,12 @@ export interface MockUser {
   metadata?: { lastSignInTime: string }
 }
 
-export interface MockOrgMember {
-  user_id: number
-  email: string
-  role: 'owner' | 'admin' | 'member'
-  created_at: string
-}
-
-export interface MockInvite {
-  id: number
-  invited_email: string
-  role: 'owner' | 'admin' | 'member'
-  created_at: string
-  expires_at: string
-  error_message: string | null
-}
+// MockOrgMember / MockInvite are aliases for the real API types so the
+// compiler enforces alignment between mocks and the schemas the components
+// actually consume. See frontend/src/api/members.ts for the source of truth
+// (which mirrors backend/app/schemas/org_invite.py).
+export type MockOrgMember = OrgMember
+export type MockInvite = OrgInvite
 
 export interface MockAssessmentData {
   current_tier: number
@@ -66,6 +59,7 @@ export function createMockOrgMember(overrides: Partial<MockOrgMember> = {}): Moc
     user_id: Math.floor(Math.random() * 10000),
     email: `user-${Math.random().toString(36).substr(2, 5)}@example.com`,
     role: 'member',
+    is_active: true,
     created_at: new Date().toISOString(),
     ...overrides,
   }
@@ -80,11 +74,13 @@ export function createMockInvite(overrides: Partial<MockInvite> = {}): MockInvit
 
   return {
     id: Math.floor(Math.random() * 10000),
-    invited_email: `invited-${Math.random().toString(36).substr(2, 5)}@example.com`,
+    org_id: 1,
+    email: `invited-${Math.random().toString(36).substr(2, 5)}@example.com`,
     role: 'member',
+    status: 'pending',
+    inviter_id: null,
     created_at: createdAt.toISOString(),
     expires_at: expiresAt.toISOString(),
-    error_message: null,
     ...overrides,
   }
 }
@@ -131,7 +127,7 @@ export function createMockInvitesList(count = 2): { items: MockInvite[]; total: 
     items: Array.from({ length: count }, (_, i) =>
       createMockInvite({
         id: i + 1,
-        invited_email: `pending${i + 1}@example.com`,
+        email: `pending${i + 1}@example.com`,
         role: i % 2 === 0 ? 'member' : 'admin',
       }),
     ),
@@ -466,50 +462,23 @@ export function expectRequiresOrg(authContext: { orgId: number | null | undefine
 // Test Setup Utilities
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface MockAuthContext {
-  user: MockUser | null
-  loading: boolean
-  orgId: number | null
-  orgLoading: boolean
-  profileError: boolean
-  role: string | null
-  orgRole: string | null
-  logout: ReturnType<typeof vi.fn>
-  login: ReturnType<typeof vi.fn>
-  signup: ReturnType<typeof vi.fn>
-  refreshProfile: ReturnType<typeof vi.fn>
-  getIdToken: ReturnType<typeof vi.fn>
-}
-
-export interface MockApis {
-  listMembers: ReturnType<typeof vi.fn>
-  listInvites: ReturnType<typeof vi.fn>
-  createInvite: ReturnType<typeof vi.fn>
-  revokeInvite: ReturnType<typeof vi.fn>
-  updateMemberRole: ReturnType<typeof vi.fn>
-  removeMember: ReturnType<typeof vi.fn>
-  fetchAssessmentIntake: ReturnType<typeof vi.fn>
-  fetchAssessmentDebug: ReturnType<typeof vi.fn>
-  fetchAISummaryHistory: ReturnType<typeof vi.fn>
-}
-
 /**
  * Create standardized test setup for page components
  */
 export function createPageTestSetup(options: {
-  auth?: MockAuthContext
+  auth?: Record<string, unknown>
   route?: string
-  apis?: Partial<MockApis>
-} = {}): { auth: MockAuthContext; apis: MockApis; route: string; render: (component: React.ReactElement) => RenderResult } {
-  const auth = (options.auth ?? createOrgMemberAuth(1, 'owner')) as MockAuthContext
-  const apis = { ...setupTestEnvironment().mockApis, ...options.apis } as MockApis
+  apis?: Record<string, unknown>
+} = {}) {
+  const auth: Record<string, unknown> = options.auth ?? createOrgMemberAuth(1, 'owner')
+  const apis: Record<string, unknown> = options.apis ?? setupTestEnvironment().mockApis
 
   return {
     auth,
     apis,
-    route: options.route ?? '/',
+    route: options.route || '/',
     render: (component: React.ReactElement) => {
-      return renderWithRouter(component, { initialEntries: [options.route ?? '/'] })
+      return renderWithRouter(component, { initialEntries: [options.route || '/'] })
     },
   }
 }

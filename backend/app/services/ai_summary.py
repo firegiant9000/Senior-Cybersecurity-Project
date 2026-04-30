@@ -90,10 +90,15 @@ def _build_prompt(
     readiness_pct = _readiness_pct(report)
 
     system_block = (
-        "You are a cybersecurity risk analyst writing a brief executive summary.\n"
+        "You are writing a plain-English security briefing for a small-business owner "
+        "with no cybersecurity background.\n"
         "You MUST only reference data provided below. Do NOT speculate or invent threats.\n"
-        "Write in a professional, non-alarmist, actionable tone.\n"
-        "Use 3-5 short paragraphs."
+        "Write in a calm, direct, owner-friendly tone — not alarmist, not academic.\n"
+        "If you use a technical term or acronym, define it in plain English on first use "
+        "(example: 'SPF record — an email setting that blocks attackers from spoofing your domain').\n"
+        "Never use these words: leverage, robust, posture, ensure, comprehensive.\n"
+        "Do NOT mention specific CVE identifiers. Refer to vulnerabilities by vendor, "
+        "product, and severity only."
     )
 
     context_block = (
@@ -112,13 +117,20 @@ def _build_prompt(
     )
 
     instructions = (
-        "1. Open with a one-sentence overall risk posture statement.\n"
-        "2. Highlight the top 2-3 most actionable findings with context.\n"
-        "3. Explain vendor exposure in business terms (not CVE IDs).\n"
-        "4. Note the most impactful data gaps and how filling them improves the assessment.\n"
-        "5. Close with 3 prioritized next steps the organization should take.\n\n"
-        "Do NOT mention specific CVE identifiers. Refer to vulnerabilities by vendor, "
-        "product, and severity. Keep the total response under 500 words."
+        "1. Open with one plain-English sentence describing the organization's overall risk level — "
+        "name the industry and one concrete consequence if left unaddressed.\n"
+        "2. Highlight the top 2-3 most urgent findings. For each one, explain WHY it matters to the "
+        "business owner, not just that it exists.\n"
+        "3. Describe vendor exposure in plain business terms: which products are affected and what an "
+        "attacker could actually do with the vulnerability.\n"
+        "4. Note the most impactful missing information and what the owner should provide to get a "
+        "more complete picture.\n"
+        "5. Close with exactly 3 prioritized next steps. Each step MUST: "
+        "(a) start with an action verb, "
+        "(b) be something the owner can ask their IT provider or vendor to do this week, "
+        "(c) tie back to a specific finding listed above. "
+        "Do NOT write generic advice like 'improve your security practices'.\n\n"
+        "Keep the total response under 500 words."
     )
 
     json_schema_block = (
@@ -192,9 +204,11 @@ def _build_fallback(org: Organization, report: FindingsReport, risk_score: float
     ]
     top_threats = [f.title for f in threat_findings[:2]]
     threats_text = (
-        f"Primary threat exposures include: {'; '.join(top_threats)}."
+        f"The most urgent issues to address right now: {'; '.join(top_threats)}. "
+        "Each of these represents an active attack pathway that criminals are already using "
+        "against businesses in your industry."
         if top_threats
-        else "No high-severity threat exposures were identified at this time."
+        else "No high-severity active threats were identified targeting your profile at this time."
     )
 
     vendor_findings = [
@@ -207,33 +221,39 @@ def _build_fallback(org: Organization, report: FindingsReport, risk_score: float
         unique_vendors = list(dict.fromkeys(affected))
         vendor_clause = f" in {', '.join(unique_vendors[:3])}" if unique_vendors else ""
         vendor_text = (
-            f"Your technology stack has {critical_count} critical known-exploited "
-            f"vulnerabilit{'y' if critical_count == 1 else 'ies'}{vendor_clause} requiring immediate attention."
+            f"Your software stack has {critical_count} critical security flaw(s){vendor_clause} "
+            "that attackers are actively exploiting in the wild. These are not theoretical risks — "
+            "patches or mitigations should be applied as soon as possible."
         )
     else:
-        vendor_text = "No critical vendor vulnerabilities were matched at this time."
+        vendor_text = (
+            "No critical software vulnerabilities were matched to your technology stack at this time."
+        )
 
     data_gaps = [
         f for f in report.findings if f.finding_type == "data_gap" and f.evidence.get("required")
     ]
     gap_text = (
-        f"Completing {len(data_gaps)} required profile field(s) would significantly "
-        "improve assessment accuracy and enable additional analysis."
+        f"There are {len(data_gaps)} piece(s) of information missing from your profile. "
+        "Adding them would allow us to check for additional threats specific to your business."
         if data_gaps
-        else "Your organization profile is well-populated, enabling comprehensive analysis."
+        else "Your organization profile is complete, allowing for a thorough assessment."
     )
 
     recs = [f for f in report.findings if f.finding_type == "recommended_action"]
     rec_text = (
-        "Recommended next steps: " + " | ".join(r.title for r in recs[:3]) + "."
+        "The three most important actions to take this week: "
+        + "; ".join(r.title for r in recs[:3])
+        + ". "
+        "Share these with your IT provider and ask them to prioritize accordingly."
         if recs
-        else "Continue monitoring the platform for new threat intelligence updates."
+        else "Check back regularly as new threat data is added to keep this assessment current."
     )
 
     return (
-        f"Based on our analysis, {name} has an overall risk score of {risk_score:.0f}/100 ({label}). "
-        f"As a {size}-employee organization in {industry}, this assessment covers {total} findings "
-        f"across threat exposure, vendor vulnerabilities, and profile completeness.\n\n"
+        f"{name} has a risk score of {risk_score:.0f} out of 100 — rated {label}. "
+        f"As a {size}-employee business in {industry}, we reviewed {total} findings "
+        f"covering active threats, software vulnerabilities, and profile completeness.\n\n"
         f"{threats_text}\n\n"
         f"{vendor_text}\n\n"
         f"{gap_text}\n\n"

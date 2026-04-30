@@ -374,8 +374,8 @@ describe('SettingsPage - Member Management', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText(/01\/01\/2024|2024/)).toBeInTheDocument()
-        expect(screen.getByText(/01\/02\/2024|2024/)).toBeInTheDocument()
+        expect(screen.getAllByText(/01\/01\/2024|1\/1\/2024|2024-01-01/).length).toBeGreaterThan(0)
+        expect(screen.getAllByText(/01\/02\/2024|1\/2\/2024|2024-01-02/).length).toBeGreaterThan(0)
       })
     })
   })
@@ -736,7 +736,7 @@ describe('SettingsPage - Member Management', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText(/02\/15\/2024|2024/)).toBeInTheDocument()
+        expect(screen.getAllByText(/02\/15\/2024|2\/15\/2024|2024-02-15/).length).toBeGreaterThan(0)
       })
     })
   })

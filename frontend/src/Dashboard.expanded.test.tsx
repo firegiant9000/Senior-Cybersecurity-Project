@@ -1,6 +1,6 @@
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hoisted Mocks
@@ -69,7 +69,6 @@ vi.mock('./hooks/useDashboardData', () => ({
       lossProjection: null, executiveSummary: null,
     },
     loading: false, loadingHeavy: false, errors: [], lastUpdated: null, refresh: mockRefresh,
-    setOnProgress: vi.fn(),
   }),
 }))
 
@@ -173,8 +172,6 @@ describe('Dashboard - Navigation & Rendering', () => {
     mockAuthValues.orgRole = null
   })
 
-  afterEach(() => cleanup())
-
   describe('Page Structure & Header', () => {
     it('renders dashboard container', () => {
       renderDashboard()
@@ -204,8 +201,6 @@ describe('Dashboard - Navigation & Rendering', () => {
   })
 
   describe('Tab Visibility by Organization Status', () => {
-    // getVisibleGroups shows requiresOrg tabs as locked (disabled) when user has no org,
-    // not hidden entirely — so they appear in the DOM as disabled buttons.
     it('locks org-only tabs when user has no org', () => {
       renderDashboard()
       expect(screen.getByTestId('tab-assessment')).toBeDisabled()
@@ -268,8 +263,6 @@ describe('Dashboard - Navigation & Rendering', () => {
       expect(screen.getByTestId('tab-admin')).toBeInTheDocument()
     })
 
-    // getVisibleGroups: isAdmin = role==='admin' || orgRole==='admin'. Org owners
-    // (orgRole='owner') do not satisfy this, so admin/data-health tab is hidden.
     it('does not show admin tabs for org owner without admin role', () => {
       mockAuthValues.orgId = 42
       mockAuthValues.role = 'viewer'
@@ -278,13 +271,11 @@ describe('Dashboard - Navigation & Rendering', () => {
       expect(screen.queryByTestId('tab-admin')).toBeNull()
     })
 
-    // Global admins (role='admin') always see the admin tab — orgLoading only gates
-    // org-specific visibility, not global-role-based visibility.
-    it('shows admin tabs for global admin even while org is loading', () => {
+    it('hides admin tabs while org is loading and no admin role', () => {
       mockAuthValues.orgLoading = true
-      mockAuthValues.role = 'admin'
+      mockAuthValues.role = null
       renderDashboard()
-      expect(screen.getByTestId('tab-admin')).toBeInTheDocument()
+      expect(screen.queryByTestId('tab-admin')).toBeNull()
     })
   })
 
@@ -300,56 +291,54 @@ describe('Dashboard - Navigation & Rendering', () => {
       expect(screen.getByTestId('overview-tab')).toBeInTheDocument()
     })
 
-    // Lazy-loaded tab content is inside <Suspense> — use findByTestId to wait for
-    // the lazy import Promise to settle and the fallback to be replaced.
     it('can navigate to threats tab with threatIntel sub-tab', async () => {
       renderDashboard(['/dashboard?tab=threats&sub=threatIntel'])
-      expect(await screen.findByTestId('threat-intel')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('threat-intel')).toBeInTheDocument())
     })
 
     it('can navigate to riskScoring sub-tab', async () => {
       renderDashboard(['/dashboard?tab=threats&sub=riskScoring'])
-      expect(await screen.findByTestId('risk-scoring')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('risk-scoring')).toBeInTheDocument())
     })
 
     it('can navigate to assessment/findings', async () => {
       renderDashboard(['/dashboard?tab=assessment&sub=findings'])
-      expect(await screen.findByTestId('findings')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('findings')).toBeInTheDocument())
     })
 
     it('can navigate to assessment/aiSummary', async () => {
       renderDashboard(['/dashboard?tab=assessment&sub=aiSummary'])
-      expect(await screen.findByTestId('ai-summary')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('ai-summary')).toBeInTheDocument())
     })
 
     it('can navigate to assessment/smbAdvisor', async () => {
       renderDashboard(['/dashboard?tab=assessment&sub=smbAdvisor'])
-      expect(await screen.findByTestId('smb-advisor')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('smb-advisor')).toBeInTheDocument())
     })
 
     it('can navigate to vendorAlerts tab', async () => {
       renderDashboard(['/dashboard?tab=vendorAlerts'])
-      expect(await screen.findByTestId('vendor-alerts')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('vendor-alerts')).toBeInTheDocument())
     })
 
     it('can navigate to trends sub-tab', async () => {
       renderDashboard(['/dashboard?tab=trendsData&sub=trends'])
-      expect(await screen.findByTestId('trends')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('trends')).toBeInTheDocument())
     })
 
     it('can navigate to dataSources sub-tab', async () => {
       renderDashboard(['/dashboard?tab=trendsData&sub=dataSources'])
-      expect(await screen.findByTestId('data-sources')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('data-sources')).toBeInTheDocument())
     })
 
     it('can navigate to pipelineHealth (admin sub-tab)', async () => {
       renderDashboard(['/dashboard?tab=admin&sub=pipelineHealth'])
-      expect(await screen.findByTestId('pipeline-health')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('pipeline-health')).toBeInTheDocument())
     })
 
     it('can navigate to normalizationLog (admin sub-tab)', async () => {
       renderDashboard(['/dashboard?tab=admin&sub=normalizationLog'])
-      expect(await screen.findByTestId('normalization-log')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('normalization-log')).toBeInTheDocument())
     })
 
     it('disables navigation to locked tabs', () => {
@@ -360,14 +349,14 @@ describe('Dashboard - Navigation & Rendering', () => {
       }
     })
 
-    it('falls back to overview when accessing locked tab', () => {
+    it('falls back to overview when accessing locked tab', async () => {
       renderDashboard(['/dashboard?tab=lockedTab'])
-      expect(screen.getByTestId('overview-tab')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('overview-tab')).toBeInTheDocument())
     })
 
-    it('falls back to overview when accessing non-existent tab', () => {
+    it('falls back to overview when accessing non-existent tab', async () => {
       renderDashboard(['/dashboard?tab=invalidTab'])
-      expect(screen.getByTestId('overview-tab')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('overview-tab')).toBeInTheDocument())
     })
   })
 
@@ -381,7 +370,7 @@ describe('Dashboard - Navigation & Rendering', () => {
       renderDashboard()
       const toggleBtn = screen.getByTestId('dark-mode-toggle')
       fireEvent.click(toggleBtn)
-
+      
       await waitFor(() => {
         expect(mockToggleDark).toHaveBeenCalled()
       })
@@ -404,7 +393,7 @@ describe('Dashboard - Navigation & Rendering', () => {
       renderDashboard()
       const logoutBtn = screen.getByTestId('logout-btn')
       fireEvent.click(logoutBtn)
-
+      
       expect(mockLogout).toHaveBeenCalled()
     })
   })
@@ -424,64 +413,64 @@ describe('Dashboard - Navigation & Rendering', () => {
       mockAuthValues.role = 'admin'
     })
 
-    it('renders OverviewTab content when viewing overview', () => {
+    it('renders OverviewTab content when viewing overview', async () => {
       renderDashboard(['/dashboard'])
-      expect(screen.getByTestId('overview-tab')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('overview-tab')).toBeInTheDocument())
     })
 
     it('renders RiskScoringTable when viewing threats/riskScoring', async () => {
       renderDashboard(['/dashboard?tab=threats&sub=riskScoring'])
-      expect(await screen.findByTestId('risk-scoring')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('risk-scoring')).toBeInTheDocument())
     })
 
     it('renders ThreatIntelTab when viewing threats/threatIntel', async () => {
       renderDashboard(['/dashboard?tab=threats&sub=threatIntel'])
-      expect(await screen.findByTestId('threat-intel')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('threat-intel')).toBeInTheDocument())
     })
 
     it('renders TrendsTab when viewing trendsData/trends', async () => {
       renderDashboard(['/dashboard?tab=trendsData&sub=trends'])
-      expect(await screen.findByTestId('trends')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('trends')).toBeInTheDocument())
     })
 
     it('renders PipelineHealthTab when viewing admin/pipelineHealth', async () => {
       renderDashboard(['/dashboard?tab=admin&sub=pipelineHealth'])
-      expect(await screen.findByTestId('pipeline-health')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('pipeline-health')).toBeInTheDocument())
     })
 
     it('renders NormalizationLogTab when viewing admin/normalizationLog', async () => {
       renderDashboard(['/dashboard?tab=admin&sub=normalizationLog'])
-      expect(await screen.findByTestId('normalization-log')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('normalization-log')).toBeInTheDocument())
     })
 
     it('renders SmBAdvisorTab when viewing assessment/smbAdvisor', async () => {
       renderDashboard(['/dashboard?tab=assessment&sub=smbAdvisor'])
-      expect(await screen.findByTestId('smb-advisor')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('smb-advisor')).toBeInTheDocument())
     })
 
     it('renders FindingsTab when viewing assessment/findings', async () => {
       renderDashboard(['/dashboard?tab=assessment&sub=findings'])
-      expect(await screen.findByTestId('findings')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('findings')).toBeInTheDocument())
     })
 
     it('renders AISummaryTab when viewing assessment/aiSummary', async () => {
       renderDashboard(['/dashboard?tab=assessment&sub=aiSummary'])
-      expect(await screen.findByTestId('ai-summary')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('ai-summary')).toBeInTheDocument())
     })
 
     it('renders DataSourcesTab when viewing trendsData/dataSources', async () => {
       renderDashboard(['/dashboard?tab=trendsData&sub=dataSources'])
-      expect(await screen.findByTestId('data-sources')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('data-sources')).toBeInTheDocument())
     })
 
     it('renders VendorAlertsTab when viewing vendorAlerts', async () => {
       renderDashboard(['/dashboard?tab=vendorAlerts'])
-      expect(await screen.findByTestId('vendor-alerts')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('vendor-alerts')).toBeInTheDocument())
     })
 
     it('renders AnomaliesTab when viewing threats/anomalies', async () => {
       renderDashboard(['/dashboard?tab=threats&sub=anomalies'])
-      expect(await screen.findByTestId('anomalies')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('anomalies')).toBeInTheDocument())
     })
   })
 
@@ -492,9 +481,9 @@ describe('Dashboard - Navigation & Rendering', () => {
       mockAuthValues.role = 'admin'
     })
 
-    it('shows sub-tab bar for tabs with subtabs', () => {
+    it('shows sub-tab bar for tabs with subtabs', async () => {
       renderDashboard(['/dashboard?tab=assessment&sub=findings'])
-      expect(screen.getByTestId('sub-tab-bar')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('sub-tab-bar')).toBeInTheDocument())
     })
 
     it('defaults to first sub-tab when none specified', () => {
@@ -505,22 +494,22 @@ describe('Dashboard - Navigation & Rendering', () => {
 
     it('navigates between sub-tabs in assessment group', async () => {
       renderDashboard(['/dashboard?tab=assessment&sub=findings'])
-      expect(await screen.findByTestId('findings')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('findings')).toBeInTheDocument())
     })
 
     it('navigates between sub-tabs in threats group', async () => {
       renderDashboard(['/dashboard?tab=threats&sub=threatIntel'])
-      expect(await screen.findByTestId('threat-intel')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('threat-intel')).toBeInTheDocument())
     })
 
     it('navigates between sub-tabs in trendsData group', async () => {
       renderDashboard(['/dashboard?tab=trendsData&sub=trends'])
-      expect(await screen.findByTestId('trends')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('trends')).toBeInTheDocument())
     })
 
     it('navigates between sub-tabs in admin group', async () => {
       renderDashboard(['/dashboard?tab=admin&sub=pipelineHealth'])
-      expect(await screen.findByTestId('pipeline-health')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('pipeline-health')).toBeInTheDocument())
     })
 
     it('hides sub-tab bar for tabs without subtabs', () => {
@@ -607,58 +596,56 @@ describe('Dashboard - Navigation & Rendering', () => {
 
     it('maps legacy findings tab to assessment/findings', async () => {
       renderDashboard(['/dashboard?tab=findings'])
-      expect(await screen.findByTestId('findings')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('findings')).toBeInTheDocument())
     })
 
     it('maps legacy smbAdvisor to assessment/smbAdvisor', async () => {
       renderDashboard(['/dashboard?tab=smbAdvisor'])
-      expect(await screen.findByTestId('smb-advisor')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('smb-advisor')).toBeInTheDocument())
     })
 
     it('maps legacy aiSummary to assessment/aiSummary', async () => {
       renderDashboard(['/dashboard?tab=aiSummary'])
-      expect(await screen.findByTestId('ai-summary')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('ai-summary')).toBeInTheDocument())
     })
 
     it('maps legacy threatIntel to threats/threatIntel', async () => {
       renderDashboard(['/dashboard?tab=threatIntel'])
-      expect(await screen.findByTestId('threat-intel')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('threat-intel')).toBeInTheDocument())
     })
 
     it('maps legacy riskScoring to threats/riskScoring', async () => {
       renderDashboard(['/dashboard?tab=riskScoring'])
-      expect(await screen.findByTestId('risk-scoring')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('risk-scoring')).toBeInTheDocument())
     })
 
     it('maps legacy anomalies to threats/anomalies', async () => {
       renderDashboard(['/dashboard?tab=anomalies'])
-      expect(await screen.findByTestId('anomalies')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('anomalies')).toBeInTheDocument())
     })
 
     it('maps legacy trends to trendsData/trends', async () => {
       renderDashboard(['/dashboard?tab=trends'])
-      expect(await screen.findByTestId('trends')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('trends')).toBeInTheDocument())
     })
 
     it('maps legacy dataSources to trendsData/dataSources', async () => {
       renderDashboard(['/dashboard?tab=dataSources'])
-      expect(await screen.findByTestId('data-sources')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('data-sources')).toBeInTheDocument())
     })
 
     it('maps legacy pipelineHealth to admin/pipelineHealth', async () => {
       renderDashboard(['/dashboard?tab=pipelineHealth'])
-      expect(await screen.findByTestId('pipeline-health')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('pipeline-health')).toBeInTheDocument())
     })
 
     it('maps legacy normalizationLog to admin/normalizationLog', async () => {
       renderDashboard(['/dashboard?tab=normalizationLog'])
-      expect(await screen.findByTestId('normalization-log')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('normalization-log')).toBeInTheDocument())
     })
   })
 
   describe('Multiple Role Scenarios', () => {
-    // TabBar renders top-level group buttons only (e.g. tab-admin, tab-assessment),
-    // NOT sub-tab buttons (e.g. tab-pipelineHealth, tab-findings).
     it('shows correct tabs for global admin with org', () => {
       mockAuthValues.orgId = 42
       mockAuthValues.role = 'admin'
@@ -679,14 +666,13 @@ describe('Dashboard - Navigation & Rendering', () => {
       expect(screen.getByTestId('tab-assessment')).toBeInTheDocument()
     })
 
-    // Org owners (orgRole='owner') are not treated as isAdmin in getVisibleGroups,
-    // so the Data Health/admin tab is hidden for them.
     it('shows correct tabs for owner of org', () => {
       mockAuthValues.orgId = 42
       mockAuthValues.role = 'viewer'
       mockAuthValues.orgRole = 'owner'
       renderDashboard()
 
+      // owner orgRole does not satisfy requiresAdmin (only 'admin' does)
       expect(screen.queryByTestId('tab-admin')).toBeNull()
       expect(screen.getByTestId('tab-assessment')).toBeInTheDocument()
     })
@@ -699,22 +685,20 @@ describe('Dashboard - Navigation & Rendering', () => {
       expect(screen.getByTestId('overview-tab')).toBeInTheDocument()
     })
 
-    it('handles switching between users with different roles', async () => {
+    it('handles switching between users with different roles', () => {
       mockAuthValues.orgId = 42
       mockAuthValues.role = 'viewer'
       renderDashboard()
-
-      // Re-render as admin after cleanup to avoid multiple DOM trees
-      cleanup()
+      
       mockAuthValues.role = 'admin'
       renderDashboard(['/dashboard?tab=pipelineHealth'])
-      expect(await screen.findByTestId('pipeline-health')).toBeInTheDocument()
+      expect(screen.getByTestId('pipeline-health')).toBeInTheDocument()
     })
 
-    it('persists tab selection across navigation', async () => {
+    it('persists tab selection across navigation', () => {
       mockAuthValues.orgId = 42
       renderDashboard(['/dashboard?tab=riskScoring'])
-      expect(await screen.findByTestId('risk-scoring')).toBeInTheDocument()
+      expect(screen.getByTestId('risk-scoring')).toBeInTheDocument()
     })
   })
 })
