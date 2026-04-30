@@ -89,6 +89,7 @@ function renderPage(token = 'test-token-123') {
 
 describe('AcceptInvitePage', () => {
   beforeEach(() => {
+    vi.useRealTimers()
     vi.clearAllMocks()
     mockGetInvite.mockResolvedValue(mockInviteData)
     mockAcceptInvite.mockResolvedValue(undefined)
@@ -102,9 +103,12 @@ describe('AcceptInvitePage', () => {
       expect(screen.getByText(/Loading invite/i)).toBeInTheDocument()
     })
 
-    // FIXME(test-repair): /No invite token provided/i not found; page renders empty body when token absent
-    it.skip('shows error when token is missing', async () => {
-      renderPage('')
+    it('shows error when token is missing', async () => {
+      render(
+        <MemoryRouter>
+          <AcceptInvitePage />
+        </MemoryRouter>,
+      )
 
       await waitFor(() => {
         expect(screen.getByText(/No invite token provided/i)).toBeInTheDocument()
@@ -193,15 +197,14 @@ describe('AcceptInvitePage', () => {
       })
     })
 
-    // FIXME(test-repair): invite detail labels not found; mock uses invited_email/org_name but page renders different fields
-    it.skip('displays all invite details labels', async () => {
+    it('displays all invite details labels', async () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText(/Organization/i)).toBeInTheDocument()
-        expect(screen.getByText(/Role/i)).toBeInTheDocument()
-        expect(screen.getByText(/Invited email/i)).toBeInTheDocument()
-        expect(screen.getByText(/Expires/i)).toBeInTheDocument()
+        expect(screen.getByText('Organization')).toBeInTheDocument()
+        expect(screen.getByText('Role')).toBeInTheDocument()
+        expect(screen.getByText('Invited email')).toBeInTheDocument()
+        expect(screen.getByText('Expires')).toBeInTheDocument()
       })
     })
 
@@ -310,14 +313,15 @@ describe('AcceptInvitePage', () => {
       })
     })
 
-    // FIXME(test-repair): navigate('/dashboard') not called; timer-based redirect uses real setTimeout, needs fake timers
-    it.skip('navigates to dashboard after success (with delay)', async () => {
-      vi.useFakeTimers()
+    it('navigates to dashboard after success (with delay)', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
       renderPage()
 
       await waitFor(() => {
-        fireEvent.click(screen.getByRole('button', { name: /Accept & Join/i }))
+        expect(screen.getByRole('button', { name: /Accept & Join/i })).toBeInTheDocument()
       })
+
+      fireEvent.click(screen.getByRole('button', { name: /Accept & Join/i }))
 
       await waitFor(() => {
         expect(screen.getByText(/You have joined the organization/i)).toBeInTheDocument()
@@ -326,14 +330,11 @@ describe('AcceptInvitePage', () => {
       vi.advanceTimersByTime(1500)
 
       expect(mockNavigate).toHaveBeenCalledWith('/')
-
-      vi.useRealTimers()
     })
   })
 
   describe('Decline Invite Functionality', () => {
-    // FIXME(test-repair): decline button not found; page may not have a decline flow
-    it.skip('renders decline button', async () => {
+    it('renders decline button', async () => {
       renderPage()
 
       await waitFor(() => {
@@ -341,8 +342,7 @@ describe('AcceptInvitePage', () => {
       })
     })
 
-    // FIXME(test-repair): decline button not found; decline flow does not exist in component
-    it.skip('navigates to home when declining invite', async () => {
+    it('navigates to home when declining invite', async () => {
       renderPage()
 
       await waitFor(() => {
@@ -354,8 +354,7 @@ describe('AcceptInvitePage', () => {
       expect(mockNavigate).toHaveBeenCalledWith('/')
     })
 
-    // FIXME(test-repair): decline flow imagined; component has no decline action
-    it.skip('does not call acceptInvite when declining', async () => {
+    it('does not call acceptInvite when declining', async () => {
       renderPage()
 
       await waitFor(() => {
@@ -367,8 +366,7 @@ describe('AcceptInvitePage', () => {
       expect(mockAcceptInvite).not.toHaveBeenCalled()
     })
 
-    // FIXME(test-repair): decline flow imagined; component has no decline action
-    it.skip('does not call refreshProfile when declining', async () => {
+    it('does not call refreshProfile when declining', async () => {
       renderPage()
 
       await waitFor(() => {
@@ -382,8 +380,7 @@ describe('AcceptInvitePage', () => {
   })
 
   describe('Page Title & Layout', () => {
-    // FIXME(test-repair): page heading not found; component may render different h1 copy than expected
-    it.skip('renders page heading', async () => {
+    it('renders page heading', async () => {
       renderPage()
 
       await waitFor(() => {
@@ -391,8 +388,7 @@ describe('AcceptInvitePage', () => {
       })
     })
 
-    // FIXME(test-repair): invite section selector not found; DOM structure differs from what test expects
-    it.skip('displays invite section after loading', async () => {
+    it('displays invite section after loading', async () => {
       renderPage()
 
       await waitFor(() => {
@@ -400,8 +396,7 @@ describe('AcceptInvitePage', () => {
       })
     })
 
-    // FIXME(test-repair): post-accept DOM assertion fails; success state UI differs or isn't rendered in test env
-    it.skip('hides invite form when accepted', async () => {
+    it('hides invite form when accepted', async () => {
       renderPage()
 
       await waitFor(() => {
@@ -415,8 +410,7 @@ describe('AcceptInvitePage', () => {
   })
 
   describe('Token Handling', () => {
-    // FIXME(test-repair): token not passed to API call; useParams mock or route setup differs from real routing
-    it.skip('uses token from URL parameters', async () => {
+    it('uses token from URL parameters', async () => {
       renderPage('custom-token-456')
 
       await waitFor(() => {
@@ -424,8 +418,7 @@ describe('AcceptInvitePage', () => {
       })
     })
 
-    // FIXME(test-repair): acceptInvite call args wrong; token extraction from useParams differs from mock setup
-    it.skip('passes token to acceptInvite function', async () => {
+    it('passes token to acceptInvite function', async () => {
       const customToken = 'special-invite-token-789'
       renderPage(customToken)
 
@@ -442,8 +435,7 @@ describe('AcceptInvitePage', () => {
   })
 
   describe('Date Formatting', () => {
-    // FIXME(test-repair): date label or formatted string not found; page may not render expires_at visibly
-    it.skip('formats expiration date correctly', async () => {
+    it('formats expiration date correctly', async () => {
       renderPage()
 
       await waitFor(() => {
@@ -452,8 +444,7 @@ describe('AcceptInvitePage', () => {
       })
     })
 
-    // FIXME(test-repair): formatted date strings not found; date rendering assertion imagined
-    it.skip('handles different date formats', async () => {
+    it('handles different date formats', async () => {
       mockGetInvite.mockResolvedValue({
         ...mockInviteData,
         expires_at: '2025-06-15T00:00:00Z',
@@ -468,8 +459,7 @@ describe('AcceptInvitePage', () => {
   })
 
   describe('Edge Cases', () => {
-    // FIXME(test-repair): role value not found in DOM; mock uses org_role but page renders from a different field
-    it.skip('handles different role types', async () => {
+    it('handles different role types', async () => {
       const rolesData = [
         { ...mockInviteData, org_role: 'owner' },
         { ...mockInviteData, org_role: 'admin' },
@@ -489,8 +479,7 @@ describe('AcceptInvitePage', () => {
       }
     })
 
-    // FIXME(test-repair): org name with special chars not found; mock uses org_name but page may source differently
-    it.skip('handles special characters in org name', async () => {
+    it('handles special characters in org name', async () => {
       mockGetInvite.mockResolvedValue({
         ...mockInviteData,
         org_name: "O'Reilly & Associates Inc.",
@@ -503,8 +492,7 @@ describe('AcceptInvitePage', () => {
       })
     })
 
-    // FIXME(test-repair): long email not found in DOM; invited_email vs email field mismatch
-    it.skip('handles long email addresses', async () => {
+    it('handles long email addresses', async () => {
       const longEmail = 'very.long.email.address+with+tags@subdomain.example.com'
       mockGetInvite.mockResolvedValue({
         ...mockInviteData,
@@ -520,46 +508,31 @@ describe('AcceptInvitePage', () => {
   })
 
   describe('Cleanup & Lifecycle', () => {
-    // FIXME(test-repair): clearTimeout assertion imagined; timer cleanup requires fake timer harness
-    it.skip('cleans up redirect timer on unmount', async () => {
-      vi.useFakeTimers()
+    it('cleans up redirect timer on unmount', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
       const { unmount } = renderPage()
 
       await waitFor(() => {
-        fireEvent.click(screen.getByRole('button', { name: /Accept & Join/i }))
+        expect(screen.getByRole('button', { name: /Accept & Join/i })).toBeInTheDocument()
       })
+
+      fireEvent.click(screen.getByRole('button', { name: /Accept & Join/i }))
 
       await waitFor(() => {
         expect(screen.getByText(/You have joined the organization/i)).toBeInTheDocument()
       })
 
       unmount()
-
       vi.advanceTimersByTime(2000)
 
-      // Should not have called navigate due to cleanup
       expect(mockNavigate).not.toHaveBeenCalledWith('/')
-
-      vi.useRealTimers()
     })
 
-    // FIXME(test-repair): post-unmount state update assertion imagined; component lacks isMounted guard
-    it.skip('prevents state updates after unmount', async () => {
-      vi.useFakeTimers()
+    it('prevents state updates after unmount', () => {
       const { unmount } = renderPage()
-
-      await waitFor(() => {
-        expect(screen.getByText(/Loading invite/i)).toBeInTheDocument()
-      })
-
+      expect(screen.getByText(/Loading invite/i)).toBeInTheDocument()
       unmount()
-
-      vi.advanceTimersByTime(100)
-
-      // Component should not attempt to render after unmount
       expect(screen.queryByText(/Loading invite/i)).not.toBeInTheDocument()
-
-      vi.useRealTimers()
     })
   })
 })

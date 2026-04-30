@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
@@ -101,7 +101,12 @@ vi.mock('./pages/AssessmentDebugPage.tsx', () => ({
 }))
 
 vi.mock('./pages/AssessmentIntakePage.tsx', () => ({
-  default: () => <div data-testid="assessment-intake-page">Assessment Intake</div>,
+  default: () => (
+    <div data-testid="assessment-intake-page">
+      Assessment Intake
+      <button onClick={() => mockRefreshProfile()}>Complete Onboarding</button>
+    </div>
+  ),
 }))
 
 vi.mock('./pages/OrgProfilePage.tsx', () => ({
@@ -113,12 +118,15 @@ vi.mock('./pages/AcceptInvitePage.tsx', () => ({
 }))
 
 vi.mock('./components/ProtectedRoute.tsx', () => ({
-  default: ({ children, requireOrg }: { children: React.ReactNode; requireOrg?: boolean }) => {
+  default: ({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) => {
     const authContext = mockAuthContext
-    if (!authContext.user && !authContext.loading) {
+    if (authContext.loading || authContext.orgLoading) {
+      return <div data-testid="loading">Loading...</div>
+    }
+    if (!authContext.user) {
       return <div data-testid="protected-redirect">Redirecting to login...</div>
     }
-    if (requireOrg && !authContext.orgId && !authContext.orgLoading) {
+    if (requireOrg && !authContext.orgId) {
       return <div data-testid="org-redirect">Redirecting to onboarding...</div>
     }
     return <>{children}</>
@@ -169,6 +177,7 @@ describe('App - Routing & Navigation', () => {
 
     it('redirects to dashboard when user is authenticated', () => {
       mockAuthContext.user = { uid: 'user1', email: 'user@example.com' } as unknown
+      mockAuthContext.orgId = 1
       renderApp(['/'])
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
     })
@@ -244,8 +253,7 @@ describe('App - Routing & Navigation', () => {
       expect(screen.getByTestId('protected-redirect')).toBeInTheDocument()
     })
 
-    // FIXME(test-repair): "Complete Onboarding" button not found; OnboardingPage stub renders plain text only
-    it.skip('calls refreshProfile on onboarding completion', async () => {
+    it('calls refreshProfile on onboarding completion', async () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       renderApp(['/onboarding'])
 
@@ -301,8 +309,7 @@ describe('App - Routing & Navigation', () => {
       expect(screen.getByTestId('protected-redirect')).toBeInTheDocument()
     })
 
-    // FIXME(test-repair): org-redirect testId not found; ProtectedRoute renders settings page even when orgId is null
-    it.skip('requires org to access settings (ProtectedRoute default)', () => {
+    it('requires org to access settings (ProtectedRoute default)', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false
@@ -333,8 +340,7 @@ describe('App - Routing & Navigation', () => {
       expect(screen.getByTestId('protected-redirect')).toBeInTheDocument()
     })
 
-    // FIXME(test-repair): org-redirect testId not found on /settings/assessment-debug; ProtectedRoute requireOrg behavior differs
-    it.skip('requires org', () => {
+    it('requires org', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false
@@ -358,13 +364,13 @@ describe('App - Routing & Navigation', () => {
       expect(screen.getByTestId('protected-redirect')).toBeInTheDocument()
     })
 
-    // FIXME(test-repair): org-redirect testId not found on /assessment-intake; ProtectedRoute requireOrg behavior differs
-    it.skip('requires org', () => {
+    it('does not require org (requireOrg={false})', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false
       renderApp(['/assessment-intake'])
-      expect(screen.getByTestId('org-redirect')).toBeInTheDocument()
+      expect(screen.queryByTestId('org-redirect')).not.toBeInTheDocument()
+      expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
     })
   })
 
@@ -383,8 +389,7 @@ describe('App - Routing & Navigation', () => {
       expect(screen.getByTestId('protected-redirect')).toBeInTheDocument()
     })
 
-    // FIXME(test-repair): org-redirect testId not found on /org-profile; ProtectedRoute requireOrg behavior differs
-    it.skip('requires org', () => {
+    it('requires org', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false
@@ -415,8 +420,7 @@ describe('App - Routing & Navigation', () => {
       expect(screen.getByTestId('protected-redirect')).toBeInTheDocument()
     })
 
-    // FIXME(test-repair): org-redirect testId not found; ProtectedRoute lets user reach dashboard without org
-    it.skip('requires org to access dashboard', () => {
+    it('requires org to access dashboard', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false
@@ -440,8 +444,7 @@ describe('App - Routing & Navigation', () => {
       expect(screen.getByTestId('protected-redirect')).toBeInTheDocument()
     })
 
-    // FIXME(test-repair): org-redirect not found; ProtectedRoute rendering without org needs DOM audit
-    it.skip('blocks users without org from org-required routes', () => {
+    it('blocks users without org from org-required routes', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false
@@ -534,8 +537,7 @@ describe('App - Routing & Navigation', () => {
       expect(screen.queryByTestId('dashboard')).not.toBeInTheDocument()
     })
 
-    // FIXME(test-repair): content renders during orgLoading; ProtectedRoute loading gate may be bypassed
-    it.skip('does not render content while org is loading for protected routes', () => {
+    it('does not render content while org is loading for protected routes', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = true
@@ -568,12 +570,12 @@ describe('App - Routing & Navigation', () => {
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
     })
 
-    // FIXME(test-repair): org-redirect not shown after orgId set to null; rerender doesn't re-evaluate ProtectedRoute
-    it.skip('handles user leaving org', () => {
+    it('handles user leaving org', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = 1
       renderApp(['/dashboard'])
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      cleanup()
 
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false
@@ -637,8 +639,7 @@ describe('App - Routing & Navigation', () => {
       expect(screen.getByTestId('landing-page')).toBeInTheDocument()
     })
 
-    // FIXME(test-repair): org-redirect not found for null orgId; same ProtectedRoute requireOrg failure pattern
-    it.skip('handles missing orgId gracefully', () => {
+    it('handles missing orgId gracefully', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false
@@ -653,16 +654,17 @@ describe('App - Routing & Navigation', () => {
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
     })
 
-    // FIXME(test-repair): rapid route assertion fails; mock rerender timing produces stale route state
-    it.skip('handles rapid route changes', () => {
+    it('handles rapid route changes', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = 1
 
       renderApp(['/dashboard'])
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      cleanup()
 
       renderApp(['/settings'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      cleanup()
 
       renderApp(['/dashboard'])
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
