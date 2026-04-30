@@ -423,6 +423,53 @@ async def test_service_output_format_json_on_successful_parse():
 
 
 @pytest.mark.asyncio
+async def test_service_invalidate_bypasses_cache_on_next_build():
+    """invalidate(org_id) drops the cached response so the next build() rebuilds.
+
+    Mirrors the endpoint's force_refresh=true path: route calls
+    service.invalidate(org.id) before service.build(org).
+    """
+    from unittest.mock import AsyncMock, patch
+
+    from app.services.ai_summary import AISummaryService
+
+    org, mock_report, mock_db = _base_service_patches(_VALID_JSON)
+
+    with (
+        patch("app.services.ai_summary.FindingsEngine") as mock_eng,
+        patch("app.services.ai_summary._get_feedback_meta", new=AsyncMock(return_value=None)),
+        patch("app.services.ai_summary._call_gemini", new=AsyncMock(return_value=_VALID_JSON)),
+        patch("app.services.ai_summary.settings") as mock_settings,
+        patch("app.services.ai_summary.SqlAISummaryGenerationRepository") as mock_repo_cls,
+    ):
+        mock_eng.return_value.build = AsyncMock(return_value=mock_report)
+        mock_settings.AI_SUMMARY_ENABLED = True
+        mock_settings.GEMINI_API_KEY = "key"
+        mock_settings.GEMINI_MODEL = "gemini-2.5-flash"
+        mock_settings.AI_SUMMARY_CACHE_TTL = 3600
+
+        mock_repo = AsyncMock()
+        mock_repo_cls.return_value = mock_repo
+
+        svc = AISummaryService(mock_db)
+        svc.invalidate(org.id)  # ensure clean cache
+
+        first = await svc.build(org)
+        assert first.cached is False
+        assert mock_repo.create.await_count == 1
+
+        cached = await svc.build(org)
+        assert cached.cached is True
+        # No new persistence call when serving from cache
+        assert mock_repo.create.await_count == 1
+
+        svc.invalidate(org.id)
+        fresh = await svc.build(org)
+        assert fresh.cached is False
+        assert mock_repo.create.await_count == 2
+
+
+@pytest.mark.asyncio
 async def test_service_output_format_prose_when_parse_fails():
     from unittest.mock import AsyncMock, patch
 
