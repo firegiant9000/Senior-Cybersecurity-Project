@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hoisted Mocks
@@ -125,7 +125,12 @@ vi.mock('../pages/SettingsPage', () => ({
 }))
 
 vi.mock('../pages/AssessmentIntakePage', () => ({
-  default: () => <div data-testid="assessment-intake-page">Assessment</div>,
+  default: () => (
+    <div data-testid="assessment-intake-page">
+      Assessment
+      <button onClick={() => mockRefreshProfile()}>Complete</button>
+    </div>
+  ),
 }))
 
 vi.mock('../pages/AcceptInvitePage', () => ({
@@ -200,6 +205,8 @@ describe('Integration Tests - User Flows', () => {
     mockCreateInvite.mockResolvedValue(undefined)
   })
 
+  afterEach(() => cleanup())
+
   describe('User Signup Flow', () => {
     it('allows unauthenticated user to view landing page', () => {
       renderApp(['/'])
@@ -210,6 +217,7 @@ describe('Integration Tests - User Flows', () => {
       renderApp(['/'])
       expect(screen.getByTestId('landing-page')).toBeInTheDocument()
 
+      cleanup()
       renderApp(['/signup'])
       expect(screen.getByTestId('signup-page')).toBeInTheDocument()
     })
@@ -227,6 +235,7 @@ describe('Integration Tests - User Flows', () => {
       expect(screen.getByTestId('signup-page')).toBeInTheDocument()
 
       // After signup, user is authenticated but has no org
+      cleanup()
       renderApp(['/onboarding'])
       expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
     })
@@ -264,6 +273,7 @@ describe('Integration Tests - User Flows', () => {
       fireEvent.click(completeBtn)
 
       // After completion, user has org and can access dashboard
+      cleanup()
       renderApp(['/dashboard'])
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
     })
@@ -294,6 +304,7 @@ describe('Integration Tests - User Flows', () => {
 
       // After acceptance, user has org
       mockAuthContext.orgId = 42
+      cleanup()
       renderApp(['/settings'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
     })
@@ -374,13 +385,13 @@ describe('Integration Tests - User Flows', () => {
       expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
     })
 
-    it('prevents non-org members from accessing assessment', () => {
+    it('authenticated user without org can access assessment intake', () => {
       setupAuthenticatedUser()
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false
       renderApp(['/assessment-intake'])
-      // Should redirect since no org
-      expect(screen.queryByTestId('assessment-intake-page')).not.toBeInTheDocument()
+      // assessment-intake uses requireOrg={false}, so accessible to all authenticated users
+      expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
     })
 
     it('assessment data loads on page access', async () => {
@@ -431,9 +442,10 @@ describe('Integration Tests - User Flows', () => {
 
     it('user can navigate to settings to create/join org', () => {
       setupAuthenticatedUser()
-      renderApp(['/'])
-      expect(screen.getByTestId('landing-page')).toBeInTheDocument()
+      renderApp(['/dashboard'])
+      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
 
+      cleanup()
       renderApp(['/settings'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
     })
@@ -450,6 +462,7 @@ describe('Integration Tests - User Flows', () => {
       // Simulate logout
       mockAuthContext.user = null
       mockAuthContext.orgId = null
+      cleanup()
       renderApp(['/'])
       expect(screen.getByTestId('landing-page')).toBeInTheDocument()
     })
@@ -464,6 +477,7 @@ describe('Integration Tests - User Flows', () => {
       // User creates/joins org
       mockAuthContext.orgId = 42
       mockAuthContext.orgRole = 'owner'
+      cleanup()
       renderApp(['/dashboard'])
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
     })
@@ -475,6 +489,7 @@ describe('Integration Tests - User Flows', () => {
 
       // Admin promotes user to admin
       mockAuthContext.orgRole = 'admin'
+      cleanup()
       renderApp(['/dashboard?tab=admin'])
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
     })
@@ -486,6 +501,7 @@ describe('Integration Tests - User Flows', () => {
       renderApp(['/dashboard'])
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
 
+      cleanup()
       renderApp(['/settings'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
     })
@@ -495,6 +511,7 @@ describe('Integration Tests - User Flows', () => {
       renderApp(['/settings'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
 
+      cleanup()
       renderApp(['/assessment-intake'])
       expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
     })
@@ -504,6 +521,7 @@ describe('Integration Tests - User Flows', () => {
       renderApp(['/settings'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
 
+      cleanup()
       renderApp(['/dashboard'])
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
     })
@@ -514,9 +532,11 @@ describe('Integration Tests - User Flows', () => {
       renderApp(['/dashboard'])
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
 
+      cleanup()
       renderApp(['/settings'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
 
+      cleanup()
       renderApp(['/assessment-intake'])
       expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
     })
@@ -530,6 +550,7 @@ describe('Integration Tests - User Flows', () => {
 
       // Simulate auth timeout
       mockAuthContext.user = null
+      cleanup()
       renderApp(['/'])
       expect(screen.getByTestId('landing-page')).toBeInTheDocument()
     })
@@ -542,6 +563,7 @@ describe('Integration Tests - User Flows', () => {
       // User loses org access (kicked out)
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false
+      cleanup()
       renderApp(['/dashboard'])
       // Would redirect since no org
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
@@ -552,6 +574,7 @@ describe('Integration Tests - User Flows', () => {
       renderApp(['/dashboard'])
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
 
+      cleanup()
       renderApp(['/dashboard?tab=admin'])
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
     })
@@ -565,6 +588,7 @@ describe('Integration Tests - User Flows', () => {
 
       // Switch to owner
       mockAuthContext.orgRole = 'owner'
+      cleanup()
       renderApp(['/settings'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
       // Same page but owner would see member management
@@ -577,6 +601,7 @@ describe('Integration Tests - User Flows', () => {
 
       // User switches to different org
       mockAuthContext.orgId = 2
+      cleanup()
       renderApp(['/settings'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
       // Would show different org's data
@@ -606,6 +631,7 @@ describe('Integration Tests - User Flows', () => {
 
       mockAuthContext.loading = false
       mockAuthContext.user = { uid: 'user1' } as unknown
+      cleanup()
       renderApp(['/'])
       // Would redirect to dashboard
     })

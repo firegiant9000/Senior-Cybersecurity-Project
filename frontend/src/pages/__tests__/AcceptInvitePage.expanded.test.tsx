@@ -1,6 +1,6 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hoisted Mocks
@@ -74,9 +74,12 @@ const mockAdminInviteData = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function renderPage(token = 'test-token-123') {
+  // Empty token: render on /invite (no param) so useParams returns undefined token
+  const entries = token ? [`/invite/${token}`] : ['/invite']
   return render(
-    <MemoryRouter initialEntries={[`/invite/${token}`]}>
+    <MemoryRouter initialEntries={entries}>
       <Routes>
+        <Route path="/invite" element={<AcceptInvitePage />} />
         <Route path="/invite/:token" element={<AcceptInvitePage />} />
       </Routes>
     </MemoryRouter>,
@@ -93,6 +96,10 @@ describe('AcceptInvitePage', () => {
     mockGetInvite.mockResolvedValue(mockInviteData)
     mockAcceptInvite.mockResolvedValue(undefined)
     mockRefreshProfile.mockResolvedValue(undefined)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   describe('Loading & Error States', () => {
@@ -196,10 +203,11 @@ describe('AcceptInvitePage', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText(/Organization/i)).toBeInTheDocument()
-        expect(screen.getByText(/Role/i)).toBeInTheDocument()
-        expect(screen.getByText(/Invited email/i)).toBeInTheDocument()
-        expect(screen.getByText(/Expires/i)).toBeInTheDocument()
+        // Use exact strings to avoid matching the "Organization Invite" heading
+        expect(screen.getByText('Organization')).toBeInTheDocument()
+        expect(screen.getByText('Role')).toBeInTheDocument()
+        expect(screen.getByText('Invited email')).toBeInTheDocument()
+        expect(screen.getByText('Expires')).toBeInTheDocument()
       })
     })
 
@@ -312,19 +320,20 @@ describe('AcceptInvitePage', () => {
       vi.useFakeTimers()
       renderPage()
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByRole('button', { name: /Accept & Join/i }))
-      })
+      // Flush the invite fetch promise (microtask) so the button appears
+      await act(async () => {})
 
-      await waitFor(() => {
-        expect(screen.getByText(/You have joined the organization/i)).toBeInTheDocument()
-      })
+      fireEvent.click(screen.getByRole('button', { name: /Accept & Join/i }))
+
+      // Flush acceptInvite and refreshProfile promises
+      await act(async () => {})
+      await act(async () => {})
+
+      expect(screen.getByText(/You have joined the organization/i)).toBeInTheDocument()
 
       vi.advanceTimersByTime(1500)
 
       expect(mockNavigate).toHaveBeenCalledWith('/')
-
-      vi.useRealTimers()
     })
   })
 
@@ -507,13 +516,16 @@ describe('AcceptInvitePage', () => {
       vi.useFakeTimers()
       const { unmount } = renderPage()
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByRole('button', { name: /Accept & Join/i }))
-      })
+      // Flush invite fetch microtask so button appears
+      await act(async () => {})
 
-      await waitFor(() => {
-        expect(screen.getByText(/You have joined the organization/i)).toBeInTheDocument()
-      })
+      fireEvent.click(screen.getByRole('button', { name: /Accept & Join/i }))
+
+      // Flush acceptInvite and refreshProfile promises
+      await act(async () => {})
+      await act(async () => {})
+
+      expect(screen.getByText(/You have joined the organization/i)).toBeInTheDocument()
 
       unmount()
 
@@ -521,17 +533,14 @@ describe('AcceptInvitePage', () => {
 
       // Should not have called navigate due to cleanup
       expect(mockNavigate).not.toHaveBeenCalledWith('/')
-
-      vi.useRealTimers()
     })
 
-    it('prevents state updates after unmount', async () => {
+    it('prevents state updates after unmount', () => {
       vi.useFakeTimers()
       const { unmount } = renderPage()
 
-      await waitFor(() => {
-        expect(screen.getByText(/Loading invite/i)).toBeInTheDocument()
-      })
+      // Loading state is synchronous — no waitFor needed
+      expect(screen.getByText(/Loading invite/i)).toBeInTheDocument()
 
       unmount()
 
@@ -539,8 +548,6 @@ describe('AcceptInvitePage', () => {
 
       // Component should not attempt to render after unmount
       expect(screen.queryByText(/Loading invite/i)).not.toBeInTheDocument()
-
-      vi.useRealTimers()
     })
   })
 })
