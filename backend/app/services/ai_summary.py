@@ -226,9 +226,7 @@ def _build_fallback(org: Organization, report: FindingsReport, risk_score: float
             "patches or mitigations should be applied as soon as possible."
         )
     else:
-        vendor_text = (
-            "No critical software vulnerabilities were matched to your technology stack at this time."
-        )
+        vendor_text = "No critical software vulnerabilities were matched to your technology stack at this time."
 
     data_gaps = [
         f for f in report.findings if f.finding_type == "data_gap" and f.evidence.get("required")
