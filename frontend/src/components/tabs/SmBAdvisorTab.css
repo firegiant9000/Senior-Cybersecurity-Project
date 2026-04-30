@@ -591,3 +591,52 @@
         text-align: center;
     }
 }
+
+/* ── Cost-card methodology disclosure ─────────────────────────────────────── */
+.smb-cost-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 10px;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+
+.smb-cost-meta-sample {
+    color: var(--text-muted);
+}
+
+.smb-cost-methodology-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--accent);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.smb-cost-methodology {
+    margin-top: 8px;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    background: var(--bg);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+}
+
+.smb-cost-methodology p {
+    margin: 0 0 6px;
+}
+
+.smb-cost-methodology p:last-child {
+    margin-bottom: 0;
+}
