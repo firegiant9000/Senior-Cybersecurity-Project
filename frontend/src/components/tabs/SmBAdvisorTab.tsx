@@ -15,6 +15,7 @@ import { useUserContext } from '../../context/UserContext';
 import './SmBAdvisorTab.css';
 import DisclaimerBanner from '../shared/DisclaimerBanner';
 import InfoTip from '../shared/InfoTip';
+import ConfidenceBadge, { type ConfidenceTier } from '../shared/ConfidenceBadge';
 import { SMB_ADVISOR_DISCLAIMER } from '../../constants/disclaimers';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
@@ -385,6 +386,12 @@ function CostEstimateCard({ sectorProfile, allSectors, loading }: {
   allSectors: IndustryRiskProfile[];
   loading: boolean;
 }) {
+  const [showMethodology, setShowMethodology] = useState(false);
+
+  useEffect(() => {
+    setShowMethodology(false);
+  }, [sectorProfile?.sector]);
+
   const nationalAvg = useMemo(() => {
     if (allSectors.length === 0) return 0;
     return allSectors.reduce((s, x) => s + x.avg_loss_per_incident, 0) / allSectors.length;
@@ -392,6 +399,14 @@ function CostEstimateCard({ sectorProfile, allSectors, loading }: {
 
   const low = sectorProfile ? sectorProfile.avg_loss_per_incident * 0.5 : 0;
   const high = sectorProfile ? sectorProfile.avg_loss_per_incident * 2.0 : 0;
+
+  const tier: ConfidenceTier = !sectorProfile
+    ? 'Low'
+    : sectorProfile.complaint_count >= 1000
+      ? 'High'
+      : sectorProfile.complaint_count >= 100
+        ? 'Medium'
+        : 'Low';
 
   return (
     <div className="card smb-cost-card">
@@ -430,6 +445,35 @@ function CostEstimateCard({ sectorProfile, allSectors, loading }: {
             <p className="smb-cost-note">
               These figures come from FBI IC3<InfoTip text="IC3 (Internet Crime Complaint Center) — FBI's cybercrime reporting database" /> complaint data and represent direct financial losses. Recovery costs, downtime, and reputational damage can add significantly more.
             </p>
+            <div className="smb-cost-meta">
+              <ConfidenceBadge tier={tier} context="smb" />
+              <span className="smb-cost-meta-sample">
+                Based on {sectorProfile.complaint_count.toLocaleString()} IC3 reports for {sectorProfile.sector}
+              </span>
+              <button
+                type="button"
+                className="smb-cost-methodology-toggle"
+                onClick={() => setShowMethodology((v) => !v)}
+                aria-expanded={showMethodology}
+              >
+                {showMethodology ? '▲ Hide details' : '▼ How this is calculated'}
+              </button>
+            </div>
+            {showMethodology && (
+              <div className="smb-cost-methodology">
+                <p>
+                  The <strong>typical loss</strong> is the average loss per IC3-reported incident for{' '}
+                  <strong>{sectorProfile.sector}</strong>. The <strong>low-end</strong> and{' '}
+                  <strong>severe-incident</strong> figures are 0.5× and 2.0× that average — a rough
+                  range that brackets most reported incidents in this sector. They are not statistical
+                  bounds.
+                </p>
+                <p>
+                  Confidence is based on the number of IC3 reports available for your sector
+                  (≥1,000 = High, ≥100 = Medium, fewer = Low).
+                </p>
+              </div>
+            )}
           </div>
         </>
       )}
