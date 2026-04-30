@@ -67,7 +67,7 @@ describe('Mock Data Factory Usage Examples', () => {
     expect(invites.items).toHaveLength(5)
     expect(invites.total).toBe(5)
     invites.items.forEach(invite => {
-      expect(invite.invited_email).toBeDefined()
+      expect(invite.email).toBeDefined()
       expect(invite.expires_at).toBeDefined()
     })
   })
