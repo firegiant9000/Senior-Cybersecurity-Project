@@ -195,7 +195,7 @@ class TestThreatExposureSsl:
     def test_self_signed_produces_high(self):
         ssl_r = SslCheckResult(domain="example.com", reachable=True, self_signed=True)
         findings = _threat_exposure_from_ssl("example.com", ssl_r)
-        assert any(f.severity == "high" and "self-signed" in f.title.lower() for f in findings)
+        assert any(f.severity == "high" and f.evidence.get("self_signed") is True for f in findings)
 
     def test_cert_expiring_7_days_is_critical(self):
         from datetime import UTC, datetime, timedelta
@@ -276,7 +276,10 @@ class TestVendorExposure:
         due = (datetime.now(UTC) + timedelta(days=10)).isoformat()
         items = [{"vendor_name": "Microsoft", "due_date": due, "severity_label": "Critical"}]
         findings = _vendor_exposure_findings(_vendor_dict(total_matched=1, critical=1, items=items))
-        assert any("deadline" in f.title.lower() for f in findings)
+        assert any(
+            f.severity == "high" and "vendors" in f.evidence and "count" in f.evidence
+            for f in findings
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -446,7 +449,10 @@ class TestSynthesizeRecommendations:
             DnsCheckResult(domain="example.com", spf_found=False, dmarc_found=False),
         )
         recs = _synthesize_recommendations(dns_finding)
-        assert any("SPF" in r.title or "email security" in r.title.lower() for r in recs)
+        assert any(
+            r.finding_type == "recommended_action" and r.evidence.get("dns_finding_count", 0) > 0
+            for r in recs
+        )
 
     def test_no_findings_returns_empty(self):
         assert _synthesize_recommendations([]) == []

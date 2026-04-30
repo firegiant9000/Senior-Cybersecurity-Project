@@ -78,11 +78,12 @@ export interface FeedbackResponse {
 
 export function fetchAISummary(
   signal: AbortSignal,
+  forceRefresh = false,
 ): Promise<AISummaryResponse> {
-  return getJsonAuth<AISummaryResponse>(
-    `${API_BASE_URL}/api/v1/organizations/mine/ai-summary`,
-    signal,
-  );
+  const url = forceRefresh
+    ? `${API_BASE_URL}/api/v1/organizations/mine/ai-summary?force_refresh=true`
+    : `${API_BASE_URL}/api/v1/organizations/mine/ai-summary`;
+  return getJsonAuth<AISummaryResponse>(url, signal);
 }
 
 export function fetchAISummaryHistory(

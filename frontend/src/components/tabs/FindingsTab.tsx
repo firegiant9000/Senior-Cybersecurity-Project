@@ -15,10 +15,10 @@ import InfoTip from '../shared/InfoTip';
 import './FindingsTab.css';
 
 const TYPE_LABELS: Record<string, { label: string; icon: string }> = {
-  threat_exposure: { label: 'Threat Exposure', icon: '\u26a0' },
-  vendor_exposure: { label: 'Vendor Exposure', icon: '\ud83d\udee1' },
-  data_gap: { label: 'Data Gaps', icon: '\ud83d\udcca' },
-  recommended_action: { label: 'Recommended Actions', icon: '\u2705' },
+  threat_exposure: { label: 'Threats Targeting You', icon: '\u26a0' },
+  vendor_exposure: { label: 'Software & Vendor Risks', icon: '\ud83d\udee1' },
+  data_gap: { label: 'Missing Information', icon: '\ud83d\udcca' },
+  recommended_action: { label: 'What to Do Next', icon: '\u2705' },
 };
 
 const TYPE_ORDER = ['threat_exposure', 'vendor_exposure', 'data_gap', 'recommended_action'];
@@ -28,11 +28,11 @@ function capitalize(s: string): string {
 }
 
 const LOADING_STAGES = [
-  'Resolving DNS records...',
-  'Running SSL analysis...',
-  'Matching CVE database...',
-  'Scoring vendor exposure...',
-  'Generating findings report...',
+  'Checking your email and website security...',
+  'Reviewing your security certificates...',
+  'Matching known threats to your software...',
+  'Identifying software vulnerabilities...',
+  'Preparing your security report...',
 ];
 
 const FindingsLoadingBar: React.FC = () => {
