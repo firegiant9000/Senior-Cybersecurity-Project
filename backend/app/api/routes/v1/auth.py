@@ -34,9 +34,7 @@ async def get_current_user(
     """Verify Firebase ID token and return (or auto-create) the local User."""
     token = credentials.credentials
     try:
-        decoded = firebase_auth.verify_id_token(
-            token, clock_skew_seconds=_TOKEN_CLOCK_SKEW_SECONDS
-        )
+        decoded = firebase_auth.verify_id_token(token, clock_skew_seconds=_TOKEN_CLOCK_SKEW_SECONDS)
     except (ValueError, FirebaseError) as exc:
         logger.warning("Firebase token verification failed: %r", exc)
         raise HTTPException(
