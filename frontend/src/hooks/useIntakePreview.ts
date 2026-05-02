@@ -24,7 +24,14 @@ export function useIntakePreview(
   const inflightRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (!enabled) return;
+    // When the consumer turns off preview mid-flight, abort whatever is in the
+    // air so a late response can't repaint the UI after we've moved on.
+    if (!enabled) {
+      inflightRef.current?.abort();
+      inflightRef.current = null;
+      setLoading(false);
+      return;
+    }
 
     const t = setTimeout(() => {
       inflightRef.current?.abort();
