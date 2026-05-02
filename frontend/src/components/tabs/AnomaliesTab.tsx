@@ -8,6 +8,16 @@ import {
   TrendAnomalyResponse,
   VendorAnomalyResponse,
 } from '../../api/anomalies';
+import InfoTip from '../shared/InfoTip';
+
+const ANOMALY_TIP =
+  'A data point that deviates noticeably from the historical norm. We flag anomalies using z-scores: |z| ≥ 2 = unusual, ≥ 3 = extreme.';
+const Z_SCORE_TIP =
+  'Z-score = how many standard deviations this value sits from the mean. Green ≤ 2, orange 2–3, red ≥ 3.';
+const YOY_TIP =
+  'Year-over-year percent change in IC3 reports. Positive (red) = increase vs. last year; negative (green) = decrease.';
+const VENDOR_EXPOSURE_TIP =
+  'Compares your KEV matches per vendor against the distribution across all organizations using the same vendor. High z = unusually exposed.';
 
 type SubTab = 'ic3' | 'trends' | 'vendors';
 
@@ -74,7 +84,10 @@ const AnomaliesTab: React.FC = () => {
   return (
     <div className="tab-page">
       <div style={{ marginBottom: '1rem' }}>
-        <h2 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 700 }}>Anomaly Detection</h2>
+        <h2 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 700 }}>
+          Anomaly Detection
+          <InfoTip text={ANOMALY_TIP} label="Anomaly Detection" />
+        </h2>
         <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary, #555)' }}>
           Statistical outliers in IC3 incident data and vendor KEV exposure.
         </p>
@@ -109,7 +122,10 @@ const AnomaliesTab: React.FC = () => {
                     <th style={{ padding: '6px 8px' }}>Year</th>
                     <th style={{ padding: '6px 8px' }}>Complaints</th>
                     <th style={{ padding: '6px 8px' }}>Loss ($)</th>
-                    <th style={{ padding: '6px 8px' }}>Z (Complaints)</th>
+                    <th style={{ padding: '6px 8px' }}>
+                      Z (Complaints)
+                      <InfoTip text={Z_SCORE_TIP} label="Z-score" />
+                    </th>
                     <th style={{ padding: '6px 8px' }}>Z (Loss)</th>
                     <th style={{ padding: '6px 8px' }}>Type</th>
                   </tr>
@@ -152,7 +168,10 @@ const AnomaliesTab: React.FC = () => {
                   <th style={{ padding: '6px 8px' }}>Year</th>
                   <th style={{ padding: '6px 8px' }}>Complaints</th>
                   <th style={{ padding: '6px 8px' }}>Loss ($)</th>
-                  <th style={{ padding: '6px 8px' }}>YoY Complaints</th>
+                  <th style={{ padding: '6px 8px' }}>
+                    YoY Complaints
+                    <InfoTip text={YOY_TIP} label="YoY change" />
+                  </th>
                   <th style={{ padding: '6px 8px' }}>YoY Loss</th>
                   <th style={{ padding: '6px 8px' }}>Flagged</th>
                 </tr>
@@ -232,7 +251,10 @@ const AnomaliesTab: React.FC = () => {
                         <th style={{ padding: '6px 8px' }}>Vendor</th>
                         <th style={{ padding: '6px 8px' }}>KEV Matches</th>
                         <th style={{ padding: '6px 8px' }}>Global Avg</th>
-                        <th style={{ padding: '6px 8px' }}>Z-Score</th>
+                        <th style={{ padding: '6px 8px' }}>
+                          Z-Score
+                          <InfoTip text={VENDOR_EXPOSURE_TIP} label="Vendor exposure z-score" />
+                        </th>
                         <th style={{ padding: '6px 8px' }}>Anomaly</th>
                       </tr>
                     </thead>

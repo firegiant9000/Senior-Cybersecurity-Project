@@ -631,8 +631,8 @@ function renderGridWidget(
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={data} layout="vertical" margin={{ top: 4, right: 72, left: 4, bottom: 4 }}>
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                                        <XAxis type="number" tickFormatter={fmtMoney} tick={{ fontSize: 10 }} />
-                                        <YAxis type="category" dataKey="label" width={160} tick={{ fontSize: 10 }} />
+                                        <XAxis type="number" tickFormatter={fmtMoney} tick={{ fontSize: 12 }} tickMargin={8} />
+                                        <YAxis type="category" dataKey="label" width={160} tick={{ fontSize: 12 }} tickMargin={8} />
                                         <Tooltip
                                             contentStyle={TOOLTIP_CONTENT_STYLE}
                                             itemStyle={TOOLTIP_ITEM_STYLE}
@@ -668,8 +668,8 @@ function renderGridWidget(
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={data} layout="vertical" margin={{ top: 4, right: 72, left: 4, bottom: 4 }}>
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                                        <XAxis type="number" tickFormatter={fmtMoney} tick={{ fontSize: 10 }} />
-                                        <YAxis type="category" dataKey="label" width={140} tick={{ fontSize: 10 }} />
+                                        <XAxis type="number" tickFormatter={fmtMoney} tick={{ fontSize: 12 }} tickMargin={8} />
+                                        <YAxis type="category" dataKey="label" width={140} tick={{ fontSize: 12 }} tickMargin={8} />
                                         <Tooltip
                                             contentStyle={TOOLTIP_CONTENT_STYLE}
                                             itemStyle={TOOLTIP_ITEM_STYLE}
@@ -705,8 +705,8 @@ function renderGridWidget(
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={data} layout="vertical" margin={{ top: 4, right: 64, left: 4, bottom: 4 }}>
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                                        <XAxis type="number" tick={{ fontSize: 10 }} />
-                                        <YAxis type="category" dataKey="label" width={140} tick={{ fontSize: 10 }} />
+                                        <XAxis type="number" tick={{ fontSize: 12 }} tickMargin={8} />
+                                        <YAxis type="category" dataKey="label" width={140} tick={{ fontSize: 12 }} tickMargin={8} />
                                         <Tooltip
                                             contentStyle={TOOLTIP_CONTENT_STYLE}
                                             itemStyle={TOOLTIP_ITEM_STYLE}
@@ -1008,7 +1008,7 @@ const OverviewTab: React.FC<Props> = ({
             )}
 
             {show('vendorAlerts') && (
-                <div style={{ marginBottom: 16 }}>
+                <div className="overview-wide-card-slot">
                     <WidgetErrorBoundary title="Vendor Alerts">
                         <VendorAlertsCard />
                     </WidgetErrorBoundary>

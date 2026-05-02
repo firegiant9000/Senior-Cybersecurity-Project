@@ -1,6 +1,12 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useDebounce } from '../../hooks/useDebounce';
 import { fetchWithAuth } from '../../api/fetchWithAuth';
+import InfoTip from '../shared/InfoTip';
+
+const RISK_SCORE_TIP =
+    '0–100 composite combining CVSS severity, KEV presence, EPSS exploitation probability, and recency. Higher = more risk.';
+const EPSS_TIP =
+    'EPSS = Exploit Prediction Scoring System. Probability (0–100%) that this CVE will be exploited in the next 30 days.';
 
 interface RiskScoredItem {
     id: string;
@@ -222,7 +228,10 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
                             </div>
                         </div>
                         <div className="risk-kpi-card">
-                            <div className="risk-kpi-label">Average Risk</div>
+                            <div className="risk-kpi-label">
+                                Average Risk
+                                <InfoTip text={RISK_SCORE_TIP} label="Average Risk" />
+                            </div>
                             <div className="risk-kpi-value">{avgRiskScore.toFixed(1)}</div>
                             <div className="risk-kpi-subtitle">out of 100</div>
                         </div>
@@ -236,8 +245,14 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
                                 <th>Data Source</th>
                                 <th>Vulnerability</th>
                                 <th>CVSS Score</th>
-                                <th>Risk Score</th>
-                                <th title="30-day exploitation probability (FIRST.org EPSS)">EPSS</th>
+                                <th>
+                                    Risk Score
+                                    <InfoTip text={RISK_SCORE_TIP} label="Risk Score" />
+                                </th>
+                                <th>
+                                    EPSS
+                                    <InfoTip text={EPSS_TIP} label="EPSS" />
+                                </th>
                                 <th>Published</th>
                             </tr>
                         </thead>

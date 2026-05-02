@@ -6,6 +6,11 @@ interface InfoTipProps {
   label?: string;
 }
 
+export interface GlossaryEntry {
+  term: string;
+  definition: string;
+}
+
 const TIP_MAX_WIDTH = 280;
 const VIEWPORT_MARGIN = 8;
 const TIP_GAP = 6;
@@ -16,7 +21,7 @@ interface TipCoords {
   placement: 'top' | 'bottom';
 }
 
-const ACRONYM_GLOSSARY: Record<string, string> = {
+const GLOSSARY: Record<string, string> = {
   CVE: 'Common Vulnerabilities and Exposures — a public catalog of known software security flaws, each with a unique ID.',
   KEV: 'Known Exploited Vulnerabilities — CISA’s list of CVEs that attackers are actively exploiting in the wild.',
   CVSS: 'Common Vulnerability Scoring System — a 0–10 severity score for a CVE. Higher = more dangerous.',
@@ -31,10 +36,24 @@ const ACRONYM_GLOSSARY: Record<string, string> = {
   SIEM: 'Security Information and Event Management — a central system that collects and analyzes security logs.',
   PII: 'Personally Identifiable Information — data that can identify a specific person (name, SSN, email, etc.).',
   NIST: 'National Institute of Standards and Technology — publishes widely used cybersecurity frameworks.',
+  ANOMALY:
+    'A data point that deviates noticeably from the historical norm. We flag anomalies using z-scores: |z| ≥ 2 = unusual, ≥ 3 = extreme.',
+  'VENDOR ALERT':
+    'A newly published CVE affecting one of the technology vendors in your stack. Each alert links the CVE to the affected vendor so you can prioritize patching.',
+  'RISK SCORE':
+    '0–100 composite score combining vendor exposure, KEV presence, incident frequency, and severity. Higher = more risk. Used to rank assets and findings.',
 };
 
-export const getAcronymDefinition = (acronym: string): string | undefined =>
-  ACRONYM_GLOSSARY[acronym.toUpperCase()];
+export const getGlossaryDefinition = (term: string): string | undefined =>
+  GLOSSARY[term.toUpperCase()];
+
+/** @deprecated Use getGlossaryDefinition. Kept for compatibility with existing acronym-only call sites. */
+export const getAcronymDefinition = getGlossaryDefinition;
+
+export const getGlossaryEntries = (): GlossaryEntry[] =>
+  Object.entries(GLOSSARY)
+    .map(([term, definition]) => ({ term, definition }))
+    .sort((a, b) => a.term.localeCompare(b.term));
 
 const InfoTip: React.FC<InfoTipProps> = ({ text, label }) => {
   const [open, setOpen] = useState(false);
@@ -105,20 +124,31 @@ const InfoTip: React.FC<InfoTipProps> = ({ text, label }) => {
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
         style={{
-          marginLeft: 4,
+          marginLeft: 6,
           cursor: 'help',
-          color: 'var(--text-muted)',
-          fontSize: '0.85em',
-          userSelect: 'none',
-          background: 'transparent',
-          border: 'none',
-          padding: 0,
+          color: open ? '#fff' : 'var(--accent)',
+          background: open ? 'var(--accent)' : 'transparent',
+          border: '1.5px solid var(--accent)',
+          borderRadius: '50%',
+          width: 18,
+          height: 18,
+          minWidth: 18,
+          fontSize: 12,
+          fontWeight: 700,
+          fontFamily: 'Georgia, serif',
+          fontStyle: 'italic',
           lineHeight: 1,
+          padding: 0,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          userSelect: 'none',
           verticalAlign: 'middle',
           pointerEvents: 'auto',
+          transition: 'background 0.15s ease, color 0.15s ease',
         }}
       >
-        ⓘ
+        i
       </button>
       {open && coords && createPortal(
         <span

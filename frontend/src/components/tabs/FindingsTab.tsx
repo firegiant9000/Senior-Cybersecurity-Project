@@ -289,6 +289,13 @@ const FindingsTab: React.FC = () => {
           })}
         </div>
         <div className="findings-severity-row">
+          <span className="findings-severity-label">
+            Severity
+            <InfoTip
+              text="Critical (CVSS 9.0–10.0), High (7.0–8.9), Medium (4.0–6.9), Low (0.1–3.9). Higher = more urgent."
+              label="Severity"
+            />
+          </span>
           {['critical', 'high', 'medium', 'low', 'info'].map((sev) => {
             const count = summary.by_severity[sev] ?? 0;
             if (count === 0) return null;
