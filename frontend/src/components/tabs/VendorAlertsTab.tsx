@@ -7,6 +7,13 @@ import SeverityBadge from '../shared/SeverityBadge';
 import InfoTip from '../shared/InfoTip';
 import './VendorAlertsTab.css';
 
+const VENDOR_ALERT_TIP =
+  'A newly published CVE affecting one of the technology vendors in your stack. Each row links a known exploited vulnerability (KEV) to a vendor you use.';
+const SEVERITY_TIP =
+  'Critical (CVSS 9.0–10.0), High (7.0–8.9), Medium (4.0–6.9), Low (0.1–3.9). Higher = more urgent to patch.';
+const RISK_SCORE_TIP =
+  '0–100 composite combining severity, KEV presence, exploitation probability, and recency. Higher = more risk.';
+
 const VendorAlertsTab: React.FC = () => {
   const { user, orgId } = useAuth();
   const [data, setData] = useState<VendorAlertsResponse | null>(null);
@@ -178,6 +185,10 @@ const VendorAlertsTab: React.FC = () => {
 
   return (
     <div className="tab-page">
+      <h2 style={{ margin: '0 0 0.75rem', fontSize: 18, fontWeight: 700 }}>
+        Vendor Alerts
+        <InfoTip text={VENDOR_ALERT_TIP} label="Vendor Alerts" />
+      </h2>
       <div className="overview-toolbar">
         <button className="overview-refresh-btn" onClick={() => load(page)} disabled={loading}>
           {loading ? 'Refreshing...' : 'Refresh'}
@@ -237,9 +248,9 @@ const VendorAlertsTab: React.FC = () => {
             <th style={{ padding: '6px 8px' }}>CVE ID<InfoTip text="CVE (Common Vulnerabilities and Exposures) — a unique ID for a known security flaw" /></th>
             <th style={{ padding: '6px 8px' }}>Vendor</th>
             <th style={{ padding: '6px 8px' }}>Product</th>
-            <th style={{ padding: '6px 8px' }}>Severity</th>
+            <th style={{ padding: '6px 8px' }}>Severity<InfoTip text={SEVERITY_TIP} label="Severity" /></th>
             <th style={{ padding: '6px 8px' }}>CVSS<InfoTip text="CVSS (Common Vulnerability Scoring System) — severity score from 0–10" /></th>
-            <th style={{ padding: '6px 8px' }}>Risk Score</th>
+            <th style={{ padding: '6px 8px' }}>Risk Score<InfoTip text={RISK_SCORE_TIP} label="Risk Score" /></th>
             <th style={{ padding: '6px 8px' }}>Date Added</th>
           </tr>
         </thead>

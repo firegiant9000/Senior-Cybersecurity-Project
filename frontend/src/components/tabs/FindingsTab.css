@@ -205,6 +205,17 @@
   color: var(--text-secondary, #555);
 }
 
+.findings-severity-label {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted, #6b7280);
+  margin-right: 4px;
+}
+
 /* Data sources */
 .findings-sources {
   font-size: 12px;
