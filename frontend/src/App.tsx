@@ -8,6 +8,7 @@ import AssessmentIntakePage from "./pages/AssessmentIntakePage.tsx";
 import OrgProfilePage from "./pages/OrgProfilePage.tsx";
 import AcceptInvitePage from "./pages/AcceptInvitePage.tsx";
 import ExecutiveReportPage from "./pages/ExecutiveReportPage.tsx";
+import GlossaryPage from "./pages/GlossaryPage.tsx";
 import ProtectedRoute from "./components/ProtectedRoute.tsx";
 import { useAuth } from "./context/AuthContext.tsx";
 
@@ -78,6 +79,14 @@ function App() {
         element={
           <ProtectedRoute>
             <ExecutiveReportPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/glossary"
+        element={
+          <ProtectedRoute requireOrg={false}>
+            <GlossaryPage />
           </ProtectedRoute>
         }
       />
