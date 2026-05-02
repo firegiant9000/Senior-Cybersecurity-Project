@@ -121,20 +121,31 @@ const InfoTip: React.FC<InfoTipProps> = ({ text, label }) => {
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
         style={{
-          marginLeft: 4,
+          marginLeft: 6,
           cursor: 'help',
-          color: 'var(--text-muted)',
-          fontSize: '0.85em',
-          userSelect: 'none',
-          background: 'transparent',
-          border: 'none',
-          padding: 0,
+          color: open ? '#fff' : 'var(--accent)',
+          background: open ? 'var(--accent)' : 'transparent',
+          border: '1.5px solid var(--accent)',
+          borderRadius: '50%',
+          width: 18,
+          height: 18,
+          minWidth: 18,
+          fontSize: 12,
+          fontWeight: 700,
+          fontFamily: 'Georgia, serif',
+          fontStyle: 'italic',
           lineHeight: 1,
+          padding: 0,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          userSelect: 'none',
           verticalAlign: 'middle',
           pointerEvents: 'auto',
+          transition: 'background 0.15s ease, color 0.15s ease',
         }}
       >
-        ⓘ
+        i
       </button>
       {open && coords && createPortal(
         <span
