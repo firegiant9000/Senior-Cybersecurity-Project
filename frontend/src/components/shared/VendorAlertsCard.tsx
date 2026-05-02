@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import SeverityBadge from './SeverityBadge';
 import InfoTip from './InfoTip';
 
-const VENDOR_ALERT_TIP =
+export const VENDOR_ALERT_TIP =
   'A newly published CVE affecting one of your configured technology vendors. Each row links a known exploited vulnerability (KEV) to a vendor in your stack.';
 
 const wrapperStyle: React.CSSProperties = { gridColumn: 'span 2' };
