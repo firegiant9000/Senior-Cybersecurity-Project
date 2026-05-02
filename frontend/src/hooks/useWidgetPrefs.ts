@@ -5,10 +5,16 @@ interface Prefs {
     gridOrder: string[];
 }
 
+// Curated demo default: Overview shows only the narrative-critical widgets out of the box
+// (executiveSummary + vendorAlerts are non-moveable and always visible; cyberMap, projectedLoss,
+// avgRiskScore, criticalRiskCves are the four moveable widgets kept visible by default).
+// Users can toggle others back on via the Customize panel; existing localStorage prefs are preserved.
 const DEFAULT_HIDDEN = [
-    'ic3Anomalies', 'incidentMgmt', 'heatmap',
+    'malwareChart', 'totalAttempts', 'totalLosses', 'progression',
+    'avgLoss', 'cvesExploited', 'attackTypeCount', 'stateCount',
+    'totalCves', 'ic3Anomalies', 'escalatingSectors',
+    'incidentMgmt', 'cyberRisks', 'heatmap',
     'lossAttack', 'avgLossSector', 'complaintsSector', 'sectorTable',
-    'attackTypeCount', 'stateCount',
 ];
 
 function defaultPrefs(allIds: string[], moveableIds: string[]): Prefs {
