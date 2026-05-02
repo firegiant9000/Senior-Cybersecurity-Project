@@ -1,0 +1,213 @@
+.intake-progress-indicator {
+  background: linear-gradient(135deg, #eef2ff 0%, #ffffff 100%);
+  border: 1px solid #c7d2fe;
+  border-left: 4px solid #2563eb;
+  border-radius: 10px;
+  padding: 16px 20px;
+  font-size: 0.9rem;
+  color: #1f2937;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: box-shadow 0.2s ease;
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+[data-theme="dark"] .intake-progress-indicator {
+  background: linear-gradient(135deg, #0f1e3a 0%, #142850 100%);
+  border-color: #2563eb;
+  border-left-color: #60a5fa;
+  color: #f1f5f9;
+  box-shadow: 0 4px 18px rgba(37, 99, 235, 0.35);
+}
+
+.intake-progress-indicator.is-loading {
+  opacity: 0.75;
+}
+
+.intake-progress-indicator--placeholder {
+  font-style: italic;
+  color: #64748b;
+}
+
+[data-theme="dark"] .intake-progress-indicator--placeholder {
+  color: #94a3b8;
+}
+
+.intake-progress-indicator-placeholder-text {
+  font-size: 0.85rem;
+}
+
+.intake-progress-indicator-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(200px, 2fr) minmax(140px, 1fr);
+  gap: 18px;
+  align-items: center;
+}
+
+@media (max-width: 720px) {
+  .intake-progress-indicator-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
+.intake-progress-indicator-label-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.intake-progress-indicator-eyebrow {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #1e3a8a;
+}
+
+[data-theme="dark"] .intake-progress-indicator-eyebrow {
+  color: #93c5fd;
+}
+
+.intake-progress-indicator-tier {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0b1060;
+}
+
+[data-theme="dark"] .intake-progress-indicator-tier {
+  color: #ffffff;
+}
+
+.intake-progress-indicator-bar-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.intake-progress-indicator-bar {
+  height: 12px;
+  background: #cbd5e1;
+  border-radius: 999px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.15);
+}
+
+[data-theme="dark"] .intake-progress-indicator-bar {
+  background: #0f172a;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.intake-progress-indicator-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2563eb 0%, #38bdf8 100%);
+  border-radius: 999px;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+}
+
+[data-theme="dark"] .intake-progress-indicator-fill {
+  background: linear-gradient(90deg, #3b82f6 0%, #22d3ee 100%);
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.7);
+}
+
+.intake-progress-indicator-bar-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: #334155;
+}
+
+[data-theme="dark"] .intake-progress-indicator-bar-meta {
+  color: #cbd5e1;
+}
+
+.intake-progress-indicator-count {
+  font-weight: 600;
+}
+
+.intake-progress-indicator-pct {
+  font-weight: 800;
+  color: #0b1060;
+  font-size: 0.9rem;
+}
+
+[data-theme="dark"] .intake-progress-indicator-pct {
+  color: #38bdf8;
+}
+
+.intake-progress-indicator-next-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: right;
+}
+
+@media (max-width: 720px) {
+  .intake-progress-indicator-next-block {
+    text-align: left;
+  }
+}
+
+.intake-progress-indicator-next-eyebrow {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #1e3a8a;
+}
+
+[data-theme="dark"] .intake-progress-indicator-next-eyebrow {
+  color: #93c5fd;
+}
+
+.intake-progress-indicator-next-text {
+  font-size: 0.9rem;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+[data-theme="dark"] .intake-progress-indicator-next-text {
+  color: #ffffff;
+}
+
+.intake-progress-indicator-maxed {
+  font-size: 0.85rem;
+  color: #166534;
+  font-weight: 600;
+}
+
+[data-theme="dark"] .intake-progress-indicator-maxed {
+  color: #86efac;
+}
+
+.intake-progress-indicator-toast {
+  padding: 8px 12px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  animation: intake-toast-in 0.25s ease-out;
+}
+
+[data-theme="dark"] .intake-progress-indicator-toast {
+  background: #064e3b;
+  border-color: #10b981;
+  color: #a7f3d0;
+}
+
+@keyframes intake-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

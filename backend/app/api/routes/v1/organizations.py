@@ -25,7 +25,10 @@ from app.schemas.ai_summary_generation import (
     AISummaryGenerationListResponse,
 )
 from app.schemas.assessment_debug import DebugAssessmentResponse
-from app.schemas.assessment_intake import AssessmentIntakeResponse
+from app.schemas.assessment_intake import (
+    AssessmentIntakePreviewRequest,
+    AssessmentIntakeResponse,
+)
 from app.schemas.assessment_readiness import AssessmentReadinessResponse
 from app.schemas.assessment_validation import AssessmentValidationResponse
 from app.schemas.executive_summary import ExecutiveSummaryResponse
@@ -42,7 +45,11 @@ from app.schemas.smb_risk_score import RiskScoreResponse
 from app.schemas.vendor_alert import VendorAlertsResponse
 from app.services.ai_summary import AISummaryService
 from app.services.assessment_debug import build_assessment_debug_snapshot
-from app.services.assessment_intake import evaluate_intake
+from app.services.assessment_intake import (
+    IntakeSnapshot,
+    evaluate_intake,
+    evaluate_intake_preview,
+)
 from app.services.assessment_readiness import evaluate_readiness
 from app.services.assessment_validator import build_response, run_validation
 from app.services.executive_summary import ExecutiveSummaryService
@@ -162,6 +169,49 @@ async def get_assessment_intake(
     progress toward the next tier.
     """
     return await evaluate_intake(org, db)
+
+
+@router.post("/mine/intake-preview", response_model=AssessmentIntakeResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def preview_assessment_intake(
+    request: Request,  # noqa: ARG001
+    body: AssessmentIntakePreviewRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_session),
+):
+    """Live tier-progress preview for an in-progress onboarding form.
+
+    Accepts a partial intake payload and returns the same tier evaluation as
+    `GET /mine/intake`, but without persisting anything. First-time users
+    without an org yet are supported (vendor/domain/upload counts default
+    to zero plus optimistic +1 for any typed primary_vendor / primary_domain).
+    """
+    # Look up the user's existing org so persisted vendor / domain / upload
+    # counts feed into the preview. Missing-org is fine — pre-onboarding users
+    # haven't created one yet.
+    current_org: Organization | None = None
+    if current_user.org_id is not None:
+        result = await db.execute(
+            select(Organization).where(Organization.id == current_user.org_id)
+        )
+        current_org = result.scalar_one_or_none()
+
+    snap = IntakeSnapshot(
+        name=body.name,
+        industry_label=body.industry_label,
+        primary_state=body.primary_state,
+        employee_range=body.employee_range,
+        revenue_range=body.revenue_range,
+        security_controls=body.security_controls,
+        compliance_frameworks=body.compliance_frameworks,
+        data_types=body.data_types,
+        # Optimistic bumps: a typed primary_vendor / primary_domain counts toward
+        # the tier even before the row is created. evaluate_intake_preview merges
+        # these with the persisted counts using max().
+        vendor_count=1 if (body.primary_vendor and body.primary_vendor.strip()) else 0,
+        domain_count=1 if (body.primary_domain and body.primary_domain.strip()) else 0,
+    )
+    return await evaluate_intake_preview(snap, current_org, db)
 
 
 @router.get("/mine/validation", response_model=AssessmentValidationResponse)
