@@ -1,5 +1,7 @@
 """Authentication routes: Firebase token verification."""
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth as firebase_auth
@@ -13,6 +15,13 @@ from app.db.engine import get_session
 from app.db.user import User
 from app.schemas.user import UserRead
 
+logger = logging.getLogger(__name__)
+
+# Tolerate small clock differences between this host and Google's token-issuing
+# servers. Without this, a backend clock that's a few seconds ahead of real time
+# (common with Docker Desktop on Windows) rejects fresh tokens as "used too early."
+_TOKEN_CLOCK_SKEW_SECONDS = 10
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 bearer_scheme = HTTPBearer()
@@ -25,8 +34,11 @@ async def get_current_user(
     """Verify Firebase ID token and return (or auto-create) the local User."""
     token = credentials.credentials
     try:
-        decoded = firebase_auth.verify_id_token(token)
-    except (ValueError, FirebaseError):
+        decoded = firebase_auth.verify_id_token(
+            token, clock_skew_seconds=_TOKEN_CLOCK_SKEW_SECONDS
+        )
+    except (ValueError, FirebaseError) as exc:
+        logger.warning("Firebase token verification failed: %r", exc)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
