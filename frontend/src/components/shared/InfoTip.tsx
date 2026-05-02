@@ -6,6 +6,11 @@ interface InfoTipProps {
   label?: string;
 }
 
+export interface GlossaryEntry {
+  term: string;
+  definition: string;
+}
+
 const TIP_MAX_WIDTH = 280;
 const VIEWPORT_MARGIN = 8;
 const TIP_GAP = 6;
@@ -31,10 +36,21 @@ const ACRONYM_GLOSSARY: Record<string, string> = {
   SIEM: 'Security Information and Event Management — a central system that collects and analyzes security logs.',
   PII: 'Personally Identifiable Information — data that can identify a specific person (name, SSN, email, etc.).',
   NIST: 'National Institute of Standards and Technology — publishes widely used cybersecurity frameworks.',
+  ANOMALY:
+    'A data point that deviates noticeably from the historical norm. We flag anomalies using z-scores: |z|>2 means the value is unusually high or low compared to past periods.',
+  'VENDOR ALERT':
+    'A newly published CVE affecting one of the technology vendors in your stack. Each alert links the CVE to the affected vendor so you can prioritize patching.',
+  'RISK SCORE':
+    '0–100 composite score combining vendor exposure, KEV presence, incident frequency, and severity. Higher = more risk. Used to rank assets and findings.',
 };
 
 export const getAcronymDefinition = (acronym: string): string | undefined =>
   ACRONYM_GLOSSARY[acronym.toUpperCase()];
+
+export const getGlossaryEntries = (): GlossaryEntry[] =>
+  Object.entries(ACRONYM_GLOSSARY)
+    .map(([term, definition]) => ({ term, definition }))
+    .sort((a, b) => a.term.localeCompare(b.term));
 
 const InfoTip: React.FC<InfoTipProps> = ({ text, label }) => {
   const [open, setOpen] = useState(false);
