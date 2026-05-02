@@ -1,11 +1,13 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useAssessmentIntake } from "../hooks/useAssessmentIntake";
+import { useIntakePreview } from "../hooks/useIntakePreview";
 import { fetchWithAuth, API_BASE_URL } from "../api/fetchWithAuth";
 import StepIndicator from "../components/shared/StepIndicator";
 import FormSection from "../components/shared/FormSection";
 import ProgressSummary from "../components/shared/ProgressSummary";
+import IntakeProgressIndicator from "../components/shared/IntakeProgressIndicator";
 import RequiredBadge from "../components/shared/RequiredBadge";
 import {
   type AssessmentIntakeFormData,
@@ -157,6 +159,34 @@ export default function AssessmentIntakePage() {
       loadOrgData();
     }
   }, [user, orgId]);
+
+  // Live tier preview: send the in-progress form to the backend (debounced) so
+  // the sidebar reflects "what tier would I have right now if I submitted?".
+  // The security_controls payload mirrors what handleNext's PUT would send so
+  // the preview's tier evaluation matches the post-submit evaluation exactly —
+  // any divergence here would surface as a misleading "unlocked" toast that
+  // disappears the moment the user advances.
+  const previewPayload = useMemo(() => {
+    return {
+      name: form.name.trim() || null,
+      industry_label: form.industry_label || null,
+      primary_state: form.primary_state || null,
+      employee_range: form.employee_range || null,
+      revenue_range: form.revenue_range || null,
+      primary_domain: form.primary_domain.trim() || null,
+      primary_vendor: form.primary_vendor.trim() || null,
+      security_controls:
+        Object.keys(form.security_controls).length > 0 ? form.security_controls : null,
+      compliance_frameworks:
+        form.compliance_frameworks.length > 0 ? form.compliance_frameworks : null,
+      data_types: form.data_types.length > 0 ? form.data_types : null,
+    };
+  }, [form]);
+
+  const { preview, loading: previewLoading } = useIntakePreview(
+    previewPayload,
+    Boolean(user) && step < 5,
+  );
 
   const updateField = (field: keyof AssessmentIntakeFormData, value: unknown) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -813,6 +843,10 @@ export default function AssessmentIntakePage() {
             Tell us about your organization to unlock actionable threat intelligence
           </p>
         </header>
+
+        {step < 5 && (
+          <IntakeProgressIndicator preview={preview} loading={previewLoading} />
+        )}
 
         <StepIndicator currentStep={step} totalSteps={TOTAL_STEPS} steps={STEPS} />
 

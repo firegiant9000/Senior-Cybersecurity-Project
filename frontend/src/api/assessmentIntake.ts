@@ -2,7 +2,7 @@
  * API client for the graduated Assessment Intake tier system.
  */
 
-import { API_BASE_URL, getJsonAuth } from "./fetchWithAuth";
+import { API_BASE_URL, fetchWithAuth, getJsonAuth } from "./fetchWithAuth";
 
 export type AssessmentTier = "incomplete" | "basic" | "enhanced" | "comprehensive";
 
@@ -37,4 +37,40 @@ export function fetchAssessmentIntake(
     `${API_BASE_URL}/api/v1/organizations/mine/intake`,
     signal,
   );
+}
+
+export interface AssessmentIntakePreviewRequest {
+  name?: string | null;
+  industry_label?: string | null;
+  primary_state?: string | null;
+  employee_range?: string | null;
+  revenue_range?: string | null;
+  primary_domain?: string | null;
+  primary_vendor?: string | null;
+  security_controls?: Record<string, "yes" | "no" | "unsure"> | null;
+  compliance_frameworks?: string[] | null;
+  data_types?: string[] | null;
+}
+
+export async function previewAssessmentIntake(
+  payload: AssessmentIntakePreviewRequest,
+  signal: AbortSignal,
+): Promise<AssessmentIntakeResponse> {
+  const resp = await fetchWithAuth(
+    `${API_BASE_URL}/api/v1/organizations/mine/intake-preview`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal,
+    },
+  );
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    throw new Error(
+      (body as { detail?: string }).detail ??
+        `Request failed: ${resp.statusText}`,
+    );
+  }
+  return resp.json() as Promise<AssessmentIntakeResponse>;
 }

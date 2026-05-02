@@ -96,7 +96,7 @@ export default function LoginPage({ defaultSignUp = false }: { defaultSignUp?: b
   // Forgot password view
   if (isForgotPassword) {
     return (
-      <div className={`login-page${isSignUp ? " login-page--signup" : ""}`}>
+      <div className="login-page">
         <div className="login-card">
           <div className="login-header">
             <img src="/logo.png" alt="Hacker Tracker" className="login-logo" />
