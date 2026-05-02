@@ -2,6 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { fetchVendorAlerts, VendorAlertsResponse } from '../../api/vendorAlerts';
 import { useAuth } from '../../context/AuthContext';
 import SeverityBadge from './SeverityBadge';
+import InfoTip from './InfoTip';
+
+const VENDOR_ALERT_TIP =
+  'A newly published CVE affecting one of your configured technology vendors. Each row links a known exploited vulnerability (KEV) to a vendor in your stack.';
+
+const wrapperStyle: React.CSSProperties = { gridColumn: 'span 2' };
+
+const Title: React.FC = () => (
+  <span className="widget-title">
+    Vendor Vulnerability Alerts
+    <InfoTip text={VENDOR_ALERT_TIP} label="Vendor Vulnerability Alerts" />
+  </span>
+);
 
 const VendorAlertsCard: React.FC = () => {
   const { user } = useAuth();
@@ -28,8 +41,8 @@ const VendorAlertsCard: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="card chart-widget" style={{ gridColumn: 'span 2' }}>
-        <span className="widget-title">Vendor Vulnerability Alerts</span>
+      <div className="card chart-widget" style={wrapperStyle}>
+        <Title />
         <p style={{ padding: '1rem', color: 'var(--text-muted)' }}>Loading...</p>
       </div>
     );
@@ -37,8 +50,8 @@ const VendorAlertsCard: React.FC = () => {
 
   if (error) {
     return (
-      <div className="card chart-widget" style={{ gridColumn: 'span 2' }}>
-        <span className="widget-title">Vendor Vulnerability Alerts</span>
+      <div className="card chart-widget" style={wrapperStyle}>
+        <Title />
         <p style={{ padding: '1rem', color: '#d32f2f' }}>{error}</p>
       </div>
     );
@@ -46,8 +59,8 @@ const VendorAlertsCard: React.FC = () => {
 
   if (!data || data.reason === 'no_vendors') {
     return (
-      <div className="card chart-widget" style={{ gridColumn: 'span 2' }}>
-        <span className="widget-title">Vendor Vulnerability Alerts</span>
+      <div className="card chart-widget" style={wrapperStyle}>
+        <Title />
         <p style={{ padding: '1rem', color: 'var(--text-muted)' }}>
           Add your technology vendors in Settings to see matched vulnerability alerts.
         </p>
@@ -57,8 +70,8 @@ const VendorAlertsCard: React.FC = () => {
 
   if (data.reason === 'no_matches') {
     return (
-      <div className="card chart-widget" style={{ gridColumn: 'span 2' }}>
-        <span className="widget-title">Vendor Vulnerability Alerts</span>
+      <div className="card chart-widget" style={wrapperStyle}>
+        <Title />
         <p style={{ padding: '1rem', color: '#2e7d32' }}>
           No known exploited vulnerabilities match your vendor stack.
         </p>
@@ -69,60 +82,58 @@ const VendorAlertsCard: React.FC = () => {
   const { severity_breakdown: sb } = data;
 
   return (
-    <div className="card chart-widget" style={{ gridColumn: 'span 2' }}>
-      <span className="widget-title">Vendor Vulnerability Alerts</span>
+    <div className="card chart-widget" style={wrapperStyle}>
+      <Title />
       <div style={{ padding: '0.75rem 1rem' }}>
         {/* Severity breakdown bar */}
-        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+        <div className="vendor-alerts-card-summary">
           {sb.critical > 0 && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span className="vendor-alerts-card-pill">
               <SeverityBadge label="Critical" /> <strong>{sb.critical}</strong>
             </span>
           )}
           {sb.high > 0 && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span className="vendor-alerts-card-pill">
               <SeverityBadge label="High" /> <strong>{sb.high}</strong>
             </span>
           )}
           {sb.medium > 0 && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span className="vendor-alerts-card-pill">
               <SeverityBadge label="Medium" /> <strong>{sb.medium}</strong>
             </span>
           )}
           {sb.low > 0 && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span className="vendor-alerts-card-pill">
               <SeverityBadge label="Low" /> <strong>{sb.low}</strong>
             </span>
           )}
           {sb.unknown > 0 && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span className="vendor-alerts-card-pill">
               <SeverityBadge label="Unknown" /> <strong>{sb.unknown}</strong>
             </span>
           )}
-          <span style={{ color: 'var(--text-muted)', fontSize: 13, marginLeft: 'auto' }}>
-            {data.total_matched} total
-          </span>
+          <span className="vendor-alerts-card-total">{data.total_matched} total</span>
         </div>
 
         {/* Top alerts list */}
-        <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+        <table className="vendor-alerts-card-table">
           <thead>
-            <tr style={{ borderBottom: '1px solid #e5e7eb', textAlign: 'left' }}>
-              <th style={{ padding: '4px 8px' }}>CVE</th>
-              <th style={{ padding: '4px 8px' }}>Vendor</th>
-              <th style={{ padding: '4px 8px' }}>Product</th>
-              <th style={{ padding: '4px 8px' }}>Severity</th>
-              <th style={{ padding: '4px 8px' }}>CVSS</th>
+            <tr>
+              <th>CVE</th>
+              <th>Vendor</th>
+              <th>Product</th>
+              <th>Severity</th>
+              <th>CVSS</th>
             </tr>
           </thead>
           <tbody>
             {data.items.map((item) => (
-              <tr key={`${item.cve_id}-${item.vendor_name}-${item.kev_product}`} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                <td style={{ padding: '4px 8px', fontFamily: 'monospace' }}>{item.cve_id}</td>
-                <td style={{ padding: '4px 8px' }}>{item.vendor_name}</td>
-                <td style={{ padding: '4px 8px' }}>{item.kev_product}</td>
-                <td style={{ padding: '4px 8px' }}><SeverityBadge label={item.severity_label} /></td>
-                <td style={{ padding: '4px 8px', fontWeight: 700 }}>
+              <tr key={`${item.cve_id}-${item.vendor_name}-${item.kev_product}`}>
+                <td className="vendor-alerts-card-cve">{item.cve_id}</td>
+                <td>{item.vendor_name}</td>
+                <td>{item.kev_product}</td>
+                <td><SeverityBadge label={item.severity_label} /></td>
+                <td className="vendor-alerts-card-cvss">
                   {item.cvss_score !== null ? item.cvss_score.toFixed(1) : '—'}
                 </td>
               </tr>
@@ -131,7 +142,7 @@ const VendorAlertsCard: React.FC = () => {
         </table>
 
         {/* Footer */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', fontSize: 11, color: 'var(--text-muted)' }}>
+        <div className="vendor-alerts-card-footer">
           {data.kev_last_ingest_at && (
             <span>KEV data as of: {new Date(data.kev_last_ingest_at).toLocaleDateString()}</span>
           )}

@@ -6,7 +6,14 @@
     border: 1px solid var(--border);
     overflow: hidden;
     margin-bottom: 20px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+    transition: box-shadow 0.2s ease;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+[data-theme="dark"] .exec-summary-card {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
 }
 
 /* ── Header band ─────────────────────────────────────────────────────────── */

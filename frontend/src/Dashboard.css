@@ -73,14 +73,17 @@
     grid-template-columns: repeat(4, 1fr);
     grid-auto-rows: 300px;
     gap: 20px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 /* White boxes for Data */
 .card {
     background-color: var(--card-bg);
+    border: 1px solid var(--border);
     border-radius: 10px;
     padding: 20px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -90,17 +93,20 @@
     height: 100%;
     overflow: hidden;
     position: relative;
-    transition: box-shadow 0.2s ease, transform 0.2s ease;
+    transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
 }
 
 .card:hover {
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
     transform: translateY(-2px);
 }
 
 [data-theme="dark"] .card {
-    border: 1px solid var(--border);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="dark"] .card:hover {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
 /* Widgets */
@@ -211,12 +217,12 @@
 
 /* ── Chart widget title + body ────────────────────────────────────────────── */
 .widget-title {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.8px;
     color: var(--widget-title);
-    margin-bottom: 6px;
+    margin-bottom: 10px;
     width: 100%;
     text-align: center;
     flex-shrink: 0;
@@ -242,6 +248,101 @@
 .chart-aspect-box {
     width: 100%;
     aspect-ratio: 16 / 9;
+}
+
+/* ── Wide card slot above the grid (Vendor Alerts) ────────────────────────── */
+.overview-wide-card-slot {
+    margin-bottom: 20px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.overview-wide-card-slot .card {
+    height: auto;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.overview-wide-card-slot .card:hover {
+    transform: none;
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="dark"] .overview-wide-card-slot .card:hover {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+
+/* ── Vendor Alerts dashboard card ─────────────────────────────────────────── */
+.vendor-alerts-card-summary {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.vendor-alerts-card-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 4px;
+    min-width: 84px;
+}
+
+.vendor-alerts-card-total {
+    color: var(--text-muted);
+    font-size: 13px;
+    margin-left: auto;
+}
+
+.vendor-alerts-card-table {
+    width: 100%;
+    font-size: 13px;
+    border-collapse: collapse;
+}
+
+.vendor-alerts-card-table thead tr {
+    border-top: 1px solid var(--border);
+    border-bottom: 2px solid var(--border);
+    text-align: left;
+}
+
+.vendor-alerts-card-table th {
+    padding: 8px 12px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.4px;
+}
+
+.vendor-alerts-card-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.vendor-alerts-card-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.vendor-alerts-card-table tbody tr:hover {
+    background: var(--table-row-hover);
+}
+
+.vendor-alerts-card-cve {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.vendor-alerts-card-cvss {
+    font-weight: 700;
+}
+
+.vendor-alerts-card-footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    font-size: 11px;
+    color: var(--text-muted);
 }
 
 /* ── Overview Stat Card ───────────────────────────────────────────────────── */
