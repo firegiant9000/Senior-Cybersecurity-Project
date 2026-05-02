@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
 
+from app.api.routes.v1.auth import get_current_user
+from app.db.user import User
+from app.main import app
 from app.schemas.assessment_intake import AssessmentTier
 from app.services.assessment_intake import (
     IntakeSnapshot,
+    evaluate_intake_preview,
     evaluate_intake_snapshot,
 )
 
@@ -85,7 +90,7 @@ def test_progress_percent_reflects_partial_next_tier_completion():
     assert result.next_tier_progress == pytest.approx(33.3, abs=0.1)
 
 
-def test_unsure_only_controls_count_toward_started_but_not_depth():
+def test_unsure_only_controls_count_as_started():
     # 10 controls answered "unsure" → security_controls met (started), depth met
     snap = IntakeSnapshot(
         name="Acme",
@@ -102,7 +107,94 @@ def test_unsure_only_controls_count_toward_started_but_not_depth():
     assert result.next_tier == AssessmentTier.COMPREHENSIVE
 
 
+# ── evaluate_intake_preview merge behavior ───────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_evaluate_preview_merges_persisted_counts():
+    """Persisted vendor/domain/upload counts feed the preview when org exists."""
+    snap = IntakeSnapshot(
+        name="Acme Co",
+        industry_label="Technology",
+        primary_state="CA",
+        employee_range="11-50",
+        security_controls={"firewall": "yes"},
+        # Snapshot starts at zero — the persisted counts should override.
+        vendor_count=0,
+        domain_count=0,
+    )
+    org_mock = MagicMock()
+    org_mock.id = 7
+    session_mock = MagicMock()
+
+    with patch(
+        "app.services.assessment_intake._fetch_counts",
+        new=AsyncMock(return_value=(2, 3, 0)),
+    ):
+        result = await evaluate_intake_preview(snap, org_mock, session_mock)
+
+    # vendors=2, domains=3, controls started → enhanced reachable
+    assert result.current_tier == AssessmentTier.ENHANCED
+
+
+@pytest.mark.asyncio
+async def test_evaluate_preview_optimistic_bumps_win_against_zero_persisted():
+    """A typed primary_vendor (snapshot.vendor_count=1) survives a persisted 0."""
+    snap = IntakeSnapshot(
+        name="Acme Co",
+        industry_label="Technology",
+        primary_state="CA",
+        employee_range="11-50",
+        security_controls={"firewall": "yes"},
+        vendor_count=1,
+        domain_count=1,
+    )
+    org_mock = MagicMock()
+    org_mock.id = 7
+    session_mock = MagicMock()
+
+    with patch(
+        "app.services.assessment_intake._fetch_counts",
+        new=AsyncMock(return_value=(0, 0, 0)),
+    ):
+        result = await evaluate_intake_preview(snap, org_mock, session_mock)
+
+    # Snapshot bumps win via max() — controls started → enhanced reachable.
+    assert result.current_tier == AssessmentTier.ENHANCED
+
+
+@pytest.mark.asyncio
+async def test_evaluate_preview_without_org_skips_db_lookup():
+    """When current_org is None we never touch _fetch_counts."""
+    snap = IntakeSnapshot(
+        name="Acme Co",
+        industry_label="Technology",
+        primary_state="CA",
+        employee_range="11-50",
+    )
+    fetch_mock = AsyncMock(return_value=(99, 99, 99))
+    with patch("app.services.assessment_intake._fetch_counts", new=fetch_mock):
+        result = await evaluate_intake_preview(snap, None, MagicMock())
+
+    fetch_mock.assert_not_called()
+    assert result.current_tier == AssessmentTier.BASIC
+
+
 # ── Route tests ──────────────────────────────────────────────────────
+
+
+def _fake_user(*, org_id: int | None = None) -> User:
+    user = User(
+        id=1,
+        firebase_uid="test-firebase-uid-global",
+        email="testuser@example.com",
+        role="viewer",
+        auth_provider="password",
+        org_id=org_id,
+        created_at=datetime.now(UTC),
+    )
+    user.is_active = True
+    return user
 
 
 @pytest.mark.asyncio
@@ -117,17 +209,12 @@ async def test_intake_preview_requires_auth(anon_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_intake_preview_works_without_org(client: AsyncClient):
     """First-time onboarding: user has no org yet, preview still computes."""
-    from app.api.routes.v1.auth import get_current_user
-    from app.main import app
+    fake_user = _fake_user(org_id=None)
 
-    user_mock = MagicMock()
-    user_mock.org_id = None
-    user_mock.role = "user"
+    async def _override():
+        return fake_user
 
-    async def _mock_user():
-        return user_mock
-
-    app.dependency_overrides[get_current_user] = _mock_user
+    app.dependency_overrides[get_current_user] = _override
     try:
         resp = await client.post(
             "/api/v1/organizations/mine/intake-preview",
@@ -141,7 +228,7 @@ async def test_intake_preview_works_without_org(client: AsyncClient):
     finally:
         app.dependency_overrides.pop(get_current_user, None)
 
-    assert resp.status_code == 200
+    assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["current_tier"] == "basic"
 
@@ -149,17 +236,12 @@ async def test_intake_preview_works_without_org(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_intake_preview_optimistic_vendor_domain(client: AsyncClient):
     """Typed primary_vendor / primary_domain count as +1 even before sync."""
-    from app.api.routes.v1.auth import get_current_user
-    from app.main import app
+    fake_user = _fake_user(org_id=None)
 
-    user_mock = MagicMock()
-    user_mock.org_id = None
-    user_mock.role = "user"
+    async def _override():
+        return fake_user
 
-    async def _mock_user():
-        return user_mock
-
-    app.dependency_overrides[get_current_user] = _mock_user
+    app.dependency_overrides[get_current_user] = _override
     try:
         resp = await client.post(
             "/api/v1/organizations/mine/intake-preview",
@@ -176,58 +258,6 @@ async def test_intake_preview_optimistic_vendor_domain(client: AsyncClient):
     finally:
         app.dependency_overrides.pop(get_current_user, None)
 
-    assert resp.status_code == 200
+    assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["current_tier"] == "enhanced"
-
-
-@pytest.mark.asyncio
-async def test_intake_preview_uses_persisted_counts(client: AsyncClient):
-    """When the user has an org, persisted vendor/domain counts feed the preview."""
-    from app.api.routes.v1.auth import get_current_user
-    from app.main import app
-
-    user_mock = MagicMock()
-    user_mock.org_id = 7
-    user_mock.role = "user"
-
-    async def _mock_user():
-        return user_mock
-
-    app.dependency_overrides[get_current_user] = _mock_user
-
-    org_mock = MagicMock()
-    org_mock.id = 7
-    scalar = MagicMock()
-    scalar.scalar_one_or_none = MagicMock(return_value=org_mock)
-
-    session_execute = AsyncMock(return_value=scalar)
-
-    try:
-        with (
-            patch(
-                "app.api.routes.v1.organizations.AsyncSession.execute",
-                new=session_execute,
-            ),
-            patch(
-                "app.services.assessment_intake._fetch_counts",
-                new=AsyncMock(return_value=(2, 3, 0)),
-            ),
-        ):
-            resp = await client.post(
-                "/api/v1/organizations/mine/intake-preview",
-                json={
-                    "name": "Acme Co",
-                    "industry_label": "Technology",
-                    "primary_state": "CA",
-                    "employee_range": "11-50",
-                    "security_controls": {"firewall": "yes"},
-                },
-            )
-    finally:
-        app.dependency_overrides.pop(get_current_user, None)
-
-    assert resp.status_code == 200
-    body = resp.json()
-    # vendors=2, domains=3, controls started → enhanced reachable
     assert body["current_tier"] == "enhanced"

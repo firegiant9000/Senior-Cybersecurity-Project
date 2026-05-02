@@ -162,12 +162,11 @@ export default function AssessmentIntakePage() {
 
   // Live tier preview: send the in-progress form to the backend (debounced) so
   // the sidebar reflects "what tier would I have right now if I submitted?".
-  // Only the security controls the user has explicitly answered count toward
-  // the controls-depth check, so filter out the default "unsure" baseline.
+  // The security_controls payload mirrors what handleNext's PUT would send so
+  // the preview's tier evaluation matches the post-submit evaluation exactly —
+  // any divergence here would surface as a misleading "unlocked" toast that
+  // disappears the moment the user advances.
   const previewPayload = useMemo(() => {
-    const answeredControls = Object.fromEntries(
-      Object.entries(form.security_controls).filter(([, v]) => v === "yes" || v === "no"),
-    );
     return {
       name: form.name.trim() || null,
       industry_label: form.industry_label || null,
@@ -177,7 +176,7 @@ export default function AssessmentIntakePage() {
       primary_domain: form.primary_domain.trim() || null,
       primary_vendor: form.primary_vendor.trim() || null,
       security_controls:
-        Object.keys(answeredControls).length > 0 ? answeredControls : null,
+        Object.keys(form.security_controls).length > 0 ? form.security_controls : null,
       compliance_frameworks:
         form.compliance_frameworks.length > 0 ? form.compliance_frameworks : null,
       data_types: form.data_types.length > 0 ? form.data_types : null,

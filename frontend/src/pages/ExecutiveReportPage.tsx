@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { fetchExecutiveSummary, type ExecutiveSummary } from '../api/executiveSummary';
 import { fetchLossProjection, type LossProjection } from '../api/lossProjection';
@@ -21,6 +22,7 @@ function rankFinding(f: Finding): number {
 
 const ExecutiveReportPage: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [summary, setSummary] = useState<ExecutiveSummary | null>(null);
   const [loss, setLoss] = useState<LossProjection | null>(null);
   const [findings, setFindings] = useState<FindingsReport | null>(null);
@@ -130,9 +132,10 @@ const ExecutiveReportPage: React.FC = () => {
           className="exec-report-back-btn"
           onClick={() => {
             // Try to close (works if this tab was script-opened from the
-            // dashboard); otherwise fall back to navigating back to it.
+            // dashboard); otherwise fall back to in-app navigation so we
+            // don't tear down SPA state with a full reload.
             window.close();
-            window.location.href = '/dashboard';
+            navigate('/dashboard');
           }}
         >
           Close
