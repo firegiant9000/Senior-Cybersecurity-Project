@@ -21,7 +21,7 @@ interface TipCoords {
   placement: 'top' | 'bottom';
 }
 
-const ACRONYM_GLOSSARY: Record<string, string> = {
+const GLOSSARY: Record<string, string> = {
   CVE: 'Common Vulnerabilities and Exposures — a public catalog of known software security flaws, each with a unique ID.',
   KEV: 'Known Exploited Vulnerabilities — CISA’s list of CVEs that attackers are actively exploiting in the wild.',
   CVSS: 'Common Vulnerability Scoring System — a 0–10 severity score for a CVE. Higher = more dangerous.',
@@ -37,18 +37,21 @@ const ACRONYM_GLOSSARY: Record<string, string> = {
   PII: 'Personally Identifiable Information — data that can identify a specific person (name, SSN, email, etc.).',
   NIST: 'National Institute of Standards and Technology — publishes widely used cybersecurity frameworks.',
   ANOMALY:
-    'A data point that deviates noticeably from the historical norm. We flag anomalies using z-scores: |z|>2 means the value is unusually high or low compared to past periods.',
+    'A data point that deviates noticeably from the historical norm. We flag anomalies using z-scores: |z| ≥ 2 = unusual, ≥ 3 = extreme.',
   'VENDOR ALERT':
     'A newly published CVE affecting one of the technology vendors in your stack. Each alert links the CVE to the affected vendor so you can prioritize patching.',
   'RISK SCORE':
     '0–100 composite score combining vendor exposure, KEV presence, incident frequency, and severity. Higher = more risk. Used to rank assets and findings.',
 };
 
-export const getAcronymDefinition = (acronym: string): string | undefined =>
-  ACRONYM_GLOSSARY[acronym.toUpperCase()];
+export const getGlossaryDefinition = (term: string): string | undefined =>
+  GLOSSARY[term.toUpperCase()];
+
+/** @deprecated Use getGlossaryDefinition. Kept for compatibility with existing acronym-only call sites. */
+export const getAcronymDefinition = getGlossaryDefinition;
 
 export const getGlossaryEntries = (): GlossaryEntry[] =>
-  Object.entries(ACRONYM_GLOSSARY)
+  Object.entries(GLOSSARY)
     .map(([term, definition]) => ({ term, definition }))
     .sort((a, b) => a.term.localeCompare(b.term));
 

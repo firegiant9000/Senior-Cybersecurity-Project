@@ -5,10 +5,9 @@ import { createVendor, suggestVendors, type VendorSuggestion } from '../../api/v
 import { useAuth } from '../../context/AuthContext';
 import SeverityBadge from '../shared/SeverityBadge';
 import InfoTip from '../shared/InfoTip';
+import { VENDOR_ALERT_TIP } from '../shared/VendorAlertsCard';
 import './VendorAlertsTab.css';
 
-const VENDOR_ALERT_TIP =
-  'A newly published CVE affecting one of the technology vendors in your stack. Each row links a known exploited vulnerability (KEV) to a vendor you use.';
 const SEVERITY_TIP =
   'Critical (CVSS 9.0–10.0), High (7.0–8.9), Medium (4.0–6.9), Low (0.1–3.9). Higher = more urgent to patch.';
 const RISK_SCORE_TIP =

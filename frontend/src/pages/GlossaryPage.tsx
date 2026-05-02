@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { getGlossaryEntries } from '../components/shared/InfoTip';
 import '../Dashboard.css';
+import '../components/dashboard/DashboardHeader.css';
 import './GlossaryPage.css';
 
 export default function GlossaryPage() {
