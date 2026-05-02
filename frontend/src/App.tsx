@@ -7,6 +7,7 @@ import AssessmentDebugPage from "./pages/AssessmentDebugPage.tsx";
 import AssessmentIntakePage from "./pages/AssessmentIntakePage.tsx";
 import OrgProfilePage from "./pages/OrgProfilePage.tsx";
 import AcceptInvitePage from "./pages/AcceptInvitePage.tsx";
+import ExecutiveReportPage from "./pages/ExecutiveReportPage.tsx";
 import ProtectedRoute from "./components/ProtectedRoute.tsx";
 import { useAuth } from "./context/AuthContext.tsx";
 
@@ -69,6 +70,14 @@ function App() {
         element={
           <ProtectedRoute>
             <OrgProfilePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/report/executive"
+        element={
+          <ProtectedRoute>
+            <ExecutiveReportPage />
           </ProtectedRoute>
         }
       />

@@ -203,6 +203,25 @@
     border-radius: 0 6px 6px 0;
 }
 
+.exec-export-btn {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.exec-export-btn:hover {
+    filter: brightness(1.1);
+}
+
 /* ── Disclaimer ──────────────────────────────────────────────────────────── */
 
 .exec-disclaimer {

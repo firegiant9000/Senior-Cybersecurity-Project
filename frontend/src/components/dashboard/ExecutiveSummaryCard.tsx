@@ -108,6 +108,14 @@ const ExecutiveSummaryCard: React.FC<Props> = ({ data, loading, error }) => {
                     >
                         {showMethodology ? '▲' : '▼'} How we score this
                     </button>
+                    <button
+                        type="button"
+                        className="exec-export-btn"
+                        onClick={() => window.open('/report/executive?autoprint=1', '_blank')}
+                        aria-label="Open printable executive report in a new tab"
+                    >
+                        ⤓ Export Report
+                    </button>
                 </div>
 
                 {showMethodology && (
