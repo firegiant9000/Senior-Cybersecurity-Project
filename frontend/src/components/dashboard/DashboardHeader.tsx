@@ -23,6 +23,14 @@ const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout }
                 <button className="dark-mode-btn" onClick={onToggleDark} title="Toggle dark mode">
                     {dark ? '☀' : '🌙'}
                 </button>
+                <button
+                    className="dark-mode-btn"
+                    onClick={() => navigate('/glossary')}
+                    title="Glossary & help"
+                    aria-label="Open glossary"
+                >
+                    ?
+                </button>
                 {user ? (
                     <>
                         <span className="header-user-email">{user.email}</span>
