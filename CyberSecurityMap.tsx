@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { COLORS } from './frontend/src/theme';
 import {
     ComposableMap,
     Geographies,
@@ -103,26 +104,27 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading, highlightState }) =>
     if (loading) return <p style={{ color: '#888', fontSize: 13 }}>Loading…</p>;
 
     return (
-        <div style={{ width: '100%', height: '100%', minHeight: 0, position: 'relative' }}>
+        <div style={{ width: '100%', height: '100%', minHeight: 0, position: 'relative', zIndex: tooltip ? 20 : undefined }}>
             {/* Custom hover tooltip */}
             {tooltip && (
                 <div style={{
                     position: 'absolute',
                     left: tooltip.x + 12,
                     top: tooltip.y - 10,
-                    background: '#0b1060',
-                    color: 'white',
+                    backgroundColor: 'var(--card-bg)',
+                    color: 'var(--text-primary)',
                     padding: '6px 10px',
                     borderRadius: 6,
                     fontSize: 12,
                     fontWeight: 600,
                     pointerEvents: 'none',
                     whiteSpace: 'nowrap',
-                    zIndex: 10,
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+                    zIndex: 1000,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                    border: '1px solid var(--border)'
                 }}>
-                    <div>{tooltip.stateName}</div>
-                    <div style={{ color: '#00bcd4', marginTop: 2 }}>
+                    <div style={{ marginBottom: 4 }}>{tooltip.stateName}</div>
+                    <div style={{ marginTop: 0, color: COLORS.teal }}>
                         {tooltip.complaints.toLocaleString()} complaints
                     </div>
                 </div>

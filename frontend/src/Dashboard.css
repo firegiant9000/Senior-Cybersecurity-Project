@@ -122,9 +122,7 @@
 .map-widget {
     grid-column: span 1;
     grid-row: span 2;
-    overflow: visible;
-    position: relative;
-    z-index: 10;
+    overflow: hidden;
 }
 
 .malware-widget {
