@@ -248,9 +248,7 @@ class TestRemediationCredit:
 
         base = calculate_smb_risk_score("Healthcare", "51-200")
         credit = compute_remediation_credit(self._items("critical", "high"), base.score)
-        result = calculate_smb_risk_score(
-            "Healthcare", "51-200", remediation_credit=credit
-        )
+        result = calculate_smb_risk_score("Healthcare", "51-200", remediation_credit=credit)
         assert result.effective_score == pytest.approx(
             max(0.0, base.score - credit.applied_points), abs=0.01
         )

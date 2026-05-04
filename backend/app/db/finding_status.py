@@ -12,9 +12,7 @@ from app.db.base import Base
 
 class FindingStatus(Base):
     __tablename__ = "finding_statuses"
-    __table_args__ = (
-        UniqueConstraint("org_id", "stable_key", name="uq_finding_status_org_key"),
-    )
+    __table_args__ = (UniqueConstraint("org_id", "stable_key", name="uq_finding_status_org_key"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)  # noqa: A003
     org_id: Mapped[int] = mapped_column(

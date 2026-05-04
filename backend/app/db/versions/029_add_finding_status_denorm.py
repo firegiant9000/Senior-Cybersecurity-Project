@@ -25,12 +25,8 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.execute(
-        "ALTER TABLE finding_statuses ADD COLUMN IF NOT EXISTS title VARCHAR(500)"
-    )
-    op.execute(
-        "ALTER TABLE finding_statuses ADD COLUMN IF NOT EXISTS severity VARCHAR(20)"
-    )
+    op.execute("ALTER TABLE finding_statuses ADD COLUMN IF NOT EXISTS title VARCHAR(500)")
+    op.execute("ALTER TABLE finding_statuses ADD COLUMN IF NOT EXISTS severity VARCHAR(20)")
 
 
 def downgrade() -> None:
