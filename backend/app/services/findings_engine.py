@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.enums import INDUSTRY_TO_IC3_SECTOR, IndustryLabel
+from app.db.finding_status import FindingStatus
 from app.db.org_domain import OrgDomain
 from app.db.organization import Organization
 from app.ingestors.ic3_real import ATTACK_SECTOR_WEIGHTS
@@ -90,6 +91,15 @@ def _finding_id(*parts: str) -> str:
     return hashlib.sha1(key.encode()).hexdigest()[:12]  # noqa: S324
 
 
+def _stable_key(*parts: str) -> str:
+    """Identity used to join user-set finding_statuses across re-ingests.
+
+    Must exclude count- or list-derived parts so toggling a single CVE
+    doesn't reshape the key. Stays human-readable for debugging.
+    """
+    return "|".join(parts)
+
+
 # ---------------------------------------------------------------------------
 # Threat exposure findings
 # ---------------------------------------------------------------------------
@@ -122,6 +132,7 @@ def _threat_exposure_from_sector(
         findings.append(
             Finding(
                 id=_finding_id("threat_sector", ic3_sector, attack_type),
+                stable_key=_stable_key("threat_sector", ic3_sector, attack_type),
                 finding_type="threat_exposure",
                 severity=severity,
                 severity_score=_severity_score(severity, score_weight),
@@ -149,6 +160,7 @@ def _threat_exposure_from_dns(domain: str, dns: DnsCheckResult) -> list[Finding]
         findings.append(
             Finding(
                 id=_finding_id("dns_no_spf", domain),
+                stable_key=_stable_key("dns_no_spf", domain),
                 finding_type="threat_exposure",
                 severity="high",
                 severity_score=_severity_score("high", 0.7),
@@ -170,6 +182,7 @@ def _threat_exposure_from_dns(domain: str, dns: DnsCheckResult) -> list[Finding]
         findings.append(
             Finding(
                 id=_finding_id("dns_no_dmarc", domain),
+                stable_key=_stable_key("dns_no_dmarc", domain),
                 finding_type="threat_exposure",
                 severity="high",
                 severity_score=_severity_score("high", 0.8),
@@ -190,6 +203,7 @@ def _threat_exposure_from_dns(domain: str, dns: DnsCheckResult) -> list[Finding]
         findings.append(
             Finding(
                 id=_finding_id("dns_dmarc_none", domain),
+                stable_key=_stable_key("dns_dmarc_none", domain),
                 finding_type="threat_exposure",
                 severity="medium",
                 severity_score=_severity_score("medium", 0.6),
@@ -218,6 +232,7 @@ def _threat_exposure_from_ssl(domain: str, ssl_result: SslCheckResult) -> list[F
         findings.append(
             Finding(
                 id=_finding_id("ssl_self_signed", domain),
+                stable_key=_stable_key("ssl_self_signed", domain),
                 finding_type="threat_exposure",
                 severity="high",
                 severity_score=_severity_score("high", 0.6),
@@ -240,6 +255,7 @@ def _threat_exposure_from_ssl(domain: str, ssl_result: SslCheckResult) -> list[F
         findings.append(
             Finding(
                 id=_finding_id("ssl_expiring", domain),
+                stable_key=_stable_key("ssl_expiring", domain),
                 finding_type="threat_exposure",
                 severity=severity,
                 severity_score=_severity_score(severity, expiry_weight),
@@ -319,6 +335,7 @@ def _vendor_exposure_findings(  # noqa: C901
         findings.append(
             Finding(
                 id=_finding_id("vendor_critical_cves", str(critical_count)),
+                stable_key=_stable_key("vendor_critical_cves"),
                 finding_type="vendor_exposure",
                 severity="critical",
                 severity_score=_severity_score("critical", crit_weight),
@@ -348,6 +365,7 @@ def _vendor_exposure_findings(  # noqa: C901
         findings.append(
             Finding(
                 id=_finding_id("vendor_high_cves", str(high_count)),
+                stable_key=_stable_key("vendor_high_cves"),
                 finding_type="vendor_exposure",
                 severity="high",
                 severity_score=_severity_score("high", high_weight),
@@ -397,6 +415,7 @@ def _vendor_exposure_findings(  # noqa: C901
         findings.append(
             Finding(
                 id=_finding_id("vendor_cisa_deadline", str(count)),
+                stable_key=_stable_key("vendor_cisa_deadline"),
                 finding_type="vendor_exposure",
                 severity="high",
                 severity_score=_severity_score("high", 0.8),
@@ -421,6 +440,7 @@ def _vendor_exposure_findings(  # noqa: C901
         findings.append(
             Finding(
                 id=_finding_id("vendor_no_kev_match", ",".join(sorted(unmatched_vendors))),
+                stable_key=_stable_key("vendor_no_kev_match"),
                 finding_type="vendor_exposure",
                 severity="info",
                 severity_score=_severity_score("info", 0.3),
@@ -475,6 +495,7 @@ def _data_gap_findings(readiness_data: dict) -> list[Finding]:
         findings.append(
             Finding(
                 id=_finding_id("data_gap_required", key),
+                stable_key=_stable_key("data_gap_required", key),
                 finding_type="data_gap",
                 severity="medium",
                 severity_score=_severity_score("medium", 0.5),
@@ -497,6 +518,7 @@ def _data_gap_findings(readiness_data: dict) -> list[Finding]:
         findings.append(
             Finding(
                 id=_finding_id("data_gap_optional", key),
+                stable_key=_stable_key("data_gap_optional", key),
                 finding_type="data_gap",
                 severity="low",
                 severity_score=_severity_score("low", 0.4),
@@ -512,6 +534,7 @@ def _data_gap_findings(readiness_data: dict) -> list[Finding]:
         findings.append(
             Finding(
                 id=_finding_id("data_gap_tier_minimal"),
+                stable_key=_stable_key("data_gap_tier_minimal"),
                 finding_type="data_gap",
                 severity="high",
                 severity_score=_severity_score("high", 0.5),
@@ -595,6 +618,7 @@ def _recommended_from_http_headers(domain: str, http: HttpHeaderResult) -> list[
     findings.append(
         Finding(
             id=_finding_id("http_missing_headers", domain, ",".join(m[2] for m in missing)),
+            stable_key=_stable_key("http_missing_headers", domain),
             finding_type="recommended_action",
             severity=severity,
             severity_score=_severity_score(severity, header_weight),
@@ -641,6 +665,7 @@ def _recommended_from_crtsh(domain: str, crt: CrtShResult) -> list[Finding]:  # 
     findings.append(
         Finding(
             id=_finding_id("crtsh_subdomains", domain, str(count)),
+            stable_key=_stable_key("crtsh_subdomains", domain),
             finding_type="threat_exposure",
             severity=severity,
             severity_score=_severity_score(severity, sub_weight),
@@ -677,6 +702,7 @@ def _threat_from_hibp(domain: str, hibp: HibpResult) -> list[Finding]:  # noqa: 
     findings.append(
         Finding(
             id=_finding_id("hibp_breaches", domain, str(hibp.breaches_found)),
+            stable_key=_stable_key("hibp_breaches", domain),
             finding_type="threat_exposure",
             severity=severity,
             severity_score=_severity_score(severity, breach_weight),
@@ -752,6 +778,7 @@ def _analyze_security_profile(org: Organization) -> list[Finding]:  # noqa: F821
         findings.append(
             Finding(
                 id=_finding_id("security_controls_empty"),
+                stable_key=_stable_key("security_controls_empty"),
                 finding_type="data_gap",
                 severity="medium",
                 severity_score=_severity_score("medium", 0.7),
@@ -781,6 +808,7 @@ def _analyze_security_profile(org: Organization) -> list[Finding]:  # noqa: F821
                 findings.append(
                     Finding(
                         id=_finding_id("security_control", key, value),
+                        stable_key=_stable_key("security_control", key),
                         finding_type="recommended_action",
                         severity=finding_severity,
                         severity_score=_severity_score(finding_severity, control_weight),
@@ -807,6 +835,7 @@ def _analyze_security_profile(org: Organization) -> list[Finding]:  # noqa: F821
             findings.append(
                 Finding(
                     id=_finding_id("compliance_gap_industry", industry, fw),
+                    stable_key=_stable_key("compliance_gap_industry", industry, fw),
                     finding_type="data_gap",
                     severity="high",
                     severity_score=_severity_score("high", 0.6),
@@ -830,6 +859,7 @@ def _analyze_security_profile(org: Organization) -> list[Finding]:  # noqa: F821
             findings.append(
                 Finding(
                     id=_finding_id("compliance_gap_data", data_type, required_fw),
+                    stable_key=_stable_key("compliance_gap_data", data_type, required_fw),
                     finding_type="data_gap",
                     severity=severity,
                     severity_score=_severity_score(severity, 0.7),
@@ -850,6 +880,7 @@ def _analyze_security_profile(org: Organization) -> list[Finding]:  # noqa: F821
         findings.append(
             Finding(
                 id=_finding_id("incident_history", org.incident_history),
+                stable_key=_stable_key("incident_history"),
                 finding_type="threat_exposure",
                 severity="high",
                 severity_score=_severity_score("high", 0.7),
@@ -1038,6 +1069,7 @@ def _tech_fingerprint_findings(domain: str, tech: TechFingerprintResult) -> list
                 id=_finding_id(
                     "tech_fingerprint_inventory", domain, ",".join(sorted(detected_names))
                 ),
+                stable_key=_stable_key("tech_fingerprint_inventory", domain),
                 finding_type="threat_exposure",
                 severity="info",
                 severity_score=_severity_score("info", 0.5),
@@ -1067,6 +1099,7 @@ def _tech_fingerprint_findings(domain: str, tech: TechFingerprintResult) -> list
             findings.append(
                 Finding(
                     id=_finding_id("tech_risk", domain, matched_name),
+                    stable_key=_stable_key("tech_risk", domain, matched_name),
                     finding_type="recommended_action",
                     severity=pattern["severity"],
                     severity_score=_severity_score(pattern["severity"], 0.5),
@@ -1121,6 +1154,7 @@ def _shodan_findings(domain: str, shodan: ShodanHostResult) -> list[Finding]:
         findings.append(
             Finding(
                 id=_finding_id("shodan_port", domain, str(port)),
+                stable_key=_stable_key("shodan_port", domain, str(port)),
                 finding_type="threat_exposure",
                 severity=severity,
                 severity_score=_severity_score(severity, 0.7),
@@ -1145,6 +1179,7 @@ def _shodan_findings(domain: str, shodan: ShodanHostResult) -> list[Finding]:
         findings.append(
             Finding(
                 id=_finding_id("shodan_vulns", domain, str(count)),
+                stable_key=_stable_key("shodan_vulns", domain),
                 finding_type="vendor_exposure",
                 severity=severity,
                 severity_score=_severity_score(severity, vuln_weight),
@@ -1172,6 +1207,7 @@ def _shodan_findings(domain: str, shodan: ShodanHostResult) -> list[Finding]:
         findings.append(
             Finding(
                 id=_finding_id("shodan_exposure", domain),
+                stable_key=_stable_key("shodan_exposure", domain),
                 finding_type="threat_exposure",
                 severity="info",
                 severity_score=_severity_score("info", 0.5),
@@ -1216,6 +1252,7 @@ def _otx_findings(domain: str, otx: OtxResult) -> list[Finding]:
     findings.append(
         Finding(
             id=_finding_id("otx_pulses", domain, str(otx.pulse_count)),
+            stable_key=_stable_key("otx_pulses", domain),
             finding_type="threat_exposure",
             severity=severity,
             severity_score=_severity_score(severity, pulse_weight),
@@ -1288,6 +1325,7 @@ def _synthesize_recommendations(all_findings: list[Finding]) -> list[Finding]:
         recs.append(
             Finding(
                 id=_finding_id("rec_email_security"),
+                stable_key=_stable_key("rec_email_security"),
                 finding_type="recommended_action",
                 severity="high",
                 severity_score=_severity_score("high", 0.6),
@@ -1314,6 +1352,7 @@ def _synthesize_recommendations(all_findings: list[Finding]) -> list[Finding]:
         recs.append(
             Finding(
                 id=_finding_id("rec_vendor_patching"),
+                stable_key=_stable_key("rec_vendor_patching"),
                 finding_type="recommended_action",
                 severity="critical",
                 severity_score=_severity_score("critical", 0.8),
@@ -1338,6 +1377,7 @@ def _synthesize_recommendations(all_findings: list[Finding]) -> list[Finding]:
         recs.append(
             Finding(
                 id=_finding_id("rec_complete_profile"),
+                stable_key=_stable_key("rec_complete_profile"),
                 finding_type="recommended_action",
                 severity="medium",
                 severity_score=_severity_score("medium", 0.5),
@@ -1538,6 +1578,13 @@ class FindingsEngine:
         # Synthesized recommendations
         findings.extend(_synthesize_recommendations(findings))
 
+        # ── Hydrate user-set statuses by stable_key ─────────────────────────
+        status_map = await self._load_status_map(org.id)
+        if status_map:
+            for f in findings:
+                if f.stable_key and f.stable_key in status_map:
+                    f.status = status_map[f.stable_key]
+
         # ── Sort by severity (use numeric score for finer ordering) ─────────
         findings.sort(key=lambda f: -(f.severity_score or _severity_score(f.severity, 0.5)))
 
@@ -1562,6 +1609,14 @@ class FindingsEngine:
             await self._persist_snapshot(report)
 
         return report
+
+    async def _load_status_map(self, org_id: int) -> dict[str, str]:
+        result = await self._db.execute(
+            select(FindingStatus.stable_key, FindingStatus.status).where(
+                FindingStatus.org_id == org_id
+            )
+        )
+        return {row[0]: row[1] for row in result.all()}
 
     async def _persist_snapshot(self, report: FindingsReport) -> None:
         """Save a findings snapshot to the database."""
