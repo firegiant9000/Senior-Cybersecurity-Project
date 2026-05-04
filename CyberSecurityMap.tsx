@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { COLORS } from './frontend/src/theme';
 import {
+import { createPortal } from 'react-dom';
     ComposableMap,
     Geographies,
     Geography,
@@ -67,8 +68,8 @@ interface TooltipState {
     stateCode: string;
     stateName: string;
     complaints: number;
-    x: number;
-    y: number;
+    clientX: number;
+    clientY: number;
 }
 
 const CyberSecurityMap: React.FC<Props> = ({ data, loading, highlightState }) => {
@@ -106,11 +107,11 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading, highlightState }) =>
     return (
         <div style={{ width: '100%', height: '100%', minHeight: 0, position: 'relative', zIndex: tooltip ? 20 : undefined }}>
             {/* Custom hover tooltip */}
-            {tooltip && (
+            {tooltip && createPortal(
                 <div style={{
-                    position: 'absolute',
-                    left: tooltip.x + 12,
-                    top: tooltip.y - 10,
+                    position: 'fixed',
+                    left: tooltip.clientX + 12,
+                    top: tooltip.clientY - 10,
                     backgroundColor: 'var(--card-bg)',
                     color: 'var(--text-primary)',
                     padding: '6px 10px',
@@ -119,7 +120,7 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading, highlightState }) =>
                     fontWeight: 600,
                     pointerEvents: 'none',
                     whiteSpace: 'nowrap',
-                    zIndex: 1000,
+                    zIndex: 20000,
                     boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
                     border: '1px solid var(--border)'
                 }}>
@@ -127,7 +128,8 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading, highlightState }) =>
                     <div style={{ marginTop: 0, color: COLORS.teal }}>
                         {tooltip.complaints.toLocaleString()} complaints
                     </div>
-                </div>
+                </div>,
+                document.body,
             )}
             <ComposableMap
                 projection="geoAlbersUsa"
@@ -177,8 +179,8 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading, highlightState }) =>
                                             .closest('[style]')
                                             ?.getBoundingClientRect();
                                         setTooltip(prev => prev ? {
-                                            ...prev,
-                                            x: e.clientX - (parentRect?.left ?? 0),
+                                            clientX: e.clientX,
+                                            clientY: e.clientY,
                                             y: e.clientY - (parentRect?.top  ?? 0),
                                         } : null);
                                     }}
