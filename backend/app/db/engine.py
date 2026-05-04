@@ -21,6 +21,7 @@ def _import_all_orm_models() -> None:
     import app.db.ai_summary_feedback  # noqa: F401
     import app.db.ai_summary_generation  # noqa: F401
     import app.db.assessment_submission  # noqa: F401
+    import app.db.finding_status  # noqa: F401
     import app.db.findings_snapshot  # noqa: F401
     import app.db.invitation  # noqa: F401
     import app.db.membership  # noqa: F401
@@ -102,6 +103,23 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
+def _ensure_finding_status_columns(connection: Connection) -> None:
+    """Add ``title`` / ``severity`` to ``finding_statuses`` for installs
+    where the table existed before migration 029. ``create_all`` skips
+    altering existing tables, so we patch the schema in place.
+    """
+    inspector = inspect(connection)
+    if not inspector.has_table("finding_statuses"):
+        return
+    existing = {col["name"].lower() for col in inspector.get_columns("finding_statuses")}
+    if "title" not in existing:
+        connection.execute(text("ALTER TABLE finding_statuses ADD COLUMN title VARCHAR(500)"))
+        logger.info("Added column finding_statuses.title")
+    if "severity" not in existing:
+        connection.execute(text("ALTER TABLE finding_statuses ADD COLUMN severity VARCHAR(20)"))
+        logger.info("Added column finding_statuses.severity")
+
+
 async def init_db() -> None:
     """Initialize database: create missing tables and align known schema drifts."""
     _import_all_orm_models()
@@ -109,6 +127,7 @@ async def init_db() -> None:
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(_ensure_organization_profile_columns)
         await conn.run_sync(_ensure_ingest_run_columns)
+        await conn.run_sync(_ensure_finding_status_columns)
     logger.info("Database initialized")
 
 

@@ -11,6 +11,13 @@ import {
     ResponsiveContainer,
     Cell,
 } from 'recharts';
+import {
+    AXIS_TICK_STYLE,
+    TOOLTIP_CONTENT_STYLE,
+    TOOLTIP_CURSOR,
+    TOOLTIP_ITEM_STYLE,
+    TOOLTIP_LABEL_STYLE,
+} from './chartTooltipStyles';
 
 interface SeverityCount {
     severity: string;
@@ -80,9 +87,13 @@ const SeverityDistributionChart: React.FC<Props> = ({ apiBaseUrl, search, severi
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="severity" />
-                        <YAxis allowDecimals={false} />
+                        <XAxis dataKey="severity" tick={AXIS_TICK_STYLE} />
+                        <YAxis allowDecimals={false} tick={AXIS_TICK_STYLE} />
                         <Tooltip
+                            cursor={TOOLTIP_CURSOR}
+                            contentStyle={TOOLTIP_CONTENT_STYLE}
+                            itemStyle={TOOLTIP_ITEM_STYLE}
+                            labelStyle={TOOLTIP_LABEL_STYLE}
                             formatter={(value) => [Number(value).toLocaleString(), 'CVEs']}
                         />
                         <Bar dataKey="count" radius={[4, 4, 0, 0]}>

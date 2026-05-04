@@ -711,20 +711,43 @@ function useOrgRiskScore() {
   const [data, setData] = useState<SmbRiskScore | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // One controller for whichever request is currently in flight. The
+  // event-driven refetch (after a finding status change) replaces the
+  // controller, so unmount can abort whatever's pending and we never
+  // setState on a torn-down component.
+  const controllerRef = useRef<AbortController | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    controllerRef.current?.abort();
     const controller = new AbortController();
+    controllerRef.current = controller;
     setLoading(true);
     setError(null);
     fetchSmbRiskScore(controller.signal)
-      .then(setData)
+      .then((d) => {
+        if (!controller.signal.aborted) setData(d);
+      })
       .catch((err: unknown) => {
         if (err instanceof Error && err.name === 'AbortError') return;
+        if (controller.signal.aborted) return;
         setError(err instanceof Error ? err.message : 'Failed to load org risk score');
       })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
   }, []);
+
+  useEffect(() => {
+    load();
+    // Refetch when a finding is checked off so the deduction surfaces
+    // immediately rather than on the next page load.
+    const onChange = () => load();
+    window.addEventListener('hackertracker:finding-status-changed', onChange);
+    return () => {
+      controllerRef.current?.abort();
+      window.removeEventListener('hackertracker:finding-status-changed', onChange);
+    };
+  }, [load]);
 
   return { data, loading, error };
 }
@@ -753,6 +776,11 @@ function OrgRiskScoreCard() {
     return null;
   }
 
+  const credit = data?.remediation_credit;
+  const hasCredit = !!credit && credit.applied_points > 0;
+  const tooltipItems = credit?.items?.slice(0, 8) ?? [];
+  const moreItems = (credit?.items?.length ?? 0) - tooltipItems.length;
+
   return (
     <div className="card smb-org-risk-card">
       <h3 className="smb-section-title">🎯 Your Organization's Risk Score</h3>
@@ -761,24 +789,70 @@ function OrgRiskScoreCard() {
         <Link to="/org-profile" style={{ color: 'var(--accent)', textDecoration: 'underline', fontSize: 'inherit' }}>
           Update profile
         </Link>{' '}
-        to recalculate — this card reflects your saved settings, not the dropdowns above.
+        to recalculate, or{' '}
+        <Link
+          to="/dashboard?tab=assessment&sub=findings"
+          style={{ color: 'var(--accent)', textDecoration: 'underline', fontSize: 'inherit' }}
+        >
+          check off findings
+        </Link>{' '}
+        to lower the score.
       </p>
       {loading ? (
         <WidgetSkeleton />
       ) : !data ? null : (
         <div className="smb-org-risk-body">
-          <div className="smb-org-risk-gauge">
+          <Link
+            to="/dashboard?tab=assessment&sub=findings"
+            className="smb-org-risk-gauge smb-org-risk-gauge--linked"
+            title={
+              hasCredit
+                ? `Click to review the ${credit.done_count} finding(s) you've remediated`
+                : 'Click to view your findings and check items off as you remediate'
+            }
+          >
             <div
               className="smb-org-risk-score"
-              style={{ background: scoreColor(data.score), color: '#fff' }}
+              style={{ background: scoreColor(data.effective_score), color: '#fff' }}
             >
-              {data.score.toFixed(0)}
+              {data.effective_score.toFixed(0)}
             </div>
-            <div className="smb-org-risk-label" style={{ color: scoreColor(data.score) }}>
-              {scoreLabel(data.score)} Risk
+            <div className="smb-org-risk-label" style={{ color: scoreColor(data.effective_score) }}>
+              {scoreLabel(data.effective_score)} Risk
             </div>
-            <div className="smb-org-risk-scale">out of 100<InfoTip text="Risk score from 0–100. Higher = more exposure based on your industry and size." /></div>
-          </div>
+            <div className="smb-org-risk-scale">
+              out of 100
+              <InfoTip text="Risk score from 0–100. Higher = more exposure based on your industry and size. Marking findings as remediated lowers the score (capped at 75% of base)." />
+            </div>
+            {hasCredit && (
+              <div className="smb-org-risk-credit">
+                <span className="smb-org-risk-credit-headline">
+                  ▼ −{credit.applied_points.toFixed(1)} from {credit.done_count} remediated
+                </span>
+                <div className="smb-org-risk-credit-tooltip" role="tooltip">
+                  <div className="smb-org-risk-credit-tooltip-title">
+                    Remediated findings ({credit.done_count})
+                  </div>
+                  <ul className="smb-org-risk-credit-tooltip-list">
+                    {tooltipItems.map((it) => (
+                      <li key={it.stable_key}>
+                        <span className={`smb-org-risk-credit-sev smb-org-risk-credit-sev--${it.severity.toLowerCase()}`}>
+                          {it.severity}
+                        </span>
+                        <span className="smb-org-risk-credit-title">{it.title}</span>
+                      </li>
+                    ))}
+                    {moreItems > 0 && (
+                      <li className="smb-org-risk-credit-more">+{moreItems} more — click to view all</li>
+                    )}
+                  </ul>
+                  <div className="smb-org-risk-credit-tooltip-foot">
+                    Base score {data.score.toFixed(0)} → effective {data.effective_score.toFixed(0)} (cap −{(data.score * 0.75).toFixed(1)})
+                  </div>
+                </div>
+              </div>
+            )}
+          </Link>
 
           <div className="smb-org-risk-breakdown">
             {data.breakdown.map(c => (
@@ -926,11 +1000,12 @@ const SmBAdvisorTab: React.FC = () => {
         )}
       </div>
 
-      {/* Action Plan — shown early so SMB users see their next steps immediately */}
-      <ActionPlanCard topThreats={sectorThreats} loading={loading} />
-
-      {/* Org-level parameterized risk score */}
+      {/* Org-level risk score — sits above the action plan so the
+          "check off → score drops" loop is visible in the same scroll. */}
       <OrgRiskScoreCard />
+
+      {/* Action Plan — shown next so SMB users see their next steps immediately */}
+      <ActionPlanCard topThreats={sectorThreats} loading={loading} />
 
       {/* Risk Grade */}
       <RiskGradeCard grade={riskGrade} sectorProfile={sectorProfile} loading={loading} />

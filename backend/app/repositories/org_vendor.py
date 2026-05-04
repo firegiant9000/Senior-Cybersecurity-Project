@@ -86,9 +86,24 @@ class SqlOrgVendorRepository:
             ],
             else_=func.lower(OrgVendor.vendor_name),
         )
+        # When the row carries a product_name, narrow the count to KEVs
+        # for that specific product. Without this, four rows ("Microsoft",
+        # "Microsoft 365", "Microsoft + SharePoint", "Azure") all show the
+        # same vendor-wide count even though the SharePoint row should
+        # only reflect SharePoint CVEs. Mirrors the same matching rule
+        # used by VendorAlertService.get_alerts.
+        from sqlalchemy import or_  # local import: keeps the module's
+        # public surface stable and avoids touching the existing imports.
+
         kev_count = (
             select(func.count(KEV.id))
-            .where(func.lower(KEV.vendor) == canonical_vendor)
+            .where(
+                func.lower(KEV.vendor) == canonical_vendor,
+                or_(
+                    OrgVendor.product_name == "",
+                    func.lower(KEV.product) == func.lower(OrgVendor.product_name),
+                ),
+            )
             .correlate(OrgVendor)
             .scalar_subquery()
         )

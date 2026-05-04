@@ -107,6 +107,7 @@ async def test_exact_match_items_have_confidence_1():
         _rows_result([exact]),  # exact match pass
         _rows_result([("Microsoft",)]),  # all vendor names
         # no fuzzy pass because all vendors matched exactly
+        _rows_result([]),  # _fetch_other_alerts — no trending KEVs
         _scalar_or_none_result(None),  # last kev ingest
     ]
     session.execute = AsyncMock(side_effect=calls)
@@ -134,6 +135,7 @@ async def test_fuzzy_match_items_carry_similarity_score():
         _rows_result([]),  # exact pass — no matches
         _rows_result([("Microsft",)]),  # all vendor names
         _rows_result([fuzzy]),  # fuzzy pass
+        _rows_result([]),  # _fetch_other_alerts — no trending KEVs
         _scalar_or_none_result(None),  # last kev ingest
     ]
     session.execute = AsyncMock(side_effect=calls)
@@ -161,6 +163,7 @@ async def test_no_match_returns_empty_items_and_unmatched_list():
         _rows_result([]),  # exact pass — none
         _rows_result([("UnknownVendor",)]),  # all vendor names
         _rows_result([]),  # fuzzy pass — none
+        _rows_result([]),  # _fetch_other_alerts (no_matches branch)
         _scalar_or_none_result(None),  # last kev ingest
     ]
     session.execute = AsyncMock(side_effect=calls)
@@ -190,6 +193,7 @@ async def test_fuzzy_match_calls_fire_and_forget_log():
         _rows_result([]),
         _rows_result([("Apche",)]),
         _rows_result([fuzzy]),
+        _rows_result([]),  # _fetch_other_alerts
         _scalar_or_none_result(None),
     ]
     session.execute = AsyncMock(side_effect=calls)
@@ -224,6 +228,7 @@ async def test_exact_and_fuzzy_combined_total():
         _rows_result([exact]),  # Microsoft matched exactly
         _rows_result([("Microsoft",), ("Apche",)]),  # all vendors
         _rows_result([fuzzy]),  # Apche matched by fuzzy
+        _rows_result([]),  # _fetch_other_alerts
         _scalar_or_none_result(None),
     ]
     session.execute = AsyncMock(side_effect=calls)
@@ -258,12 +263,14 @@ async def test_fuzzy_pg_trgm_unavailable_degrades_to_exact_only():
         orig=Exception("function similarity(text, text) does not exist"),
     )
 
-    # Order: vendor count → exact pass → all vendor names → fuzzy (raises) → last kev ingest
+    # Order: vendor count → exact pass → all vendor names → fuzzy (raises)
+    # → _fetch_other_alerts → last kev ingest
     call_results = [
         _count_result(2),
         _rows_result([exact]),
         _rows_result([("Microsoft",), ("Apche",)]),  # Apche not in aliases → goes to fuzzy
         fuzzy_err,
+        _rows_result([]),  # _fetch_other_alerts
         _scalar_or_none_result(None),
     ]
 

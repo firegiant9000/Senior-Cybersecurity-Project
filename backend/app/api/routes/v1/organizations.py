@@ -4,6 +4,7 @@ import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,11 @@ from app.db.engine import get_session
 from app.db.membership import Membership
 from app.db.organization import Organization
 from app.db.user import User
+from app.repositories.finding_status_repository import (
+    ALLOWED_STATUSES,
+    SqlFindingStatusRepository,
+    get_finding_status_repo,
+)
 from app.repositories.organization import SqlOrganizationRepository, get_org_repo
 from app.schemas.ai_summary import AISummaryResponse
 from app.schemas.ai_summary_feedback import FeedbackCreate, FeedbackResponse
@@ -55,7 +61,7 @@ from app.services.assessment_validator import build_response, run_validation
 from app.services.executive_summary import ExecutiveSummaryService
 from app.services.findings_engine import FindingsEngine
 from app.services.loss_projection import LossProjectionService
-from app.services.risk_scoring import calculate_smb_risk_score
+from app.services.risk_scoring import calculate_smb_risk_score, compute_remediation_credit
 from app.services.vendor_alerts import VendorAlertService
 
 logger = logging.getLogger(__name__)
@@ -241,16 +247,98 @@ async def get_smb_risk_score(
     request: Request,  # noqa: ARG001
     current_user: User = Depends(get_current_user),  # noqa: ARG001
     org: Organization = Depends(get_current_org),
+    db: AsyncSession = Depends(get_session),
 ):
     """Return a parameterized SMB risk score for the current org.
 
     Combines industry exposure (from IC3 sector-attack weights) and
-    employee size factor to produce a 0-100 composite risk score.
+    employee size factor to produce a 0-100 composite risk score, then
+    deducts a capped remediation credit derived from findings the org
+    has marked as ``done`` (see PATCH /mine/findings/{stable_key}/status).
     """
-    return calculate_smb_risk_score(
+    base = calculate_smb_risk_score(
         industry_label=org.industry_label,
         employee_range=org.employee_range,
     )
+    done_items = await _done_finding_items(org.id, db)
+    credit = compute_remediation_credit(done_items, base.score)
+    # Recompute with credit applied so effective_score reflects deduction.
+    return calculate_smb_risk_score(
+        industry_label=org.industry_label,
+        employee_range=org.employee_range,
+        remediation_credit=credit,
+    )
+
+
+async def _done_finding_items(org_id: int, db: AsyncSession):
+    """Return RemediatedItem records for findings the org has marked done.
+
+    Primary source: the denormalized ``title`` and ``severity`` columns
+    on ``finding_statuses`` (populated by PATCH). This makes the credit
+    independent of snapshot freshness — every finding the user actually
+    clicked contributes regardless of whether a recent snapshot exists.
+
+    Fallback: rows that pre-date migration 029 may have NULL title/severity.
+    For those we look up the latest snapshot by stable_key. Anything we
+    still can't resolve is included as ``severity='medium'`` so the user
+    isn't penalised for old data.
+    """
+    from app.db.finding_status import FindingStatus
+    from app.db.findings_snapshot import FindingsSnapshot
+    from app.schemas.smb_risk_score import RemediatedItem
+
+    status_rows = await db.execute(
+        select(
+            FindingStatus.stable_key,
+            FindingStatus.title,
+            FindingStatus.severity,
+        ).where(
+            FindingStatus.org_id == org_id,
+            FindingStatus.status == "done",
+        )
+    )
+    rows = status_rows.all()
+    if not rows:
+        return []
+
+    # First pass: rows with denormalised data go straight in.
+    items: list[RemediatedItem] = []
+    needs_lookup: dict[str, RemediatedItem] = {}
+    for stable_key, title, severity in rows:
+        if title and severity:
+            items.append(RemediatedItem(stable_key=stable_key, title=title, severity=severity))
+        else:
+            placeholder = RemediatedItem(
+                stable_key=stable_key,
+                title=stable_key,  # legible default if snapshot lookup fails
+                severity="medium",
+            )
+            needs_lookup[stable_key] = placeholder
+
+    # Second pass: fill in title/severity from the latest snapshot if we
+    # still have unresolved rows (legacy data). Best-effort — if no
+    # snapshot exists yet we keep the placeholder so the credit is at
+    # least non-zero.
+    if needs_lookup:
+        snap_row = await db.execute(
+            select(FindingsSnapshot.findings)
+            .where(FindingsSnapshot.org_id == org_id)
+            .order_by(FindingsSnapshot.generated_at.desc())
+            .limit(1)
+        )
+        findings_blob = snap_row.scalar_one_or_none()
+        if findings_blob:
+            for f in findings_blob:
+                key = f.get("stable_key")
+                if key in needs_lookup:
+                    needs_lookup[key] = RemediatedItem(
+                        stable_key=key,
+                        title=f.get("title", key),
+                        severity=f.get("severity", "medium"),
+                    )
+        items.extend(needs_lookup.values())
+
+    return items
 
 
 @router.get("/mine/vendor-alerts", response_model=VendorAlertsResponse)
@@ -315,6 +403,76 @@ async def get_findings(
                 f"an upstream data source may be failing ({type(exc).__name__})."
             ),
         ) from exc
+
+
+_ALLOWED_SEVERITIES = frozenset({"critical", "high", "medium", "low", "info"})
+
+
+class FindingStatusPatch(BaseModel):
+    status: str
+    # Frontend forwards these so the row carries enough context to feed
+    # the risk-score remediation credit without a snapshot join. Values
+    # are normalised + clamped server-side to prevent gaming (a malicious
+    # client could otherwise PATCH every key with severity=critical to
+    # max out the credit).
+    title: str | None = None
+    severity: str | None = None
+
+
+class FindingStatusResponse(BaseModel):
+    stable_key: str
+    status: str
+
+
+@router.patch(
+    "/mine/findings/{stable_key:path}/status",
+    response_model=FindingStatusResponse,
+)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def patch_finding_status(
+    request: Request,  # noqa: ARG001
+    stable_key: str,
+    body: FindingStatusPatch,
+    current_user: User = Depends(get_current_user),
+    org: Organization = Depends(get_current_org),
+    repo: SqlFindingStatusRepository = Depends(get_finding_status_repo),
+):
+    """Set the user-tracked status of a finding for the current org.
+
+    The ``stable_key`` is the identity emitted alongside ``id`` in the
+    findings report — it survives re-ingest, so the marked status persists
+    even after the engine regenerates findings with new run-specific IDs.
+    """
+    if body.status not in ALLOWED_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"status must be one of {sorted(ALLOWED_STATUSES)}",
+        )
+    # Validate + clamp client-supplied metadata. stable_key column is
+    # VARCHAR(255), title is VARCHAR(500); a non-allowlisted severity is
+    # rejected outright so the credit calculation can't be inflated.
+    if len(stable_key) > 255:
+        raise HTTPException(status_code=400, detail="stable_key too long (max 255 chars)")
+    severity = body.severity.lower().strip() if body.severity else None
+    if severity is not None and severity not in _ALLOWED_SEVERITIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"severity must be one of {sorted(_ALLOWED_SEVERITIES)} or null",
+        )
+    title = body.title[:500] if body.title else None
+    try:
+        row = await repo.upsert(
+            org_id=org.id,
+            stable_key=stable_key,
+            status=body.status,
+            updated_by=current_user.id,
+            title=title,
+            severity=severity,
+        )
+    except SQLAlchemyError:
+        logger.exception("Failed to upsert finding status for org %s key %s", org.id, stable_key)
+        raise HTTPException(status_code=500, detail="Failed to update finding status")
+    return FindingStatusResponse(stable_key=row.stable_key, status=row.status)
 
 
 @router.get("/mine/debug", response_model=DebugAssessmentResponse)

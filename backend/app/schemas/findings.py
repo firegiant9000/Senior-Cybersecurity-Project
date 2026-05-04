@@ -9,6 +9,9 @@ from app.schemas.disclaimer import DisclaimerBlock
 
 class Finding(BaseModel):
     id: str
+    # Identity that survives re-ingest: strips count/list inputs that vary
+    # run-to-run so finding_statuses joins remain valid across snapshots.
+    stable_key: str = ""
     finding_type: str  # threat_exposure | vendor_exposure | data_gap | recommended_action
     severity: str  # critical | high | medium | low | info
     severity_score: float | None = None  # 0-100 numeric score for consistent sorting/filtering
@@ -18,6 +21,7 @@ class Finding(BaseModel):
     source: str
     affected_assets: list[str]
     match_confidence: float | None = None  # 1.0 = exact, <1.0 = fuzzy similarity score
+    status: str = "open"  # open | done | dismissed (user-set via PATCH)
 
 
 class FindingsSummary(BaseModel):

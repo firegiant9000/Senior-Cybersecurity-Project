@@ -3,7 +3,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg, #0f172a);
+  /* Brand blue gradient — independent of dashboard --bg so the auth pages
+     read as their own surface. Both login and signup share the base. */
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 60%, #3b82f6 100%);
   padding: 1rem;
 }
 
@@ -33,6 +35,21 @@
   color: var(--accent, #3b82f6);
   font-size: 1.5rem;
   margin-bottom: 0.5rem;
+}
+
+/* Distinguish sign-up: keeps the brand-blue base, swaps to a teal-blue
+   gradient + green accent so the two views read as same family but
+   clearly different pages. */
+.login-page--signup {
+  background: linear-gradient(135deg, #0e7490 0%, #2563eb 50%, #4338ca 100%);
+}
+
+.login-page--signup .login-card {
+  border-top: 3px solid #22c55e;
+}
+
+.login-page--signup .login-header h1 {
+  color: #22c55e;
 }
 
 .login-header p {

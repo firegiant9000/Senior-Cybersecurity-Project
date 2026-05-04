@@ -358,17 +358,20 @@
 }
 
 /* ── Victim Impact Analysis badge ────────────────────────────────────────── */
+/* Rendered ABOVE its associated card row, not as a footer chip. The
+   previous 0.5 opacity rendered the IC3 wordmark almost invisible in
+   dark mode; bump to a readable contrast and let pointer events through
+   so the InfoTip beside it stays clickable. */
 .victim-impact-badge {
-    position: absolute;
-    bottom: 6px;
-    left: 10px;
-    font-size: 9px;
-    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 6px 0 2px 2px;
+    font-size: 11px;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.4px;
-    color: var(--text-secondary);
-    opacity: 0.5;
-    pointer-events: none;
+    letter-spacing: 0.5px;
+    color: var(--text-primary);
     white-space: nowrap;
 }
 

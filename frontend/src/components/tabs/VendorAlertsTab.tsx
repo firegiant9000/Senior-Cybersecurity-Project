@@ -184,32 +184,36 @@ const VendorAlertsTab: React.FC = () => {
 
   return (
     <div className="tab-page">
-      <h2 style={{ margin: '0 0 0.75rem', fontSize: 18, fontWeight: 700 }}>
-        Vendor Alerts
-        <InfoTip text={VENDOR_ALERT_TIP} label="Vendor Alerts" />
-      </h2>
-      <div className="overview-toolbar">
-        <button className="overview-refresh-btn" onClick={() => load(page)} disabled={loading}>
-          {loading ? 'Refreshing...' : 'Refresh'}
-        </button>
-        <Link to="/org-profile#section-vendors" style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'underline' }}>
-          Manage Vendors →
-        </Link>
-        {data.kev_last_ingest_at && (
-          <span className="overview-last-updated">
-            KEV<InfoTip text="Known Exploited Vulnerabilities — CISA's catalog of CVEs actively being exploited." /> data as of: {new Date(data.kev_last_ingest_at).toLocaleDateString()}
-          </span>
-        )}
+      <div className="vendor-alerts-header">
+        <h2 className="vendor-alerts-heading">
+          Vendor Alerts
+          <InfoTip text={VENDOR_ALERT_TIP} label="Vendor Alerts" />
+        </h2>
+        <div className="vendor-alerts-actions">
+          <button className="overview-refresh-btn" onClick={() => load(page)} disabled={loading}>
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
+          <Link to="/org-profile#section-vendors" className="vendor-alerts-manage-link">
+            Manage Vendors →
+          </Link>
+        </div>
       </div>
 
-      {/* Severity summary */}
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <strong>{data.total_matched} matched vulnerabilities</strong>
-        {sb.critical > 0 && <span><SeverityBadge label="Critical" /> {sb.critical}</span>}
-        {sb.high > 0 && <span><SeverityBadge label="High" /> {sb.high}</span>}
-        {sb.medium > 0 && <span><SeverityBadge label="Medium" /> {sb.medium}</span>}
-        {sb.low > 0 && <span><SeverityBadge label="Low" /> {sb.low}</span>}
-        {sb.unknown > 0 && <span><SeverityBadge label="Unknown" /> {sb.unknown}</span>}
+      {/* Single aligned summary row: total + severity counts + KEV freshness */}
+      <div className="vendor-alerts-summary">
+        <strong className="vendor-alerts-total">{data.total_matched} matched vulnerabilities</strong>
+        <div className="vendor-alerts-severity-pills">
+          {sb.critical > 0 && <span className="vendor-alerts-pill"><SeverityBadge label="Critical" /> {sb.critical}</span>}
+          {sb.high > 0 && <span className="vendor-alerts-pill"><SeverityBadge label="High" /> {sb.high}</span>}
+          {sb.medium > 0 && <span className="vendor-alerts-pill"><SeverityBadge label="Medium" /> {sb.medium}</span>}
+          {sb.low > 0 && <span className="vendor-alerts-pill"><SeverityBadge label="Low" /> {sb.low}</span>}
+          {sb.unknown > 0 && <span className="vendor-alerts-pill"><SeverityBadge label="Unknown" /> {sb.unknown}</span>}
+        </div>
+        {data.kev_last_ingest_at && (
+          <span className="vendor-alerts-kev-meta">
+            KEV<InfoTip text="Known Exploited Vulnerabilities — CISA's catalog of CVEs actively being exploited." /> data as of {new Date(data.kev_last_ingest_at).toLocaleDateString()}
+          </span>
+        )}
       </div>
 
       {data.unmatched_vendors.length > 0 && (
@@ -254,26 +258,140 @@ const VendorAlertsTab: React.FC = () => {
           </tr>
         </thead>
         <tbody>
-          {data.items.map((item) => (
-            <tr key={`${item.cve_id}-${item.vendor_name}-${item.kev_product}`} style={{ borderBottom: '1px solid var(--border)' }}>
-              <td style={{ padding: '6px 8px', fontFamily: 'monospace' }}>{item.cve_id}</td>
-              <td style={{ padding: '6px 8px' }}>{item.vendor_name}</td>
-              <td style={{ padding: '6px 8px' }}>{item.kev_product}</td>
-              <td style={{ padding: '6px 8px' }}><SeverityBadge label={item.severity_label} /></td>
-              <td style={{ padding: '6px 8px', fontWeight: 700 }}>
-                {item.cvss_score !== null ? item.cvss_score.toFixed(1) : '—'}
-              </td>
-              <td style={{ padding: '6px 8px' }}>
-                {item.risk_score !== null ? item.risk_score.toFixed(0) : '—'}
-              </td>
-              <td style={{ padding: '6px 8px' }}>
-                {item.due_date ? new Date(item.due_date).toLocaleDateString() : '—'}
-              </td>
-            </tr>
-          ))}
+          {(() => {
+            // Render in two visual groups: product-specific matches first,
+            // then vendor-wide matches. A divider <tr> separates them when
+            // both kinds are present so the user can see the priority.
+            const rows: React.ReactNode[] = [];
+            let lastProductSpecific: boolean | null = null;
+            const hasProductMatches = data.items.some((i) => i.product_specific);
+            const hasVendorWide = data.items.some((i) => !i.product_specific);
+
+            data.items.forEach((item) => {
+              const isProductSpecific = !!item.product_specific;
+              if (
+                lastProductSpecific !== null &&
+                lastProductSpecific !== isProductSpecific &&
+                hasProductMatches &&
+                hasVendorWide
+              ) {
+                rows.push(
+                  <tr
+                    key={`divider-${isProductSpecific ? 'p' : 'v'}`}
+                    className="vendor-alerts-section-divider"
+                  >
+                    <td colSpan={7}>
+                      {isProductSpecific
+                        ? 'Your stack — Product-specific matches'
+                        : 'Your stack — Vendor-wide matches'}
+                    </td>
+                  </tr>,
+                );
+              } else if (lastProductSpecific === null && hasProductMatches) {
+                // Header for the very first group when product-specific
+                // rows lead the list.
+                rows.push(
+                  <tr
+                    key={`divider-first`}
+                    className="vendor-alerts-section-divider"
+                  >
+                    <td colSpan={7}>
+                      {isProductSpecific
+                        ? 'Your stack — Product-specific matches'
+                        : 'Your stack — Vendor-wide matches'}
+                    </td>
+                  </tr>,
+                );
+              }
+              lastProductSpecific = isProductSpecific;
+
+              rows.push(
+                <tr
+                  key={`${item.cve_id}-${item.vendor_name}-${item.kev_product}`}
+                  className={`vendor-alert-row vendor-alert-row--matched${
+                    isProductSpecific ? ' vendor-alert-row--product' : ''
+                  }`}
+                  title={
+                    isProductSpecific
+                      ? `Matches your specified product: ${item.org_product}`
+                      : 'In your technology stack'
+                  }
+                >
+                  <td style={{ padding: '6px 8px', fontFamily: 'monospace' }}>
+                    <span className="vendor-alert-stack-chip">YOUR STACK</span>
+                    {isProductSpecific && (
+                      <span className="vendor-alert-stack-chip vendor-alert-stack-chip--product">
+                        PRODUCT MATCH
+                      </span>
+                    )}{' '}
+                    {item.cve_id}
+                  </td>
+                  <td style={{ padding: '6px 8px', fontWeight: 600 }}>{item.vendor_name}</td>
+                  <td style={{ padding: '6px 8px' }}>{item.kev_product}</td>
+                  <td style={{ padding: '6px 8px' }}><SeverityBadge label={item.severity_label} /></td>
+                  <td style={{ padding: '6px 8px', fontWeight: 700 }}>
+                    {item.cvss_score !== null ? item.cvss_score.toFixed(1) : '—'}
+                  </td>
+                  <td style={{ padding: '6px 8px' }}>
+                    {item.risk_score !== null ? item.risk_score.toFixed(0) : '—'}
+                  </td>
+                  <td style={{ padding: '6px 8px' }}>
+                    {item.due_date ? new Date(item.due_date).toLocaleDateString() : '—'}
+                  </td>
+                </tr>,
+              );
+            });
+            return rows;
+          })()}
         </tbody>
       </table>
       </div>
+
+      {/* Trending elsewhere: top KEVs not matching this org's stack. Shown
+          on page 1 only so users always see what's active in the wild. */}
+      {page === 1 && data.other_alerts && data.other_alerts.length > 0 && (
+        <section className="vendor-alerts-other">
+          <h3 className="vendor-alerts-other-title">
+            Trending elsewhere
+            <InfoTip
+              text="Top severity CVEs from CISA's KEV catalog that do NOT match your configured vendors. Shown for situational awareness."
+              label="Trending elsewhere"
+            />
+          </h3>
+          <p className="vendor-alerts-other-sub">
+            Active threats outside your stack — useful context if you're considering adding new vendors or want to see what attackers are targeting right now.
+          </p>
+          <div className="table-scroll-wrapper">
+            <table className="tab-table">
+              <thead>
+                <tr style={{ borderBottom: '2px solid var(--border)', textAlign: 'left' }}>
+                  <th style={{ padding: '6px 8px' }}>CVE ID</th>
+                  <th style={{ padding: '6px 8px' }}>Vendor</th>
+                  <th style={{ padding: '6px 8px' }}>Product</th>
+                  <th style={{ padding: '6px 8px' }}>Severity</th>
+                  <th style={{ padding: '6px 8px' }}>CVSS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.other_alerts.map((item) => (
+                  <tr
+                    key={`other-${item.cve_id}-${item.vendor_name}`}
+                    className="vendor-alert-row vendor-alert-row--other"
+                  >
+                    <td style={{ padding: '6px 8px', fontFamily: 'monospace' }}>{item.cve_id}</td>
+                    <td style={{ padding: '6px 8px' }}>{item.vendor_name}</td>
+                    <td style={{ padding: '6px 8px' }}>{item.kev_product}</td>
+                    <td style={{ padding: '6px 8px' }}><SeverityBadge label={item.severity_label} /></td>
+                    <td style={{ padding: '6px 8px', fontWeight: 700 }}>
+                      {item.cvss_score !== null ? item.cvss_score.toFixed(1) : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {/* Pagination */}
       {totalPages > 1 && (

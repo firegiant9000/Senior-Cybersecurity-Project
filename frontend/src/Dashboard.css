@@ -6,6 +6,7 @@
     --text-secondary:   #475569;
     --text-muted:       #374151;
     --border:           #cbd2da;
+    --border-strong:    #94a3b8;
     --header-bg:        #0b1060;
     --tabs-bg:          #ffffff;
     --tab-hover-bg:     #e8eaff;
@@ -29,12 +30,13 @@
 }
 
 [data-theme="dark"] {
-    --bg:               #0f172a;
-    --card-bg:          #1e293b;
+    --bg:               #111c33;
+    --card-bg:          #22304a;
     --text-primary:     #e2e8f0;
-    --text-secondary:   #94a3b8;
-    --text-muted:       #64748b;
-    --border:           #334155;
+    --text-secondary:   #cbd5e1;
+    --text-muted:       #94a3b8;
+    --border:           #475569;
+    --border-strong:    #64748b;
     --header-bg:        #020617;
     --tabs-bg:          #1e293b;
     --tab-hover-bg:     #1e3a5f;
@@ -80,7 +82,7 @@
 /* White boxes for Data */
 .card {
     background-color: var(--card-bg);
-    border: 1px solid var(--border);
+    border: 1.5px solid var(--border);
     border-radius: 10px;
     padding: 20px;
     box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
@@ -102,11 +104,18 @@
 }
 
 [data-theme="dark"] .card {
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+    border-color: var(--border-strong);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
 }
 
 [data-theme="dark"] .card:hover {
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+/* Chart cards get a slim accent stripe so they read as distinct widgets
+   even when the parent surface is similarly dark. */
+.chart-widget {
+    border-top: 2px solid var(--accent);
 }
 
 /* Widgets */
@@ -335,6 +344,71 @@
 
 .vendor-alerts-card-cvss {
     font-weight: 700;
+}
+
+/* Product-specific row — green tint + leading star chip so the
+   dashboard widget mirrors the full Vendor Alerts tab without the
+   extra "Product Match" label (we don't have horizontal room here). */
+.vendor-alerts-card-row--product {
+    background: rgba(22, 163, 74, 0.08);
+    box-shadow: inset 3px 0 0 #16a34a;
+}
+
+.vendor-alerts-card-row--product:hover {
+    background: rgba(22, 163, 74, 0.15) !important;
+}
+
+.vendor-alerts-card-product-chip {
+    display: inline-block;
+    margin-right: 4px;
+    color: #16a34a;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+/* Scrollable body — keeps the dashboard widget the same size on the
+   grid while letting the user see well past the first 5 rows. The
+   parent .card has overflow:hidden so we constrain max-height to the
+   widget's interior and rely on this wrapper for vertical scroll. */
+.vendor-alerts-card-scroll {
+    max-height: 220px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+.vendor-alerts-card-scroll::-webkit-scrollbar {
+    width: 8px;
+}
+
+.vendor-alerts-card-scroll::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+}
+
+.vendor-alerts-card-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* Sticky header so column labels don't scroll out of view. */
+.vendor-alerts-card-scroll .vendor-alerts-card-table thead {
+    position: sticky;
+    top: 0;
+    background: var(--card-bg);
+    z-index: 1;
+}
+
+/* Legend explaining the green star — only renders when at least one
+   product-specific row is present. */
+.vendor-alerts-card-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
 }
 
 .vendor-alerts-card-footer {
@@ -949,26 +1023,16 @@
 
 .risk-analytics-card,
 .risk-kpi-card {
-    background: #1e293b;
-    border: 1px solid #334155;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
     border-radius: 10px;
     padding: 14px;
-}
-
-[data-theme="dark"] .risk-analytics-card,
-[data-theme="dark"] .risk-kpi-card {
-    background: #f1f5f9;
-    border: 1px solid #cbd5e1;
 }
 
 .risk-analytics-card h3 {
     margin: 0 0 10px;
     font-size: 14px;
-    color: #e2e8f0;
-}
-
-[data-theme="dark"] .risk-analytics-card h3 {
-    color: #0f172a;
+    color: var(--text-primary);
 }
 
 .risk-bar-chart {
@@ -986,25 +1050,17 @@
 
 .risk-bar-label {
     font-size: 12px;
-    color: #94a3b8;
+    color: var(--text-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-[data-theme="dark"] .risk-bar-label {
-    color: #334155;
-}
-
 .risk-bar-track {
     height: 10px;
-    background: #334155;
+    background: var(--border);
     border-radius: 999px;
     overflow: hidden;
-}
-
-[data-theme="dark"] .risk-bar-track {
-    background: #cbd5e1;
 }
 
 .risk-bar-fill {
@@ -1019,12 +1075,8 @@
 .risk-bar-value {
     text-align: right;
     font-size: 12px;
-    color: #e2e8f0;
+    color: var(--text-primary);
     font-weight: 600;
-}
-
-[data-theme="dark"] .risk-bar-value {
-    color: #0f172a;
 }
 
 .risk-kpi-card {
@@ -1036,31 +1088,19 @@
 
 .risk-kpi-label {
     font-size: 12px;
-    color: #94a3b8;
-}
-
-[data-theme="dark"] .risk-kpi-label {
-    color: #475569;
+    color: var(--text-muted);
 }
 
 .risk-kpi-value {
     font-size: 36px;
     font-weight: 700;
-    color: #e2e8f0;
+    color: var(--text-primary);
     line-height: 1.1;
-}
-
-[data-theme="dark"] .risk-kpi-value {
-    color: #0f172a;
 }
 
 .risk-kpi-subtitle {
     font-size: 12px;
-    color: #94a3b8;
-}
-
-[data-theme="dark"] .risk-kpi-subtitle {
-    color: #475569;
+    color: var(--text-muted);
 }
 
 @media (max-width: 1024px) {

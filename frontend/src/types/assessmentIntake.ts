@@ -10,6 +10,11 @@ export interface AssessmentIntakeFormData {
   employee_range: string;
   primary_domain: string;
   primary_vendor: string;
+  // Optional product name paired with primary_vendor. When set, vendor
+  // alerts narrow KEV matches to this specific product (e.g. vendor
+  // "Microsoft" + product "Exchange Server" matches only Exchange CVEs)
+  // instead of fanning out across the vendor's entire catalog.
+  primary_product: string;
 
   // ENHANCED tier additions
   security_controls: Record<string, "yes" | "no" | "unsure">;
