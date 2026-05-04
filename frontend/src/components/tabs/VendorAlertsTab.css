@@ -113,3 +113,167 @@
   color: var(--color-low);
   cursor: default;
 }
+
+/* ── Tab header: title + actions in one aligned row ───────────────────────── */
+.vendor-alerts-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.vendor-alerts-heading {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vendor-alerts-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.vendor-alerts-manage-link {
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+/* ── Summary row: total + severity pills + KEV freshness ──────────────────── */
+.vendor-alerts-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+}
+
+.vendor-alerts-total {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.vendor-alerts-severity-pills {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.vendor-alerts-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.vendor-alerts-kev-meta {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ── Row variants ─────────────────────────────────────────────────────────── */
+.vendor-alert-row {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s ease;
+}
+
+.vendor-alert-row--matched {
+  background: rgba(59, 130, 246, 0.05);
+  border-left: 3px solid var(--accent);
+}
+
+.vendor-alert-row--matched:hover {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.vendor-alert-stack-chip {
+  display: inline-block;
+  padding: 1px 5px;
+  margin-right: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+
+/* Green variant for vendor+product matches — visually distinct from the
+   blue YOUR STACK chip so users immediately see which rows hit their
+   exact named product. */
+.vendor-alert-stack-chip--product {
+  background: #16a34a;
+}
+
+.vendor-alert-row--product {
+  background: rgba(22, 163, 74, 0.07);
+  border-left: 3px solid #16a34a;
+}
+
+.vendor-alert-row--product:hover {
+  background: rgba(22, 163, 74, 0.14);
+}
+
+/* Section divider rendered as a non-interactive <tr> between
+   product-specific and vendor-wide groups. */
+.vendor-alerts-section-divider td {
+  padding: 14px 8px 6px !important;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: transparent;
+  border-bottom: 1px solid var(--border);
+}
+
+.vendor-alert-row--other {
+  opacity: 0.85;
+}
+
+.vendor-alert-row--other:hover {
+  background: rgba(148, 163, 184, 0.08);
+  opacity: 1;
+}
+
+/* ── "Trending elsewhere" section ─────────────────────────────────────────── */
+.vendor-alerts-other {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--border);
+}
+
+.vendor-alerts-other-title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vendor-alerts-other-sub {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}

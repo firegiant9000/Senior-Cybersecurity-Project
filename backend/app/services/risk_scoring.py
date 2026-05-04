@@ -10,10 +10,18 @@ from app.ingestors.ic3_real import ATTACK_SECTOR_WEIGHTS
 from app.schemas.smb_risk_score import (
     AttackExposureItem,
     IndustryExposureDetail,
+    RemediatedItem,
+    RemediationCredit,
     RiskScoreResponse,
     ScoreComponent,
     SizeFactorDetail,
 )
+
+# Cap remediation credit at this fraction of the base score. Tuned alongside
+# the per-finding weights below so the score moves visibly on every click
+# without saturating after the first critical: a SMB with base ~25-35 should
+# drop steadily through ~10-12 remediations before plateauing.
+REMEDIATION_CREDIT_CAP_PCT = 0.75
 
 # Pre-build {attack_type: {sector: weight}} so we don't reconstruct dicts
 # on every request.
@@ -106,6 +114,7 @@ def basic_vuln_risk_score(severity_score: float | None, *, exploited: bool) -> f
 def calculate_smb_risk_score(
     industry_label: str | None,
     employee_range: str | None,
+    remediation_credit: RemediationCredit | None = None,
 ) -> RiskScoreResponse:
     """Return a parameterized SMB risk score based on org industry and size.
 
@@ -184,11 +193,51 @@ def calculate_smb_risk_score(
         ),
     ]
 
+    credit = remediation_credit or RemediationCredit(
+        done_count=0, raw_points=0.0, applied_points=0.0, items=[]
+    )
+    effective = max(0.0, final_score - credit.applied_points)
+
     return RiskScoreResponse(
         score=round(final_score, 2),
+        effective_score=round(effective, 2),
+        remediation_credit=credit,
         industry_exposure=industry_exposure,
         size_factor=size_factor,
         breakdown=breakdown,
         methodology=_METHODOLOGY,
         generated_at=datetime.now(UTC).isoformat(),
+    )
+
+
+def compute_remediation_credit(
+    done_findings: list[RemediatedItem],
+    base_score: float,
+) -> RemediationCredit:
+    """Translate the org's ``done`` findings into a capped score deduction.
+
+    Severity weights mirror the per-vuln model so a critical remediated
+    finding earns a larger credit than a low one.
+    """
+    # Tuned for steady per-click progression alongside REMEDIATION_CREDIT_CAP_PCT.
+    # Each remediation should noticeably move the score (criticals more,
+    # info less) without snapping straight to the cap on the first big-ticket
+    # click. With a 0.75 cap and a typical mix of ~3 critical / 7 high / 10
+    # medium / 7 low / 4 info, all-done raw ≈ 27.5 — enough to reach the cap
+    # but not so high that a single critical buries the rest of the loop.
+    severity_weights = {
+        "critical": 2.5,
+        "high": 1.5,
+        "medium": 0.7,
+        "low": 0.3,
+        "info": 0.1,
+    }
+    raw = sum(severity_weights.get(item.severity.lower(), 0.5) for item in done_findings)
+    cap = base_score * REMEDIATION_CREDIT_CAP_PCT
+    applied = min(raw, cap)
+    return RemediationCredit(
+        done_count=len(done_findings),
+        raw_points=round(raw, 2),
+        applied_points=round(applied, 2),
+        items=done_findings,
     )

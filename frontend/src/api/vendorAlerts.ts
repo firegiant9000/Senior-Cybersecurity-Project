@@ -15,6 +15,13 @@ export interface VendorAlert {
   severity_label: string;
   risk_score: number | null;
   published_date: string | null;
+  // True for rows that hit the org's stack; false for "trending elsewhere"
+  // rows surfaced as context.
+  in_org_stack?: boolean;
+  // True when the user named a specific product on this vendor and the
+  // KEV entry's product matches it. Used to float these rows above the
+  // vendor-wide matches in the table.
+  product_specific?: boolean;
 }
 
 export interface SeverityBreakdown {
@@ -29,6 +36,10 @@ export interface VendorAlertsResponse {
   total_matched: number;
   severity_breakdown: SeverityBreakdown;
   items: VendorAlert[];
+  // Top KEV CVEs that don't match this org's stack — shown as a separate
+  // "trending elsewhere" section so the page is still informative for
+  // orgs without configured vendors or with a clean stack.
+  other_alerts: VendorAlert[];
   page: number;
   page_size: number;
   unmatched_vendors: string[];
