@@ -1524,6 +1524,40 @@
     text-align: right;
 }
 
+/* Heatmap dark-mode surface + header overrides */
+[data-theme="dark"] .heatmap-scroll,
+[data-theme="dark"] .heatmap-table {
+    background: var(--card-bg);
+}
+
+[data-theme="dark"] .heatmap-corner {
+    background: var(--table-head-bg);
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--border);
+    border-right: 2px solid var(--border);
+}
+
+[data-theme="dark"] .heatmap-col-header {
+    background: var(--table-head-bg);
+    color: var(--widget-title);
+    border-bottom: 2px solid var(--border);
+}
+
+[data-theme="dark"] .heatmap-row-header {
+    background: var(--table-head-bg);
+    color: var(--widget-title);
+    border-right: 2px solid var(--border);
+}
+
+[data-theme="dark"] .heatmap-cell {
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    border-right: 1px solid rgba(255,255,255,0.06);
+}
+
+[data-theme="dark"] .heatmap-note {
+    color: var(--text-secondary);
+}
+
 /* ── Dark mode input/select overrides ────────────────────────────────────── */
 [data-theme="dark"] input,
 [data-theme="dark"] select {
@@ -1577,33 +1611,6 @@
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
-[data-theme="dark"] .heatmap-corner {
-    background: var(--table-head-bg);
-    color: var(--text-secondary);
-    border-bottom: 2px solid var(--border);
-    border-right: 2px solid var(--border);
-}
-
-[data-theme="dark"] .heatmap-col-header {
-    background: var(--table-head-bg);
-    color: var(--widget-title);
-    border-bottom: 2px solid var(--border);
-}
-
-[data-theme="dark"] .heatmap-row-header {
-    background: var(--table-head-bg);
-    color: var(--widget-title);
-    border-right: 2px solid var(--border);
-}
-
-[data-theme="dark"] .heatmap-cell {
-    border-bottom: 1px solid rgba(255,255,255,0.06);
-    border-right: 1px solid rgba(255,255,255,0.06);
-}
-
-[data-theme="dark"] .heatmap-note {
-    color: var(--text-secondary);
-}
     transition: background 0.2s, color 0.2s;
     align-self: flex-end;
     white-space: nowrap;
