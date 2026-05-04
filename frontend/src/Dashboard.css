@@ -244,6 +244,7 @@
     align-items: stretch;
     justify-content: flex-start;
     padding: 16px 20px;
+    overflow: visible;
 }
 
 /* Ensure SVG chart text (axis labels, tick values, data labels) is readable
