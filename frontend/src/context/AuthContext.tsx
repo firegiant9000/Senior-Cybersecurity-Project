@@ -40,7 +40,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfileError(false);
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        const token = await firebaseUser.getIdToken();
+        // Force-refresh on retry to avoid using a stale cached token.
+        const token = await firebaseUser.getIdToken(attempt > 0);
         const resp = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
