@@ -270,9 +270,7 @@ async def get_smb_risk_score(
     )
 
 
-async def _done_finding_items(
-    org_id: int, db: AsyncSession
-):
+async def _done_finding_items(org_id: int, db: AsyncSession):
     """Return RemediatedItem records for findings the org has marked done.
 
     Primary source: the denormalized ``title`` and ``severity`` columns
@@ -308,9 +306,7 @@ async def _done_finding_items(
     needs_lookup: dict[str, RemediatedItem] = {}
     for stable_key, title, severity in rows:
         if title and severity:
-            items.append(
-                RemediatedItem(stable_key=stable_key, title=title, severity=severity)
-            )
+            items.append(RemediatedItem(stable_key=stable_key, title=title, severity=severity))
         else:
             placeholder = RemediatedItem(
                 stable_key=stable_key,
@@ -474,9 +470,7 @@ async def patch_finding_status(
             severity=severity,
         )
     except SQLAlchemyError:
-        logger.exception(
-            "Failed to upsert finding status for org %s key %s", org.id, stable_key
-        )
+        logger.exception("Failed to upsert finding status for org %s key %s", org.id, stable_key)
         raise HTTPException(status_code=500, detail="Failed to update finding status")
     return FindingStatusResponse(stable_key=row.stable_key, status=row.status)
 

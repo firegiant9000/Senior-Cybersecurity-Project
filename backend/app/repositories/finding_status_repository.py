@@ -103,9 +103,7 @@ class SqlFindingStatusRepository:
         new_id = result.scalar_one()
         await self._session.commit()
 
-        row = await self._session.execute(
-            select(FindingStatus).where(FindingStatus.id == new_id)
-        )
+        row = await self._session.execute(select(FindingStatus).where(FindingStatus.id == new_id))
         return row.scalar_one()
 
 
