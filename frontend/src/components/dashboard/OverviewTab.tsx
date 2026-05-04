@@ -460,7 +460,6 @@ function renderGridWidget(
                                         <span className="gauge-sublabel">{dashboardData.riskScoreStats.total.toLocaleString()} CVEs scored</span>
                                     )}
                                 </div>
-                                <p style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', margin: '6px 8px 0', lineHeight: 1.4 }}>
                                 <p style={{ fontSize: 10, color: 'rgba(255, 255, 255, 0.8)', textAlign: 'center', margin: '6px 8px 0', lineHeight: 1.4 }}>
                                     Composite score derived from CVSS severity and active exploitation status (KEV). Higher % = greater risk.
                                 </p>
