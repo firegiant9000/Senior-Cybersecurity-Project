@@ -169,6 +169,67 @@ class VendorAlertService:
             await self._session.rollback()
             return []
 
+    async def _fetch_other_alerts(
+        self, org_id: int, exclude_cve_ids: set[str], limit: int = 5
+    ) -> list[VendorAlert]:
+        """Return top-severity KEV CVEs that do NOT match this org's stack.
+
+        Surfaced in the response as ``other_alerts`` so users still see what
+        is actively being exploited in the wild — even if their configured
+        vendors are clean (or before they've added any).
+        """
+        stmt = (
+            select(
+                KEV.vendor.label("vendor_name"),
+                KEV.cve_id,
+                KEV.product.label("kev_product"),
+                KEV.due_date,
+                CVE.description,
+                CVE.cvss_score,
+                CVE.severity,
+                CVE.published_date,
+            )
+            .join(CVE, CVE.cve_id == KEV.cve_id)
+            .order_by(CVE.cvss_score.desc().nulls_last(), KEV.due_date.desc().nulls_last())
+            .limit(limit + len(exclude_cve_ids))
+        )
+        try:
+            rows = (await self._session.execute(stmt)).all()
+        except SQLAlchemyError:
+            logger.warning(
+                "fetching other-alerts failed for org %s — returning empty list",
+                org_id,
+                exc_info=True,
+            )
+            await self._session.rollback()
+            return []
+
+        items: list[VendorAlert] = []
+        for r in rows:
+            if r.cve_id in exclude_cve_ids:
+                continue
+            sev_label = _normalize_severity(r.severity, r.cvss_score)
+            risk = basic_vuln_risk_score(r.cvss_score, exploited=True)
+            items.append(
+                VendorAlert(
+                    vendor_name=r.vendor_name or "Unknown",
+                    org_product="",
+                    cve_id=r.cve_id,
+                    kev_product=r.kev_product or "",
+                    due_date=r.due_date,
+                    description=r.description or "",
+                    cvss_score=r.cvss_score,
+                    severity_label=sev_label,
+                    risk_score=risk,
+                    published_date=r.published_date,
+                    match_confidence=None,
+                    in_org_stack=False,
+                )
+            )
+            if len(items) >= limit:
+                break
+        return items
+
     async def get_alerts(
         self, org_id: int, page: int = 1, page_size: int = 20
     ) -> VendorAlertsResponse:
@@ -179,10 +240,14 @@ class VendorAlertService:
         vendor_count = int(vendor_count_result.scalar_one())
 
         if vendor_count == 0:
+            # No vendors configured — still surface top KEVs as "trending"
+            # context so the page is useful before onboarding completes.
+            other = await self._fetch_other_alerts(org_id, exclude_cve_ids=set(), limit=10)
             return VendorAlertsResponse(
                 total_matched=0,
                 severity_breakdown=SeverityBreakdown(),
                 items=[],
+                other_alerts=other,
                 page=page,
                 page_size=page_size,
                 unmatched_vendors=[],
@@ -244,61 +309,61 @@ class VendorAlertService:
             )
 
         # ── Combine exact + alias + fuzzy results ────────────────────────────
-        # Build unified list of dicts for sorting / pagination
-        combined: list[dict] = []
+        # Build unified list of dicts for sorting / pagination. Each row
+        # is tagged ``product_specific`` so the UI can flag CVEs that hit
+        # the user's exact named product (e.g. Microsoft + SharePoint)
+        # vs. CVEs that match the vendor catalog-wide.
+        def _to_dict(row, *, match_confidence: float) -> dict:
+            org_product = (row.org_product or "").strip()
+            kev_product = (row.kev_product or "").strip()
+            return {
+                "vendor_name": row.vendor_name,
+                "org_product": row.org_product,
+                "cve_id": row.cve_id,
+                "kev_product": row.kev_product,
+                "due_date": row.due_date,
+                "description": row.description,
+                "cvss_score": row.cvss_score,
+                "severity": row.severity,
+                "published_date": row.published_date,
+                "match_confidence": match_confidence,
+                "product_specific": bool(
+                    org_product and org_product.lower() == kev_product.lower()
+                ),
+            }
+
+        raw_combined: list[dict] = []
         for row in exact_rows:
-            combined.append(
-                {
-                    "vendor_name": row.vendor_name,
-                    "org_product": row.org_product,
-                    "cve_id": row.cve_id,
-                    "kev_product": row.kev_product,
-                    "due_date": row.due_date,
-                    "description": row.description,
-                    "cvss_score": row.cvss_score,
-                    "severity": row.severity,
-                    "published_date": row.published_date,
-                    "match_confidence": 1.0,
-                }
-            )
+            raw_combined.append(_to_dict(row, match_confidence=1.0))
         for row in alias_rows:
-            combined.append(
-                {
-                    "vendor_name": row.vendor_name,
-                    "org_product": row.org_product,
-                    "cve_id": row.cve_id,
-                    "kev_product": row.kev_product,
-                    "due_date": row.due_date,
-                    "description": row.description,
-                    "cvss_score": row.cvss_score,
-                    "severity": row.severity,
-                    "published_date": row.published_date,
-                    "match_confidence": 1.0,
-                }
-            )
+            raw_combined.append(_to_dict(row, match_confidence=1.0))
         for row in fuzzy_rows:
-            combined.append(
-                {
-                    "vendor_name": row.vendor_name,
-                    "org_product": row.org_product,
-                    "cve_id": row.cve_id,
-                    "kev_product": row.kev_product,
-                    "due_date": row.due_date,
-                    "description": row.description,
-                    "cvss_score": row.cvss_score,
-                    "severity": row.severity,
-                    "published_date": row.published_date,
-                    "match_confidence": float(row.score),
-                }
-            )
+            raw_combined.append(_to_dict(row, match_confidence=float(row.score)))
+
+        # Dedupe by (vendor_name, cve_id) — when the org has both a bare
+        # vendor row and a vendor+product row, a single CVE hits both. We
+        # keep the product_specific match because it's the more useful
+        # signal to the user.
+        deduped: dict[tuple[str, str], dict] = {}
+        for r in raw_combined:
+            key = (r["vendor_name"].lower(), r["cve_id"])
+            existing = deduped.get(key)
+            if existing is None:
+                deduped[key] = r
+            elif r["product_specific"] and not existing["product_specific"]:
+                deduped[key] = r
+            # else: keep the first / existing row
+        combined = list(deduped.values())
 
         total_matched = len(combined)
 
         if total_matched == 0:
+            other = await self._fetch_other_alerts(org_id, exclude_cve_ids=set(), limit=10)
             return VendorAlertsResponse(
                 total_matched=0,
                 severity_breakdown=SeverityBreakdown(),
                 items=[],
+                other_alerts=other,
                 page=page,
                 page_size=page_size,
                 unmatched_vendors=sorted(
@@ -308,9 +373,12 @@ class VendorAlertService:
                 kev_last_ingest_at=await self._last_kev_ingest(),
             )
 
-        # Sort by CVSS desc, then due_date desc (nulls last)
+        # Sort: product-specific matches first, then by CVSS desc, then
+        # by due_date asc (nulls last). The product_specific term floats
+        # CVEs hitting the user's named products to the top of the table.
         combined.sort(
             key=lambda r: (
+                0 if r["product_specific"] else 1,
                 -(r["cvss_score"] or 0),
                 r["due_date"] is None,
                 -(r["due_date"].toordinal()) if r["due_date"] else 0,
@@ -339,6 +407,8 @@ class VendorAlertService:
                     risk_score=risk,
                     published_date=r["published_date"],
                     match_confidence=r["match_confidence"],
+                    in_org_stack=True,
+                    product_specific=r["product_specific"],
                 )
             )
 
@@ -346,10 +416,20 @@ class VendorAlertService:
 
         truly_unmatched = sorted(all_vendor_names - exact_vendor_names - fuzzy_matched_vendor_names)
 
+        # Only fetch "other alerts" on page 1 — they're a static informational
+        # block, not paginated content.
+        other_alerts: list[VendorAlert] = []
+        if page == 1:
+            matched_cve_ids = {r["cve_id"] for r in combined}
+            other_alerts = await self._fetch_other_alerts(
+                org_id, exclude_cve_ids=matched_cve_ids, limit=5
+            )
+
         return VendorAlertsResponse(
             total_matched=total_matched,
             severity_breakdown=breakdown,
             items=items,
+            other_alerts=other_alerts,
             page=page,
             page_size=page_size,
             unmatched_vendors=truly_unmatched,

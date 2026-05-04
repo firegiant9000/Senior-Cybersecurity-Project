@@ -27,7 +27,10 @@ const VendorAlertsCard: React.FC = () => {
     let cancelled = false;
     const load = async () => {
       try {
-        const result = await fetchVendorAlerts(1, 5);
+        // Pull more rows than fit and let the body scroll. Keeps the card
+        // the same size on the dashboard grid while making the longer list
+        // accessible without navigating to the full Vendor Alerts tab.
+        const result = await fetchVendorAlerts(1, 25);
         if (!cancelled) setData(result);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load');
@@ -115,7 +118,19 @@ const VendorAlertsCard: React.FC = () => {
           <span className="vendor-alerts-card-total">{data.total_matched} total</span>
         </div>
 
-        {/* Top alerts list */}
+        {/* Tiny legend: explains the green ★ on product-specific rows.
+            Only shown when the response actually contains one. */}
+        {data.items.some((i) => i.product_specific) && (
+          <div className="vendor-alerts-card-legend" role="note">
+            <span className="vendor-alerts-card-product-chip">★</span>
+            <span>= matches a product you've added to your stack</span>
+          </div>
+        )}
+
+        {/* Top alerts list — backend already sorts product-specific
+            matches first; we just add the green chip + row tint here.
+            Scrollable body lets the card show more without growing. */}
+        <div className="vendor-alerts-card-scroll">
         <table className="vendor-alerts-card-table">
           <thead>
             <tr>
@@ -128,8 +143,21 @@ const VendorAlertsCard: React.FC = () => {
           </thead>
           <tbody>
             {data.items.map((item) => (
-              <tr key={`${item.cve_id}-${item.vendor_name}-${item.kev_product}`}>
-                <td className="vendor-alerts-card-cve">{item.cve_id}</td>
+              <tr
+                key={`${item.cve_id}-${item.vendor_name}-${item.kev_product}`}
+                className={item.product_specific ? 'vendor-alerts-card-row--product' : undefined}
+                title={
+                  item.product_specific
+                    ? `Matches your specified product: ${item.org_product}`
+                    : undefined
+                }
+              >
+                <td className="vendor-alerts-card-cve">
+                  {item.product_specific && (
+                    <span className="vendor-alerts-card-product-chip">★</span>
+                  )}
+                  {item.cve_id}
+                </td>
                 <td>{item.vendor_name}</td>
                 <td>{item.kev_product}</td>
                 <td><SeverityBadge label={item.severity_label} /></td>
@@ -140,6 +168,7 @@ const VendorAlertsCard: React.FC = () => {
             ))}
           </tbody>
         </table>
+        </div>
 
         {/* Footer */}
         <div className="vendor-alerts-card-footer">
