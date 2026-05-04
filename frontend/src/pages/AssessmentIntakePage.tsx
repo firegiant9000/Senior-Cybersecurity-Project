@@ -64,6 +64,10 @@ export default function AssessmentIntakePage() {
   const [step, setStep] = useState(1);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // Tracks the in-flight Next click so we can (a) show a spinner and
+  // (b) disable the button to prevent the "have to click twice" issue
+  // where a fast user clicks again before the create-org POST resolves.
+  const [advancing, setAdvancing] = useState(false);
   const vendorSyncedRef = useRef<string>("");
   const domainSyncedRef = useRef<string>("");
   // Default every security control to "unsure" so the UI's default highlight
@@ -80,6 +84,7 @@ export default function AssessmentIntakePage() {
     employee_range: "",
     primary_domain: "",
     primary_vendor: "",
+    primary_product: "",
     revenue_range: "",
     security_controls: defaultSecurityControls(),
     compliance_frameworks: [],
@@ -111,6 +116,7 @@ export default function AssessmentIntakePage() {
             employee_range: org.employee_range || "",
             primary_domain: org.primary_domain || "",
             primary_vendor: prev.primary_vendor,
+            primary_product: prev.primary_product,
             revenue_range: org.revenue_range || "",
             // Merge so any control the backend doesn't have yet falls back
             // to the "unsure" default rather than dropping out of state.
@@ -285,14 +291,18 @@ export default function AssessmentIntakePage() {
   // those rows, not the form fields), so push them as soon as we have an orgId.
   const syncVendorAndDomain = async (targetOrgId: number): Promise<void> => {
     const vendorName = form.primary_vendor.trim();
-    if (vendorName && vendorSyncedRef.current !== vendorName) {
+    const productName = form.primary_product.trim();
+    // Track vendor+product as a single sync key so editing the product
+    // alone re-pushes (the unique constraint covers both columns).
+    const vendorSyncKey = productName ? `${vendorName}::${productName}` : vendorName;
+    if (vendorName && vendorSyncedRef.current !== vendorSyncKey) {
       try {
         // idempotent=true so re-runs of the wizard don't 409 on the same vendor.
-        await createVendor(targetOrgId, vendorName, "", { idempotent: true });
+        await createVendor(targetOrgId, vendorName, productName, { idempotent: true });
       } catch (vendorErr) {
         console.warn("Failed to add primary vendor:", vendorErr);
       } finally {
-        vendorSyncedRef.current = vendorName;
+        vendorSyncedRef.current = vendorSyncKey;
       }
     }
     const domainName = form.primary_domain.trim();
@@ -314,58 +324,64 @@ export default function AssessmentIntakePage() {
   };
 
   const handleNext = async () => {
+    if (advancing || submitting) return; // Re-entrancy guard.
     if (!canAdvanceFromStep()) {
       setError("Please fill in all required fields");
       return;
     }
     setError("");
+    setAdvancing(true);
 
-    // Save form on each step
-    if (step < TOTAL_STEPS) {
-      let effectiveOrgId = orgId;
-      try {
-        if (!orgId) {
-          await createOrg();
-          // refreshProfile() updates the auth context but our closure still
-          // sees the old null orgId until the next render. Read it back from
-          // /auth/me so we can sync vendor/domain right away.
-          const meResp = await fetchWithAuth(`${API_BASE_URL}/api/v1/auth/me`);
-          if (meResp.ok) {
-            const me = await meResp.json();
-            effectiveOrgId = me.org_id ?? null;
-          }
-        } else {
-          const resp = await fetchWithAuth(
-            `${API_BASE_URL}/api/v1/organizations/${orgId}`,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(buildPayload()),
-            },
-          );
-          if (!resp.ok) {
-            const body = await resp.json().catch(() => ({}));
-            throw new Error(
-              (body as { detail?: string }).detail ?? `Save failed (${resp.status})`,
+    try {
+      // Save form on each step
+      if (step < TOTAL_STEPS) {
+        let effectiveOrgId = orgId;
+        try {
+          if (!orgId) {
+            await createOrg();
+            // refreshProfile() updates the auth context but our closure still
+            // sees the old null orgId until the next render. Read it back from
+            // /auth/me so we can sync vendor/domain right away.
+            const meResp = await fetchWithAuth(`${API_BASE_URL}/api/v1/auth/me`);
+            if (meResp.ok) {
+              const me = await meResp.json();
+              effectiveOrgId = me.org_id ?? null;
+            }
+          } else {
+            const resp = await fetchWithAuth(
+              `${API_BASE_URL}/api/v1/organizations/${orgId}`,
+              {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(buildPayload()),
+              },
             );
+            if (!resp.ok) {
+              const body = await resp.json().catch(() => ({}));
+              throw new Error(
+                (body as { detail?: string }).detail ?? `Save failed (${resp.status})`,
+              );
+            }
           }
-        }
-      } catch (err) {
-        if (!orgId) {
-          // Org creation must succeed before we can advance — surface the error.
-          setError(err instanceof Error ? err.message : "Failed to create organization");
+        } catch (err) {
+          if (!orgId) {
+            // Org creation must succeed before we can advance — surface the error.
+            setError(err instanceof Error ? err.message : "Failed to create organization");
+            return;
+          }
+          // Surface PUT failures so we don't silently lose user input.
+          setError(err instanceof Error ? err.message : "Failed to save");
           return;
         }
-        // Surface PUT failures so we don't silently lose user input.
-        setError(err instanceof Error ? err.message : "Failed to save");
-        return;
+        if (effectiveOrgId) {
+          await syncVendorAndDomain(effectiveOrgId);
+        }
+        setStep(step + 1);
+      } else {
+        await handleSubmit();
       }
-      if (effectiveOrgId) {
-        await syncVendorAndDomain(effectiveOrgId);
-      }
-      setStep(step + 1);
-    } else {
-      await handleSubmit();
+    } finally {
+      setAdvancing(false);
     }
   };
 
@@ -530,6 +546,29 @@ export default function AssessmentIntakePage() {
                   placeholder="Microsoft, Cisco, Atlassian…"
                   maxLength={255}
                   autoComplete="off"
+                />
+              </div>
+
+              <div className="intake-form-group">
+                <label htmlFor="primary_product">
+                  Primary Product
+                  <RequiredBadge optional />
+                </label>
+                <p className="intake-field-hint">
+                  Optional, but recommended. Naming the specific product (e.g.
+                  &ldquo;Exchange Server&rdquo; or &ldquo;Webex&rdquo;) narrows
+                  vulnerability alerts to vulnerabilities affecting that exact
+                  product instead of every CVE under the vendor.
+                </p>
+                <input
+                  id="primary_product"
+                  type="text"
+                  value={form.primary_product}
+                  onChange={(e) => updateField("primary_product", e.target.value)}
+                  placeholder="Exchange Server, IOS XE, Confluence…"
+                  maxLength={255}
+                  autoComplete="off"
+                  disabled={!form.primary_vendor.trim()}
                 />
               </div>
             </FormSection>
@@ -871,9 +910,11 @@ export default function AssessmentIntakePage() {
             type="button"
             className="intake-btn intake-btn-primary"
             onClick={handleNext}
-            disabled={submitting || !canAdvanceFromStep()}
+            disabled={submitting || advancing || !canAdvanceFromStep()}
           >
-            {submitting ? "Saving..." : step === TOTAL_STEPS ? "Complete" : "Next →"}
+            {submitting || advancing
+              ? (step === TOTAL_STEPS ? "Saving..." : "Saving…")
+              : (step === TOTAL_STEPS ? "Complete" : "Next →")}
           </button>
         </div>
       </div>
