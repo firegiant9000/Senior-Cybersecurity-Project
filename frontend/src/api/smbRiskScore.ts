@@ -29,8 +29,23 @@ export interface ScoreComponent {
   weighted_score: number;
 }
 
+export interface RemediatedItem {
+  stable_key: string;
+  title: string;
+  severity: string;
+}
+
+export interface RemediationCredit {
+  done_count: number;
+  raw_points: number;
+  applied_points: number;
+  items: RemediatedItem[];
+}
+
 export interface SmbRiskScore {
   score: number;
+  effective_score: number;
+  remediation_credit: RemediationCredit;
   industry_exposure: IndustryExposureDetail;
   size_factor: SizeFactorDetail;
   breakdown: ScoreComponent[];

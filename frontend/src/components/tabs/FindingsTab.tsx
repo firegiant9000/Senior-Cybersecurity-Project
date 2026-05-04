@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom';
 import {
   fetchFindings,
   fetchFindingsHistory,
+  patchFindingStatus,
   type FindingsReport,
   type Finding,
+  type FindingStatus,
   type SnapshotListItem,
 } from '../../api/findings';
 import { useAuth } from '../../context/AuthContext';
@@ -123,6 +125,49 @@ const FindingsTab: React.FC = () => {
       return next;
     });
   };
+
+  const setFindingStatus = useCallback(
+    async (finding: Finding, nextStatus: FindingStatus) => {
+      // Optimistic local update so the checkbox feels instant.
+      setReport((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          findings: prev.findings.map((f) =>
+            f.stable_key === finding.stable_key ? { ...f, status: nextStatus } : f,
+          ),
+        };
+      });
+      try {
+        await patchFindingStatus(finding.stable_key, nextStatus, {
+          title: finding.title,
+          severity: finding.severity,
+        });
+        // Notify the rest of the app (risk score widget, exec report) so
+        // they can refetch and animate the deduction.
+        window.dispatchEvent(
+          new CustomEvent('hackertracker:finding-status-changed', {
+            detail: { stable_key: finding.stable_key, status: nextStatus },
+          }),
+        );
+      } catch (err) {
+        // Revert on failure.
+        setReport((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            findings: prev.findings.map((f) =>
+              f.stable_key === finding.stable_key
+                ? { ...f, status: finding.status }
+                : f,
+            ),
+          };
+        });
+        setError(err instanceof Error ? err.message : 'Failed to update finding');
+      }
+    },
+    [],
+  );
 
   const grouped = useMemo(() => {
     if (!report) return {};
@@ -336,27 +381,49 @@ const FindingsTab: React.FC = () => {
             <div className="findings-list">
               {items.map((finding) => {
                 const expanded = expandedIds.has(finding.id);
+                const isDone = finding.status === 'done';
                 return (
                   <div
                     key={finding.id}
-                    className={`finding-card finding-card--${finding.severity}`}
+                    className={`finding-card finding-card--${finding.severity}${
+                      isDone ? ' finding-card--done' : ''
+                    }`}
                   >
-                    <button
-                      className="finding-card-header"
-                      onClick={() => toggleExpand(finding.id)}
-                      aria-expanded={expanded}
-                    >
-                      <SeverityBadge label={capitalize(finding.severity)} />
-                      {finding.severity_score != null && (
-                        <span className="finding-score" title="Severity score (0-100)">
-                          {finding.severity_score.toFixed(0)}
+                    <div className="finding-card-row">
+                      <label
+                        className="finding-card-check"
+                        title={isDone ? 'Mark as open' : 'Mark as remediated'}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isDone}
+                          onChange={(e) => {
+                            void setFindingStatus(
+                              finding,
+                              e.target.checked ? 'done' : 'open',
+                            );
+                          }}
+                          aria-label={`Mark "${finding.title}" as remediated`}
+                        />
+                      </label>
+                      <button
+                        className="finding-card-header"
+                        onClick={() => toggleExpand(finding.id)}
+                        aria-expanded={expanded}
+                      >
+                        <SeverityBadge label={capitalize(finding.severity)} />
+                        {finding.severity_score != null && (
+                          <span className="finding-score" title="Severity score (0-100)">
+                            {finding.severity_score.toFixed(0)}
+                          </span>
+                        )}
+                        <span className="finding-title">{finding.title}</span>
+                        <span className="finding-expand-icon">
+                          {expanded ? '\u25b2' : '\u25bc'}
                         </span>
-                      )}
-                      <span className="finding-title">{finding.title}</span>
-                      <span className="finding-expand-icon">
-                        {expanded ? '\u25b2' : '\u25bc'}
-                      </span>
-                    </button>
+                      </button>
+                    </div>
                     {expanded && (
                       <div className="finding-card-body">
                         <p className="finding-description">{finding.description}</p>
@@ -376,6 +443,7 @@ const FindingsTab: React.FC = () => {
                   </div>
                 );
               })}
+              {/* End list */}
             </div>
           </section>
         );

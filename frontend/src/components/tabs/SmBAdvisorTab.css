@@ -40,6 +40,151 @@
     color: var(--text-secondary, #666);
 }
 
+/* Linked gauge — turns the score into a clickable surface that routes to
+   the Findings tab where the user can act on the score. */
+.smb-org-risk-gauge--linked {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+    border-radius: 12px;
+    padding: 4px;
+    transition: background 0.18s ease, transform 0.18s ease;
+}
+
+.smb-org-risk-gauge--linked:hover,
+.smb-org-risk-gauge--linked:focus-visible {
+    background: rgba(59, 130, 246, 0.08);
+    transform: translateY(-1px);
+    outline: none;
+}
+
+/* Credit chip + hover tooltip — surfaced when the user has marked findings
+   done so the "checking off boxes drops the score" loop is visible at a
+   glance, and hovering reveals exactly which findings earned the credit. */
+.smb-org-risk-credit {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+    font-size: 0.78rem;
+    font-weight: 600;
+    animation: smb-credit-pop 0.35s ease;
+}
+
+.smb-org-risk-credit-headline {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.smb-org-risk-credit-tooltip {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: 360px;
+    padding: 10px 12px;
+    background: var(--card-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    font-weight: 500;
+    text-align: left;
+    z-index: 50;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+
+.smb-org-risk-gauge--linked:hover .smb-org-risk-credit-tooltip,
+.smb-org-risk-credit:hover .smb-org-risk-credit-tooltip,
+.smb-org-risk-credit:focus-within .smb-org-risk-credit-tooltip {
+    opacity: 1;
+}
+
+.smb-org-risk-credit-tooltip-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+}
+
+.smb-org-risk-credit-tooltip-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.smb-org-risk-credit-tooltip-list li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    line-height: 1.3;
+}
+
+.smb-org-risk-credit-sev {
+    flex-shrink: 0;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.smb-org-risk-credit-sev--critical { background: var(--color-critical); color: #fff; }
+.smb-org-risk-credit-sev--high     { background: var(--color-high); color: #fff; }
+.smb-org-risk-credit-sev--medium   { background: var(--color-moderate); color: #1f2937; }
+.smb-org-risk-credit-sev--low      { background: var(--color-low); color: #fff; }
+.smb-org-risk-credit-sev--info     { background: var(--text-muted); color: #fff; }
+
+.smb-org-risk-credit-title {
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.smb-org-risk-credit-more {
+    color: var(--text-muted);
+    font-style: italic;
+    padding-top: 4px;
+    border-top: 1px dashed var(--border);
+    margin-top: 2px;
+}
+
+.smb-org-risk-credit-tooltip-foot {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+@keyframes smb-credit-pop {
+    from { transform: scale(0.85); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
 .smb-org-risk-breakdown {
     display: flex;
     flex-direction: column;
