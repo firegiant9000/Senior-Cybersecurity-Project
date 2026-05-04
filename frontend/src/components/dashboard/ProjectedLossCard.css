@@ -3,6 +3,14 @@
     flex-direction: column;
     gap: 4px;
     padding: 12px 14px 14px;
+    /* Anchor for the absolute methodology popover so it's positioned
+       relative to this card, not the page. Keeps overflow contained. */
+    position: relative;
+    /* Override .card { overflow: hidden } so the popover can extend past
+       the card border. Use !important because the parent .card class
+       lives in a different stylesheet with the same specificity and the
+       cascade order isn't always in our favour. */
+    overflow: visible !important;
 }
 
 .projected-loss-title {
@@ -50,15 +58,41 @@
     text-underline-offset: 2px;
 }
 
+/* Floating methodology popover. Sits ABOVE the card and is scrollable
+   internally. `overscroll-behavior: contain` keeps the wheel event from
+   bubbling out to the dashboard scroll once the user reaches the top or
+   bottom of the popover. */
 .projected-loss-methodology {
-    margin-top: 6px;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 8px;
+    right: 8px;
+    z-index: 30;
+    max-height: 260px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     font-size: 0.75rem;
-    color: var(--text-secondary);
+    color: var(--text-primary);
     line-height: 1.5;
-    background: var(--bg);
+    background: var(--card-bg);
+    border: 1px solid var(--border);
     border-left: 3px solid var(--accent);
-    padding: 8px 12px;
-    border-radius: 0 6px 6px 0;
+    padding: 10px 12px;
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* Custom scrollbar so it's actually visible inside a small card. */
+.projected-loss-methodology::-webkit-scrollbar {
+    width: 8px;
+}
+.projected-loss-methodology::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+}
+.projected-loss-methodology::-webkit-scrollbar-track {
+    background: transparent;
 }
 
 .projected-loss-methodology-line {
