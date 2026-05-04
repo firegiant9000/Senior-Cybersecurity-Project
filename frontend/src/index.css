@@ -12,8 +12,12 @@ body,
 
 body {
   font-family: system-ui, -apple-system, sans-serif;
-  background: var(--bg);
-  color: var(--text-primary);
+  /* Fallback values match the dark-theme tokens because Dashboard.css
+     (where the tokens live) is lazy-imported on the dashboard route.
+     On routes like /login that don't pull Dashboard.css we still want
+     a sensible body background instead of the browser default. */
+  background: var(--bg, #0f172a);
+  color: var(--text-primary, #e2e8f0);
   line-height: 1.6;
 }
 

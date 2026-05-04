@@ -45,6 +45,7 @@ export default [
         HTMLOptionElement: 'readonly',
         Node: 'readonly',
         Event: 'readonly',
+        CustomEvent: 'readonly',
         KeyboardEvent: 'readonly',
         React: 'readonly',
       },
