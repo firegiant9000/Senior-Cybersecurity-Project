@@ -10,6 +10,13 @@ import {
     ResponsiveContainer,
 } from 'recharts';
 import type { SectorAttackCombination } from '../../api/dashboardSummary';
+import {
+    AXIS_TICK_STYLE,
+    TOOLTIP_CONTENT_STYLE,
+    TOOLTIP_CURSOR,
+    TOOLTIP_ITEM_STYLE,
+    TOOLTIP_LABEL_STYLE,
+} from './chartTooltipStyles';
 
 interface Props {
     data: SectorAttackCombination[];
@@ -67,17 +74,36 @@ const IncidentManagementChart: React.FC<Props> = ({ data, loading }) => {
         <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="sector" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                <XAxis dataKey="sector" tick={{ ...AXIS_TICK_STYLE, fontSize: 11 }} />
+                <YAxis tick={{ ...AXIS_TICK_STYLE, fontSize: 11 }} allowDecimals={false} />
                 <Tooltip
+                    cursor={TOOLTIP_CURSOR}
+                    contentStyle={TOOLTIP_CONTENT_STYLE}
+                    itemStyle={TOOLTIP_ITEM_STYLE}
+                    labelStyle={TOOLTIP_LABEL_STYLE}
                     formatter={(value: unknown, name: unknown) =>
                         [(value as number).toLocaleString(), name as string]
                     }
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="Medium"   fill="#00bcd4" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="High"     fill="#0b1060" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Critical" fill="#d32f2f" radius={[4, 4, 0, 0]} />
+                <Bar
+                    dataKey="Medium"
+                    fill="#00bcd4"
+                    radius={[4, 4, 0, 0]}
+                    activeBar={{ stroke: '#fff', strokeWidth: 2, fillOpacity: 0.85 }}
+                />
+                <Bar
+                    dataKey="High"
+                    fill="#0b1060"
+                    radius={[4, 4, 0, 0]}
+                    activeBar={{ stroke: '#fff', strokeWidth: 2, fillOpacity: 0.85 }}
+                />
+                <Bar
+                    dataKey="Critical"
+                    fill="#d32f2f"
+                    radius={[4, 4, 0, 0]}
+                    activeBar={{ stroke: '#fff', strokeWidth: 2, fillOpacity: 0.85 }}
+                />
             </BarChart>
         </ResponsiveContainer>
     );
