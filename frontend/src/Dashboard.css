@@ -246,6 +246,27 @@
     padding: 16px 20px;
 }
 
+/* Ensure SVG chart text (axis labels, tick values, data labels) is readable
+   in dark mode — Recharts renders text as SVG <text>, so set `fill`. */
+[data-theme="dark"] .chart-widget svg text,
+[data-theme="dark"] .chart-widget .recharts-text,
+[data-theme="dark"] .chart-widget .recharts-label,
+[data-theme="dark"] .chart-widget .recharts-cartesian-axis-tick-value,
+[data-theme="dark"] .chart-widget .recharts-tooltip-item-text {
+    fill: var(--text-primary) !important;
+    opacity: 0.95 !important;
+}
+
+/* Keep widget title and legend colors distinct */
+[data-theme="dark"] .chart-widget .widget-title {
+    color: var(--widget-title);
+}
+
+/* Make small, secondary chart text slightly less prominent but still readable */
+[data-theme="dark"] .chart-widget svg .tick {
+    fill: rgba(226,232,240,0.85) !important;
+}
+
 /* Flex-fill wrapper — makes the chart fill remaining card height */
 .chart-body {
     flex: 1;
