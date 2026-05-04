@@ -712,6 +712,29 @@
 [data-theme="dark"] .smb-cost-band-label { color: var(--text-muted); }
 [data-theme="dark"] .smb-check-high { border-color: #4a1515; background: #2d0f0f; }
 
+/* State risk card: boost chart/text contrast in dark mode */
+[data-theme="dark"] .smb-state-card .smb-chart-label {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .smb-state-card .smb-state-note {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .smb-state-card .recharts-cartesian-axis-tick-value,
+[data-theme="dark"] .smb-state-card .recharts-text,
+[data-theme="dark"] .smb-state-card .recharts-label {
+    fill: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .smb-state-card .recharts-cartesian-grid line {
+    stroke: rgba(148, 163, 184, 0.35);
+}
+
+[data-theme="dark"] .smb-state-card .recharts-tooltip-wrapper {
+    color: var(--text-primary);
+}
+
 /* Responsive */
 @media (max-width: 900px) {
     .smb-two-col {
