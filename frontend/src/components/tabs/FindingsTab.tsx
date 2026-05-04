@@ -404,7 +404,9 @@ const FindingsTab: React.FC = () => {
                               e.target.checked ? 'done' : 'open',
                             );
                           }}
-                          aria-label={`Mark "${finding.title}" as remediated`}
+                          aria-label={`Mark "${finding.title}" as ${
+                            isDone ? 'open' : 'remediated'
+                          }`}
                         />
                       </label>
                       <button

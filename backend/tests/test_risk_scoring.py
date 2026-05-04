@@ -182,3 +182,91 @@ class TestCalculateSmbRiskScore:
     def test_generated_at_is_iso_string(self):
         result = calculate_smb_risk_score(None, None)
         assert "T" in result.generated_at  # basic ISO 8601 check
+
+
+# ---------------------------------------------------------------------------
+# Remediation credit
+# ---------------------------------------------------------------------------
+
+
+class TestRemediationCredit:
+    """Remediation credit derived from done-state findings deducts from the
+    org's risk score. Behaviour cap is 75% of base; per-severity weights are
+    tuned so a single critical = ~2.5 pts."""
+
+    def _items(self, *severities: str):
+        from app.schemas.smb_risk_score import RemediatedItem
+
+        return [
+            RemediatedItem(stable_key=f"k{i}", title=f"finding {i}", severity=sev)
+            for i, sev in enumerate(severities)
+        ]
+
+    def test_zero_items_returns_zero_credit(self):
+        from app.services.risk_scoring import compute_remediation_credit
+
+        credit = compute_remediation_credit([], 50.0)
+        assert credit.done_count == 0
+        assert credit.raw_points == 0.0
+        assert credit.applied_points == 0.0
+        assert credit.items == []
+
+    def test_severity_weighting_orders_correctly(self):
+        from app.services.risk_scoring import compute_remediation_credit
+
+        crit = compute_remediation_credit(self._items("critical"), 100.0).raw_points
+        high = compute_remediation_credit(self._items("high"), 100.0).raw_points
+        med = compute_remediation_credit(self._items("medium"), 100.0).raw_points
+        low = compute_remediation_credit(self._items("low"), 100.0).raw_points
+        info = compute_remediation_credit(self._items("info"), 100.0).raw_points
+        assert crit > high > med > low > info > 0
+
+    def test_unknown_severity_falls_back_to_low_weight(self):
+        from app.services.risk_scoring import compute_remediation_credit
+
+        # Bogus severity should not break the calculation; treated as a
+        # very-low-weight item rather than e.g. a crash or critical credit.
+        credit = compute_remediation_credit(self._items("not-a-severity"), 100.0)
+        assert credit.applied_points > 0
+        assert credit.applied_points < 1.0  # bounded below "low"
+
+    def test_credit_is_capped_at_75pct_of_base(self):
+        from app.services.risk_scoring import compute_remediation_credit
+
+        # 30 critical findings would naively be 75 raw points; cap at 75%
+        # of base 50 = 37.5 forces applied_points to plateau there.
+        many = self._items(*(["critical"] * 30))
+        credit = compute_remediation_credit(many, 50.0)
+        assert credit.raw_points > 37.5  # raw exceeds cap
+        assert credit.applied_points == pytest.approx(37.5, abs=0.01)
+
+    def test_effective_score_reflects_credit(self):
+        from app.services.risk_scoring import (
+            calculate_smb_risk_score,
+            compute_remediation_credit,
+        )
+
+        base = calculate_smb_risk_score("Healthcare", "51-200")
+        credit = compute_remediation_credit(self._items("critical", "high"), base.score)
+        result = calculate_smb_risk_score(
+            "Healthcare", "51-200", remediation_credit=credit
+        )
+        assert result.effective_score == pytest.approx(
+            max(0.0, base.score - credit.applied_points), abs=0.01
+        )
+        assert result.remediation_credit.done_count == 2
+        assert len(result.remediation_credit.items) == 2
+
+    def test_effective_score_never_negative(self):
+        from app.services.risk_scoring import (
+            calculate_smb_risk_score,
+            compute_remediation_credit,
+        )
+
+        # Tiny base + many criticals shouldn't underflow into negative space.
+        # (Cap clamps applied_points before subtraction; defence-in-depth
+        # check protects against future tuning changes.)
+        many = self._items(*(["critical"] * 50))
+        credit = compute_remediation_credit(many, 5.0)
+        result = calculate_smb_risk_score(None, None, remediation_credit=credit)
+        assert result.effective_score >= 0.0

@@ -711,28 +711,40 @@ function useOrgRiskScore() {
   const [data, setData] = useState<SmbRiskScore | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // One controller for whichever request is currently in flight. The
+  // event-driven refetch (after a finding status change) replaces the
+  // controller, so unmount can abort whatever's pending and we never
+  // setState on a torn-down component.
+  const controllerRef = useRef<AbortController | null>(null);
 
-  const load = useCallback((signal?: AbortSignal) => {
+  const load = useCallback(() => {
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
     setLoading(true);
     setError(null);
-    fetchSmbRiskScore(signal ?? new AbortController().signal)
-      .then(setData)
+    fetchSmbRiskScore(controller.signal)
+      .then((d) => {
+        if (!controller.signal.aborted) setData(d);
+      })
       .catch((err: unknown) => {
         if (err instanceof Error && err.name === 'AbortError') return;
+        if (controller.signal.aborted) return;
         setError(err instanceof Error ? err.message : 'Failed to load org risk score');
       })
-      .finally(() => { if (!signal?.aborted) setLoading(false); });
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
   }, []);
 
   useEffect(() => {
-    const controller = new AbortController();
-    load(controller.signal);
+    load();
     // Refetch when a finding is checked off so the deduction surfaces
     // immediately rather than on the next page load.
     const onChange = () => load();
     window.addEventListener('hackertracker:finding-status-changed', onChange);
     return () => {
-      controller.abort();
+      controllerRef.current?.abort();
       window.removeEventListener('hackertracker:finding-status-changed', onChange);
     };
   }, [load]);
@@ -810,7 +822,7 @@ function OrgRiskScoreCard() {
             </div>
             <div className="smb-org-risk-scale">
               out of 100
-              <InfoTip text="Risk score from 0–100. Higher = more exposure based on your industry and size. Marking findings as remediated lowers the score (capped at 45%)." />
+              <InfoTip text="Risk score from 0–100. Higher = more exposure based on your industry and size. Marking findings as remediated lowers the score (capped at 75% of base)." />
             </div>
             {hasCredit && (
               <div className="smb-org-risk-credit">
@@ -835,7 +847,7 @@ function OrgRiskScoreCard() {
                     )}
                   </ul>
                   <div className="smb-org-risk-credit-tooltip-foot">
-                    Base score {data.score.toFixed(0)} → effective {data.effective_score.toFixed(0)} (cap −{(data.score * 0.45).toFixed(1)})
+                    Base score {data.score.toFixed(0)} → effective {data.effective_score.toFixed(0)} (cap −{(data.score * 0.75).toFixed(1)})
                   </div>
                 </div>
               </div>

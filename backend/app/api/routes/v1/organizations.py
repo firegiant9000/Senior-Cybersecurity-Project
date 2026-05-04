@@ -409,10 +409,16 @@ async def get_findings(
         ) from exc
 
 
+_ALLOWED_SEVERITIES = frozenset({"critical", "high", "medium", "low", "info"})
+
+
 class FindingStatusPatch(BaseModel):
     status: str
     # Frontend forwards these so the row carries enough context to feed
-    # the risk-score remediation credit without a snapshot join.
+    # the risk-score remediation credit without a snapshot join. Values
+    # are normalised + clamped server-side to prevent gaming (a malicious
+    # client could otherwise PATCH every key with severity=critical to
+    # max out the credit).
     title: str | None = None
     severity: str | None = None
 
@@ -446,14 +452,26 @@ async def patch_finding_status(
             status_code=400,
             detail=f"status must be one of {sorted(ALLOWED_STATUSES)}",
         )
+    # Validate + clamp client-supplied metadata. stable_key column is
+    # VARCHAR(255), title is VARCHAR(500); a non-allowlisted severity is
+    # rejected outright so the credit calculation can't be inflated.
+    if len(stable_key) > 255:
+        raise HTTPException(status_code=400, detail="stable_key too long (max 255 chars)")
+    severity = body.severity.lower().strip() if body.severity else None
+    if severity is not None and severity not in _ALLOWED_SEVERITIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"severity must be one of {sorted(_ALLOWED_SEVERITIES)} or null",
+        )
+    title = body.title[:500] if body.title else None
     try:
         row = await repo.upsert(
             org_id=org.id,
             stable_key=stable_key,
             status=body.status,
             updated_by=current_user.id,
-            title=body.title,
-            severity=body.severity,
+            title=title,
+            severity=severity,
         )
     except SQLAlchemyError:
         logger.exception(

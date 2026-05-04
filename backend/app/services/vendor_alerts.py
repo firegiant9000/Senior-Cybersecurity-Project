@@ -176,7 +176,9 @@ class VendorAlertService:
 
         Surfaced in the response as ``other_alerts`` so users still see what
         is actively being exploited in the wild — even if their configured
-        vendors are clean (or before they've added any).
+        vendors are clean (or before they've added any). Excluded CVEs are
+        filtered in SQL with NOT IN so the query limit stays bounded even
+        when the org matches many CVEs.
         """
         stmt = (
             select(
@@ -191,8 +193,10 @@ class VendorAlertService:
             )
             .join(CVE, CVE.cve_id == KEV.cve_id)
             .order_by(CVE.cvss_score.desc().nulls_last(), KEV.due_date.desc().nulls_last())
-            .limit(limit + len(exclude_cve_ids))
+            .limit(limit)
         )
+        if exclude_cve_ids:
+            stmt = stmt.where(KEV.cve_id.notin_(exclude_cve_ids))
         try:
             rows = (await self._session.execute(stmt)).all()
         except SQLAlchemyError:
@@ -206,8 +210,6 @@ class VendorAlertService:
 
         items: list[VendorAlert] = []
         for r in rows:
-            if r.cve_id in exclude_cve_ids:
-                continue
             sev_label = _normalize_severity(r.severity, r.cvss_score)
             risk = basic_vuln_risk_score(r.cvss_score, exploited=True)
             items.append(
@@ -226,11 +228,9 @@ class VendorAlertService:
                     in_org_stack=False,
                 )
             )
-            if len(items) >= limit:
-                break
         return items
 
-    async def get_alerts(
+    async def get_alerts(  # noqa: C901 — orchestrates several match passes
         self, org_id: int, page: int = 1, page_size: int = 20
     ) -> VendorAlertsResponse:
         # Check if org has any vendors at all
@@ -373,9 +373,10 @@ class VendorAlertService:
                 kev_last_ingest_at=await self._last_kev_ingest(),
             )
 
-        # Sort: product-specific matches first, then by CVSS desc, then
-        # by due_date asc (nulls last). The product_specific term floats
-        # CVEs hitting the user's named products to the top of the table.
+        # Sort: product-specific matches first, then CVSS desc, then most
+        # recent due_date first (nulls last). The product_specific term
+        # floats CVEs hitting the user's named products to the top of the
+        # table.
         combined.sort(
             key=lambda r: (
                 0 if r["product_specific"] else 1,
