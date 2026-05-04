@@ -12,8 +12,8 @@ body,
 
 body {
   font-family: system-ui, -apple-system, sans-serif;
-  background: #0f172a;
-  color: #e2e8f0;
+  background: var(--bg);
+  color: var(--text-primary);
   line-height: 1.6;
 }
 
