@@ -2,8 +2,6 @@
 
 import logging
 
-import logging
-
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth as firebase_auth
@@ -37,7 +35,7 @@ async def get_current_user(
     """Verify Firebase ID token and return (or auto-create) the local User."""
     token = credentials.credentials
     try:
-        decoded = firebase_auth.verify_id_token(token)
+        decoded = firebase_auth.verify_id_token(token, clock_skew_seconds=_TOKEN_CLOCK_SKEW_SECONDS)
     except (ValueError, FirebaseError) as exc:
         _log.warning("Firebase token verification failed: %s", exc)
         raise HTTPException(
