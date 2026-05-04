@@ -390,13 +390,7 @@ function TopThreatsCard({ threats, loading }: {
                   <div className="smb-threat-bar-fill" style={{ width: `${barPct}%` }} />
                 </div>
                 <div className="smb-threat-meta">
-                <RefreshButton
-                  onClick={refresh}
-                  loading={loading}
-                  items={progressState.items}
-                  progress={progressState.progress}
-                  label="Refresh"
-                />
+                  {t.complaint_count.toLocaleString()} incidents reported &nbsp;·&nbsp; {fmtMoney(t.total_loss)} total losses
                 </div>
               </div>
             );
