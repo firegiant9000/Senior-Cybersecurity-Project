@@ -582,6 +582,13 @@ function StateRiskCard({ stateCode, stateProfile, allStates, loading }: {
                 <Tooltip
                   formatter={(v: unknown) => [fmtMoneyFull(v as number), 'Total Losses']}
                   labelFormatter={(l: unknown) => STATE_NAMES[l as string] ?? String(l)}
+                  contentStyle={{
+                    backgroundColor: 'var(--card-bg)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                  }}
+                  labelStyle={{ color: 'var(--text-primary)' }}
+                  itemStyle={{ color: 'var(--text-primary)' }}
                 />
                 <Bar dataKey="loss" radius={[3, 3, 0, 0]}>
                   {chartData.map((entry) => (
