@@ -133,6 +133,12 @@
     cursor: default;
 }
 
+.user-dropdown-item.role {
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.72);
+    padding: 2px 12px 8px 12px;
+}
+
 /* Dark mode toggle button */
 .dark-mode-btn {
     background: transparent;
