@@ -5,6 +5,12 @@ import { downloadCsv } from '../../utils/csvExport';
 import { fetchWithAuth } from '../../api/fetchWithAuth';
 
 import { PieChart, Pie, Tooltip, Legend, ResponsiveContainer, Sector } from 'recharts';
+import {
+    TOOLTIP_CONTENT_STYLE,
+    TOOLTIP_ITEM_STYLE,
+    TOOLTIP_LABEL_STYLE,
+    TOOLTIP_CURSOR,
+} from '../charts/chartTooltipStyles';
 
 interface CISAVulnerability {
     id: string;
@@ -205,7 +211,12 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
                         <div className="chart-aspect-box">
                             <ResponsiveContainer>
                                 <PieChart>
-                                    <Tooltip />
+                                    <Tooltip
+                                        contentStyle={TOOLTIP_CONTENT_STYLE}
+                                        itemStyle={TOOLTIP_ITEM_STYLE}
+                                        labelStyle={TOOLTIP_LABEL_STYLE}
+                                        cursor={TOOLTIP_CURSOR}
+                                    />
                                     <Legend />
                                     <Pie
                                         data={pieChartData}

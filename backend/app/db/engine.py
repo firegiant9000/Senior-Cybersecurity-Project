@@ -120,6 +120,22 @@ def _ensure_finding_status_columns(connection: Connection) -> None:
         logger.info("Added column finding_statuses.severity")
 
 
+def _ensure_cve_columns(connection: Connection) -> None:
+    """Add CVE columns introduced by later migrations when upgrading in place.
+
+    Older database volumes can be missing newer nullable columns even when the
+    app boots successfully. Keep the schema aligned here so read paths do not
+    fail with undefined-column errors.
+    """
+    inspector = inspect(connection)
+    if not inspector.has_table("cves"):
+        return
+    existing = {col["name"].lower() for col in inspector.get_columns("cves")}
+    if "epss_score" not in existing:
+        connection.execute(text("ALTER TABLE cves ADD COLUMN epss_score DOUBLE PRECISION"))
+        logger.info("Added column cves.epss_score")
+
+
 async def init_db() -> None:
     """Initialize database: create missing tables and align known schema drifts."""
     _import_all_orm_models()
@@ -128,6 +144,7 @@ async def init_db() -> None:
         await conn.run_sync(_ensure_organization_profile_columns)
         await conn.run_sync(_ensure_ingest_run_columns)
         await conn.run_sync(_ensure_finding_status_columns)
+        await conn.run_sync(_ensure_cve_columns)
     logger.info("Database initialized")
 
 
