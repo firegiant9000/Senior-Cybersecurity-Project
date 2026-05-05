@@ -78,21 +78,54 @@
 }
 
 .user-avatar-btn {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.12);
+    min-height: 34px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 8px;
     color: white;
     cursor: pointer;
+    font: inherit;
+    white-space: nowrap;
+    transition: background 0.2s, border-color 0.2s, transform 0.2s;
+}
+
+.user-avatar-btn:hover {
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.32);
+}
+
+.user-avatar-btn:focus-visible,
+.dark-mode-btn:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.95);
+    outline-offset: 2px;
 }
 
 .avatar-initials {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.16);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-weight: 700;
-    font-size: 1.05rem;
+    font-size: 0.8rem;
+}
+
+.avatar-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.avatar-chevron {
+    font-size: 0.72rem;
+    opacity: 0.8;
+    transform: translateY(-1px);
 }
 
 .user-dropdown-menu {
