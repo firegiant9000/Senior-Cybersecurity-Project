@@ -216,11 +216,15 @@
 
 .role-badge {
   background: var(--accent, #3b82f6);
-  color: #fff;
   padding: 0.2rem 0.6rem;
   border-radius: 12px;
   font-size: 0.8rem !important;
   text-transform: capitalize;
+}
+
+.settings-field .role-badge,
+.vendor-table .role-badge {
+  color: #f8fafc;
 }
 
 .status-badge {
