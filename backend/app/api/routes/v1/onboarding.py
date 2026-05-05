@@ -11,7 +11,7 @@ from app.api.routes.v1.auth import get_current_user
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.db.engine import get_session
-from app.db.enums import OrgRole
+from app.db.enums import OrgRole, RevenueRange
 from app.db.membership import Membership
 from app.db.organization import Organization
 from app.db.user import User
@@ -54,7 +54,11 @@ async def complete_onboarding(
                 detail="User already belongs to an organization",
             )
 
-        org = Organization(**body.model_dump())
+        org_payload = body.model_dump(mode="json")
+        # Backward compatibility: some deployed DBs still enforce NOT NULL on revenue_range.
+        if not org_payload.get("revenue_range"):
+            org_payload["revenue_range"] = RevenueRange.UNDER_1M.value
+        org = Organization(**org_payload)
         session.add(org)
         await session.flush()
 

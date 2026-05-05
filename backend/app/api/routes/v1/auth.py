@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 _TOKEN_CLOCK_SKEW_SECONDS = 10
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+_log = logging.getLogger(__name__)
 
 bearer_scheme = HTTPBearer()
 
@@ -36,12 +37,12 @@ async def get_current_user(
     try:
         decoded = firebase_auth.verify_id_token(token, clock_skew_seconds=_TOKEN_CLOCK_SKEW_SECONDS)
     except (ValueError, FirebaseError) as exc:
-        logger.warning("Firebase token verification failed: %r", exc)
+        _log.warning("Firebase token verification failed: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from exc
 
     firebase_uid: str = decoded["uid"]
     email: str = decoded.get("email", "")

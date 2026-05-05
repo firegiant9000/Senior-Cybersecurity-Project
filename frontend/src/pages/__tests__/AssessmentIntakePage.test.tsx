@@ -70,6 +70,12 @@ vi.mock('../../api/assessmentIntake', () => ({
 
 vi.mock('../../api/vendors', () => ({
   createVendor: (...args: unknown[]) => mockCreateVendor(...args),
+  listVendors: vi.fn().mockResolvedValue({
+    total: 0,
+    page: 1,
+    page_size: 100,
+    items: [],
+  }),
 }))
 
 // Import component AFTER mocks

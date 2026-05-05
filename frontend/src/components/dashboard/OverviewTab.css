@@ -622,3 +622,35 @@
     text-align: right;
     flex-shrink: 0;
 }
+
+.emerging-threats-card {
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: 14px;
+}
+
+.emerging-threats-content {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    width: 100%;
+    font-size: 12px;
+}
+
+.emerging-threats-section-title {
+    margin: 0 0 4px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-secondary);
+}
+
+.emerging-threats-list {
+    margin: 0;
+    padding-left: 16px;
+    color: var(--text-primary);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}

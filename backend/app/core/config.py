@@ -72,6 +72,8 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
 
     # Auth (Firebase — service account key path is set via GOOGLE_APPLICATION_CREDENTIALS env var)
     SECRET_KEY: str = "change-me-in-production"  # retained for non-auth signing if needed
+    GOOGLE_APPLICATION_CREDENTIALS: str = ""
+    FIREBASE_PROJECT_ID: str = ""
 
     # Feature flags
     ENABLE_DEMO_MODE: bool = False
