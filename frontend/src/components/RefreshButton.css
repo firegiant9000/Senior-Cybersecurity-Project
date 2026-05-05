@@ -11,7 +11,7 @@
   top: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%);
-  z-index: 1000;
+  z-index: var(--tooltip-z-index, 2147483647);
   min-width: 240px;
   max-width: 280px;
   background-color: var(--card-bg);
