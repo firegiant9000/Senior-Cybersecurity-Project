@@ -158,7 +158,7 @@ const InfoTip: React.FC<InfoTipProps> = ({ text, label }) => {
             top: coords.top,
             left: coords.left,
             transform: coords.placement === 'top' ? 'translateY(-100%)' : 'none',
-            zIndex: 2000,
+            zIndex: 2147483647,
             minWidth: 180,
             maxWidth: TIP_MAX_WIDTH,
             padding: '8px 10px',

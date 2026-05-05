@@ -88,7 +88,7 @@ function ComplaintsTooltip({ active, payload, label }: any) {
       border: '1px solid var(--border)',
       borderRadius: 8,
       padding: '8px 12px',
-      zIndex: 1000,
+      zIndex: 'var(--tooltip-z-index, 2147483647)',
     }}>
       <p style={{ color: 'var(--text-primary)', margin: '0 0 4px 0', fontSize: 12, fontWeight: 600 }}>Year: {label}</p>
       {filtered.map((p: any, i: number) => (
@@ -111,7 +111,7 @@ function LossTooltip({ active, payload, label }: any) {
       border: '1px solid var(--border)',
       borderRadius: 8,
       padding: '8px 12px',
-      zIndex: 1000,
+      zIndex: 'var(--tooltip-z-index, 2147483647)',
     }}>
       <p style={{ color: 'var(--text-primary)', margin: '0 0 4px 0', fontSize: 12, fontWeight: 600 }}>Year: {label}</p>
       {filtered.map((p: any, i: number) => (

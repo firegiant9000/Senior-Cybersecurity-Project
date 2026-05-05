@@ -141,7 +141,7 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
                     fontWeight: 600,
                     pointerEvents: 'none',
                     whiteSpace: 'nowrap',
-                    zIndex: 20000,
+                    zIndex: 2147483647,
                     boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
                 }}>
                     <div>{tooltip.stateName}</div>
