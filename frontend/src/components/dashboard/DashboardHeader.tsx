@@ -59,9 +59,12 @@ const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout }
                                 aria-haspopup="true"
                                 aria-expanded={menuOpen}
                                 onClick={() => setMenuOpen((s) => !s)}
-                                title={user.email ?? 'User menu'}
+                                title="Open profile menu"
+                                aria-label="Open profile menu"
                             >
-                                <span className="avatar-initials">{user.email ? user.email.charAt(0).toUpperCase() : 'U'}</span>
+                                <span className="avatar-initials" aria-hidden="true">{user.email ? user.email.charAt(0).toUpperCase() : 'U'}</span>
+                                <span className="avatar-label">{user.email ? user.email.split('@')[0] : 'User'}</span>
+                                <span className="avatar-chevron" aria-hidden="true">▾</span>
                             </button>
 
                             <div className={`user-dropdown-menu ${menuOpen ? 'open' : ''}`} role="menu">
