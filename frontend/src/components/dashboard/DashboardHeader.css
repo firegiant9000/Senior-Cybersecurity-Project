@@ -4,7 +4,7 @@
 .dashboard-header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     background-color: var(--header-bg);
     color: white;
     padding: 10px 30px;
@@ -21,7 +21,7 @@
 
 .header-title {
     margin: 0;
-    font-size: 24px;
+    font-size: 28px;
     font-weight: 600;
     white-space: nowrap;
 }
@@ -66,7 +66,7 @@
 }
 
 .dashboard-header-logo {
-    height: 52px;
+    height: 56px;
     width: auto;
     border-radius: 6px;
 }
