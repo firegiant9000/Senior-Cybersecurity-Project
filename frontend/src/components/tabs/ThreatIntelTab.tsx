@@ -3,6 +3,12 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList,
   LineChart, Line, PieChart, Pie, Cell, Legend,
 } from 'recharts';
+import {
+  TOOLTIP_CONTENT_STYLE,
+  TOOLTIP_ITEM_STYLE,
+  TOOLTIP_LABEL_STYLE,
+  TOOLTIP_CURSOR,
+} from '../charts/chartTooltipStyles';
 import { useThreatIntelData } from '../../hooks/useThreatIntelData';
 import { useRefreshProgress } from '../../hooks/useRefreshProgress';
 import RefreshButton from '../RefreshButton';
@@ -117,7 +123,13 @@ const ThreatIntelTab: React.FC = () => {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="year" tick={{ fontSize: 11 }} />
                     <YAxis tickFormatter={fmtM} tick={{ fontSize: 11 }} width={48} />
-                    <Tooltip formatter={(v: unknown) => [(v as number).toLocaleString(), 'CVEs']} />
+                    <Tooltip
+                      formatter={(v: unknown) => [(v as number).toLocaleString(), 'CVEs']}
+                      contentStyle={TOOLTIP_CONTENT_STYLE}
+                      itemStyle={TOOLTIP_ITEM_STYLE}
+                      labelStyle={TOOLTIP_LABEL_STYLE}
+                      cursor={TOOLTIP_CURSOR}
+                    />
                     <Line
                       type="monotone"
                       dataKey="count"
@@ -160,7 +172,13 @@ const ThreatIntelTab: React.FC = () => {
                         />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(v: unknown) => [(v as number).toLocaleString(), 'CVEs']} />
+                    <Tooltip
+                      formatter={(v: unknown) => [(v as number).toLocaleString(), 'CVEs']}
+                      contentStyle={TOOLTIP_CONTENT_STYLE}
+                      itemStyle={TOOLTIP_ITEM_STYLE}
+                      labelStyle={TOOLTIP_LABEL_STYLE}
+                      cursor={TOOLTIP_CURSOR}
+                    />
                     <Legend
                       iconType="circle"
                       iconSize={10}
@@ -192,7 +210,13 @@ const ThreatIntelTab: React.FC = () => {
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                     <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
                     <YAxis type="category" dataKey="vendor" width={120} tick={{ fontSize: 10 }} />
-                    <Tooltip formatter={(v: unknown) => [(v as number), 'KEV entries']} />
+                    <Tooltip
+                      formatter={(v: unknown) => [(v as number), 'KEV entries']}
+                      contentStyle={TOOLTIP_CONTENT_STYLE}
+                      itemStyle={TOOLTIP_ITEM_STYLE}
+                      labelStyle={TOOLTIP_LABEL_STYLE}
+                      cursor={TOOLTIP_CURSOR}
+                    />
                     <Bar dataKey="count" fill={isDark ? '#6366f1' : COLORS.navy} radius={[0, 4, 4, 0]}>
                       <LabelList
                         dataKey="count"
