@@ -1154,6 +1154,28 @@
     color: var(--text-secondary, #555);
 }
 
+/* Dark mode overrides for severity/chart containers */
+[data-theme="dark"] .severity-chart-container {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border);
+}
+
+[data-theme="dark"] .severity-chart-container h3 {
+    color: var(--widget-title);
+}
+
+[data-theme="dark"] .filter-controls {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border);
+}
+
+/* Ensure chart SVG and wrappers are transparent in dark mode */
+[data-theme="dark"] .severity-chart-container .chart-aspect-box,
+[data-theme="dark"] .severity-chart-container .chart-aspect-box > div,
+[data-theme="dark"] .severity-chart-container svg {
+    background: transparent !important;
+}
+
 /* Filter Controls */
 .filter-controls {
     display: flex;
