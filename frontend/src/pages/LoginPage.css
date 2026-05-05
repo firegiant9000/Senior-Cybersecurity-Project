@@ -3,20 +3,71 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Brand blue gradient — independent of dashboard --bg so the auth pages
-     read as their own surface. Both login and signup share the base. */
-  background: linear-gradient(135deg, #1e40af 0%, #2563eb 60%, #3b82f6 100%);
   padding: 1rem;
+  position: relative;
+  overflow: hidden;
+  /* Isolate from Dashboard.css :root tokens — visiting /dashboard loads
+     --card-bg: #fff; without this, the auth card turns white while headings
+     stay light-on-light (unreadable). */
+  --card-bg: #0f172a;
+  --bg: #020617;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --border: #334155;
+  --accent: #3b82f6;
+  --error-bg: #3c1414;
+  --error-text: #fca5a5;
+}
+
+/* Login: cool blue — reads as “returning session.” */
+.login-page--login {
+  background: linear-gradient(145deg, #172554 0%, #1d4ed8 45%, #2563eb 100%);
+}
+
+.login-page--login::before {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(ellipse 70% 50% at 80% 20%, rgba(96, 165, 250, 0.35), transparent 55%);
+  pointer-events: none;
+}
+
+/* Signup: teal → indigo — reads as “new path” while staying on-brand. */
+.login-page--signup {
+  --accent: #2dd4bf;
+  background: linear-gradient(145deg, #134e4a 0%, #0e7490 42%, #3730a3 100%);
+}
+
+.login-page--signup::before {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(ellipse 65% 55% at 15% 85%, rgba(52, 211, 153, 0.22), transparent 50%);
+  pointer-events: none;
 }
 
 .login-card {
-  background: var(--card-bg, #1e293b);
-  border: 1px solid var(--border, #334155);
-  border-radius: 12px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 14px;
   padding: 2.5rem;
   width: 100%;
   max-width: 420px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  position: relative;
+  z-index: 1;
+}
+
+.login-card--login {
+  border-top: 4px solid #60a5fa;
+  box-shadow: 0 4px 28px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(96, 165, 250, 0.12);
+}
+
+.login-card--signup {
+  border-top: 4px solid #34d399;
+  box-shadow: 0 4px 28px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(52, 211, 153, 0.1);
 }
 
 .login-header {
@@ -24,37 +75,85 @@
   margin-bottom: 2rem;
 }
 
+.login-brand {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-bottom: 0.75rem;
+}
+
 .login-logo {
   width: 140px;
   height: auto;
   border-radius: 10px;
-  margin-bottom: 0.75rem;
+  display: block;
+}
+
+.login-mode-chip {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  margin-bottom: 0.65rem;
+}
+
+.login-header--login .login-mode-chip {
+  color: #bfdbfe;
+  background: rgba(37, 99, 235, 0.35);
+  border: 1px solid rgba(147, 197, 253, 0.35);
+}
+
+.login-header--signup .login-mode-chip {
+  color: #a7f3d0;
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(52, 211, 153, 0.35);
 }
 
 .login-header h1 {
-  color: var(--accent, #3b82f6);
-  font-size: 1.5rem;
-  margin-bottom: 0.5rem;
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0 0 0.5rem;
+  letter-spacing: -0.02em;
 }
 
-/* Distinguish sign-up: keeps the brand-blue base, swaps to a teal-blue
-   gradient + green accent so the two views read as same family but
-   clearly different pages. */
-.login-page--signup {
-  background: linear-gradient(135deg, #0e7490 0%, #2563eb 50%, #4338ca 100%);
+.login-header--login h1 {
+  color: #f8fafc;
 }
 
-.login-page--signup .login-card {
-  border-top: 3px solid #22c55e;
+.login-header--signup h1 {
+  color: #ecfdf5;
 }
 
-.login-page--signup .login-header h1 {
-  color: #22c55e;
+.login-product-line {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 0.75rem;
 }
 
-.login-header p {
-  color: var(--text-secondary, #6b7280);
-  font-size: 0.95rem;
+.login-header--login .login-product-line {
+  color: #64748b;
+}
+
+.login-header--signup .login-product-line {
+  color: #5eead4;
+  opacity: 0.95;
+}
+
+.login-helper {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  margin: 0;
+  max-width: 26rem;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .login-form {
@@ -86,45 +185,68 @@
 }
 
 .form-group label {
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary);
   font-size: 0.85rem;
   font-weight: 500;
 }
 
 .form-group input {
-  background: var(--bg, #0f172a);
-  border: 1px solid var(--border, #334155);
+  background: var(--bg);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.7rem 0.9rem;
-  color: var(--text-primary, #e2e8f0);
+  color: var(--text-primary);
   font-size: 0.95rem;
   outline: none;
   transition: border-color 0.2s;
 }
 
-.form-group input:focus {
-  border-color: var(--accent, #3b82f6);
+.login-card--login .form-group input:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+}
+
+.login-card--signup .form-group input:focus {
+  border-color: #34d399;
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.18);
 }
 
 .form-group input::placeholder {
-  color: var(--text-muted, #64748b);
+  color: var(--text-muted);
 }
 
 .login-btn {
-  background: var(--accent, #3b82f6);
   color: #fff;
   border: none;
-  border-radius: 8px;
-  padding: 0.75rem;
+  border-radius: 10px;
+  padding: 0.8rem;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
   margin-top: 0.5rem;
+  transition: filter 0.2s, transform 0.15s;
 }
 
-.login-btn:hover:not(:disabled) {
-  background: var(--accent-hover, #2563eb);
+.login-btn--login {
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  box-shadow: 0 2px 12px rgba(37, 99, 235, 0.45);
+}
+
+.login-btn--login:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.login-btn--signup {
+  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+  box-shadow: 0 2px 12px rgba(5, 150, 105, 0.4);
+}
+
+.login-btn--signup:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.login-btn:active:not(:disabled) {
+  transform: scale(0.99);
 }
 
 .login-btn:disabled {
@@ -140,12 +262,20 @@
 .toggle-btn {
   background: none;
   border: none;
-  color: var(--accent, #3b82f6);
   cursor: pointer;
   font-size: 0.9rem;
 }
 
-.toggle-btn:hover {
+.login-card--login .toggle-btn {
+  color: #bfdbfe;
+}
+
+.login-card--signup .toggle-btn {
+  color: #a7f3d0;
+}
+
+.login-card--login .toggle-btn:hover,
+.login-card--signup .toggle-btn:hover {
   text-decoration: underline;
 }
 
@@ -153,10 +283,10 @@
   display: block;
   margin: 0 auto 0.75rem;
   font-size: 0.85rem;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary, #94a3b8);
 }
 
-.forgot-btn:hover {
-  color: var(--accent, #3b82f6);
+.login-card--login .forgot-btn:hover {
+  color: #bfdbfe;
 }
 

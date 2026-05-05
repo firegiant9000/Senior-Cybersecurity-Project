@@ -96,12 +96,18 @@ export default function LoginPage({ defaultSignUp = false }: { defaultSignUp?: b
   // Forgot password view
   if (isForgotPassword) {
     return (
-      <div className="login-page">
-        <div className="login-card">
-          <div className="login-header">
-            <img src="/logo.png" alt="Hacker Tracker" className="login-logo" />
-            <h1>Cyber Threat Intelligence</h1>
-            <p>Reset your password</p>
+      <div className="login-page login-page--login">
+        <div className="login-card login-card--login">
+          <div className="login-header login-header--login">
+            <div className="login-brand">
+              <img src="/logo.png" alt="Hacker Tracker" className="login-logo" />
+            </div>
+            <span className="login-mode-chip" aria-hidden="true">
+              Password help
+            </span>
+            <h1>Reset your password</h1>
+            <p className="login-product-line">Cyber Threat Intelligence</p>
+            <p className="login-helper">We&apos;ll email you a link to choose a new password.</p>
           </div>
 
           <form onSubmit={handleForgotPassword} className="login-form">
@@ -121,7 +127,7 @@ export default function LoginPage({ defaultSignUp = false }: { defaultSignUp?: b
               />
             </div>
 
-            <button type="submit" className="login-btn" disabled={loading}>
+            <button type="submit" className="login-btn login-btn--login" disabled={loading}>
               {loading ? "Sending..." : "Send Reset Email"}
             </button>
           </form>
@@ -146,12 +152,22 @@ export default function LoginPage({ defaultSignUp = false }: { defaultSignUp?: b
 
   // Login / Signup view
   return (
-    <div className={`login-page${isSignUp ? " login-page--signup" : ""}`}>
-      <div className="login-card">
-        <div className="login-header">
-          <img src="/logo.png" alt="Hacker Tracker" className="login-logo" />
-          <h1>Cyber Threat Intelligence</h1>
-          <p>{isSignUp ? "Create your account" : "Sign in to your account"}</p>
+    <div className={`login-page${isSignUp ? " login-page--signup" : " login-page--login"}`}>
+      <div className={`login-card${isSignUp ? " login-card--signup" : " login-card--login"}`}>
+        <div className={`login-header${isSignUp ? " login-header--signup" : " login-header--login"}`}>
+          <div className="login-brand">
+            <img src="/logo.png" alt="Hacker Tracker" className="login-logo" />
+          </div>
+          <span className="login-mode-chip" aria-hidden="true">
+            {isSignUp ? "New account" : "Returning user"}
+          </span>
+          <h1>{isSignUp ? "Create your account" : "Sign in"}</h1>
+          <p className="login-product-line">Cyber Threat Intelligence</p>
+          <p className="login-helper">
+            {isSignUp
+              ? "Set up credentials to access your workspace."
+              : "Use your email and password to continue."}
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="login-form">
@@ -199,7 +215,11 @@ export default function LoginPage({ defaultSignUp = false }: { defaultSignUp?: b
             </div>
           )}
 
-          <button type="submit" className="login-btn" disabled={loading}>
+          <button
+            type="submit"
+            className={`login-btn${isSignUp ? " login-btn--signup" : " login-btn--login"}`}
+            disabled={loading}
+          >
             {loading ? "Please wait..." : isSignUp ? "Create Account" : "Sign In"}
           </button>
         </form>
