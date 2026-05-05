@@ -17,6 +17,7 @@ const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout }
     const menuRef = useRef<HTMLDivElement | null>(null);
 
     const canDebug = role === 'admin' || orgRole === 'admin' || orgRole === 'owner';
+    const displayRole = orgRole ?? role ?? 'User';
 
     useEffect(() => {
         function handleOutside(e: MouseEvent) {
@@ -36,6 +37,18 @@ const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout }
             </div>
 
             <div className="header-buttons">
+                <button className="dark-mode-btn" onClick={onToggleDark} title="Toggle dark mode">
+                    {dark ? '☀' : '🌙'}
+                </button>
+                <button
+                    className="dark-mode-btn"
+                    onClick={() => navigate('/glossary')}
+                    title="Glossary & help"
+                    aria-label="Open glossary"
+                >
+                    ?
+                </button>
+
                 {user ? (
                     <>
                         <div className="user-dropdown" ref={menuRef}>
@@ -51,12 +64,7 @@ const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout }
 
                             <div className={`user-dropdown-menu ${menuOpen ? 'open' : ''}`} role="menu">
                                 <div className="user-dropdown-item email" role="none">{user.email}</div>
-                                <button className="user-dropdown-item" role="menuitem" onClick={onToggleDark}>
-                                    {dark ? 'Switch to Light' : 'Switch to Dark'}
-                                </button>
-                                <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/glossary'); }}>
-                                    Glossary & Help
-                                </button>
+                                <div className="user-dropdown-item role" role="none">{displayRole}</div>
                                 <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/org-profile'); }}>
                                     Organization Profile
                                 </button>
