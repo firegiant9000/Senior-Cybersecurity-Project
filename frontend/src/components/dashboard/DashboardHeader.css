@@ -71,6 +71,68 @@
     border-radius: 6px;
 }
 
+/* User dropdown menu */
+.user-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.user-avatar-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    cursor: pointer;
+}
+
+.avatar-initials {
+    font-weight: 600;
+}
+
+.user-dropdown-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 8px);
+    background: var(--header-bg);
+    border-radius: 8px;
+    min-width: 200px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+    border: 1px solid rgba(255,255,255,0.06);
+    padding: 8px;
+    display: none;
+    flex-direction: column;
+    z-index: 40;
+}
+
+.user-dropdown-menu.open {
+    display: flex;
+}
+
+.user-dropdown-item {
+    background: transparent;
+    color: white;
+    border: none;
+    text-align: left;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.user-dropdown-item:hover {
+    background: rgba(255,255,255,0.06);
+}
+
+.user-dropdown-item.email {
+    font-size: 0.9rem;
+    color: rgba(255,255,255,0.9);
+    cursor: default;
+}
+
 /* Dark mode toggle button */
 .dark-mode-btn {
     background: transparent;

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import './DashboardHeader.css';
@@ -13,8 +13,20 @@ interface Props {
 const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout }) => {
     const navigate = useNavigate();
     const { role, orgRole } = useAuth();
+    const [menuOpen, setMenuOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement | null>(null);
 
     const canDebug = role === 'admin' || orgRole === 'admin' || orgRole === 'owner';
+
+    useEffect(() => {
+        function handleOutside(e: MouseEvent) {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+                setMenuOpen(false);
+            }
+        }
+        if (menuOpen) document.addEventListener('mousedown', handleOutside);
+        return () => document.removeEventListener('mousedown', handleOutside);
+    }, [menuOpen]);
 
     return (
         <header className="dashboard-header">
@@ -22,27 +34,45 @@ const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout }
                 <img src="/logo.png" alt="Hacker Tracker" className="dashboard-header-logo" />
                 <h1 className="header-title">Hacker Tracker</h1>
             </div>
+
             <div className="header-buttons">
-                <button className="dark-mode-btn" onClick={onToggleDark} title="Toggle dark mode">
-                    {dark ? '☀' : '🌙'}
-                </button>
-                <button
-                    className="dark-mode-btn"
-                    onClick={() => navigate('/glossary')}
-                    title="Glossary & help"
-                    aria-label="Open glossary"
-                >
-                    ?
-                </button>
                 {user ? (
                     <>
-                        <span className="header-user-email">{user.email}</span>
-                        <button onClick={() => navigate('/org-profile')}>Organization</button>
-                        <button onClick={() => navigate('/settings')}>Settings</button>
-                        {canDebug && (
-                            <button onClick={() => navigate('/settings/assessment-debug')}>Assessment Debug</button>
-                        )}
-                        <button onClick={async () => { await onLogout(); navigate('/'); }}>Log Out</button>
+                        <div className="user-dropdown" ref={menuRef}>
+                            <button
+                                className="user-avatar-btn"
+                                aria-haspopup="true"
+                                aria-expanded={menuOpen}
+                                onClick={() => setMenuOpen((s) => !s)}
+                                title={user.email ?? 'User menu'}
+                            >
+                                <span className="avatar-initials">{user.email ? user.email.charAt(0).toUpperCase() : 'U'}</span>
+                            </button>
+
+                            <div className={`user-dropdown-menu ${menuOpen ? 'open' : ''}`} role="menu">
+                                <div className="user-dropdown-item email" role="none">{user.email}</div>
+                                <button className="user-dropdown-item" role="menuitem" onClick={onToggleDark}>
+                                    {dark ? 'Switch to Light' : 'Switch to Dark'}
+                                </button>
+                                <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/glossary'); }}>
+                                    Glossary & Help
+                                </button>
+                                <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/org-profile'); }}>
+                                    Organization Profile
+                                </button>
+                                <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/settings'); }}>
+                                    Settings
+                                </button>
+                                {canDebug && (
+                                    <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/settings/assessment-debug'); }}>
+                                        Assessment Debug
+                                    </button>
+                                )}
+                                <button className="user-dropdown-item" role="menuitem" onClick={async () => { await onLogout(); navigate('/'); }}>
+                                    Log Out
+                                </button>
+                            </div>
+                        </div>
                     </>
                 ) : (
                     <>
