@@ -132,12 +132,21 @@
     font-size: 0.9rem;
     color: rgba(255,255,255,0.9);
     cursor: default;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
 }
 
 .user-dropdown-item.role {
     font-size: 0.8rem;
     color: rgba(255,255,255,0.72);
     padding: 2px 12px 8px 12px;
+    cursor: default;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
 }
 
 /* Dark mode toggle button */
@@ -150,11 +159,24 @@
     cursor: pointer;
     font-size: 14px;
     transition: background 0.2s;
-    margin-left: 10px;
+    margin-left: 0;
 }
 
 .dark-mode-btn:hover {
     background: rgba(255, 255, 255, 0.15);
+}
+
+
+/* Group for quick actions (dark toggle + glossary) with tighter spacing */
+.quick-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: 6px;
+}
+
+.glossary-btn {
+    margin-left: 0;
 }
 
 @media (max-width: 768px) {

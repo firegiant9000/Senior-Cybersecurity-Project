@@ -37,17 +37,19 @@ const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout }
             </div>
 
             <div className="header-buttons">
-                <button className="dark-mode-btn" onClick={onToggleDark} title="Toggle dark mode">
-                    {dark ? '☀' : '🌙'}
-                </button>
-                <button
-                    className="dark-mode-btn"
-                    onClick={() => navigate('/glossary')}
-                    title="Glossary & help"
-                    aria-label="Open glossary"
-                >
-                    ?
-                </button>
+                <div className="quick-actions">
+                    <button className="dark-mode-btn" onClick={onToggleDark} title="Toggle dark mode">
+                        {dark ? '☀' : '🌙'}
+                    </button>
+                    <button
+                        className="dark-mode-btn glossary-btn"
+                        onClick={() => navigate('/glossary')}
+                        title="Glossary & help"
+                        aria-label="Open glossary"
+                    >
+                        ?
+                    </button>
+                </div>
 
                 {user ? (
                     <>
