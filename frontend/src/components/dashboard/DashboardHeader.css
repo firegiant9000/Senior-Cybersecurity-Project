@@ -187,7 +187,8 @@
     background: transparent;
     border: 1px solid rgba(255, 255, 255, 0.5);
     color: white;
-    padding: 6px 12px;
+    min-height: 34px;
+    padding: 7px 12px;
     border-radius: 20px;
     cursor: pointer;
     font-size: 14px;
