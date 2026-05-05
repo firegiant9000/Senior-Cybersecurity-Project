@@ -4,12 +4,26 @@
 .dashboard-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     background-color: var(--header-bg);
     color: white;
-    padding: 15px 30px;
+    padding: 10px 30px;
     border-radius: 8px;
     margin-bottom: 20px;
+    gap: 20px;
+}
+
+.header-logo-section {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-title {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+    white-space: nowrap;
 }
 
 .header-buttons {
