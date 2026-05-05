@@ -17,6 +17,7 @@ import { formatDateWithTz, formatTimeWithTz } from '../../utils/formatTime';
 import ExecutiveSummaryCard from './ExecutiveSummaryCard';
 import ProjectedLossCard from './ProjectedLossCard';
 import VendorAlertsCard from '../shared/VendorAlertsCard';
+import EmergingThreatsCard from './EmergingThreatsCard';
 import type { DashboardData } from '../../hooks/useDashboardData';
 import { fmtLoss } from '../../utils/fmtLoss';
 import { useWidgetPrefs } from '../../hooks/useWidgetPrefs';
@@ -61,6 +62,7 @@ const VICTIM_BADGE = (
 const OVERVIEW_WIDGETS = [
     { id: 'executiveSummary',    label: 'Executive Summary',             moveable: false },
     { id: 'vendorAlerts',        label: 'Vendor Alerts',                 moveable: false },
+    { id: 'emergingThreats',     label: 'Emerging Threats Feed',         moveable: true  },
     { id: 'cyberMap',            label: 'Where Cyber Crime Hits Hardest (FBI IC3)', moveable: true  },
     { id: 'malwareChart',        label: 'Intrusion Attempts Chart',      moveable: true  },
     { id: 'totalAttempts',       label: 'Total Intrusion Attempts',      moveable: true  },
@@ -94,6 +96,7 @@ const MOVEABLE_IDS = [
     'avgRiskScore', 'criticalRiskCves', 'ic3Anomalies', 'escalatingSectors',
     'incidentMgmt', 'cyberRisks', 'heatmap',
     'lossAttack', 'avgLossSector', 'complaintsSector', 'sectorTable',
+    'emergingThreats',
 ];
 
 const GRID_SPANS: Record<string, number> = {
@@ -103,6 +106,7 @@ const GRID_SPANS: Record<string, number> = {
     avgRiskScore: 1, criticalRiskCves: 2, ic3Anomalies: 1, escalatingSectors: 1,
     incidentMgmt: 2, cyberRisks: 2, heatmap: 4,
     lossAttack: 2, avgLossSector: 2, complaintsSector: 2, sectorTable: 2,
+    emergingThreats: 2,
 };
 
 interface GapSlot {
@@ -286,6 +290,12 @@ function renderGridWidget(
             return (
                 <WidgetErrorBoundary key={id} title="Projected Annual Loss">
                     <ProjectedLossCard data={dashboardData.lossProjection} loading={dashboardLoading} />
+                </WidgetErrorBoundary>
+            );
+        case 'emergingThreats':
+            return (
+                <WidgetErrorBoundary key={id} title="Emerging Threats">
+                    <EmergingThreatsCard />
                 </WidgetErrorBoundary>
             );
 

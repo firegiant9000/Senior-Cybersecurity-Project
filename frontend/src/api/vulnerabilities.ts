@@ -29,6 +29,7 @@ export interface ExploitedVulnItem {
   kev_date_added: string | null   // ISO YYYY-MM-DD or null
   nvd_published: string | null    // ISO YYYY-MM-DD or null
   nvd_last_modified: string | null // ISO YYYY-MM-DD or null
+  epss_score: number | null
 }
 
 export interface ExploitedVulnListResponse {
@@ -69,6 +70,34 @@ export async function fetchExploitedVulns({
     throw new Error(
       (body as { detail?: string }).detail ??
         `Failed to fetch vulnerabilities: ${response.statusText}`
+    )
+  }
+
+  return response.json() as Promise<ExploitedVulnListResponse>
+}
+
+export async function fetchRiskScoredVulns({
+  page = 1,
+  pageSize = 25,
+  sortBy = 'risk_score',
+  sortOrder = 'desc',
+}: FetchParams = {}): Promise<ExploitedVulnListResponse> {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+    sort_by: sortBy,
+    sort_order: sortOrder,
+  })
+
+  const response = await fetchWithAuth(
+    `${API_BASE_URL}/api/v1/vulnerabilities/risk-scored?${params}`
+  )
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}))
+    throw new Error(
+      (body as { detail?: string }).detail ??
+        `Failed to fetch risk-scored vulnerabilities: ${response.statusText}`
     )
   }
 
