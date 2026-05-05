@@ -78,8 +78,8 @@
 }
 
 .user-avatar-btn {
-    width: 40px;
-    height: 40px;
+    width: 48px;
+    height: 48px;
     border-radius: 50%;
     background: rgba(255,255,255,0.08);
     border: 1px solid rgba(255,255,255,0.12);
@@ -91,7 +91,8 @@
 }
 
 .avatar-initials {
-    font-weight: 600;
+    font-weight: 700;
+    font-size: 1.05rem;
 }
 
 .user-dropdown-menu {
