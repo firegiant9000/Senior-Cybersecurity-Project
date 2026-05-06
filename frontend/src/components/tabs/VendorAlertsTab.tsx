@@ -3,9 +3,11 @@ import { Link } from 'react-router-dom';
 import { fetchVendorAlerts, VendorAlertsResponse } from '../../api/vendorAlerts';
 import { createVendor, suggestVendors, type VendorSuggestion } from '../../api/vendors';
 import { useAuth } from '../../context/AuthContext';
+import RefreshButton from '../RefreshButton';
 import SeverityBadge from '../shared/SeverityBadge';
 import InfoTip from '../shared/InfoTip';
 import { VENDOR_ALERT_TIP } from '../shared/VendorAlertsCard';
+import { useRefreshProgress } from '../../hooks/useRefreshProgress';
 import './VendorAlertsTab.css';
 
 const SEVERITY_TIP =
@@ -22,6 +24,8 @@ const VendorAlertsTab: React.FC = () => {
   const [suggestions, setSuggestions] = useState<Record<string, VendorSuggestion[]>>({});
   const [adding, setAdding] = useState<Record<string, 'pending' | 'added' | 'error'>>({});
   const pageSize = 20;
+  const progressState = useRefreshProgress();
+  const { start, markItemComplete } = progressState;
 
   const handleAddVendor = async (vendorName: string, productName?: string) => {
     if (!orgId) return;
@@ -37,6 +41,7 @@ const VendorAlertsTab: React.FC = () => {
 
   const load = useCallback(async (p: number) => {
     if (!user) return;
+    start(['Vendor alerts']);
     setLoading(true);
     setError('');
     try {
@@ -45,9 +50,10 @@ const VendorAlertsTab: React.FC = () => {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
+      markItemComplete('Vendor alerts');
       setLoading(false);
     }
-  }, [user]);
+  }, [user, start, markItemComplete]);
 
   useEffect(() => {
     load(page);
@@ -57,14 +63,21 @@ const VendorAlertsTab: React.FC = () => {
     if (!data?.unmatched_vendors?.length) return;
     const toCheck = data.unmatched_vendors.slice(0, 5);
     let cancelled = false;
+    const progressItems = toCheck.map(v => `Suggestions for ${v}`);
+    start(progressItems);
     Promise.all(
-      toCheck.map(v => suggestVendors(v).then(s => [v, s] as [string, VendorSuggestion[]]).catch(() => [v, []] as [string, VendorSuggestion[]]))
+      toCheck.map(v =>
+        suggestVendors(v)
+          .then(s => [v, s] as [string, VendorSuggestion[]])
+          .catch(() => [v, []] as [string, VendorSuggestion[]])
+          .finally(() => markItemComplete(`Suggestions for ${v}`))
+      )
     ).then(pairs => {
       if (cancelled) return;
       setSuggestions(Object.fromEntries(pairs));
     });
     return () => { cancelled = true; };
-  }, [data?.unmatched_vendors]);
+  }, [data?.unmatched_vendors, start, markItemComplete]);
 
   if (!user) {
     return <div className="tab-page"><p>Please log in to view vendor alerts.</p></div>;
@@ -78,7 +91,14 @@ const VendorAlertsTab: React.FC = () => {
     return (
       <div className="tab-page">
         <p style={{ color: '#d32f2f' }}>{error}</p>
-        <button className="overview-refresh-btn" onClick={() => load(page)}>Retry</button>
+        <RefreshButton
+          onClick={() => load(page)}
+          loading={loading}
+          items={progressState.items}
+          progress={progressState.progress}
+          label="Retry"
+          title="Retry vendor alerts"
+        />
       </div>
     );
   }
@@ -190,9 +210,13 @@ const VendorAlertsTab: React.FC = () => {
           <InfoTip text={VENDOR_ALERT_TIP} label="Vendor Alerts" />
         </h2>
         <div className="vendor-alerts-actions">
-          <button className="overview-refresh-btn" onClick={() => load(page)} disabled={loading}>
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </button>
+          <RefreshButton
+            onClick={() => load(page)}
+            loading={loading}
+            items={progressState.items}
+            progress={progressState.progress}
+            label="Refresh"
+          />
           <Link to="/org-profile#section-vendors" className="vendor-alerts-manage-link">
             Manage Vendors →
           </Link>

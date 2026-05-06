@@ -12,6 +12,7 @@ const INDUSTRY_LABEL_TO_SECTOR: Record<string, string> = {
 };
 import { Link } from 'react-router-dom';
 import { useUserContext } from '../../context/UserContext';
+import RefreshButton from '../RefreshButton';
 import './SmBAdvisorTab.css';
 import DisclaimerBanner from '../shared/DisclaimerBanner';
 import InfoTip from '../shared/InfoTip';
@@ -32,6 +33,7 @@ import {
 } from '../../api/dashboardSummary';
 import { fetchSmbRiskScore, type SmbRiskScore } from '../../api/smbRiskScore';
 import WidgetSkeleton from '../shared/WidgetSkeleton';
+import { useRefreshProgress } from '../../hooks/useRefreshProgress';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -258,19 +260,37 @@ function useAdvisorData() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const progressState = useRefreshProgress();
+  const { start, markItemComplete } = progressState;
   const refresh = useCallback(() => setRefreshKey(k => k + 1), []);
 
   useEffect(() => {
     const controller = new AbortController();
     const { signal } = controller;
+    const progressItems = [
+      'Industry risk',
+      'Attack types',
+      'Sector attack matrix',
+      'Geographic heatmap',
+      'SMB risk score',
+    ];
+
+    start(progressItems);
     setLoading(true);
     setError(null);
 
+    const industryPromise = fetchIndustryRisk(signal).finally(() => markItemComplete('Industry risk'));
+    const attackPromise = fetchAttackTypes(signal).finally(() => markItemComplete('Attack types'));
+    const matrixPromise = fetchSectorAttackMatrix(signal).finally(() => markItemComplete('Sector attack matrix'));
+    const geoPromise = fetchGeographicHeatmap(signal).finally(() => markItemComplete('Geographic heatmap'));
+    const riskPromise = fetchSmbRiskScore(signal).finally(() => markItemComplete('SMB risk score'));
+
     Promise.allSettled([
-      fetchIndustryRisk(signal),
-      fetchAttackTypes(signal),
-      fetchSectorAttackMatrix(signal),
-      fetchGeographicHeatmap(signal),
+      industryPromise,
+      attackPromise,
+      matrixPromise,
+      geoPromise,
+      riskPromise,
     ]).then(([industryR, attackR, matrixR, geoR]) => {
       if (signal.aborted) return;
       const errs: string[] = [];
@@ -294,9 +314,9 @@ function useAdvisorData() {
     }).finally(() => { if (!signal.aborted) setLoading(false); });
 
     return () => controller.abort();
-  }, [refreshKey]);
+  }, [refreshKey, start, markItemComplete]);
 
-  return { data, loading, error, refresh };
+  return { data, loading, error, refresh, progressState };
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -562,6 +582,13 @@ function StateRiskCard({ stateCode, stateProfile, allStates, loading }: {
                 <Tooltip
                   formatter={(v: unknown) => [fmtMoneyFull(v as number), 'Total Losses']}
                   labelFormatter={(l: unknown) => STATE_NAMES[l as string] ?? String(l)}
+                  contentStyle={{
+                    backgroundColor: 'var(--card-bg)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                  }}
+                  labelStyle={{ color: 'var(--text-primary)' }}
+                  itemStyle={{ color: 'var(--text-primary)' }}
                 />
                 <Bar dataKey="loss" radius={[3, 3, 0, 0]}>
                   {chartData.map((entry) => (
@@ -895,7 +922,7 @@ function OrgRiskScoreCard() {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 const SmBAdvisorTab: React.FC = () => {
-  const { data, loading, error, refresh } = useAdvisorData();
+  const { data, loading, error, refresh, progressState } = useAdvisorData();
   const { organization } = useUserContext();
   const [selectedSector, setSelectedSector] = useState('');
   const [selectedState, setSelectedState] = useState('');
@@ -956,7 +983,13 @@ const SmBAdvisorTab: React.FC = () => {
             Personalized cybersecurity insights for small business owners — in plain English, no technical jargon.
           </p>
         </div>
-        <button className="overview-refresh-btn" onClick={refresh}>↻ Refresh</button>
+        <RefreshButton
+          onClick={refresh}
+          loading={loading}
+          items={progressState.items}
+          progress={progressState.progress}
+          label="Refresh"
+        />
       </div>
 
       {error && (

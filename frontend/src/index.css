@@ -4,6 +4,10 @@
   box-sizing: border-box;
 }
 
+:root {
+  --tooltip-z-index: 2147483647;
+}
+
 html,
 body,
 #root {
@@ -103,4 +107,14 @@ button:disabled {
   0%   { transform: translateX(-100%); }
   50%  { transform: translateX(150%); }
   100% { transform: translateX(150%); }
+}
+
+/* Keep every chart tooltip above card content and SVG labels in all layouts. */
+.recharts-tooltip-wrapper {
+  z-index: var(--tooltip-z-index) !important;
+  pointer-events: none !important;
+}
+
+.recharts-default-tooltip {
+  z-index: var(--tooltip-z-index) !important;
 }

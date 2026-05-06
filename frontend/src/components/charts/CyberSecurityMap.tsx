@@ -1,4 +1,5 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
     ComposableMap,
     Geographies,
@@ -66,8 +67,8 @@ interface TooltipState {
     complaints: number;
     totalLoss: number;
     avgLoss: number;
-    x: number;
-    y: number;
+    clientX: number;
+    clientY: number;
 }
 
 function fmtLossShort(v: number): string {
@@ -79,8 +80,6 @@ function fmtLossShort(v: number): string {
 
 const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
     const [tooltip, setTooltip] = useState<TooltipState | null>(null);
-    const mapContainerRef = useRef<HTMLDivElement | null>(null);
-
     const complaintByState = useMemo(() => {
         const map: Record<string, number> = {};
         for (const d of data) {
@@ -126,14 +125,14 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
         : 'US map of FBI IC3 cybercrime complaints by state.';
 
     return (
-        <div style={{ width: '100%', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            <div ref={mapContainerRef} style={{ flex: 1, position: 'relative', minHeight: 0 }} role="img" aria-label={ariaLabel}>
+        <div style={{ width: '100%', height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative', zIndex: tooltip ? 20 : undefined }}>
+            <div style={{ flex: 1, position: 'relative', minHeight: 0 }} role="img" aria-label={ariaLabel}>
             {/* Custom hover tooltip */}
-            {tooltip && (
+            {tooltip && createPortal(
                 <div style={{
-                    position: 'absolute',
-                    left: tooltip.x + 12,
-                    top: tooltip.y - 10,
+                    position: 'fixed',
+                    left: tooltip.clientX + 12,
+                    top: tooltip.clientY - 10,
                     background: '#0b1060',
                     color: 'white',
                     padding: '6px 10px',
@@ -142,7 +141,7 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
                     fontWeight: 600,
                     pointerEvents: 'none',
                     whiteSpace: 'nowrap',
-                    zIndex: 10,
+                    zIndex: 2147483647,
                     boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
                 }}>
                     <div>{tooltip.stateName}</div>
@@ -159,7 +158,8 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
                             </div>
                         </>
                     )}
-                </div>
+                </div>,
+                document.body,
             )}
             <ComposableMap
                 projection="geoAlbersUsa"
@@ -188,7 +188,6 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
                                         pressed: { outline: 'none' },
                                     }}
                                     onMouseEnter={(e) => {
-                                        const parentRect = mapContainerRef.current?.getBoundingClientRect();
                                         const loss = stateCode ? (totalLossByState[stateCode] ?? 0) : 0;
                                         setTooltip({
                                             stateCode: stateCode ?? String(geo.id),
@@ -196,16 +195,15 @@ const CyberSecurityMap: React.FC<Props> = ({ data, loading }) => {
                                             complaints,
                                             totalLoss: loss,
                                             avgLoss: complaints > 0 ? loss / complaints : 0,
-                                            x: e.clientX - (parentRect?.left ?? 0),
-                                            y: e.clientY - (parentRect?.top  ?? 0),
+                                            clientX: e.clientX,
+                                            clientY: e.clientY,
                                         });
                                     }}
                                     onMouseMove={(e) => {
-                                        const parentRect = mapContainerRef.current?.getBoundingClientRect();
                                         setTooltip(prev => prev ? {
                                             ...prev,
-                                            x: e.clientX - (parentRect?.left ?? 0),
-                                            y: e.clientY - (parentRect?.top  ?? 0),
+                                            clientX: e.clientX,
+                                            clientY: e.clientY,
                                         } : null);
                                     }}
                                     onMouseLeave={() => setTooltip(null)}
