@@ -20,7 +20,7 @@ const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout }
     const displayRole = orgRole ?? role ?? 'User';
 
     useEffect(() => {
-        function handleOutside(e: MouseEvent) {
+        function handleOutside(e: globalThis.MouseEvent) {
             if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
                 setMenuOpen(false);
             }
