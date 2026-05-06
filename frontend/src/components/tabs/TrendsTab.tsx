@@ -77,6 +77,64 @@ function fmtK(v: number): string {
   return String(v);
 }
 
+type TooltipPayloadEntry = {
+  value?: number | string | null;
+  name?: string;
+  color?: string;
+};
+
+type TooltipProps = {
+  active?: boolean;
+  payload?: TooltipPayloadEntry[];
+  label?: string | number;
+};
+
+// Custom tooltip for complaints chart - prevents duplicate text by filtering null values
+function ComplaintsTooltip({ active, payload, label }: TooltipProps) {
+  if (!active || !payload) return null;
+  const filtered = payload.filter((p) => p.value != null);
+  if (filtered.length === 0) return null;
+  return (
+    <div style={{
+      backgroundColor: 'var(--card-bg)',
+      border: '1px solid var(--border)',
+      borderRadius: 8,
+      padding: '8px 12px',
+      zIndex: 'var(--tooltip-z-index, 2147483647)',
+    }}>
+      <p style={{ color: 'var(--text-primary)', margin: '0 0 4px 0', fontSize: 12, fontWeight: 600 }}>Year: {label}</p>
+      {filtered.map((p, i) => (
+        <p key={i} style={{ color: 'var(--text-primary)', margin: '0', fontSize: 11 }}>
+          <span style={{ color: p.color }}>●</span> {p.name}: {p.value?.toLocaleString()}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+// Custom tooltip for financial loss chart
+function LossTooltip({ active, payload, label }: TooltipProps) {
+  if (!active || !payload) return null;
+  const filtered = payload.filter((p) => p.value != null);
+  if (filtered.length === 0) return null;
+  return (
+    <div style={{
+      backgroundColor: 'var(--card-bg)',
+      border: '1px solid var(--border)',
+      borderRadius: 8,
+      padding: '8px 12px',
+      zIndex: 'var(--tooltip-z-index, 2147483647)',
+    }}>
+      <p style={{ color: 'var(--text-primary)', margin: '0 0 4px 0', fontSize: 12, fontWeight: 600 }}>Year: {label}</p>
+      {filtered.map((p, i) => (
+        <p key={i} style={{ color: 'var(--text-primary)', margin: '0', fontSize: 11 }}>
+          <span style={{ color: p.color }}>●</span> {p.name}: {typeof p.value === 'number' ? `$${p.value.toLocaleString()}` : p.value}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 const TrendsTab: React.FC = () => {
   const { data, loading, errors, setAttackType, setSector, setYearFrom, setYearTo, refresh, setOnProgress } = useTrendsData();
   const { trends, attackTypeOptions, selectedAttackType, selectedSector, yearFrom, yearTo } = data;
@@ -241,12 +299,7 @@ const TrendsTab: React.FC = () => {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="year" tick={{ fontSize: 11 }} />
                     <YAxis tickFormatter={fmtK} tick={{ fontSize: 11 }} width={52} />
-                    <Tooltip
-                      formatter={(v: unknown) => [
-                        v == null ? '—' : typeof v === 'number' ? v.toLocaleString() : String(v),
-                        'Complaints',
-                      ]}
-                    />
+                    <Tooltip content={<ComplaintsTooltip />} />
                     <Legend content={trendLegend} />
                     <Line
                       type="monotone"
@@ -296,12 +349,7 @@ const TrendsTab: React.FC = () => {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="year" tick={{ fontSize: 11 }} />
                     <YAxis tickFormatter={fmtBillion} tick={{ fontSize: 11 }} width={64} />
-                    <Tooltip
-                      formatter={(v: unknown) => [
-                        v == null ? '—' : `$${(v as number).toLocaleString()}`,
-                        'Total Loss',
-                      ]}
-                    />
+                    <Tooltip content={<LossTooltip />} />
                     <Legend content={trendLegend} />
                     <Line
                       type="monotone"
@@ -351,12 +399,7 @@ const TrendsTab: React.FC = () => {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="year" tick={{ fontSize: 11 }} />
                     <YAxis tickFormatter={fmtBillion} tick={{ fontSize: 11 }} width={64} />
-                    <Tooltip
-                      formatter={(v: unknown) => [
-                        v == null ? '—' : `$${(v as number).toLocaleString()}`,
-                        'Avg Loss / Incident',
-                      ]}
-                    />
+                    <Tooltip content={<LossTooltip />} />
                     <Legend content={trendLegend} />
                     <Line
                       type="monotone"
