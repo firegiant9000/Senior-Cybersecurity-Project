@@ -77,10 +77,22 @@ function fmtK(v: number): string {
   return String(v);
 }
 
+type TooltipPayloadEntry = {
+  value?: number | string | null;
+  name?: string;
+  color?: string;
+};
+
+type TooltipProps = {
+  active?: boolean;
+  payload?: TooltipPayloadEntry[];
+  label?: string | number;
+};
+
 // Custom tooltip for complaints chart - prevents duplicate text by filtering null values
-function ComplaintsTooltip({ active, payload, label }: any) {
+function ComplaintsTooltip({ active, payload, label }: TooltipProps) {
   if (!active || !payload) return null;
-  const filtered = payload.filter((p: any) => p.value != null);
+  const filtered = payload.filter((p) => p.value != null);
   if (filtered.length === 0) return null;
   return (
     <div style={{
@@ -91,7 +103,7 @@ function ComplaintsTooltip({ active, payload, label }: any) {
       zIndex: 'var(--tooltip-z-index, 2147483647)',
     }}>
       <p style={{ color: 'var(--text-primary)', margin: '0 0 4px 0', fontSize: 12, fontWeight: 600 }}>Year: {label}</p>
-      {filtered.map((p: any, i: number) => (
+      {filtered.map((p, i) => (
         <p key={i} style={{ color: 'var(--text-primary)', margin: '0', fontSize: 11 }}>
           <span style={{ color: p.color }}>●</span> {p.name}: {p.value?.toLocaleString()}
         </p>
@@ -101,9 +113,9 @@ function ComplaintsTooltip({ active, payload, label }: any) {
 }
 
 // Custom tooltip for financial loss chart
-function LossTooltip({ active, payload, label }: any) {
+function LossTooltip({ active, payload, label }: TooltipProps) {
   if (!active || !payload) return null;
-  const filtered = payload.filter((p: any) => p.value != null);
+  const filtered = payload.filter((p) => p.value != null);
   if (filtered.length === 0) return null;
   return (
     <div style={{
@@ -114,9 +126,9 @@ function LossTooltip({ active, payload, label }: any) {
       zIndex: 'var(--tooltip-z-index, 2147483647)',
     }}>
       <p style={{ color: 'var(--text-primary)', margin: '0 0 4px 0', fontSize: 12, fontWeight: 600 }}>Year: {label}</p>
-      {filtered.map((p: any, i: number) => (
+      {filtered.map((p, i) => (
         <p key={i} style={{ color: 'var(--text-primary)', margin: '0', fontSize: 11 }}>
-          <span style={{ color: p.color }}>●</span> {p.name}: ${(p.value as number).toLocaleString()}
+          <span style={{ color: p.color }}>●</span> {p.name}: {typeof p.value === 'number' ? `$${p.value.toLocaleString()}` : p.value}
         </p>
       ))}
     </div>
