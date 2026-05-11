@@ -40,6 +40,27 @@ Hacker Tracker should become:
 
 > An SMB-first vulnerability and cyber exposure dashboard that combines public threat intelligence, lightweight asset inventory, vulnerability matching, and executive reporting.
 
+### ICP segmentation (added after Common Market interview)
+
+Validation interview #1 (The Common Market, 2026-05-11) surfaced that "SMB" is not one segment — there are three operating models, each with a different role for our product:
+
+| Segment | Typical size | Tech operating model | Product role | Buyer |
+|---|---|---|---|---|
+| **A. No IT** | <30 employees | Owner does it, nephew helps | **Probably not our buyer.** Trust burden too high; no one to operate the tool. | n/a |
+| **B. Stuck internal IT** | 30–100 employees | 1–3 part-time IT people, no MSP, often unfinished processes (abandoned ticketing systems, etc.) | "Give your stretched IT team leverage they don't have." Self-running tool, monthly push report. | Owner / CEO / Ops director |
+| **C. MSP-served** | 30–500 employees | Outsourced to an MSP | "Automate the report your MSP hands you." Multi-tenant view. | MSP technician / owner |
+
+**Current evidence:** segment B (Common Market) — one strong qualifying interview. The plan was sized for segment C as primary buyer; if interviews 2–4 confirm segment B is also viable, the plan needs to accommodate **two parallel buyer paths**, not pivot wholly to one.
+
+**Implications already integrated below:**
+- Onboarding (Month 2) prioritizes OAuth/cloud auto-discovery alongside CSV/SBOM upload — segment B has running cloud systems, not curated software lists.
+- Reports (Month 5) emphasize push-not-pull delivery (email-delivered PDF) and month-over-month stability — abandoned ticketing systems prove segment B will not log into a portal.
+- Pilot length is set to 3 months minimum — consistency, the trust currency Common Market named, cannot be evaluated in less.
+- Pricing model carries a flat per-org option alongside per-endpoint MSP pricing.
+- A new "Security Profile / Partner Questionnaire" feature is added to the backlog — Common Market explicitly flagged this as a partner-driven pain.
+
+**Action:** in interviews 2–4, **specifically test which segment the interviewee belongs to** and capture in the tracker. Do not collapse segments in summary.
+
 ---
 
 ## Feature Ranking by Strength and Impact
@@ -80,10 +101,18 @@ Scoring:
 | 26 | Multi-tenancy isolation testing | 9/10 | 9/10 | Medium | High | MSP path requires verified cross-org access prevention. |
 | 27 | Demo mode removal (replace with seed script) | 6/10 | 7/10 | Low/Medium | High | Mixing demo + real data in production is a footgun. |
 | 28 | NVD CPE cache + rate-limit-aware fetcher | 8/10 | 8/10 | Medium | High | NVD API rate limits will throttle matching jobs without it. |
+| 29 | Security Profile / Partner Questionnaire pack | 9/10 | 9/10 | Medium | High | Common Market evidence: partners/insurers ask security questions; auto-fill is a wedge feature that may close deals faster than full VM. |
+| 30 | Month-over-month report comparison view | 8/10 | 9/10 | Low/Medium | High | Consistency is the trust currency named by the first interviewee; same shape every month + stable comparison is differentiation. |
+| 31 | Email-delivered monthly report (push, not pull) | 9/10 | 9/10 | Medium | High | Segment B buyers won't log into portals (interview evidence: abandoned ticketing system). Report-by-email is the primary deliverable. |
+| 32 | Cloud auto-discovery (M365 / Salesforce / cloud provider) for onboarding | 9/10 | 9/10 | High | High | Segment B has running cloud systems, not curated software lists; OAuth discovery beats CSV upload for this segment. |
+| 33 | Flat per-org pricing tier (alongside per-endpoint MSP pricing) | 7/10 | 8/10 | Low | High | Direct-to-SMB buyers think in monthly subscriptions, not per-seat. Per-endpoint pricing is for MSPs only. |
+| 34 | Segment classification on every interview log | 8/10 | 9/10 | Trivial | Critical | Without it, "SMB" averages three operating models that need different products. Capture A/B/C in tracker. |
 
 ---
 
-## Key Product Principle
+## Key Product Principles
+
+### 1. Asset-context first
 
 Do not build more dashboards before the product has real asset context.
 
@@ -96,6 +125,32 @@ The improved product should say:
 > These vulnerabilities affect your environment, on these machines, and these are the top fixes.
 
 That difference is what makes the project viable.
+
+### 2. Push, not pull (added from interview #1)
+
+Common Market has an internal ticketing system that exists but **is not used**. This is direct evidence that segment B buyers will not log into a portal on a regular cadence. The primary deliverable is a **monthly report that lands in the customer's inbox**, not a dashboard they have to remember to visit.
+
+- Dashboard exists for the operator (IT person, MSP technician) — it's their workbench.
+- Report is the artifact for the decision-maker (owner, CEO) — it's the value they pay for.
+- Email-delivered PDF + a "compare to last month" link is the right form factor; not push notifications, not Slack bots, not in-app alerts.
+
+### 3. Consistency over novelty (added from interview #1)
+
+When asked what would make them trust a security tool, the Common Market interviewee said: **"Consistency — constant reliable answers."** They did not say accuracy (accuracy is table stakes). This is a strategic positioning statement, not a UX hint.
+
+Implications, applied throughout the plan:
+
+- Same report shape every month. No casual format changes once a customer is on the product; version the report explicitly when changes are required.
+- Track stable metrics over time. The "compared to last month" view is a first-class feature, not an afterthought.
+- The "we're fine this month" report deserves as much design attention as the "fix these 3 things" report. Most security products neglect the calm state.
+- Avoid alert fatigue. Reports beat real-time pings for this audience.
+- Pilots must run **3 months minimum** — consistency cannot be evaluated in two weeks. Build this into pilot agreements.
+
+### 4. Insurance is the upstream forcing function (added from interview #1)
+
+Common Market already pays cyber insurance and is in the renewal-questionnaire workflow. They are past the "do I care about security?" objection. The fastest qualifying signal in future interviews is **"do you pay for cyber insurance?"** — if yes, they are in market.
+
+This points at a wedge feature ("evidence pack for your renewal") that is faster to build than full vulnerability management and may close more deals. See backlog item: *Security Profile / Partner Questionnaire pack*.
 
 ---
 
@@ -135,6 +190,16 @@ backend/app/services/agent_token.py            # issue/rotate/revoke
 backend/app/services/forecasting.py            # vendor KEV momentum, sector trends, watchlist
 backend/app/services/domain_enrichment.py      # domain -> industry/size inference
 backend/app/services/report_renderer.py        # server-side PDF (replace window.print)
+backend/app/services/security_profile.py       # Security Profile / questionnaire auto-fill
+backend/app/repositories/report_snapshots.py   # monthly snapshot persistence for MoM comparison
+backend/app/workers/monthly_report_job.py      # cron: generate + email monthly report
+backend/app/api/routes/v1/report_share.py      # tokenized share links (no-login read view)
+backend/app/integrations/m365.py               # Microsoft 365 / Entra OAuth + Graph
+backend/app/integrations/google_workspace.py
+backend/app/integrations/salesforce.py
+backend/app/integrations/cloud_aws.py          # (or azure / gcp — pick one)
+backend/app/data/questionnaires/               # YAML/JSON: insurance + partner question sets
+backend/email_templates/                       # HTML monthly report summary email
 backend/app/repositories/assets.py
 backend/app/repositories/scan_runs.py
 backend/app/repositories/agent_enrollments.py
@@ -433,6 +498,23 @@ The previous investigation explicitly identified "no real-world validation" as o
 10. If we gave you a free 30-day pilot, what would success look like at day 30?
 11. Who else would have to approve buying this?
 
+### Segment classification (added after interview #1)
+
+For each interview, classify the company into one of three segments and record it in `docs/validation_interviews.md`:
+
+- **Segment A — No IT:** <30 employees; owner/relative handles tech; no internal IT staff or MSP.
+- **Segment B — Stuck internal IT:** 30–100 employees; 1–3 part-time IT people; no MSP; often has abandoned IT process artifacts (unused ticketing, etc.). **(Common Market = B.)**
+- **Segment C — MSP-served:** Outsourced to an MSP; buyer conversation runs through the MSP, not the SMB directly.
+
+If interviews 2–4 produce ≥2 segment-B companies with strong signal, the plan accommodates two parallel buyer paths (B and C). If they skew to one, prioritize that path. **Do not collapse segments in any summary.**
+
+### Two qualifying questions to ask early (added after interview #1)
+
+These two questions are the fastest filter. Ask them in the first 5 minutes:
+
+1. **"Do you pay for cyber insurance?"** — yes = in-market for posture evidence; no = much harder sell.
+2. **"Has a partner, vendor, or insurance carrier ever sent you a security questionnaire?"** — yes = the Security Profile feature has direct evidence; no = drop that workstream's priority.
+
 ### Validation signals
 
 - **Validates pivot:** ≥6/12 ask unprompted for "show me what I have and what's vulnerable." MSPs willing to pay $5–15/endpoint/month. ≥2 verbal pilot commitments.
@@ -652,6 +734,38 @@ GET  /api/v1/inventory/scan-runs
 ### Domain enrichment (optional, low-priority)
 
 Add `backend/app/services/domain_enrichment.py` to infer industry/employee/revenue from a primary domain (using public sources or a paid enrichment API). This can replace several manual onboarding fields. **Only build if Week 0 interviews say onboarding friction is a real blocker** — otherwise defer.
+
+## Workstream 2.3 — Cloud auto-discovery for segment B (added from interview #1)
+
+### Why it matters
+
+Common Market is segment B: stuck internal IT, no MSP, but with running cloud systems (Salesforce + a cloud server). They have *no curated software inventory* to upload — asking them to produce one is asking them to do work they have not done.
+
+Segment B unblocks faster with **"connect what's already running and we'll discover your inventory"** than with CSV/SBOM uploads. The CSV path remains valid for MSP-led onboarding (segment C), but segment B needs OAuth.
+
+### Tasks
+
+| Task | Priority | Difficulty | Files |
+|---|---|---|---|
+| Spike Microsoft 365 / Entra ID OAuth: list-devices + list-users via Graph API against a test tenant | Critical | High | new `backend/app/integrations/m365.py` |
+| Map M365 device data to `assets` / `asset_software` rows | Critical | Medium | `backend/app/services/inventory_ingest.py` |
+| Spike Google Workspace Admin SDK as parallel integration | High | High | new `backend/app/integrations/google_workspace.py` |
+| Spike Salesforce inventory (apps/users/connected apps) | Medium | High | new `backend/app/integrations/salesforce.py` (post-pilot if validated) |
+| Cloud-provider read-only integration (AWS Config / Azure Resource Graph / GCP Asset Inventory) — pick one | High | High | new `backend/app/integrations/cloud_aws.py` etc. |
+| Onboarding UI: "Connect cloud" tab as a peer to "Upload CSV" tab | Critical | Medium | `frontend/src/pages/UploadInventoryPage.tsx` |
+| Per-integration permission disclosure page (exactly what we read, what we don't) | Critical | Low/Medium | new `frontend/src/pages/IntegrationPermissionsPage.tsx` |
+
+### Sequencing decision
+
+The integration spike work is **High** difficulty and OAuth admin consent can drag for weeks per provider. Recommend:
+
+- **Sprint 1 (Month 2):** stand up the M365 OAuth flow as a behind-feature-flag spike — do not block CSV path on it.
+- **Sprint 2 (Month 3, after matcher gate):** wire M365 device output through to the matcher. By this point CSV path is shipping; M365 is the second onboarding option.
+- **Later:** Google Workspace, Salesforce, cloud-provider integrations as pilots demand.
+
+### Definition of done
+
+A segment-B user can connect their M365 tenant via OAuth, see their devices populate `assets` automatically, and receive a vulnerability report without uploading anything. Permission scopes are documented and shown to the user before consent.
 
 ### Definition of done
 
@@ -1071,6 +1185,45 @@ A user generates a deterministic PDF with three mode toggles, every claim cites 
 - Every report must include a "Data Sources and Limitations" section listing data freshness per source and match-confidence distribution.
 - Low-confidence findings are listed in a separate appendix, not in the main risk count.
 
+### Workstream 5.2.1 — Month-over-month consistency view (added from interview #1)
+
+"Consistency" was the trust currency named by the first interviewee. The value of a monthly report is not the absolute snapshot — it's the *comparison to last month*. A standalone PDF every month does not deliver this; you need an explicit comparison surface and stable metric definitions.
+
+#### Tasks
+
+| Task | Priority | Difficulty | Files |
+|---|---|---|---|
+| Persist a `monthly_report_snapshots` table (one row per org per month with frozen metric values) | Critical | Medium | new migration; new `backend/app/repositories/report_snapshots.py` |
+| Define a stable metric schema versioned independently of the report renderer (so the renderer can change without breaking the comparison) | Critical | Low/Medium | new `backend/app/schemas/report_metrics.py` |
+| Add "compared to last month" panel to the report: open findings delta, KEV-matched delta, top-risk-change list, "still outstanding from last month" list | Critical | Medium | `backend/app/services/report_renderer.py` |
+| Add a 6-month sparkline per top metric (open findings, KEV count, top-risk-score) | High | Low/Medium | same |
+| Lock report-format versioning: changes to the report format require a version bump and a migration window for existing customers | High | Low | doc + service |
+| "We're still in good shape" rendering — explicit calm-state design that doesn't feel like a placeholder | High | Medium | `frontend` and `report_renderer.py` |
+
+#### Definition of done
+
+Two consecutive monthly reports for the same org can be opened side-by-side and a non-technical reader can answer: "what changed since last month, and which fixes from last month are still outstanding?"
+
+## Workstream 5.2.2 — Email-delivered reports (push, not pull) (added from interview #1)
+
+The Common Market interview produced direct evidence (abandoned internal ticketing system) that segment B will not log into a portal. The monthly report must be delivered, not retrieved.
+
+#### Tasks
+
+| Task | Priority | Difficulty | Files |
+|---|---|---|---|
+| Pick transactional email provider (Postmark / SES / SendGrid); document deliverability strategy (SPF/DKIM/DMARC) | Critical | Low | doc |
+| Add monthly cron job that generates report → uploads PDF → emails recipient list | Critical | Medium | new `backend/app/workers/monthly_report_job.py` |
+| Per-org configurable recipient list, send-date, send-time | Critical | Low | UI + schema |
+| Tokenized "view report online" link for recipients who want the web view (does not require login for read-only view) | High | Medium | new `backend/app/api/routes/v1/report_share.py` |
+| Bounce/complaint handling; suppress send-on-failure | High | Low/Medium | provider webhook |
+| Email-rendered preview of the top-5 findings (not a full PDF; just the summary in HTML) | High | Medium | new `frontend/email_templates/` |
+| Out-of-cycle "something urgent" send for new KEV-matched findings on critical assets (with explicit per-org opt-in) | Medium | Medium | extend job |
+
+#### Definition of done
+
+A new pilot org receives a styled, branded monthly report PDF and HTML summary in the recipient's inbox on the configured send-date. No login required to view the share link.
+
 ## Workstream 5.2.5 — Forecasting / predictive MVP
 
 ### Why now
@@ -1148,7 +1301,60 @@ A test suite explicitly attempts cross-org access against every endpoint and all
 
 Prepare the product for real-world feedback and possible pilot use.
 
+## Workstream 6.0 — Security Profile / Partner Questionnaire pack (added from interview #1)
+
+### Why it earned a workstream
+
+Common Market explicitly flagged that customers and vendors ask them whether they have a VPN, how systems are separated, etc. They also pay cyber insurance, which means they sit inside the renewal-questionnaire workflow. Both pain points have the same shape: **someone external asks for evidence of security posture and the SMB has to scramble to answer.**
+
+This is a *faster, cheaper feature than full vulnerability management* and may close more deals on its own. It also reuses everything Hacker Tracker already collects (inventory, controls, scan results, report data). If interviews 2–4 confirm this pain is common across segment B, this workstream may justify pulling it forward.
+
+### MVP scope
+
+A one-page "Security Profile" PDF generated from collected data, plus a structured JSON export, plus a CSV-mappable answer set for common insurance/partner questionnaires.
+
+### Tasks
+
+| Task | Priority | Difficulty | Files |
+|---|---|---|---|
+| Define the question taxonomy: pull from 2–3 real cyber-insurance questionnaires + 1–2 partner due-diligence templates | Critical | Medium | new `backend/app/data/questionnaires/` (YAML or JSON) |
+| Map each question to evidence-sources already in our data model (asset count, MFA control flag, OS patch posture, etc.) | Critical | Medium | new `backend/app/services/security_profile.py` |
+| Add `GET /api/v1/organizations/{id}/security-profile` returning the structured answers | Critical | Medium | new route |
+| Add PDF export of the Security Profile as a stand-alone artifact | High | Medium | extend `report_renderer.py` |
+| Add per-question confidence + "answer is inferred from X" attribution (consistent with matcher confidence pattern) | High | Medium | `security_profile.py` |
+| Add "questions we couldn't answer" section with prompts to enter the missing fact (replaces the manual onboarding burden with a *targeted* fill-in flow) | High | Medium | frontend |
+| Add a "renewal pack" bundle (Security Profile + most recent monthly report + open KEV findings) as a single download | High | Low/Medium | `report_renderer.py` |
+
+### Definition of done
+
+A segment-B user can press one button and download a 1–2 page PDF answering common partner/insurance security questions, plus a JSON dump suitable for copy-paste into vendor forms. Every answer cites the underlying evidence row.
+
+### Validation gate before building
+
+This workstream should only be built if **interviews 2–4 confirm that partner/insurance questionnaires are a real, named pain across at least 2 of the next 3 interviewees**. Otherwise defer — it's a strong feature, but the evidence base is currently a single interview.
+
 ## Workstream 6.1 — Validation and pilot readiness
+
+### Pilot length (updated from interview #1)
+
+**Pilots run 3 months minimum.** The trust currency surfaced by the first interviewee was "consistency," and consistency cannot be evaluated in a 2-week or 30-day trial. Three months gives the customer three consecutive monthly reports, which is the minimum to see the comparison feature work as intended. A shorter pilot tests only the demo; a longer pilot tests the product.
+
+Pilot agreement boilerplate should state:
+- 3-month minimum engagement, free or discounted.
+- 3 monthly reports delivered to a specified recipient list.
+- Mid-pilot check-in at month 2 (NOT a kill-decision — explicitly for course-correction).
+- Go/no-go conversation at month 3.
+
+### Pricing models to test in pilots (added from interview #1)
+
+Common Market doesn't fit MSP per-endpoint pricing cleanly. Carry **two pricing models** through pilots and let customers self-select:
+
+| Model | Target segment | Example | Notes |
+|---|---|---|---|
+| **Flat per-org** | Segment B (direct SMB) | $200/mo for orgs up to 100 endpoints; $400/mo up to 250 | Predictable line item; fits "discussion" buyer; doesn't punish growth |
+| **Per-endpoint** | Segment C (MSP buyer) | $8/endpoint/mo with volume tiers | Scales with MSP fleet; standard MSP business model |
+
+Track which model each pilot accepts. After 3 pilots, you'll have evidence on whether to ship both or consolidate.
 
 ### Tasks
 
@@ -1158,12 +1364,14 @@ Prepare the product for real-world feedback and possible pilot use.
 | Create data-handling/privacy page | Critical | Medium |
 | Create scanner transparency page | Critical | Medium |
 | Add sample inventory/demo mode that is clearly labeled | High | Low |
-| Write pilot feedback form | High | Low |
+| Write pilot feedback form (3-month structure: mid-pilot + final) | High | Low |
 | Create known limitations page | High | Low |
+| Draft pilot agreement template (3-month minimum, mutual-exit clauses, no-IP-grab) | Critical | Low |
+| Stand up the two pricing tiers (flat-per-org and per-endpoint) in a price page; let pilots choose | High | Low |
 
 ### Definition of done
 
-A pilot user understands what the product collects, what it does not collect, and what the results mean.
+A pilot user understands what the product collects, what it does not collect, and what the results mean. The 3-month minimum is documented and accepted in writing. Pricing is shown in both flat and per-endpoint forms.
 
 ## Workstream 6.2 — MSP/client management
 
@@ -1473,6 +1681,9 @@ Scanner ships signed for Linux and Windows. Cross-org access is provably blocked
 - **Add `forecasting.py` and three endpoints: vendor momentum, sector trends, watchlist.**
 - **Add forecasting page + dashboard widgets ("Rising Risks").**
 - **Audit copy: replace "predict" with "trend/momentum/watchlist" wherever not literal.**
+- **Add `monthly_report_snapshots` table and "compared to last month" panel to the report.**
+- **Add monthly cron job that emails the PDF + HTML summary to per-org recipient lists.**
+- **Add tokenized share link for recipients to view the report online without logging in.**
 
 ### Deliverable
 
@@ -1704,6 +1915,13 @@ This consolidates the cross-cutting work referenced throughout the plan into one
 | Add server-side PDF + report mode toggle + evidence citations | Reporting | Very High | Medium | Month 5 |
 | Add forecasting.py (vendor momentum, sector trends, watchlist) | Predictive | High | Medium | Month 5 |
 | Multi-tenancy isolation tests | Security | Very High | Medium | Month 5 |
+| Month-over-month report comparison view (consistency feature) | Reporting | Very High | Low/Medium | Month 5 |
+| Email-delivered monthly report (push, not pull) | Reporting | Very High | Medium | Month 5 |
+| Security Profile / Partner Questionnaire pack | Wedge feature | Very High | Medium | Month 6 (validation-gated) |
+| Cloud auto-discovery onboarding (M365 OAuth first) | Onboarding | High | High | Month 2–3 |
+| Segment classification in every interview log | Validation | High | Trivial | Week 0 (ongoing) |
+| Two-pricing-model pilot test (flat-per-org + per-endpoint) | Business model | High | Low | Month 6 |
+| 3-month minimum pilot agreement template | Business model | High | Low | Month 6 |
 
 ## Medium priority
 
