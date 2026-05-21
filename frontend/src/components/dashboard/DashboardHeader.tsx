@@ -81,6 +81,12 @@ const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout }
                                         Assessment Debug
                                     </button>
                                 )}
+                                <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/data-handling'); }}>
+                                    Data Handling
+                                </button>
+                                <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/privacy'); }}>
+                                    Privacy
+                                </button>
                                 <button className="user-dropdown-item" role="menuitem" onClick={async () => { await onLogout(); navigate('/'); }}>
                                     Log Out
                                 </button>
