@@ -59,9 +59,7 @@ _ORG_SCOPED_MODELS_BY_ORG_ID: tuple[type, ...] = (
 )
 
 
-async def _delete_org_scoped_rows(
-    session: AsyncSession, org_id: int
-) -> dict[str, int]:
+async def _delete_org_scoped_rows(session: AsyncSession, org_id: int) -> dict[str, int]:
     """Delete rows for the org across all known tenant-scoped tables.
 
     Returns a per-table count for the audit log payload.
@@ -216,7 +214,7 @@ async def export_organization(
         for table_idx, (table_name, fk_column) in enumerate(table_specs):
             if table_idx > 0:
                 yield b", "
-            yield f"{json.dumps(table_name)}: [".encode("utf-8")
+            yield f"{json.dumps(table_name)}: [".encode()
             stream_session = AsyncSessionLocal()
             try:
                 rows = await stream_session.execute(

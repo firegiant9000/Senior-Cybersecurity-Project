@@ -149,8 +149,8 @@ python scripts/ingest_real_data.py --skip-nvd --skip-ic3 --econ
 
 ```ini
 # Required for full functionality
-NVD_API_KEY=A378984C-8616-F111-8369-0EBF96DE670D
-CENSUS_API_KEY=a866f48bdbfeeba0da0da1a87033b52d52ba84a7
+NVD_API_KEY=<your-nvd-api-key-uuid>
+CENSUS_API_KEY=<your-census-api-key>
 
 # Optional (already in .env)
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/cyber_threat_db

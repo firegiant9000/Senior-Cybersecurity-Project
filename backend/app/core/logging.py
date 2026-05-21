@@ -18,10 +18,29 @@ user_id_ctx: ContextVar[str] = ContextVar("user_id", default="")
 
 
 _RESERVED_LOG_RECORD_ATTRS = {
-    "name", "msg", "args", "levelname", "levelno", "pathname", "filename",
-    "module", "exc_info", "exc_text", "stack_info", "lineno", "funcName",
-    "created", "msecs", "relativeCreated", "thread", "threadName",
-    "processName", "process", "message", "asctime", "taskName",
+    "name",
+    "msg",
+    "args",
+    "levelname",
+    "levelno",
+    "pathname",
+    "filename",
+    "module",
+    "exc_info",
+    "exc_text",
+    "stack_info",
+    "lineno",
+    "funcName",
+    "created",
+    "msecs",
+    "relativeCreated",
+    "thread",
+    "threadName",
+    "processName",
+    "process",
+    "message",
+    "asctime",
+    "taskName",
 }
 
 
@@ -57,7 +76,7 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, default=str)
 
 
-def setup_logging(log_level: str = "DEBUG", json_output: bool = True) -> None:
+def setup_logging(log_level: str = "DEBUG", *, json_output: bool = True) -> None:
     """Configure logging for the application.
 
     json_output=True emits one JSON object per line (production / staging).

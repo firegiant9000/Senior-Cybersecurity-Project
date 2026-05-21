@@ -148,5 +148,3 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         response.headers[_OUTBOUND_REQUEST_ID_HEADER] = rid
         return response
-
-
