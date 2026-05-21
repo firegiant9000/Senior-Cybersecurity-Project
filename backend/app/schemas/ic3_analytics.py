@@ -2,6 +2,10 @@
 
 from pydantic import BaseModel  # type: ignore[import-not-found]
 
+# Single source of truth for the IC3 disclosure label (mirrored in
+# app.services.data_status.IC3_STATIC_SOURCE_LABEL).
+IC3_SOURCE_LABEL = "FBI IC3 2023 annual report (static summary)"
+
 
 class AttackTypeStats(BaseModel):
     """Statistics for a specific attack type."""
@@ -58,6 +62,7 @@ class DashboardSummary(BaseModel):
     attack_type_count: int
     sector_count: int
     state_count: int
+    source: str = IC3_SOURCE_LABEL
 
 
 class AttackTypeListResponse(BaseModel):
@@ -65,6 +70,7 @@ class AttackTypeListResponse(BaseModel):
 
     items: list[AttackTypeStats]
     year: int | None = None
+    source: str = IC3_SOURCE_LABEL
 
 
 class IndustryRiskResponse(BaseModel):
@@ -72,6 +78,7 @@ class IndustryRiskResponse(BaseModel):
 
     items: list[IndustryRiskProfile]
     year: int | None = None
+    source: str = IC3_SOURCE_LABEL
 
 
 class GeographicHeatmapResponse(BaseModel):
@@ -79,6 +86,7 @@ class GeographicHeatmapResponse(BaseModel):
 
     items: list[GeographicThreat]
     year: int | None = None
+    source: str = IC3_SOURCE_LABEL
 
 
 class TemporalTrendResponse(BaseModel):
@@ -87,6 +95,7 @@ class TemporalTrendResponse(BaseModel):
     items: list[TemporalTrend]
     attack_type: str | None = None
     sector: str | None = None
+    source: str = IC3_SOURCE_LABEL
 
 
 class SectorAttackMatrixResponse(BaseModel):
@@ -94,3 +103,4 @@ class SectorAttackMatrixResponse(BaseModel):
 
     items: list[SectorAttackCombination]
     year: int | None = None
+    source: str = IC3_SOURCE_LABEL

@@ -2,6 +2,9 @@
 
 from pydantic import BaseModel  # type: ignore[import-not-found]  # pylint: disable=import-error
 
+# Mirrored from app.services.data_status.IC3_STATIC_SOURCE_LABEL.
+IC3_SOURCE_LABEL = "FBI IC3 2023 annual report (static summary)"
+
 # Allowed values for the sort_by query parameter.
 ALLOWED_SORT_FIELDS = frozenset(
     {
@@ -37,6 +40,7 @@ class IC3IncidentListResponse(BaseModel):
     page: int
     page_size: int
     items: list[IC3IncidentItem]
+    source: str = IC3_SOURCE_LABEL
 
 
 class IC3FilterOptionsResponse(BaseModel):
@@ -45,3 +49,4 @@ class IC3FilterOptionsResponse(BaseModel):
     attack_types: list[str]
     states: list[str]
     years: list[int]
+    source: str = IC3_SOURCE_LABEL
