@@ -52,9 +52,9 @@ async def list_exploited_vulnerabilities(
 ) -> ExploitedVulnListResponse:
     """List exploited vulnerabilities from the CISA KEV catalog.
 
-    Paginated, sortable, and filterable.  In demo mode the data comes from a
-    local JSON fixture; set ``ENABLE_DEMO_MODE=False`` to query the database
-    instead.
+    Paginated, sortable, and filterable. When the caller's organisation has
+    ``is_demo=True`` the data is served from a curated JSON fixture; all
+    other callers hit the live database.
     """
     if sort_by not in ALLOWED_SORT_FIELDS:
         raise HTTPException(

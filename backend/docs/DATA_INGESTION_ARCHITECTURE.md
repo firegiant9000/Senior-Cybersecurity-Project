@@ -154,8 +154,11 @@ CENSUS_API_KEY=a866f48bdbfeeba0da0da1a87033b52d52ba84a7
 
 # Optional (already in .env)
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/cyber_threat_db
-ENABLE_DEMO_MODE=false
 ```
+
+Demo data is no longer toggled by a global env var. Seed a demo
+organisation with `python -m scripts.seed_demo_org` instead — repositories
+serve curated fixtures when the caller's org has `is_demo=true`.
 
 ### Python Settings (app/core/config.py)
 

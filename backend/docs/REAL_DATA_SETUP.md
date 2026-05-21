@@ -142,7 +142,9 @@ docker-compose up -d db
 See `backend/app/core/config.py` for available settings:
 - `NVD_API_KEY` - Your NIST NVD API key UUID
 - `CENSUS_API_KEY` - Your Census Bureau API key
-- `ENABLE_DEMO_MODE` - Set to `False` to disable demo ingestors
+
+Demo mode is per-organisation (`organizations.is_demo`), not a global flag.
+Seed a demo org with `python -m scripts.seed_demo_org`.
 
 ## Next Steps
 
