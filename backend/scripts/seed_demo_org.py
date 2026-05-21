@@ -31,6 +31,7 @@ from sqlalchemy import select
 
 from app.db.engine import AsyncSessionLocal
 from app.db.organization import Organization
+from app.db.user import User  # noqa: F401  # registers User mapper for Organization.members
 
 logger = logging.getLogger(__name__)
 
