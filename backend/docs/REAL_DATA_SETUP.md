@@ -16,10 +16,10 @@ Create or update `backend/.env` with your activated API keys:
 
 ```bash
 # Your NVD API Key UUID (from: https://nvd.nist.gov/developers/confirm-api-key)
-NVD_API_KEY=A378984C-8616-F111-8369-0EBF96DE670D
+NVD_API_KEY=<your-nvd-api-key-uuid>
 
 # Your Census API Key (from: https://api.census.gov/data/key_signup.html)
-CENSUS_API_KEY=a866f48bdbfeeba0da0da1a87033b52d52ba84a7
+CENSUS_API_KEY=<your-census-api-key>
 ```
 
 ### 2. Ensure Database is Running

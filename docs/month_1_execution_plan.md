@@ -38,11 +38,11 @@ Operational tasks the code change can't complete. Track as follow-up issues if n
 - [ ] **Set `SENTRY_DSN` + `VITE_SENTRY_DSN` in staging/prod** — observability is a no-op without these.
 - [ ] **Run [backend/tests/test_data_lifecycle.py](../backend/tests/test_data_lifecycle.py) against the staging DB** to confirm cascade behaviour against real data shapes (local CI Postgres covers schema correctness).
 - [ ] **Manual staging walk-through** — log in, view labeled dashboard, mark an org `is_demo`, delete a throwaway org, export it, hit an intentional 500 and confirm Sentry event with `request_id` + scrubbed payload.
-- [ ] **Sentry source-map upload for the frontend build** — currently stack traces in production are minified. Defer to a Phase F or follow-up CI ticket.
+- [x] **Sentry source-map upload for the frontend build** — Vite emits `hidden` sourcemaps; `deploy-frontend` job uploads them via `getsentry/action-release@v1` when `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` secrets are set, then strips `*.map` files from `dist/` before Firebase deploy so they aren't served publicly. Requires setting the three GitHub Actions secrets to activate; otherwise the step warns and is skipped.
 
 ## Pre-existing finding (out of scope, flag separately)
 
-[backend/docs/REAL_DATA_SETUP.md](../backend/docs/REAL_DATA_SETUP.md):152 contains what looks like a real NVD API key on `main`. Rotate and scrub in a separate commit; not introduced by this branch.
+Real NVD + Census API keys were checked into four docs on `main` (not introduced by this branch): [backend/docs/REAL_DATA_SETUP.md](../backend/docs/REAL_DATA_SETUP.md), [backend/docs/DATA_INGESTION_ARCHITECTURE.md](../backend/docs/DATA_INGESTION_ARCHITECTURE.md), [backend/INGESTION_COMPLETE.md](../backend/INGESTION_COMPLETE.md), [backend/REAL_DATA_QUICK_REF.md](../backend/REAL_DATA_QUICK_REF.md). Scrubbed to placeholders on this branch. **Keys must still be rotated at NIST NVD and Census** — they remain valid in git history until rotated.
 
 ---
 

@@ -62,9 +62,7 @@ async def admin_user_and_org():
 
         session.add_all(
             [
-                Membership(
-                    user_id=admin.id, org_id=org.id, role="owner", status="active"
-                ),
+                Membership(user_id=admin.id, org_id=org.id, role="owner", status="active"),
                 OrgDomain(org_id=org.id, domain_name=f"{_unique('ex')}.com"),
                 OrgVendor(org_id=org.id, vendor_name=_unique("Acme")),
             ]
@@ -76,16 +74,12 @@ async def admin_user_and_org():
 
         # Best-effort tidy if the DELETE path under test didn't run.
         await session.execute(User.__table__.delete().where(User.id == admin.id))
-        await session.execute(
-            Organization.__table__.delete().where(Organization.id == org.id)
-        )
+        await session.execute(Organization.__table__.delete().where(Organization.id == org.id))
         await session.commit()
 
 
 @pytest.mark.asyncio
-async def test_delete_org_purges_tenant_rows_and_audits(
-    client: AsyncClient, admin_user_and_org
-):
+async def test_delete_org_purges_tenant_rows_and_audits(client: AsyncClient, admin_user_and_org):
     admin, org = admin_user_and_org
 
     async def _admin():
@@ -121,9 +115,7 @@ async def test_delete_org_purges_tenant_rows_and_audits(
 
 
 @pytest.mark.asyncio
-async def test_export_org_streams_json_and_audits(
-    client: AsyncClient, admin_user_and_org
-):
+async def test_export_org_streams_json_and_audits(client: AsyncClient, admin_user_and_org):
     admin, org = admin_user_and_org
 
     async def _admin():

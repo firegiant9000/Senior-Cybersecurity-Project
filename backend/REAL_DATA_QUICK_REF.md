@@ -99,8 +99,8 @@ python scripts/ingest_real_data.py --econ
 ## API Keys You Have
 
 ```
-NVD:    A378984C-8616-F111-8369-0EBF96DE670D
-Census: a866f48bdbfeeba0da0da1a87033b52d52ba84a7
+NVD:    <your-nvd-api-key-uuid>
+Census: <your-census-api-key>
 ```
 
 Both in `.env`:
