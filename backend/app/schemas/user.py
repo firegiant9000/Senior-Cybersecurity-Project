@@ -14,5 +14,6 @@ class UserRead(BaseModel):
     created_at: datetime
     org_id: int | None = None
     org_role: str | None = None
+    org_is_demo: bool = False
 
     model_config = {"from_attributes": True}
