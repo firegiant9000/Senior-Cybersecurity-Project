@@ -31,6 +31,38 @@ import WidgetSkeleton from '../shared/WidgetSkeleton';
 import AssessmentBanner from '../shared/AssessmentBanner';
 import { COLORS } from '../../theme';
 import InfoTip, { getAcronymDefinition } from '../shared/InfoTip';
+import SourceBadge from '../shared/SourceBadge';
+import ThreatOverviewWidget from './ThreatOverviewWidget';
+
+// Maps an overview widget id to its registered dataset key in
+// backend/app/services/data_status.py — drives the source-status badges.
+const WIDGET_DATASET_KEY: Record<string, string> = {
+    executiveSummary: 'executive_summary',
+    vendorAlerts: 'vendor_alerts',
+    emergingThreats: 'kev',
+    cyberMap: 'ic3_geographic',
+    malwareChart: 'ic3_incidents',
+    totalAttempts: 'ic3_incidents',
+    totalLosses: 'ic3_incidents',
+    progression: 'nvd_cves',
+    avgLoss: 'ic3_incidents',
+    cvesExploited: 'kev',
+    projectedLoss: 'loss_projection',
+    attackTypeCount: 'ic3_incidents',
+    stateCount: 'ic3_geographic',
+    totalCves: 'nvd_cves',
+    avgRiskScore: 'risk_score',
+    criticalRiskCves: 'risk_score',
+    ic3Anomalies: 'anomalies_ic3',
+    escalatingSectors: 'ic3_temporal_trends',
+    incidentMgmt: 'ic3_sector_attack_matrix',
+    cyberRisks: 'ic3_incidents',
+    heatmap: 'ic3_sector_attack_matrix',
+    lossAttack: 'ic3_incidents',
+    avgLossSector: 'ic3_incidents',
+    complaintsSector: 'ic3_incidents',
+    sectorTable: 'ic3_incidents',
+};
 
 function fmtMoney(v: number): string {
   if (v >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(1)}B`;
@@ -1009,6 +1041,10 @@ const OverviewTab: React.FC<Props> = ({
                 </div>
             )}
 
+            <WidgetErrorBoundary title="Threat Intelligence Overview">
+                <ThreatOverviewWidget data={dashboardData} loading={dashboardLoading} />
+            </WidgetErrorBoundary>
+
             {show('executiveSummary') && (
                 <ExecutiveSummaryCard
                     data={dashboardData.executiveSummary}
@@ -1123,6 +1159,12 @@ const OverviewTab: React.FC<Props> = ({
                                 {!isSource && renderGridWidget(
                                     id, dashboardData, dashboardLoading, dashboardLoadingHeavy,
                                     complaintChange, lossChange, thisYear, totalNvdCves, pctExploited,
+                                )}
+                                {!isSource && WIDGET_DATASET_KEY[id] && (
+                                    <SourceBadge
+                                        datasetKey={WIDGET_DATASET_KEY[id]}
+                                        className="widget-source-badge"
+                                    />
                                 )}
                                 {!isSource && <span className="widget-drag-handle" aria-hidden="true">⠿</span>}
                                 {isSwapTarget && (

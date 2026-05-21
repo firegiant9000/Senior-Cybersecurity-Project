@@ -1,0 +1,144 @@
+.threat-overview-widget {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin: 8px 0 12px;
+}
+
+.threat-overview-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 12px;
+    border-right: 1px solid var(--border);
+}
+
+.threat-overview-stat:last-child {
+    border-right: none;
+}
+
+.threat-overview-stat__label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.threat-overview-stat__value {
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--text-primary);
+}
+
+.threat-overview-stat__sub {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.threat-overview-vendors {
+    grid-column: span 2;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 12px;
+}
+
+.threat-overview-vendors__title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.threat-overview-vendors__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.threat-overview-vendors__item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-primary);
+}
+
+.threat-overview-vendors__rank {
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-right: 6px;
+}
+
+.threat-overview-glossary {
+    grid-column: 1 / -1;
+    background: rgba(0, 188, 212, 0.06);
+    border: 1px solid rgba(0, 188, 212, 0.25);
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.threat-overview-glossary__term {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.threat-overview-glossary__abbr {
+    font-weight: 700;
+    color: #00838f;
+    font-size: 12px;
+}
+
+.threat-overview-glossary__def {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.threat-overview-header {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 0 4px;
+}
+
+.threat-overview-header__title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.threat-overview-header__ingest {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+@media (max-width: 900px) {
+    .threat-overview-widget {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .threat-overview-vendors,
+    .threat-overview-glossary {
+        grid-column: 1 / -1;
+    }
+    .threat-overview-glossary {
+        grid-template-columns: 1fr;
+    }
+}

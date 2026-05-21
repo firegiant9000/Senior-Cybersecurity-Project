@@ -181,6 +181,16 @@
     min-height: 0;
 }
 
+/* Source-status badge — positioned top-left so it never collides with the
+   drag handle (top-right). Visible at rest; tooltip on hover. */
+.widget-source-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 4;
+    pointer-events: auto;
+}
+
 /* Drag handle — appears on card hover, absolutely positioned top-right */
 .widget-drag-handle {
     position: absolute;
