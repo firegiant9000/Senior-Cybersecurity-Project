@@ -1,4 +1,4 @@
-"""Vendor routes — org technology stack management + KEV autocomplete + global catalog."""
+"""Vendor routes — org technology stack management + KEV autocomplete."""
 
 import csv
 import io
@@ -19,10 +19,6 @@ from app.db.models import KEV
 from app.db.user import User
 from app.repositories.normalization_log_repo import fire_and_forget_normalization_log
 from app.repositories.org_vendor import SqlOrgVendorRepository, get_vendor_repo
-from app.repositories.technology_vendor import (
-    SqlTechnologyVendorRepository,
-    get_technology_vendor_repo,
-)
 from app.schemas.org_vendor import (
     OrgVendorCreate,
     OrgVendorImportPreviewResponse,
@@ -30,11 +26,6 @@ from app.schemas.org_vendor import (
     OrgVendorListResponse,
     OrgVendorRead,
     OrgVendorUpdate,
-)
-from app.schemas.technology_vendor import (
-    TechnologyVendorCreate,
-    TechnologyVendorRead,
-    TechnologyVendorUpdate,
 )
 
 logger = logging.getLogger(__name__)
@@ -87,42 +78,6 @@ def _parse_csv_rows(
 
         rows.append({"vendor_name": vendor_name, "product_name": product_name})
     return rows, errors
-
-
-MAX_TECHNOLOGY_CSV_ROWS = 500
-
-
-def _parse_technology_vendor_csv(
-    reader: csv.DictReader,  # type: ignore[type-arg]
-) -> list[TechnologyVendorCreate]:
-    """Parse a technology vendor CSV using the required header names."""
-    rows: list[TechnologyVendorCreate] = []
-
-    for i, row in enumerate(reader, start=2):
-        if len(rows) >= MAX_TECHNOLOGY_CSV_ROWS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"CSV file must not contain more than {MAX_TECHNOLOGY_CSV_ROWS} rows",
-            )
-
-        name = (row.get("Vendor Name") or "").strip()
-        version = (row.get("Version") or "").strip()
-        category = (row.get("Category") or "").strip()
-
-        if not name:
-            raise HTTPException(status_code=400, detail=f"Row {i}: missing Vendor Name")
-        if len(name) > 255:
-            raise HTTPException(
-                status_code=400, detail=f"Row {i}: Vendor Name exceeds 255 characters"
-            )
-        if len(version) > 255:
-            raise HTTPException(status_code=400, detail=f"Row {i}: Version exceeds 255 characters")
-        if len(category) > 255:
-            raise HTTPException(status_code=400, detail=f"Row {i}: Category exceeds 255 characters")
-
-        rows.append(TechnologyVendorCreate(name=name, version=version, category=category))
-
-    return rows
 
 
 _check_org_access = check_org_access  # backward-compat alias
@@ -193,130 +148,6 @@ async def suggest_vendors(
         {"vendor_name": row.vendor_name, "score": round(float(row.score), 3)}
         for row in result.all()
     ]
-
-
-# ---- Global technology vendor catalog CRUD ----
-
-
-@router.get("/vendors", response_model=list[TechnologyVendorRead])
-@limiter.limit(settings.RATE_LIMIT_DATA)
-async def list_technology_vendors(
-    request: Request,  # noqa: ARG001
-    current_user: User = Depends(get_current_user),  # noqa: ARG001
-    repo: SqlTechnologyVendorRepository = Depends(get_technology_vendor_repo),
-):
-    """List all technology vendors in the catalog."""
-    try:
-        vendors = await repo.list_vendors()
-    except SQLAlchemyError:
-        logger.exception("Failed to list technology vendors")
-        raise HTTPException(status_code=500, detail="Failed to list vendors")
-    return [TechnologyVendorRead.model_validate(v) for v in vendors]
-
-
-@router.post("/vendors", response_model=TechnologyVendorRead, status_code=201)
-@limiter.limit(settings.RATE_LIMIT_DATA)
-async def create_technology_vendor(
-    request: Request,  # noqa: ARG001
-    body: TechnologyVendorCreate,
-    current_user: User = Depends(get_current_user),  # noqa: ARG001
-    repo: SqlTechnologyVendorRepository = Depends(get_technology_vendor_repo),
-):
-    """Create a technology vendor entry."""
-    try:
-        vendor = await repo.create(body)
-    except SQLAlchemyError:
-        logger.exception("Failed to create technology vendor")
-        raise HTTPException(status_code=500, detail="Failed to add vendor")
-    return vendor
-
-
-@router.post("/vendors/upload", response_model=list[TechnologyVendorRead], status_code=201)
-@limiter.limit(settings.RATE_LIMIT_DATA)
-async def upload_technology_vendors(
-    request: Request,  # noqa: ARG001
-    file: UploadFile,
-    current_user: User = Depends(get_current_user),  # noqa: ARG001
-    repo: SqlTechnologyVendorRepository = Depends(get_technology_vendor_repo),
-):
-    """Upload technology vendors from a CSV file.
-
-    Expected CSV columns: Vendor Name, Version, Category.
-    """
-    if file.content_type and file.content_type not in (
-        "text/csv",
-        "application/vnd.ms-excel",
-        "application/octet-stream",
-    ):
-        raise HTTPException(status_code=400, detail="File must be a CSV")
-
-    try:
-        raw = await file.read()
-        text = raw.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        raise HTTPException(status_code=400, detail="File must be UTF-8 encoded")
-
-    reader = csv.DictReader(io.StringIO(text))
-    if not reader.fieldnames:
-        raise HTTPException(status_code=400, detail="CSV must include a header row")
-    required = {"Vendor Name", "Version", "Category"}
-    if not required.issubset({name.strip() for name in reader.fieldnames if name}):
-        raise HTTPException(
-            status_code=400,
-            detail="CSV must contain Vendor Name, Version, and Category columns",
-        )
-
-    rows = _parse_technology_vendor_csv(reader)
-    created: list[TechnologyVendorRead] = []
-
-    for row in rows:
-        try:
-            vendor = await repo.create(row)
-        except SQLAlchemyError:
-            logger.exception("Failed to create technology vendor from CSV row")
-            raise HTTPException(status_code=500, detail="Failed to import vendors")
-        created.append(TechnologyVendorRead.model_validate(vendor))
-
-    return created
-
-
-@router.put("/vendors/{vendor_id}", response_model=TechnologyVendorRead)
-@limiter.limit(settings.RATE_LIMIT_DATA)
-async def update_technology_vendor(
-    request: Request,  # noqa: ARG001
-    vendor_id: int,
-    body: TechnologyVendorUpdate,
-    current_user: User = Depends(get_current_user),  # noqa: ARG001
-    repo: SqlTechnologyVendorRepository = Depends(get_technology_vendor_repo),
-):
-    """Update a technology vendor entry."""
-    try:
-        vendor = await repo.update(vendor_id, body)
-    except SQLAlchemyError:
-        logger.exception("Failed to update technology vendor %s", vendor_id)
-        raise HTTPException(status_code=500, detail="Failed to update vendor")
-    if vendor is None:
-        raise HTTPException(status_code=404, detail="Vendor not found")
-    return vendor
-
-
-@router.delete("/vendors/{vendor_id}", status_code=204)
-@limiter.limit(settings.RATE_LIMIT_DATA)
-async def delete_technology_vendor(
-    request: Request,  # noqa: ARG001
-    vendor_id: int,
-    current_user: User = Depends(get_current_user),  # noqa: ARG001
-    repo: SqlTechnologyVendorRepository = Depends(get_technology_vendor_repo),
-):
-    """Delete a technology vendor entry."""
-    try:
-        deleted = await repo.delete(vendor_id)
-    except SQLAlchemyError:
-        logger.exception("Failed to delete technology vendor %s", vendor_id)
-        raise HTTPException(status_code=500, detail="Failed to delete vendor")
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Vendor not found")
-    return None
 
 
 # ---- Org-scoped vendor CRUD ----
