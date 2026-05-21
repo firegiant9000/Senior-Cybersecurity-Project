@@ -31,7 +31,6 @@ def _import_all_orm_models() -> None:
     import app.db.org_upload  # noqa: F401
     import app.db.org_vendor  # noqa: F401
     import app.db.organization  # noqa: F401
-    import app.db.technology_vendor  # noqa: F401
     import app.db.user  # noqa: F401
     import app.models.ingest_run  # noqa: F401
 
