@@ -6,6 +6,8 @@ from app.api.routes.v1 import (
     anomalies,
     assessments,
     auth,
+    data_lifecycle,
+    data_status,
     domains,
     economics,
     health,
@@ -31,6 +33,9 @@ router.include_router(auth.router)
 # Public aggregate stats for logged-out landing page.
 router.include_router(public.router, tags=["public"])
 
+# Data-source transparency: public so the landing page can render badges too.
+router.include_router(data_status.router, tags=["data-status"])
+
 # All data-read routers require at least the "viewer" role.
 _viewer = [Depends(require_role("viewer"))]
 
@@ -52,6 +57,9 @@ router.include_router(
     tags=["organizations"],
     dependencies=_viewer,
 )
+
+# Org data-lifecycle (delete + export) — admin-only, audit-logged.
+router.include_router(data_lifecycle.router, tags=["data-lifecycle"])
 
 # Onboarding: self-service org creation (auth required, no role gate).
 router.include_router(onboarding.router)
