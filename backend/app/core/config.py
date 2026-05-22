@@ -53,6 +53,16 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
 
     # Logging
     LOG_LEVEL: str = "DEBUG"
+    # JSON logs default off so local devs see readable output. Production /
+    # staging deployments set LOG_JSON=true via env so log aggregators get
+    # structured JSON.
+    LOG_JSON: bool = False
+
+    # Observability (Sentry)
+    SENTRY_DSN: str = ""  # empty disables Sentry entirely (safe default for dev/tests)
+    SENTRY_ENVIRONMENT: str = ""  # defaults to APP_ENV when blank
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.0  # 0.0 disables performance tracing
+    SENTRY_RELEASE: str = ""  # optional, e.g., git SHA injected at deploy time
 
     # Frontend
     FRONTEND_URL: str = ""  # must be set explicitly per environment
@@ -74,9 +84,6 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     SECRET_KEY: str = "change-me-in-production"  # retained for non-auth signing if needed
     GOOGLE_APPLICATION_CREDENTIALS: str = ""
     FIREBASE_PROJECT_ID: str = ""
-
-    # Feature flags
-    ENABLE_DEMO_MODE: bool = False
 
     # External API Keys for Data Ingestion
     NVD_API_KEY: str = ""

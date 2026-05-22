@@ -16,10 +16,10 @@ Create or update `backend/.env` with your activated API keys:
 
 ```bash
 # Your NVD API Key UUID (from: https://nvd.nist.gov/developers/confirm-api-key)
-NVD_API_KEY=A378984C-8616-F111-8369-0EBF96DE670D
+NVD_API_KEY=<your-nvd-api-key-uuid>
 
 # Your Census API Key (from: https://api.census.gov/data/key_signup.html)
-CENSUS_API_KEY=a866f48bdbfeeba0da0da1a87033b52d52ba84a7
+CENSUS_API_KEY=<your-census-api-key>
 ```
 
 ### 2. Ensure Database is Running
@@ -142,7 +142,9 @@ docker-compose up -d db
 See `backend/app/core/config.py` for available settings:
 - `NVD_API_KEY` - Your NIST NVD API key UUID
 - `CENSUS_API_KEY` - Your Census Bureau API key
-- `ENABLE_DEMO_MODE` - Set to `False` to disable demo ingestors
+
+Demo mode is per-organisation (`organizations.is_demo`), not a global flag.
+Seed a demo org with `python -m scripts.seed_demo_org`.
 
 ## Next Steps
 

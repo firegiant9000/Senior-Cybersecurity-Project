@@ -9,7 +9,10 @@ import OrgProfilePage from "./pages/OrgProfilePage.tsx";
 import AcceptInvitePage from "./pages/AcceptInvitePage.tsx";
 import ExecutiveReportPage from "./pages/ExecutiveReportPage.tsx";
 import GlossaryPage from "./pages/GlossaryPage.tsx";
+import PrivacyPage from "./pages/PrivacyPage.tsx";
+import DataHandlingPage from "./pages/DataHandlingPage.tsx";
 import ProtectedRoute from "./components/ProtectedRoute.tsx";
+import DemoBanner from "./components/DemoBanner.tsx";
 import { useAuth } from "./context/AuthContext.tsx";
 
 
@@ -22,6 +25,8 @@ function RootRoute() {
 
 function App() {
   return (
+    <>
+      <DemoBanner />
     <Routes>
       <Route path="/" element={<RootRoute />} />
       <Route path="/login" element={<LoginPage />} />
@@ -90,6 +95,8 @@ function App() {
           </ProtectedRoute>
         }
       />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/data-handling" element={<DataHandlingPage />} />
       <Route
         path="/*"
         element={
@@ -99,6 +106,7 @@ function App() {
         }
       />
     </Routes>
+    </>
   );
 }
 

@@ -69,6 +69,31 @@ jobs:
       - name: Run database migrations
         run: alembic -c app/db/alembic.ini upgrade head
 
+      - name: Verify single Alembic head
+        run: |
+          python - <<'PY'
+          import sys
+          from alembic.config import Config
+          from alembic.script import ScriptDirectory
+          sd = ScriptDirectory.from_config(Config("app/db/alembic.ini"))
+          heads = sd.get_heads()
+          if len(heads) != 1:
+              print(f"::error::Expected exactly 1 Alembic head, found {len(heads)}: {heads}")
+              print("Merge migration branches before merging.")
+              sys.exit(1)
+          print(f"Single head OK: {heads[0]}")
+          PY
+
+      # Advisory only until pre-existing model↔migration drift is resolved.
+      # First clean enable of this step exposed real drift on `main` that
+      # predates this branch (audit_log.payload JSON↔JSONB, the
+      # compliance_framework_status column orphaned by a model removal, trgm
+      # indexes that alembic can't introspect, etc.). Flip to a hard gate in
+      # the follow-up "schema drift cleanup" PR.
+      - name: Detect model/migration drift (alembic check, advisory)
+        continue-on-error: true
+        run: alembic -c app/db/alembic.ini check
+
       - name: Run tests
         run: pytest -v tests/
 
@@ -156,6 +181,7 @@ jobs:
           VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
 
       - name: Deploy preview channel
         uses: FirebaseExtended/action-hosting-deploy@v0
@@ -200,9 +226,35 @@ jobs:
           VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
 
       - name: Verify build output exists
         run: test -f dist/index.html || (echo "Build output missing!" && exit 1)
+
+      - name: Check Sentry source-map config
+        id: sentry-check
+        run: |
+          if [ -n "${{ secrets.SENTRY_AUTH_TOKEN }}" ] && [ -n "${{ secrets.SENTRY_ORG }}" ] && [ -n "${{ secrets.SENTRY_PROJECT }}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SENTRY_AUTH_TOKEN/ORG/PROJECT not all set; skipping source-map upload"
+          fi
+
+      - name: Upload source maps to Sentry
+        if: steps.sentry-check.outputs.enabled == 'true'
+        uses: getsentry/action-release@v1
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        with:
+          environment: production
+          sourcemaps: ./frontend/dist
+          working_directory: frontend
+
+      - name: Strip source maps from deploy artifact
+        run: find dist -name '*.map' -delete
 
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0

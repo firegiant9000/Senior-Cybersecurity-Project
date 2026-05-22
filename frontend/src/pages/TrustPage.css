@@ -1,0 +1,76 @@
+.trust-page {
+  max-width: 880px;
+  margin: 24px auto;
+  padding: 0 20px;
+}
+
+.trust-card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 28px 32px;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+.trust-card h2 {
+  font-size: 18px;
+  margin-top: 28px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+
+.trust-card h2:first-of-type {
+  margin-top: 0;
+}
+
+.trust-card p {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.trust-card ul {
+  margin: 0 0 14px;
+  padding-left: 22px;
+  font-size: 14px;
+}
+
+.trust-card li {
+  margin-bottom: 4px;
+}
+
+.trust-card table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.trust-card th,
+.trust-card td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.trust-card th {
+  color: var(--text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+}
+
+.trust-card a {
+  color: #00838f;
+  text-decoration: underline;
+}
+
+.trust-page-intro {
+  margin: 0 0 24px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
