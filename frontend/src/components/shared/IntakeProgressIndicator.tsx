@@ -100,10 +100,18 @@ const IntakeProgressIndicator: React.FC<Props> = ({ preview, loading }) => {
 
   const currentLabel = TIER_LABEL[preview.current_tier];
   const nextLabel = preview.next_tier ? TIER_LABEL[preview.next_tier] : null;
-  const nextTierRemaining =
-    preview.tiers
-      .find((t) => t.tier === preview.next_tier)
-      ?.requirements.filter((r) => !r.met).length ?? 0;
+  const nextTierRequirements =
+    preview.tiers.find((t) => t.tier === preview.next_tier)?.requirements ?? [];
+  const nextTierUnmet = nextTierRequirements.filter((r) => !r.met);
+  const nextTierRemaining = nextTierUnmet.length;
+  // Phase B6: surface the *specific* unmet requirement so the next-step
+  // copy reads as "Add industry to unlock Enhanced", not just a count.
+  // The first unmet requirement is the highest-impact field because the
+  // tier ladder lists them in priority order.
+  const nextTierUnlocks =
+    preview.tiers.find((t) => t.tier === preview.next_tier)?.unlocks ?? [];
+  const nextHintField = nextTierUnmet[0]?.label ?? null;
+  const nextHintUnlock = nextTierUnlocks[0] ?? null;
 
   return (
     <div
@@ -144,7 +152,11 @@ const IntakeProgressIndicator: React.FC<Props> = ({ preview, loading }) => {
                 Next milestone
               </span>
               <span className="intake-progress-indicator-next-text">
-                {nextTierRemaining} more to unlock {nextLabel}
+                {nextHintField
+                  ? `Add ${nextHintField.toLowerCase()} to unlock ${
+                      nextHintUnlock ?? nextLabel
+                    }`
+                  : `${nextTierRemaining} more to unlock ${nextLabel}`}
               </span>
             </>
           ) : (

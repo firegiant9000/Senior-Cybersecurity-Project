@@ -17,6 +17,8 @@ class NvdCveItem(BaseModel):
     severity_score: float | None
     published_date: str | None  # ISO YYYY-MM-DD NVD publication date
     last_modified: str | None  # ISO YYYY-MM-DD NVD last-modified date
+    epss_score: float | None = None  # 30-day exploitation probability (0–1)
+    epss_percentile: float | None = None  # 0–1 percentile rank vs. all scored CVEs
 
 
 class NvdCveListResponse(BaseModel):
@@ -26,3 +28,9 @@ class NvdCveListResponse(BaseModel):
     page: int
     page_size: int
     items: list[NvdCveItem]
+
+
+class NvdCveDetailResponse(NvdCveItem):
+    """Single-CVE response with EPSS metadata."""
+
+    epss_fetched_at: str | None = None

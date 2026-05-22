@@ -11,6 +11,9 @@ import ExecutiveReportPage from "./pages/ExecutiveReportPage.tsx";
 import GlossaryPage from "./pages/GlossaryPage.tsx";
 import PrivacyPage from "./pages/PrivacyPage.tsx";
 import DataHandlingPage from "./pages/DataHandlingPage.tsx";
+import UploadInventoryPage from "./pages/UploadInventoryPage.tsx";
+import AssetsPage from "./pages/AssetsPage.tsx";
+import IntegrationsPage from "./pages/IntegrationsPage.tsx";
 import ProtectedRoute from "./components/ProtectedRoute.tsx";
 import DemoBanner from "./components/DemoBanner.tsx";
 import { useAuth } from "./context/AuthContext.tsx";
@@ -97,6 +100,30 @@ function App() {
       />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/data-handling" element={<DataHandlingPage />} />
+      <Route
+        path="/inventory/upload"
+        element={
+          <ProtectedRoute>
+            <UploadInventoryPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/assets"
+        element={
+          <ProtectedRoute>
+            <AssetsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/integrations"
+        element={
+          <ProtectedRoute>
+            <IntegrationsPage />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/*"
         element={

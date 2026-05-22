@@ -52,6 +52,44 @@ export interface AssessmentIntakePreviewRequest {
   data_types?: string[] | null;
 }
 
+export interface IntakeStateResponse {
+  skipped_steps: string[];
+  completed_at: string | null;
+}
+
+export async function skipIntakeStep(step: string): Promise<IntakeStateResponse> {
+  const resp = await fetchWithAuth(
+    `${API_BASE_URL}/api/v1/organizations/mine/intake/skip`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ step }),
+    },
+  );
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    throw new Error(
+      (body as { detail?: string }).detail ?? `Skip failed: ${resp.statusText}`,
+    );
+  }
+  return resp.json() as Promise<IntakeStateResponse>;
+}
+
+export async function completeIntake(): Promise<IntakeStateResponse> {
+  const resp = await fetchWithAuth(
+    `${API_BASE_URL}/api/v1/organizations/mine/intake/complete`,
+    { method: "POST" },
+  );
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    throw new Error(
+      (body as { detail?: string }).detail ??
+        `Complete failed: ${resp.statusText}`,
+    );
+  }
+  return resp.json() as Promise<IntakeStateResponse>;
+}
+
 export async function previewAssessmentIntake(
   payload: AssessmentIntakePreviewRequest,
   signal: AbortSignal,

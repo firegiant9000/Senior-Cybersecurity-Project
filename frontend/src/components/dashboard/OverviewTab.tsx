@@ -29,6 +29,8 @@ import { useAuth } from '../../context/AuthContext';
 import { canSeePipeline as checkCanSeePipeline } from '../../utils/roleUtils';
 import WidgetSkeleton from '../shared/WidgetSkeleton';
 import AssessmentBanner from '../shared/AssessmentBanner';
+import NextStepsCard from './NextStepsCard';
+import InventoryHealthCard from './InventoryHealthCard';
 import { COLORS } from '../../theme';
 import InfoTip, { getAcronymDefinition } from '../shared/InfoTip';
 import SourceBadge from '../shared/SourceBadge';
@@ -952,6 +954,10 @@ const OverviewTab: React.FC<Props> = ({
         <>
             <AssessmentBanner />
 
+            {/* Phase B4: post-signup "what's next" nudge — auto-hides
+                once the user reaches ENHANCED or marks intake complete. */}
+            <NextStepsCard />
+
             {/* Toolbar */}
             <div className="overview-toolbar-wrapper">
                 <div className="overview-toolbar">
@@ -1060,6 +1066,14 @@ const OverviewTab: React.FC<Props> = ({
                     </WidgetErrorBoundary>
                 </div>
             )}
+
+            {/* Phase F3: Inventory health summary — only renders when the user has an org. */}
+            <div className="overview-wide-card-slot">
+                <WidgetErrorBoundary title="Inventory Health">
+                    <InventoryHealthCard />
+                </WidgetErrorBoundary>
+            </div>
+
 
             <div className="dashboard-grid">
                 {(() => {

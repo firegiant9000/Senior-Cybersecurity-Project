@@ -1,0 +1,11 @@
+hostname,ip_address,os_name,os_version,vendor,product,version,notes
+web-prod-01,10.0.1.10,Ubuntu,22.04,nginx,nginx,1.24.0,public web tier
+web-prod-01,10.0.1.10,Ubuntu,22.04,openssl,openssl,3.0.2,
+db-prod-01,10.0.2.20,Ubuntu,22.04,PostgreSQL,postgresql,15.4,primary OLTP
+api-prod-01,10.0.3.30,Debian,12,Node.js,node,20.10.0,
+api-prod-01,10.0.3.30,Debian,12,Microsoft,vscode-server,1.85.0,dev tool on shared host
+laptop-cody,,Windows,11,Microsoft,Windows,11.0.22631,
+laptop-cody,,Windows,11,Google,Chrome,120.0.6099.130,
+laptop-arlo,,macOS,14.2,Apple,macOS,14.2.1,
+laptop-arlo,,macOS,14.2,Mozilla,Firefox,121.0,
+fw-edge-01,10.0.0.1,Cisco IOS,15.2,Cisco,IOS,15.2(7)E5,perimeter firewall

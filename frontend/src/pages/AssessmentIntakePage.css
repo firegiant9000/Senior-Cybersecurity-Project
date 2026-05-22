@@ -295,6 +295,11 @@
   color: var(--intake-text-primary);
 }
 
+.intake-field-hint--optional {
+  font-style: italic;
+  color: var(--intake-text-muted);
+}
+
 .intake-field-hint {
   color: var(--intake-text-muted);
   font-size: 0.85rem;
@@ -736,6 +741,21 @@
   border-color: var(--intake-accent);
   color: var(--intake-accent);
   background: rgba(59, 130, 246, 0.05);
+}
+
+/* "Skip for now" — visually quieter than primary, but unmistakably its
+ * own affordance so users don't read it as a destructive cancel. */
+.intake-btn-skip {
+  background: transparent;
+  border: 1px dashed var(--intake-border);
+  color: var(--intake-text-muted);
+  margin-left: auto;
+}
+
+.intake-btn-skip:hover:not(:disabled) {
+  border-color: var(--intake-text-secondary);
+  color: var(--intake-text-secondary);
+  background: rgba(0, 0, 0, 0.03);
 }
 
 @media (max-width: 768px) {

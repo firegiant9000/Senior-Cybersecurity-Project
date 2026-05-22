@@ -30,6 +30,7 @@ _SOURCE_SCHEDULE_MAP: dict[str, str] = {
     "cisa_kev": settings.INGEST_SCHEDULE_KEV,
     "ic3": settings.INGEST_SCHEDULE_IC3,
     "economics": settings.INGEST_SCHEDULE_ECONOMICS,
+    "epss": settings.INGEST_SCHEDULE_EPSS,
 }
 
 

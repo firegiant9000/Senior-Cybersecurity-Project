@@ -24,7 +24,19 @@ import {
 } from "../types/assessmentIntake";
 import { createVendor, listVendors } from "../api/vendors";
 import { addDomain, listDomains } from "../api/domains";
+import { skipIntakeStep, completeIntake } from "../api/assessmentIntake";
+import { logActivationEvent } from "../api/analytics";
 import "./AssessmentIntakePage.css";
+
+// Stable keys used when persisting which steps the user dismissed.
+// Kept in sync with the wizard's 1-indexed step numbers.
+const STEP_KEYS = [
+  "company_basics",
+  "financial_compliance",
+  "security_controls",
+  "technology_infrastructure",
+  "review",
+] as const;
 
 const TOTAL_STEPS = 5;
 
@@ -237,13 +249,12 @@ export default function AssessmentIntakePage() {
   const canAdvanceFromStep = (): boolean => {
     switch (step) {
       case 1:
-        return (
-          form.name.trim().length > 0 &&
-          form.industry_label !== "" &&
-          form.primary_state !== "" &&
-          form.employee_range !== "" &&
-          domainIsValid(form.primary_domain)
-        );
+        // Phase B2 fast-path: name is the only hard requirement to *advance*
+        // (BASIC tier unlocks on name + any signal, and a typed domain is the
+        // most common signal). Demographic fields (industry, state, employee
+        // range) get filled in later — the "Skip for now" button below this
+        // form lets the user dismiss them entirely.
+        return form.name.trim().length > 0 && domainIsValid(form.primary_domain);
       case 2:
         return true; // financial & compliance optional
       case 3:
@@ -389,6 +400,52 @@ export default function AssessmentIntakePage() {
     if (step > 1) setStep(step - 1);
   };
 
+  // "Skip for now" exits the wizard and drops the user on the dashboard.
+  // The skipped step is persisted on the org so the wizard doesn't
+  // re-pop the same wall on the user's next login (Phase B3 + R9).
+  const handleSkip = async () => {
+    if (advancing || submitting) return;
+    const stepKey = STEP_KEYS[step - 1];
+    setAdvancing(true);
+    try {
+      // If we don't have an org yet (first-time user on step 1), create
+      // one with whatever fields are filled in — name is required by
+      // canAdvanceFromStep above so this won't 422.
+      let effectiveOrgId = orgId;
+      if (!orgId && form.name.trim().length > 0) {
+        try {
+          await createOrg();
+          const meResp = await fetchWithAuth(`${API_BASE_URL}/api/v1/auth/me`);
+          if (meResp.ok) {
+            const me = await meResp.json();
+            effectiveOrgId = me.org_id ?? null;
+          }
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Failed to create organization");
+          return;
+        }
+      }
+      if (effectiveOrgId) {
+        await syncVendorAndDomain(effectiveOrgId);
+        try {
+          await skipIntakeStep(stepKey);
+        } catch (err) {
+          // Non-fatal — the dashboard still works, we just won't suppress
+          // the wall on next login.
+          console.warn("Failed to record intake skip:", err);
+        }
+        void logActivationEvent({
+          event_type: "intake_step_skipped",
+          org_id: effectiveOrgId,
+          payload: { step: stepKey, step_index: step },
+        });
+      }
+      navigate("/dashboard");
+    } finally {
+      setAdvancing(false);
+    }
+  };
+
   const handleSubmit = async () => {
     setSubmitting(true);
     setError("");
@@ -412,6 +469,16 @@ export default function AssessmentIntakePage() {
 
       // Final pass to catch anything skipped (e.g. user edited domain on step 5).
       if (orgId) await syncVendorAndDomain(orgId);
+
+      // Mark the wizard as user-completed so the dashboard stops showing
+      // "complete your intake" prompts. Non-fatal if it fails.
+      if (orgId) {
+        try {
+          await completeIntake();
+        } catch (err) {
+          console.warn("Failed to mark intake complete:", err);
+        }
+      }
 
       navigate("/dashboard");
     } catch (err) {
@@ -588,6 +655,9 @@ export default function AssessmentIntakePage() {
                   Annual Revenue
                   <RequiredBadge optional />
                 </label>
+                <p className="intake-field-hint intake-field-hint--optional">
+                  Optional — affects loss-projection accuracy.
+                </p>
                 <select
                   id="revenue"
                   value={form.revenue_range}
@@ -609,6 +679,9 @@ export default function AssessmentIntakePage() {
                 </label>
                 <p className="intake-field-hint">
                   Select all that apply to your organization
+                </p>
+                <p className="intake-field-hint intake-field-hint--optional">
+                  Optional — affects compliance-aware findings filtering.
                 </p>
                 <div className="intake-checkbox-group">
                   {COMPLIANCE_FRAMEWORKS.map((fw) => (
@@ -691,6 +764,9 @@ export default function AssessmentIntakePage() {
                   <RequiredBadge optional />
                 </label>
                 <p className="intake-field-hint">Select all that apply</p>
+                <p className="intake-field-hint intake-field-hint--optional">
+                  Optional — affects cloud-specific threat exposure analysis.
+                </p>
                 <div className="intake-checkbox-group">
                   {CLOUD_PROVIDERS.map((provider) => (
                     <label key={provider} className="intake-checkbox-label">
@@ -714,6 +790,9 @@ export default function AssessmentIntakePage() {
                 </label>
                 <p className="intake-field-hint">
                   Select all data types your organization processes
+                </p>
+                <p className="intake-field-hint intake-field-hint--optional">
+                  Optional — affects data-sensitivity weighting in findings.
                 </p>
                 <div className="intake-checkbox-group">
                   {DATA_TYPES.map((dt) => (
@@ -906,6 +985,23 @@ export default function AssessmentIntakePage() {
           >
             ← Previous
           </button>
+          {step < TOTAL_STEPS && (
+            <button
+              type="button"
+              className="intake-btn intake-btn-skip"
+              onClick={handleSkip}
+              // Skip still needs *some* org identity, so require the
+              // step-1 name field before allowing first-time skip.
+              disabled={
+                submitting ||
+                advancing ||
+                (step === 1 && form.name.trim().length === 0)
+              }
+              title="Save what you've entered and go to your dashboard. You can come back anytime."
+            >
+              Skip for now →
+            </button>
+          )}
           <button
             type="button"
             className="intake-btn intake-btn-primary"

@@ -15,11 +15,15 @@ from app.db.enums import (
 
 class OrganizationCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
-    industry_label: IndustryLabel
-    primary_state: str = Field(..., min_length=2, max_length=2, pattern=r"^[A-Z]{2}$")
-    employee_range: EmployeeRange
+    # Demographic fields are optional on create after Phase B2 — the
+    # fast-path landing creates an org with just name (+ domain) and lets
+    # the user complete the rest later from the dashboard.
+    industry_label: IndustryLabel | None = None
+    primary_state: str | None = Field(None, min_length=2, max_length=2, pattern=r"^[A-Z]{2}$")
+    employee_range: EmployeeRange | None = None
+    primary_domain: str | None = Field(None, max_length=255)
     revenue_range: RevenueRange | None = None
-    ic3_sector: str = Field("", json_schema_extra={"hidden": True})
+    ic3_sector: str | None = Field(None, json_schema_extra={"hidden": True})
     security_controls: dict[str, str] | None = None
     cloud_providers: list[str] | None = None
     compliance_frameworks: list[str] | None = None
@@ -32,8 +36,9 @@ class OrganizationCreate(BaseModel):
 
     @model_validator(mode="after")
     def _derive_ic3_sector(self):
-        """Auto-derive ic3_sector from industry_label."""
-        self.ic3_sector = str(INDUSTRY_TO_IC3_SECTOR[self.industry_label])
+        """Auto-derive ic3_sector from industry_label when present."""
+        if self.industry_label is not None:
+            self.ic3_sector = str(INDUSTRY_TO_IC3_SECTOR[self.industry_label])
         return self
 
     @classmethod
@@ -84,10 +89,10 @@ class OrganizationRead(BaseModel):
 
     id: int  # noqa: A003
     name: str
-    industry_label: str
-    ic3_sector: str
-    primary_state: str
-    employee_range: str
+    industry_label: str | None = None
+    ic3_sector: str | None = None
+    primary_state: str | None = None
+    employee_range: str | None = None
     revenue_range: str | None = None
     logo_url: str | None = None
     primary_domain: str | None = None
@@ -97,6 +102,8 @@ class OrganizationRead(BaseModel):
     data_types: list[str] | None = None
     device_count_range: str | None = None
     incident_history: str | None = None
+    intake_skipped_steps: list[str] | None = None
+    intake_completed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 

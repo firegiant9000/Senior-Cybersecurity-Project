@@ -22,22 +22,31 @@ from app.schemas.assessment_readiness import (
 
 _NEXT_STEP_MAP: dict[str, str] = {
     "org_name": "Set your organization name in Settings > Company Profile.",
+    "name": "Set your organization name in Settings > Company Profile.",
+    "identity_signal": (
+        "Add a primary domain, vendor, or upload an asset inventory so we have"
+        " something to evaluate."
+    ),
     "industry": "Select your industry during onboarding or in Settings.",
     "state": "Set your primary state during onboarding or in Settings.",
     "employee_range": "Set your employee range during onboarding or in Settings.",
     "vendors": "Add at least one vendor in Settings > Technology Stack.",
     "domains": "Add at least one domain in Settings > Organization Domains.",
     "security_controls": "Complete the security controls checklist in Organization Profile.",
+    "security_controls_depth": "Answer at least 8 security controls in Organization Profile.",
     "compliance_frameworks": "Select your compliance frameworks in Organization Profile.",
     "data_types": "Specify data types your organization handles in Organization Profile.",
     "revenue": "Provide your revenue range for more accurate loss projections.",
     "uploads": "Upload at least one supporting document in Settings > File Uploads.",
 }
 
-# Map graduated intake tiers → legacy readiness tier names
+# Map graduated intake tiers → legacy readiness tier names.
+# After Phase B2 the BASIC tier represents a *usable* dashboard (name +
+# any signal), so it maps to "good" rather than "minimal". "minimal"
+# is reserved for orgs that haven't even given us a hook to work with.
 _TIER_TO_LEGACY: dict[AssessmentTier, str] = {
     AssessmentTier.INCOMPLETE: "minimal",
-    AssessmentTier.BASIC: "minimal",
+    AssessmentTier.BASIC: "good",
     AssessmentTier.ENHANCED: "good",
     AssessmentTier.COMPREHENSIVE: "comprehensive",
 }

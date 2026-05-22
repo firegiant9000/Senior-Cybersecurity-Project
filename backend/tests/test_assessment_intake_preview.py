@@ -1,4 +1,10 @@
-"""Unit tests for assessment-intake tier evaluation and preview route."""
+"""Unit tests for assessment-intake tier evaluation and preview route.
+
+Phase B2 of the Month 2 plan rebalanced the tier ladder so that BASIC
+unlocks on `name + any single identity signal` (domain, vendor, or
+asset). Demographic fields (industry / state / employee_range) graduate
+into ENHANCED. These tests pin that behaviour.
+"""
 
 from __future__ import annotations
 
@@ -30,7 +36,29 @@ def test_empty_snapshot_is_incomplete():
     assert "name" in result.fields_to_advance
 
 
-def test_basic_tier_when_all_basic_fields_set():
+def test_basic_tier_unlocks_with_name_plus_primary_domain():
+    """Phase B2 wedge: name + primary_domain alone should reach Basic."""
+    snap = IntakeSnapshot(name="Acme Co", primary_domain="acme.com")
+    result = evaluate_intake_snapshot(snap)
+    assert result.current_tier == AssessmentTier.BASIC
+    assert result.next_tier == AssessmentTier.ENHANCED
+
+
+def test_basic_tier_unlocks_with_name_plus_csv_assets():
+    """A CSV-only org (no demographics, no domain) still reaches Basic."""
+    snap = IntakeSnapshot(name="Acme Co", asset_count=12)
+    result = evaluate_intake_snapshot(snap)
+    assert result.current_tier == AssessmentTier.BASIC
+
+
+def test_basic_tier_unlocks_with_name_plus_vendor_row():
+    snap = IntakeSnapshot(name="Acme Co", vendor_count=1)
+    result = evaluate_intake_snapshot(snap)
+    assert result.current_tier == AssessmentTier.BASIC
+
+
+def test_name_alone_does_not_unlock_basic():
+    """Without ANY identity signal, BASIC stays locked even with all demographics."""
     snap = IntakeSnapshot(
         name="Acme Co",
         industry_label="Technology",
@@ -38,13 +66,14 @@ def test_basic_tier_when_all_basic_fields_set():
         employee_range="11-50",
     )
     result = evaluate_intake_snapshot(snap)
-    assert result.current_tier == AssessmentTier.BASIC
-    assert result.next_tier == AssessmentTier.ENHANCED
+    assert result.current_tier == AssessmentTier.INCOMPLETE
+    assert "identity_signal" in result.fields_to_advance
 
 
-def test_enhanced_requires_vendor_domain_and_controls():
+def test_enhanced_requires_demographics_plus_controls():
     snap = IntakeSnapshot(
         name="Acme Co",
+        primary_domain="acme.com",
         industry_label="Technology",
         primary_state="CA",
         employee_range="11-50",
@@ -59,6 +88,7 @@ def test_enhanced_requires_vendor_domain_and_controls():
 def test_comprehensive_requires_full_profile():
     snap = IntakeSnapshot(
         name="Acme Co",
+        primary_domain="acme.com",
         industry_label="Technology",
         primary_state="CA",
         employee_range="11-50",
@@ -75,25 +105,11 @@ def test_comprehensive_requires_full_profile():
     assert result.next_tier is None
 
 
-def test_progress_percent_reflects_partial_next_tier_completion():
-    # Basic met, only 1 of 3 enhanced reqs met → 33% toward Enhanced.
-    snap = IntakeSnapshot(
-        name="Acme Co",
-        industry_label="Technology",
-        primary_state="CA",
-        employee_range="11-50",
-        vendor_count=1,
-    )
-    result = evaluate_intake_snapshot(snap)
-    assert result.current_tier == AssessmentTier.BASIC
-    assert result.next_tier == AssessmentTier.ENHANCED
-    assert result.next_tier_progress == pytest.approx(33.3, abs=0.1)
-
-
 def test_unsure_only_controls_count_as_started():
     # 10 controls answered "unsure" → security_controls met (started), depth met
     snap = IntakeSnapshot(
         name="Acme",
+        primary_domain="acme.com",
         industry_label="Technology",
         primary_state="CA",
         employee_range="11-50",
@@ -130,10 +146,13 @@ async def test_evaluate_preview_merges_persisted_counts():
     with patch(
         "app.services.assessment_intake._fetch_counts",
         new=AsyncMock(return_value=(2, 3, 0)),
+    ), patch(
+        "app.services.assessment_intake._fetch_asset_count",
+        new=AsyncMock(return_value=0),
     ):
         result = await evaluate_intake_preview(snap, org_mock, session_mock)
 
-    # vendors=2, domains=3, controls started → enhanced reachable
+    # vendors=2, domains=3, demographics filled, controls started → enhanced
     assert result.current_tier == AssessmentTier.ENHANCED
 
 
@@ -156,10 +175,13 @@ async def test_evaluate_preview_optimistic_bumps_win_against_zero_persisted():
     with patch(
         "app.services.assessment_intake._fetch_counts",
         new=AsyncMock(return_value=(0, 0, 0)),
+    ), patch(
+        "app.services.assessment_intake._fetch_asset_count",
+        new=AsyncMock(return_value=0),
     ):
         result = await evaluate_intake_preview(snap, org_mock, session_mock)
 
-    # Snapshot bumps win via max() — controls started → enhanced reachable.
+    # Snapshot bumps win via max() — demographics + controls → enhanced.
     assert result.current_tier == AssessmentTier.ENHANCED
 
 
@@ -168,15 +190,21 @@ async def test_evaluate_preview_without_org_skips_db_lookup():
     """When current_org is None we never touch _fetch_counts."""
     snap = IntakeSnapshot(
         name="Acme Co",
+        primary_domain="acme.com",
         industry_label="Technology",
         primary_state="CA",
         employee_range="11-50",
     )
     fetch_mock = AsyncMock(return_value=(99, 99, 99))
-    with patch("app.services.assessment_intake._fetch_counts", new=fetch_mock):
+    asset_mock = AsyncMock(return_value=99)
+    with patch("app.services.assessment_intake._fetch_counts", new=fetch_mock), patch(
+        "app.services.assessment_intake._fetch_asset_count", new=asset_mock
+    ):
         result = await evaluate_intake_preview(snap, None, MagicMock())
 
     fetch_mock.assert_not_called()
+    asset_mock.assert_not_called()
+    # name + primary_domain → BASIC under the new ladder.
     assert result.current_tier == AssessmentTier.BASIC
 
 
@@ -208,7 +236,7 @@ async def test_intake_preview_requires_auth(anon_client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_intake_preview_works_without_org(client: AsyncClient):
-    """First-time onboarding: user has no org yet, preview still computes."""
+    """First-time onboarding: name + domain alone reaches BASIC."""
     fake_user = _fake_user(org_id=None)
 
     async def _override():
@@ -220,9 +248,7 @@ async def test_intake_preview_works_without_org(client: AsyncClient):
             "/api/v1/organizations/mine/intake-preview",
             json={
                 "name": "Acme Co",
-                "industry_label": "Technology",
-                "primary_state": "CA",
-                "employee_range": "11-50",
+                "primary_domain": "acme.com",
             },
         )
     finally:
