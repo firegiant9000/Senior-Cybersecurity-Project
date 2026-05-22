@@ -786,20 +786,3 @@ async def update_organization(
     return org
 
 
-@router.delete("/{org_id}", status_code=204)
-@limiter.limit(settings.RATE_LIMIT_DATA)
-async def delete_organization(
-    request: Request,  # noqa: ARG001
-    org_id: int,
-    current_user: User = Depends(require_role("admin")),  # noqa: ARG001
-    repo: SqlOrganizationRepository = Depends(get_org_repo),
-):
-    """Delete an organization. Global admin only. Users' org_id will be set to NULL."""
-    try:
-        deleted = await repo.delete(org_id)
-    except SQLAlchemyError:
-        logger.exception("Failed to delete organization %s", org_id)
-        raise HTTPException(status_code=500, detail="Failed to delete organization")
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Organization not found")
-    return None

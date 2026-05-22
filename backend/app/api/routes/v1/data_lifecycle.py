@@ -181,25 +181,7 @@ async def delete_organization(
                 "original_org_id": org_id,
             },
         )
-        # Diagnostic: confirm the row is visible inside this transaction
-        # before we commit. Remove once the lifecycle test goes green.
-        post_flush = await session.execute(
-            select(AuditLog).where(AuditLog.action == "organization.delete")
-        )
-        logger.warning(
-            "AUDIT DEBUG (post-flush, pre-commit) action=organization.delete rows=%d",
-            len(post_flush.scalars().all()),
-        )
         await session.commit()
-        # Diagnostic: confirm the row survives commit on a fresh connection.
-        async with AsyncSessionLocal() as verify:
-            check = await verify.execute(
-                select(AuditLog).where(AuditLog.action == "organization.delete")
-            )
-            logger.warning(
-                "AUDIT DEBUG (post-commit, fresh session) action=organization.delete rows=%d",
-                len(check.scalars().all()),
-            )
     except SQLAlchemyError as exc:
         await session.rollback()
         logger.exception("Failed to delete organization %s: %s", org_id, exc)
