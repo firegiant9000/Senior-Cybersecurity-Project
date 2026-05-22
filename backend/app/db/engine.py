@@ -22,20 +22,28 @@ def _import_all_orm_models() -> None:
     """
     import app.db.ai_summary_feedback  # noqa: F401
     import app.db.ai_summary_generation  # noqa: F401
+    import app.db.activation_event  # noqa: F401
     import app.db.assessment_submission  # noqa: F401
+    import app.db.asset  # noqa: F401
+    import app.db.asset_software  # noqa: F401
     import app.db.audit_log  # noqa: F401
+    import app.db.cpe_match_cache  # noqa: F401
     import app.db.finding_status  # noqa: F401
     import app.db.findings_snapshot  # noqa: F401
+    import app.db.integration_credential  # noqa: F401
     import app.db.invitation  # noqa: F401
     import app.db.membership  # noqa: F401
     import app.db.models  # noqa: F401
     import app.db.normalization_log  # noqa: F401
+    import app.db.oauth_state  # noqa: F401
     import app.db.org_domain  # noqa: F401
     import app.db.org_invite  # noqa: F401
     import app.db.org_upload  # noqa: F401
     import app.db.org_vendor  # noqa: F401
     import app.db.organization  # noqa: F401
+    import app.db.scan_run  # noqa: F401
     import app.db.user  # noqa: F401
+    import app.db.vendor_alias  # noqa: F401
     import app.models.ingest_run  # noqa: F401
 
 

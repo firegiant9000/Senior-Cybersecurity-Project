@@ -19,10 +19,13 @@ class Organization(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)  # noqa: A003
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    industry_label: Mapped[str] = mapped_column(String(100), nullable=False)
-    ic3_sector: Mapped[str] = mapped_column(String(100), nullable=False)
-    primary_state: Mapped[str] = mapped_column(String(2), nullable=False)
-    employee_range: Mapped[str] = mapped_column(String(50), nullable=False)
+    # Demographic fields are nullable after migration 037 so that the
+    # fast-path onboarding wedge (name + domain only) can create an org.
+    # They get filled in later as the user completes the intake wizard.
+    industry_label: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    ic3_sector: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    primary_state: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    employee_range: Mapped[str | None] = mapped_column(String(50), nullable=True)
     revenue_range: Mapped[str | None] = mapped_column(String(50), nullable=True)
     logo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     primary_domain: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -37,6 +40,12 @@ class Organization(Base):
     # routes) is seeded with name "Public Demo" by scripts/seed_demo_org.py.
     is_demo: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false", nullable=False, index=True
+    )
+    # List of intake-wizard step keys the user dismissed via "Skip for now".
+    # Persisted on the org so a returning user doesn't see the wall again.
+    intake_skipped_steps: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    intake_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
