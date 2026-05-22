@@ -30,7 +30,7 @@ source .venv/bin/activate
 python scripts/init_and_ingest_kev.py
 ```
 
-With demo mode off (`ENABLE_DEMO_MODE=False` in `.env`), the API will then serve exploited vulnerabilities from the database.
+The API serves exploited vulnerabilities from the database by default. Demo-mode behaviour is now opt-in **per organisation** (see `organizations.is_demo` and `backend/scripts/seed_demo_org.py`); there is no global toggle.
 
 **Start the API**
 

@@ -47,6 +47,24 @@ def require_role(minimum_role: str):
     return _check_role
 
 
+async def get_current_org_optional(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> Organization | None:
+    """Return the caller's organisation, or None if they aren't attached to one.
+
+    Used by repositories that need to vary behaviour based on
+    ``organization.is_demo`` without forcing every caller to belong to an
+    organisation (global admins, onboarding flows, etc.).
+    """
+    if current_user.org_id is None:
+        return None
+    result = await session.execute(
+        select(Organization).where(Organization.id == current_user.org_id)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_current_org(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),

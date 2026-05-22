@@ -18,6 +18,7 @@ from app.core.config import settings
 from app.core.firebase import init_firebase
 from app.core.limiter import limiter
 from app.core.logging import setup_logging
+from app.core.observability import RequestContextMiddleware, init_sentry
 from app.db.engine import AsyncSessionLocal, init_db
 from app.db.models import CVE, KEV, IC3Incident
 from app.integrations.cve_org import aclose_http_client
@@ -153,6 +154,11 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
 
 def create_app() -> FastAPI:
     """Create and configure FastAPI application."""
+    # Logging + Sentry must be wired before anything that might raise so
+    # startup-time errors are captured and emitted as structured JSON.
+    setup_logging(settings.LOG_LEVEL, json_output=settings.LOG_JSON)
+    init_sentry()
+
     if settings.SECRET_KEY == "change-me-in-production":
         if settings.APP_ENV not in ("development", "testing"):
             raise SystemExit(
@@ -173,8 +179,9 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Setup logging
-    setup_logging(settings.LOG_LEVEL)
+    # Request-correlation middleware must run before any handler that logs
+    # or raises, so request_id is bound for the entire request lifecycle.
+    fastapi_app.add_middleware(RequestContextMiddleware)
 
     # Register rate limiter
     fastapi_app.state.limiter = limiter

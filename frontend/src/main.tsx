@@ -4,7 +4,10 @@ import { BrowserRouter } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { UserProvider } from './context/UserContext'
 import App from './App.tsx'
+import { initObservability } from './lib/observability'
 import './index.css'
+
+initObservability()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

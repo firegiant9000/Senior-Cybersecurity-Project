@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.db.engine import get_session
+from app.db.organization import Organization
 from app.db.user import User
 from app.schemas.user import UserRead
 
@@ -91,6 +92,22 @@ async def get_current_user(
 
 @router.get("/me", response_model=UserRead)
 @limiter.limit(settings.RATE_LIMIT_AUTH)
-async def get_me(request: Request, current_user: User = Depends(get_current_user)) -> User:
-    """Return profile information for the current authenticated user."""
-    return current_user
+async def get_me(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> UserRead:
+    """Return profile information for the current authenticated user.
+
+    Enriches the response with ``org_is_demo`` so the frontend can render the
+    demo banner without making a second request.
+    """
+    org_is_demo = False
+    if current_user.org_id is not None:
+        result = await session.execute(
+            select(Organization.is_demo).where(Organization.id == current_user.org_id)
+        )
+        org_is_demo = bool(result.scalar_one_or_none())
+    return UserRead.model_validate(current_user, from_attributes=True).model_copy(
+        update={"org_is_demo": org_is_demo}
+    )

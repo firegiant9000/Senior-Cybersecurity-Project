@@ -15,18 +15,13 @@ from sqlalchemy import (  # type: ignore[import-not-found]  # pylint: disable=im
 # Add app to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-import app.db.invitation  # noqa: E402, F401  # register Invitation with Base.metadata
-import app.db.membership  # noqa: E402, F401  # register Membership with Base.metadata
-import app.db.models  # noqa: E402, F401  # register ORM models with Base.metadata
-import app.db.normalization_log  # noqa: E402, F401  # register NormalizationLog with Base.metadata
-import app.db.org_domain  # noqa: E402, F401  # register OrgDomain with Base.metadata
-import app.db.org_upload  # noqa: E402, F401  # register OrgUpload with Base.metadata
-import app.db.org_vendor  # noqa: E402, F401  # register OrgVendor with Base.metadata
-import app.db.organization  # noqa: E402, F401  # register Organization with Base.metadata
-import app.db.technology_vendor  # noqa: E402, F401  # register TechnologyVendor with Base.metadata
-import app.db.user  # noqa: E402, F401  # register User (with org FK) with Base.metadata
 from app.core.config import settings  # noqa: E402
 from app.db.base import Base  # noqa: E402
+from app.db.engine import _import_all_orm_models  # noqa: E402
+
+# Single point of truth for "every model module Alembic must see". Defined in
+# engine.py so application startup and migration tooling share one list.
+_import_all_orm_models()
 
 # this is the Alembic Config object
 config = context.config
@@ -61,7 +56,7 @@ def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
 
     def process_revision_directives(_context, _revision, directives):
-        if config.cmd_opts is not None and config.cmd_opts.autogenerate:
+        if getattr(config.cmd_opts, "autogenerate", False):
             script = directives[0]
             if script.upgrade_ops.is_empty():
                 directives[:] = []

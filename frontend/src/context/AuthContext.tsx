@@ -13,6 +13,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   orgId: number | null;
+  orgIsDemo: boolean;
   orgLoading: boolean;
   profileError: boolean;
   role: string | null;
@@ -30,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [orgId, setOrgId] = useState<number | null>(null);
+  const [orgIsDemo, setOrgIsDemo] = useState(false);
   const [orgLoading, setOrgLoading] = useState(true);
   const [role, setRole] = useState<string | null>(null);
   const [orgRole, setOrgRole] = useState<string | null>(null);
@@ -48,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (resp.ok) {
           const data = await resp.json();
           setOrgId(data.org_id ?? null);
+          setOrgIsDemo(Boolean(data.org_is_demo));
           setRole(data.role?.toLowerCase() ?? null);
           setOrgRole(data.org_role?.toLowerCase() ?? null);
           setOrgLoading(false);
@@ -78,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fetchProfile(firebaseUser);
       } else {
         setOrgId(null);
+        setOrgIsDemo(false);
         setRole(null);
         setOrgRole(null);
         setOrgLoading(false);
@@ -111,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user, fetchProfile]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, orgId, orgLoading, profileError, role, orgRole, login, signup, logout, getIdToken, refreshProfile }}>
+    <AuthContext.Provider value={{ user, loading, orgId, orgIsDemo, orgLoading, profileError, role, orgRole, login, signup, logout, getIdToken, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

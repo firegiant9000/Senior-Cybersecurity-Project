@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, DateTime, String, func
+from sqlalchemy import JSON, Boolean, DateTime, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -32,6 +32,12 @@ class Organization(Base):
     data_types: Mapped[list | None] = mapped_column(JSON, nullable=True)
     device_count_range: Mapped[str | None] = mapped_column(String(50), nullable=True)
     incident_history: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # When true, this org reads from curated demo fixtures instead of the live
+    # database. The single canonical public-demo org (used by unauthenticated
+    # routes) is seeded with name "Public Demo" by scripts/seed_demo_org.py.
+    is_demo: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

@@ -20,8 +20,8 @@ Your backend now has **production-ready ingestors** for all four data sources wi
 ## Your API Keys (Already Activated ✅)
 
 ```
-NVD:     A378984C-8616-F111-8369-0EBF96DE670D
-Census:  a866f48bdbfeeba0da0da1a87033b52d52ba84a7
+NVD:     <your-nvd-api-key-uuid>
+Census:  <your-census-api-key>
 ```
 
 ---
@@ -52,8 +52,8 @@ cd /Users/ethangagliano/CMPS-490/Senior-Cybersecurity-Project/backend
 cat >> .env << 'EOF'
 
 # External API Keys (required for real data)
-NVD_API_KEY=A378984C-8616-F111-8369-0EBF96DE670D
-CENSUS_API_KEY=a866f48bdbfeeba0da0da1a87033b52d52ba84a7
+NVD_API_KEY=<your-nvd-api-key-uuid>
+CENSUS_API_KEY=<your-census-api-key>
 EOF
 ```
 
@@ -153,7 +153,7 @@ All from **official government sources**:
 ### Issue: "NVD_API_KEY not set"
 **Solution**: Add to `.env` in backend/:
 ```
-NVD_API_KEY=A378984C-8616-F111-8369-0EBF96DE670D
+NVD_API_KEY=<your-nvd-api-key-uuid>
 ```
 
 ### Issue: "Census API error"

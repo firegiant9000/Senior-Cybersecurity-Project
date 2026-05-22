@@ -1,9 +1,12 @@
 """Domain routes — organization domain management."""
 
 import logging
-from typing import Annotated
+from dataclasses import asdict, is_dataclass
+from datetime import UTC, datetime, timedelta
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,10 +15,14 @@ from app.core.config import settings
 from app.core.dependencies import check_org_access
 from app.core.limiter import limiter
 from app.db.engine import get_session
+from app.db.org_domain import OrgDomain
 from app.db.user import User
 from app.repositories.normalization_log_repo import fire_and_forget_normalization_log
 from app.repositories.org_domain import SqlOrgDomainRepository, get_domain_repo
 from app.schemas.org_domain import OrgDomainCreate, OrgDomainListResponse, OrgDomainRead
+from app.services.domain_checks import run_tier2_checks
+
+EXTERNAL_CHECK_TTL = timedelta(hours=24)
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +91,93 @@ async def list_domains(
         page_size=page_size,
         items=[OrgDomainRead.model_validate(d) for d in items],
     )
+
+
+def _dataclass_to_dict(value: Any) -> Any:
+    if is_dataclass(value):
+        return {k: _dataclass_to_dict(v) for k, v in asdict(value).items()}
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, list):
+        return [_dataclass_to_dict(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _dataclass_to_dict(v) for k, v in value.items()}
+    return value
+
+
+@router.get("/organizations/{org_id}/domains/{domain_id}/external-checks")
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def get_external_checks(
+    request: Request,  # noqa: ARG001
+    org_id: int,
+    domain_id: int,
+    *,
+    force: Annotated[bool, Query()] = False,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Run HIBP, Shodan, and OTX checks for a domain (cached 24h per domain).
+
+    Results are read-only, one-shot lookups. A successful call writes the
+    payload to org_domains.external_checks_data and bumps
+    external_checks_last_at; subsequent calls within 24h return the cached
+    payload without consuming upstream API quota. Pass ``force=true`` to
+    bypass the cache — still subject to the per-IP rate limiter.
+
+    Each upstream source returns ``skipped=true`` when its API key is not
+    configured, so the route never fails just because one provider is off.
+    """
+    await check_org_access(current_user, org_id, session)
+
+    result = await session.execute(
+        select(OrgDomain).where(OrgDomain.id == domain_id, OrgDomain.org_id == org_id)
+    )
+    domain = result.scalar_one_or_none()
+    if domain is None:
+        raise HTTPException(status_code=404, detail="Domain not found")
+
+    now = datetime.now(UTC)
+    cache_fresh = (
+        domain.external_checks_last_at is not None
+        and domain.external_checks_data is not None
+        and now - domain.external_checks_last_at < EXTERNAL_CHECK_TTL
+    )
+    if cache_fresh and not force:
+        return {
+            "domain": domain.domain_name,
+            "checked_at": domain.external_checks_last_at.isoformat(),  # type: ignore[union-attr]
+            "cached": True,
+            "results": domain.external_checks_data,
+        }
+
+    crtsh, hibp, shodan, otx = await run_tier2_checks(
+        domain.domain_name,
+        hibp_api_key=settings.HIBP_API_KEY or None,
+        shodan_api_key=settings.SHODAN_API_KEY or None,
+        otx_api_key=settings.OTX_API_KEY or None,
+    )
+    payload = {
+        "hibp": _dataclass_to_dict(hibp),
+        "shodan": _dataclass_to_dict(shodan),
+        "otx": _dataclass_to_dict(otx),
+        "crtsh": _dataclass_to_dict(crtsh),
+    }
+
+    domain.external_checks_data = payload
+    domain.external_checks_last_at = now
+    try:
+        await session.commit()
+    except SQLAlchemyError:
+        await session.rollback()
+        logger.exception("Failed to persist external-check cache for domain %s", domain_id)
+        # Still return live results — caching is best-effort.
+
+    return {
+        "domain": domain.domain_name,
+        "checked_at": now.isoformat(),
+        "cached": False,
+        "results": payload,
+    }
 
 
 @router.delete("/organizations/{org_id}/domains/{domain_id}", status_code=204)

@@ -16,22 +16,25 @@ logger = get_logger(__name__)
 def _import_all_orm_models() -> None:
     """Import every module that registers a model on ``Base.metadata``.
 
-    Ensures ``create_all`` sees the full schema regardless of import order.
+    Ensures ``create_all`` (and Alembic's ``target_metadata``) sees the full
+    schema regardless of import order. Both this helper and ``app/db/env.py``
+    rely on this single list — do not duplicate it elsewhere.
     """
     import app.db.ai_summary_feedback  # noqa: F401
     import app.db.ai_summary_generation  # noqa: F401
     import app.db.assessment_submission  # noqa: F401
+    import app.db.audit_log  # noqa: F401
     import app.db.finding_status  # noqa: F401
     import app.db.findings_snapshot  # noqa: F401
     import app.db.invitation  # noqa: F401
     import app.db.membership  # noqa: F401
     import app.db.models  # noqa: F401
+    import app.db.normalization_log  # noqa: F401
     import app.db.org_domain  # noqa: F401
     import app.db.org_invite  # noqa: F401
     import app.db.org_upload  # noqa: F401
     import app.db.org_vendor  # noqa: F401
     import app.db.organization  # noqa: F401
-    import app.db.technology_vendor  # noqa: F401
     import app.db.user  # noqa: F401
     import app.models.ingest_run  # noqa: F401
 
