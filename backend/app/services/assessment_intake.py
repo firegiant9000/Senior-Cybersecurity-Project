@@ -1,11 +1,22 @@
-"""Assessment intake service — graduated tier evaluation for org cyber posture."""
+"""Assessment intake service — graduated tier evaluation for org cyber posture.
+
+Phase B2 of the Month 2 plan rebalances the tier ladder so that BASIC is
+unlocked by any single inventory or identity signal (primary_domain,
+domain row, vendor row, or asset row) on top of an org name. Demographic
+fields (industry, state, employee_range) graduate into ENHANCED so that
+a CSV-only or M365-only user still reaches a useful dashboard without
+ever opening the wizard. See docs/intake_gating_audit.md for the full
+mapping of feature gates this affects.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.asset import Asset
 from app.db.organization import Organization
 from app.schemas.assessment_intake import (
     AssessmentIntakeResponse,
@@ -16,18 +27,23 @@ from app.schemas.assessment_intake import (
 from app.services.assessment_readiness import _fetch_counts
 
 # ── Tier requirement specs ──────────────────────────────────────────
-# Each tier lists (key, label, checker) tuples.
-# checker(snapshot) -> (met: bool, detail: str)
+# Each tier lists (key, label) tuples. Checker logic lives in
+# `_check_requirement` so that requirement dependencies (e.g. BASIC's
+# "any of N signals" rule) can read the full snapshot at once.
 
 
 _BASIC_REQS: list[tuple[str, str]] = [
     ("name", "Organization name"),
-    ("industry", "Industry"),
-    ("state", "Primary state"),
-    ("employee_range", "Employee range"),
+    # The fast-path: ANY single inventory/identity signal unlocks Basic.
+    # Without this disjunction, users would still hit a wall on industry
+    # / state / employee_range before seeing any value.
+    ("identity_signal", "Domain, vendor, or asset on file"),
 ]
 
 _ENHANCED_REQS: list[tuple[str, str]] = [
+    ("industry", "Industry"),
+    ("state", "Primary state"),
+    ("employee_range", "Employee range"),
     ("vendors", "At least 1 vendor"),
     ("domains", "At least 1 domain"),
     ("security_controls", "Security controls started"),
@@ -47,6 +63,7 @@ _TIER_UNLOCKS: dict[AssessmentTier, list[str]] = {
         "Loss projection",
         "SMB Risk Advisor",
         "Executive summary",
+        "Inventory dashboard",
     ],
     AssessmentTier.ENHANCED: [
         "Findings report",
@@ -65,12 +82,12 @@ _TIER_META: list[tuple[AssessmentTier, str, str]] = [
     (
         AssessmentTier.BASIC,
         "Basic Risk Profile",
-        "Minimum information needed for a baseline risk assessment.",
+        "Just enough to surface a useful dashboard — name plus one signal.",
     ),
     (
         AssessmentTier.ENHANCED,
         "Enhanced Assessment",
-        "Adds vendor and domain intelligence for actionable findings.",
+        "Demographic + control context turns the dashboard into a real assessment.",
     ),
     (
         AssessmentTier.COMPREHENSIVE,
@@ -94,18 +111,41 @@ class IntakeSnapshot:
     primary_state: str | None = None
     employee_range: str | None = None
     revenue_range: str | None = None
+    primary_domain: str | None = None
     security_controls: dict | None = None
     compliance_frameworks: list | None = None
     data_types: list | None = None
     vendor_count: int = 0
     domain_count: int = 0
     upload_count: int = 0
+    asset_count: int = 0
 
 
 def _controls_answered(security_controls: dict | None) -> int:
     if not security_controls:
         return 0
     return sum(1 for v in security_controls.values() if v in ("yes", "no", "unsure"))
+
+
+def _identity_signal_detail(snap: IntakeSnapshot) -> tuple[bool, str]:
+    """Has the org given us *any* hook to start producing value?
+
+    Any one of these counts: primary_domain set on the org row, a domain
+    row, a vendor row, or an asset row. This is the Phase B2 wedge — a
+    CSV upload alone (creating asset rows) lifts the user to Basic.
+    """
+    parts: list[str] = []
+    if snap.primary_domain and snap.primary_domain.strip():
+        parts.append("primary domain")
+    if snap.domain_count >= 1:
+        parts.append(f"{snap.domain_count} domain(s)")
+    if snap.vendor_count >= 1:
+        parts.append(f"{snap.vendor_count} vendor(s)")
+    if snap.asset_count >= 1:
+        parts.append(f"{snap.asset_count} asset(s)")
+    if parts:
+        return True, ", ".join(parts)
+    return False, "No domain, vendor, or asset on file yet"
 
 
 def _check_requirement(key: str, snap: IntakeSnapshot) -> tuple[bool, str]:
@@ -116,6 +156,7 @@ def _check_requirement(key: str, snap: IntakeSnapshot) -> tuple[bool, str]:
             bool(snap.name and snap.name.strip()),
             snap.name or "Not set",
         ),
+        "identity_signal": _identity_signal_detail(snap),
         "industry": (
             bool(snap.industry_label),
             snap.industry_label or "Not set",
@@ -242,6 +283,7 @@ def _snapshot_from_org(
     vendor_count: int,
     domain_count: int,
     upload_count: int,
+    asset_count: int,
 ) -> IntakeSnapshot:
     return IntakeSnapshot(
         name=org.name,
@@ -249,13 +291,31 @@ def _snapshot_from_org(
         primary_state=org.primary_state,
         employee_range=org.employee_range,
         revenue_range=org.revenue_range,
+        primary_domain=org.primary_domain,
         security_controls=org.security_controls,
         compliance_frameworks=org.compliance_frameworks,
         data_types=org.data_types,
         vendor_count=vendor_count,
         domain_count=domain_count,
         upload_count=upload_count,
+        asset_count=asset_count,
     )
+
+
+async def _fetch_asset_count(session: AsyncSession, org_id: int) -> int:
+    """Count assets for an org. Returns 0 if the assets table is unreachable.
+
+    Wrapped in a defensive try/except so that environments where Phase A
+    hasn't been migrated yet (or test fixtures that don't create the
+    table) still evaluate tiers — they simply lose the asset signal.
+    """
+    try:
+        result = await session.execute(
+            select(func.count(Asset.id)).where(Asset.org_id == org_id)
+        )
+        return int(result.scalar_one() or 0)
+    except Exception:  # noqa: BLE001 — schema may not be present
+        return 0
 
 
 async def evaluate_intake(
@@ -264,7 +324,8 @@ async def evaluate_intake(
 ) -> AssessmentIntakeResponse:
     """Evaluate the org's assessment intake tier with graduated requirements."""
     vendor_count, domain_count, upload_count = await _fetch_counts(session, org.id)
-    snap = _snapshot_from_org(org, vendor_count, domain_count, upload_count)
+    asset_count = await _fetch_asset_count(session, org.id)
+    snap = _snapshot_from_org(org, vendor_count, domain_count, upload_count, asset_count)
     return evaluate_intake_snapshot(snap)
 
 
@@ -275,16 +336,19 @@ async def evaluate_intake_preview(
 ) -> AssessmentIntakeResponse:
     """Evaluate tier status for an unsaved intake form payload.
 
-    Vendor/domain/upload counts come from the persisted org (if any) so that
-    progress already earned isn't dropped when the user previews mid-form.
-    Optimistic bumps for not-yet-synced primary_vendor / primary_domain are the
-    caller's responsibility — pass the bumped counts on the snapshot.
+    Vendor/domain/upload/asset counts come from the persisted org (if any)
+    so progress already earned isn't dropped when the user previews
+    mid-form. Optimistic bumps for not-yet-synced primary_vendor /
+    primary_domain are the caller's responsibility — pass the bumped
+    counts on the snapshot.
     """
     if current_org is not None:
         vendor_count, domain_count, upload_count = await _fetch_counts(session, current_org.id)
+        asset_count = await _fetch_asset_count(session, current_org.id)
         # Take the max so any optimistic bumps the caller applied for a typed-but-unsaved
         # primary_vendor / primary_domain win over the live count.
         payload_snapshot.vendor_count = max(payload_snapshot.vendor_count, vendor_count)
         payload_snapshot.domain_count = max(payload_snapshot.domain_count, domain_count)
         payload_snapshot.upload_count = max(payload_snapshot.upload_count, upload_count)
+        payload_snapshot.asset_count = max(payload_snapshot.asset_count, asset_count)
     return evaluate_intake_snapshot(payload_snapshot)

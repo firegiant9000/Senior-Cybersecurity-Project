@@ -17,10 +17,11 @@ class RawOrgProfile(BaseModel):
 
     id: int
     name: str
-    industry_label: str
-    ic3_sector: str
-    primary_state: str
-    employee_range: str
+    # Nullable after Phase B2 — fast-path orgs may have only name + domain.
+    industry_label: str | None = None
+    ic3_sector: str | None = None
+    primary_state: str | None = None
+    employee_range: str | None = None
     revenue_range: str | None = None
     logo_url: str | None = None
     primary_domain: str | None = None
