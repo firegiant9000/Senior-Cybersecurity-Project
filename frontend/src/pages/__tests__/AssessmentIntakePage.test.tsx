@@ -66,6 +66,16 @@ vi.mock('../../api/fetchWithAuth', () => ({
 
 vi.mock('../../api/assessmentIntake', () => ({
   fetchAssessmentIntake: (...args: unknown[]) => mockFetchIntake(...args),
+  // Added because e52ab31 (live tier-progress indicator) introduced this
+  // export; without stubbing it, AssessmentIntakePage's useIntakePreview hook
+  // throws a "No export defined" error during test runs.
+  previewAssessmentIntake: vi.fn().mockResolvedValue({
+    current_tier: 'basic',
+    tiers: [],
+    next_tier: null,
+    next_tier_progress: 0,
+    fields_to_advance: [],
+  }),
 }))
 
 vi.mock('../../api/vendors', () => ({

@@ -11,6 +11,7 @@ cache miss costs money. These tests guard:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
@@ -25,6 +26,13 @@ from app.db.org_domain import OrgDomain
 from app.db.organization import Organization
 from app.db.user import User
 from app.main import app
+
+
+@dataclass
+class _Skipped:
+    """Stand-in for the skipped-provider dataclass returned by run_tier2_checks."""
+
+    skipped: bool = True
 
 
 def _unique(prefix: str) -> str:
@@ -117,8 +125,7 @@ async def test_external_checks_force_bypasses_cache(
 
     app.dependency_overrides[get_current_user] = _admin
 
-    skipped = type("S", (), {"skipped": True})()
-    upstream = AsyncMock(return_value=(skipped, skipped, skipped, skipped))
+    upstream = AsyncMock(return_value=(_Skipped(), _Skipped(), _Skipped(), _Skipped()))
     try:
         with patch("app.api.routes.v1.domains.run_tier2_checks", upstream):
             resp = await client.get(
