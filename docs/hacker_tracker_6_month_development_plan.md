@@ -400,7 +400,7 @@ The current vendor-based matching is too broad. A company entering a vendor name
 | Phase | Theme | Main Outcome |
 |---|---|---|
 | **Week 0** | **Validation gate** | **5–8 discovery interviews completed; written go/no-go memo on the MSP pivot. No new code on the pivot path until this passes.** |
-| Month 1 | Stabilize, instrument, harden CI | Threat-intel dashboard is credible; Sentry + structured logs + CI live; data-lifecycle endpoints exist; demo mode segregated. |
+| Month 1 ✅ | Stabilize, instrument, harden CI | Threat-intel dashboard is credible; Sentry + structured logs + CI live; data-lifecycle endpoints exist; demo mode segregated. **Code-complete on PR #164.** Operational follow-ups: NVD/Census key rotation, set DSN secrets, branch protection on `main`. |
 | Month 2 | Reduce onboarding and add inventory upload | Users can upload CSV/SBOM-style inventory instead of manually typing everything. |
 | Month 3 | EPSS ingestor + version-aware vulnerability matching + matcher regression harness | App matches inventory to CVEs/KEV with confidence levels, regression-tested against a known-good set. |
 | Month 4 | Single-OS scanner MVP + agent trust model | A read-only Linux scanner uploads inventory via a hardened enrollment-token flow with auto-update design in place. |
@@ -535,6 +535,8 @@ A single-page written decision: pivot or stay. If pivot: which 1–2 customer qu
 
 # Month 1 — Stabilize the Current Threat Intelligence Dashboard
 
+> **Status: code-complete on branch `feature/week0-month1-foundations` (PR #164).** All 10 milestone issues land in this branch. Per-workstream task tables below carry a Status column with ✅ for shipped items and ⏳ for items still open. Remaining open items are operational (key rotation, Render/GH secrets, branch protection, manual staging walk-through) — see [docs/month_1_execution_plan.md](month_1_execution_plan.md) and Workstream 1.6 below.
+
 ## Goal
 
 Make the current Hacker Tracker dashboard credible, transparent, and demo-ready before adding the pivot features.
@@ -547,19 +549,19 @@ The repo investigation found that some parts are real and wired, while others ar
 
 ### Tasks
 
-| Task | Priority | Difficulty | Files |
-|---|---|---|---|
-| Add visible labels for real/static/demo data | High | Low | Dashboard components, IC3 pages, exploited vulns page |
-| Add data freshness cards | High | Medium | `backend/app/workers/scheduler.py`, ingest routes, frontend dashboard |
-| Show last successful NVD/KEV ingest | High | Medium | ingest service/routes |
-| Show failed/stale ingestion warnings | Medium | Medium | backend ingest routes, frontend status component |
-| Make `ENABLE_DEMO_MODE` visible in UI if active | High | Low | backend config, frontend banner |
+| Task | Priority | Difficulty | Files | Status |
+|---|---|---|---|---|
+| Add visible labels for real/static/demo data | High | Low | Dashboard components, IC3 pages, exploited vulns page | ✅ `SourceBadge` + `useDataStatus` hook render on every overview widget via `WIDGET_DATASET_KEY`; backend registry at `services/data_status.py` is the single source of truth, exposed at `GET /api/v1/data-status` (#102). |
+| Add data freshness cards | High | Medium | `backend/app/workers/scheduler.py`, ingest routes, frontend dashboard | ✅ `DataFreshness.tsx` consumes `GET /api/v1/ingest/freshness`; surfaced in `ThreatOverviewWidget` as last-ingest timestamp. |
+| Show last successful NVD/KEV ingest | High | Medium | ingest service/routes | ✅ `/ingest/freshness` returns latest run per source with started/completed/duration; UI shows the timestamp inline on the threat overview. |
+| Show failed/stale ingestion warnings | Medium | Medium | backend ingest routes, frontend status component | ✅ `FreshnessResponse.stale: bool` (per-source thresholds in `ingest.py:280`); flips to stale on >threshold age or ≥2 consecutive failures. |
+| Make `ENABLE_DEMO_MODE` visible in UI if active | High | Low | backend config, frontend banner | ✅ Global flag removed; replaced by per-org `organizations.is_demo` + `DemoBanner` gated on `AuthContext.orgIsDemo && !loading` (no flash) — see WS 1.5 (#107). |
 
 ### Definition of done
 
-- User can tell what data is real, stale, static, or demo-mode.
-- NVD and CISA KEV ingest status is visible.
-- No static IC3 data is presented as live/fully parsed data.
+- ✅ User can tell what data is real, stale, static, or demo-mode.
+- ✅ NVD and CISA KEV ingest status is visible.
+- ✅ No static IC3 data is presented as live/fully parsed data.
 
 ## Workstream 1.2 — IC3 cleanup
 
@@ -573,32 +575,32 @@ For one primary developer, choose Option A first.
 
 ### Tasks
 
-| Task | Priority | Difficulty |
-|---|---|---|
-| Rename hardcoded IC3 data labels to static summary | High | Low |
-| Add source/year disclosure to IC3 charts | High | Low |
-| Add TODO/backlog issue for real parsing | Medium | Low |
-| Prevent static data from being described as live | High | Low |
+| Task | Priority | Difficulty | Status |
+|---|---|---|---|
+| Rename hardcoded IC3 data labels to static summary | High | Low | ✅ All 7 IC3 Pydantic schemas (`schemas/ic3.py`, `schemas/ic3_analytics.py`) carry `source: str = IC3_SOURCE_LABEL` ("FBI IC3 2023 annual report (static summary)") so every response is self-labeling (#103). |
+| Add source/year disclosure to IC3 charts | High | Low | ✅ Source label is included on every IC3 schema and rendered alongside charts via `SourceBadge`. |
+| Add TODO/backlog issue for real parsing | Medium | Low | ⏳ Not opened. Plan body explicitly chose Option A (label static) for the one-developer constraint; create issue when validation warrants. |
+| Prevent static data from being described as live | High | Low | ✅ Same label propagates through every IC3 response and the `DATA_SOURCE_STATUS.md` mirror lists IC3 as static. |
 
 ### Definition of done
 
-IC3 charts are still useful for context, but they do not pretend to be live or fully parsed.
+✅ IC3 charts are still useful for context, but they do not pretend to be live or fully parsed.
 
 ## Workstream 1.3 — Threat dashboard polish
 
 ### Tasks
 
-| Task | Priority | Difficulty |
-|---|---|---|
-| Add threat overview landing dashboard | High | Medium |
-| Add cards for CVEs ingested, KEV count, high severity count, latest ingest | High | Medium |
-| Add top exploited vendors/products section | Medium | Medium |
-| Add industry/sector context from IC3 | Medium | Medium |
-| Add plain-English explanation of CVSS/KEV/EPSS | Medium | Low |
+| Task | Priority | Difficulty | Status |
+|---|---|---|---|
+| Add threat overview landing dashboard | High | Medium | ✅ New `ThreatOverviewWidget` on the overview tab (#104). |
+| Add cards for CVEs ingested, KEV count, high severity count, latest ingest | High | Medium | ✅ Widget renders CVEs ingested, KEV count, high-severity count, avg risk, and last-ingest timestamp pulled from `/api/v1/ingest/freshness`. |
+| Add top exploited vendors/products section | Medium | Medium | ✅ Top-exploited-vendors panel rendered inside the new widget. |
+| Add industry/sector context from IC3 | Medium | Medium | ✅ Existing `SectorAttackHeatmap` + IC3 sector visuals remain; widget links into them. |
+| Add plain-English explanation of CVSS/KEV/EPSS | Medium | Low | ✅ Glossary card next to the widget explains CVSS / KEV / EPSS in plain English. |
 
 ### Definition of done
 
-The current dashboard feels like a serious intelligence product, not only a class demo.
+✅ The current dashboard feels like a serious intelligence product, not only a class demo.
 
 ## Workstream 1.4 — Observability and CI (foundational)
 
@@ -608,17 +610,19 @@ Every later month assumes you can debug a failing matcher job, reproduce a scann
 
 ### Tasks
 
-| Task | Priority | Difficulty | Files |
-|---|---|---|---|
-| Add Sentry (free tier) backend + frontend | Critical | Low | `backend/app/core/observability.py`, `frontend/src/main.tsx` |
-| Add request IDs and structured JSON logging with `org_id`/`user_id` correlation | High | Low/Medium | `backend/app/core/middleware.py` |
-| Add GitHub Actions CI: pytest, ruff/black, frontend lint+typecheck | Critical | Low | `.github/workflows/ci.yml` |
-| Add Alembic migration check (no missing migrations) to CI | High | Low | `.github/workflows/ci.yml` |
-| Add basic ingest-job duration/failure dashboard (can be a single internal admin route) | Medium | Medium | `backend/app/api/routes/v1/admin_metrics.py` |
+| Task | Priority | Difficulty | Files | Status |
+|---|---|---|---|---|
+| Add Sentry (free tier) backend + frontend | Critical | Low | `backend/app/core/observability.py`, `frontend/src/main.tsx` | ✅ Backend `init_sentry()` + frontend `initObservability()` no-op without DSN; both scrub `authorization/cookie/password/secret/token/api_key/email/hostname` + inline email regex via `before_send`. Source-map upload step added to `deploy-frontend` CI (#105). |
+| Add request IDs and structured JSON logging with `org_id`/`user_id` correlation | High | Low/Medium | `backend/app/core/middleware.py` | ✅ `RequestContextMiddleware` binds `request_id` (UUID or honored `X-Request-ID`), echoes header on response; `JsonFormatter` reads `request_id`/`org_id`/`user_id` from `ContextVars` (#105). |
+| Add GitHub Actions CI: pytest, ruff/black, frontend lint+typecheck | Critical | Low | `.github/workflows/ci.yml` | ✅ `.github/workflows/ci.yml` runs `pytest`, `ruff check`, `ruff format --check`, frontend `eslint`, `tsc --noEmit`, and `vitest` on every PR (#106). |
+| Add Alembic migration check (no missing migrations) to CI | High | Low | `.github/workflows/ci.yml` | ✅ CI runs both an exact single-Alembic-head check (Python script in workflow) and `alembic check` for model-vs-migration drift. |
+| Add basic ingest-job duration/failure dashboard (can be a single internal admin route) | Medium | Medium | `backend/app/api/routes/v1/admin_metrics.py` | ⏳ `GET /api/v1/ingest/freshness` exposes per-source last-run + stale flag, which covers the immediate operator need; no dedicated `admin_metrics.py` route yet. Open a follow-up issue when richer per-job duration/failure history is required. |
 
 ### Definition of done
 
-A backend exception in production produces a Sentry alert with org/user context. A bad PR fails CI before merge.
+✅ A backend exception in production produces a Sentry alert with org/user context. ✅ A bad PR fails CI before merge.
+
+> Operational pre-reqs to make Sentry actually emit events: set `SENTRY_DSN` in Render env (backend) and `VITE_SENTRY_DSN` + `SENTRY_AUTH_TOKEN` + `SENTRY_ORG` + `SENTRY_PROJECT` in GitHub Actions secrets (frontend + source-map upload). Tracked in [docs/month_1_execution_plan.md](month_1_execution_plan.md) "Open items".
 
 ## Workstream 1.5 — Demo mode segregation and data lifecycle
 
@@ -630,21 +634,48 @@ Two things must be true before any external user touches the app:
 
 ### Tasks
 
-| Task | Priority | Difficulty | Files |
-|---|---|---|---|
-| Replace `ENABLE_DEMO_MODE` global toggle with a per-org `is_demo` flag + seed script | Critical | Medium | `backend/app/core/config.py`, `backend/scripts/seed_demo_org.py` |
-| Add demo-org banner in UI when viewing a demo org | High | Low | `frontend/src/components/DemoBanner.tsx` |
-| Add `DELETE /api/v1/organizations/{id}` that purges all related data | Critical | Medium | `backend/app/api/routes/v1/data_lifecycle.py` |
-| Add `GET /api/v1/organizations/{id}/export` (JSON dump of all org data) | High | Medium | same file |
-| Document PII inventory (hostnames, IPs, emails) | High | Low | `docs/pii_inventory.md` |
-| Define and document scan_run retention policy (e.g., last 12 scans/asset) | Medium | Low/Medium | `backend/app/services/retention.py` |
-| Add `docs/PRODUCT_VIABILITY_ROADMAP.md` summarizing the pivot and phased plan | High | Low | new doc |
-| Add `docs/DATA_SOURCE_STATUS.md` showing source-by-source implementation status (real / static / mocked / pending) | High | Low | new doc |
-| Add `docs/validation_interviews.md` tracker (one row per interview: date, segment, key quotes, follow-up) | High | Low | new doc |
+| Task | Priority | Difficulty | Files | Status |
+|---|---|---|---|---|
+| Replace `ENABLE_DEMO_MODE` global toggle with a per-org `is_demo` flag + seed script | Critical | Medium | `backend/app/core/config.py`, `backend/scripts/seed_demo_org.py` | ✅ Migration 031 adds `organizations.is_demo`; `ENABLE_DEMO_MODE` removed from config and all docs/scripts; `seed_demo_org.py` (two seeded orgs, idempotent) lands a demo + real org; repository selector switches by org (#107). |
+| Add demo-org banner in UI when viewing a demo org | High | Low | `frontend/src/components/DemoBanner.tsx` | ✅ `DemoBanner` reads `AuthContext.orgIsDemo` and gates on `!loading` to avoid flash. |
+| Add `DELETE /api/v1/organizations/{id}` that purges all related data | Critical | Medium | `backend/app/api/routes/v1/data_lifecycle.py` | ✅ Iterates 12 tenant-scoped tables explicitly (no FK-cascade reliance); detaches users via `org_id → NULL`; writes `audit_log` (#108). |
+| Add `GET /api/v1/organizations/{id}/export` (JSON dump of all org data) | High | Medium | same file | ✅ Streams JSON incrementally per-table so large orgs don't materialize in memory; writes `audit_log` (#108). |
+| Document PII inventory (hostnames, IPs, emails) | High | Low | `docs/pii_inventory.md` | ✅ `docs/pii_inventory.md` lists every PII field, where it lives, and the scrubber rules. |
+| Define and document scan_run retention policy (e.g., last 12 scans/asset) | Medium | Low/Medium | `backend/app/services/retention.py` | ✅ Stub at `services/retention.py` (12 scans/asset, 365-day audit-log window); cron lands Month 4. |
+| Add `docs/PRODUCT_VIABILITY_ROADMAP.md` summarizing the pivot and phased plan | High | Low | new doc | ✅ `docs/PRODUCT_VIABILITY_ROADMAP.md` shipped (#109). |
+| Add `docs/DATA_SOURCE_STATUS.md` showing source-by-source implementation status (real / static / mocked / pending) | High | Low | new doc | ✅ Human mirror of the backend `data_status.py` registry; covers every widget. |
+| Add `docs/validation_interviews.md` tracker (one row per interview: date, segment, key quotes, follow-up) | High | Low | new doc | ✅ Tracker exists with Common Market (interview #1) row; segment classification + qualifying-question fields populated. |
 
 ### Definition of done
 
-`ENABLE_DEMO_MODE` is removed. An org can be deleted via API and its scan_runs/assets/findings are gone. An admin can export their org's data as JSON.
+✅ `ENABLE_DEMO_MODE` is removed. ✅ An org can be deleted via API and its scan_runs/assets/findings are gone. ✅ An admin can export their org's data as JSON.
+
+## Workstream 1.6 — Secret hygiene (NVD + Census key rotation)
+
+### Why now
+
+While auditing Month 1, real NVD and US Census Bureau API keys were found checked into four docs on `main` (not introduced by this branch): [backend/docs/REAL_DATA_SETUP.md](../backend/docs/REAL_DATA_SETUP.md), [backend/docs/DATA_INGESTION_ARCHITECTURE.md](../backend/docs/DATA_INGESTION_ARCHITECTURE.md), [backend/INGESTION_COMPLETE.md](../backend/INGESTION_COMPLETE.md), [backend/REAL_DATA_QUICK_REF.md](../backend/REAL_DATA_QUICK_REF.md). The docs have been scrubbed to placeholders on the Month 1 branch, but **the keys remain valid in git history until rotated at the providers** — anyone with read access to the repo (or its mirrors / forks) can pull them out.
+
+This is the kind of pre-pilot hygiene that has to land before showing the product to outside users. It does not block the threat dashboard but it blocks any "we take security seriously" credibility argument.
+
+### Tasks
+
+| Task | Priority | Difficulty | Owner | Status |
+|---|---|---|---|---|
+| Request new NVD API key at <https://nvd.nist.gov/developers/request-an-api-key> | Critical | Low | Project owner | ⏳ Not started — must be done by a human at NIST's portal. |
+| Email `nvd@nist.gov` to revoke the compromised UUID immediately (NIST has no self-service revoke) | Critical | Low | Project owner | ⏳ Not started — include the compromised UUID and the public commit SHA where it leaked so they can prioritize. |
+| Request new Census API key at <https://api.census.gov/data/key_signup.html> | Critical | Low | Project owner | ⏳ Not started — Census has no self-service revoke either; document the compromise internally. |
+| Update Render backend service env: `NVD_API_KEY`, `CENSUS_API_KEY` to new values | Critical | Low | Project owner | ⏳ Render dashboard → backend → Environment. Triggers redeploy. |
+| Update each developer's local `backend/.env` to the new keys | High | Low | Each dev | ⏳ Communicate via Slack/team channel once rotation is complete; old keys keep "working" until NIST/Census action the revocation, so silent reuse is a real risk. |
+| Optional: rewrite git history with `git filter-repo` to strip the old keys | Low | Medium | Project owner | ⏳ Only worthwhile if the repo stays private. If the repo is public the keys are already scraped — rotation is what matters. Coordinate any force-push with the whole team. |
+| Add a pre-commit hook that blocks UUID-shaped secrets in docs (defense-in-depth) | High | Low | Anyone | ⏳ Add a `detect-secrets` or `gitleaks` step to `.pre-commit-config.yaml` / `.github/workflows/ci.yml` so this leak class can't recur. |
+
+### Definition of done
+
+- New NVD and Census keys issued and active in Render env + each developer's local `.env`.
+- The compromised keys are confirmed inactive (NIST replies confirming revocation; Census key replaced).
+- A secret-scan step runs in CI and would have caught this leak.
+- A short note in [docs/month_1_execution_plan.md](month_1_execution_plan.md) records the rotation date and the closure of the "pre-existing finding" section.
 
 ---
 
