@@ -36,7 +36,7 @@ from app.db.user import User
 from app.integrations import m365 as graph
 from app.services.m365_oauth import (
     PROVIDER_M365,
-    M365NotConfigured,
+    M365NotConfiguredError,
     consume_state_token,
     decrypt_token,
     encrypt_token,
@@ -111,7 +111,7 @@ async def start_consent(
     _ensure_enabled()
     try:
         require_m365_config()
-    except M365NotConfigured as exc:
+    except M365NotConfiguredError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
     await check_org_access(current_user, org_id, session)
 
@@ -134,11 +134,15 @@ async def start_consent(
         redirect_uri=settings.M365_REDIRECT_URI,
         state_token=state_row.state_token,
     )
-    return {"authorize_url": url, "state": state_row.state_token, "expires_at": state_row.expires_at.isoformat()}
+    return {
+        "authorize_url": url,
+        "state": state_row.state_token,
+        "expires_at": state_row.expires_at.isoformat(),
+    }
 
 
 @router.get("/callback")
-async def oauth_callback(
+async def oauth_callback(  # noqa: C901 — OAuth callback enumerates error cases linearly.
     request: Request,  # noqa: ARG001
     code: str | None = Query(default=None),
     state: str | None = Query(default=None),
@@ -152,7 +156,7 @@ async def oauth_callback(
     _ensure_enabled()
     try:
         require_m365_config()
-    except M365NotConfigured as exc:
+    except M365NotConfiguredError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
     frontend_base = settings.FRONTEND_URL.rstrip("/") if settings.FRONTEND_URL else ""
@@ -250,7 +254,7 @@ async def sync_devices(
     _ensure_enabled()
     try:
         require_m365_config()
-    except M365NotConfigured as exc:
+    except M365NotConfiguredError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
     await check_org_access(current_user, org_id, session)
 
@@ -266,7 +270,7 @@ async def sync_devices(
 
     try:
         refresh = decrypt_token(cred.refresh_token_encrypted)
-    except M365NotConfigured as exc:
+    except M365NotConfiguredError as exc:
         cred.status = "reauth_needed"
         await session.commit()
         raise HTTPException(status_code=401, detail=str(exc))

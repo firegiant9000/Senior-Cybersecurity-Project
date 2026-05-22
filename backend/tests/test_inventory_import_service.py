@@ -66,9 +66,7 @@ def test_parse_csv_row_cap():
     result = parse_csv(text)
     assert result.valid_rows == MAX_CSV_ROWS
     assert any(
-        f"Exceeded maximum of {MAX_CSV_ROWS}" in err
-        for e in result.errors
-        for err in e["errors"]
+        f"Exceeded maximum of {MAX_CSV_ROWS}" in err for e in result.errors for err in e["errors"]
     )
 
 

@@ -20,9 +20,9 @@ def _import_all_orm_models() -> None:
     schema regardless of import order. Both this helper and ``app/db/env.py``
     rely on this single list — do not duplicate it elsewhere.
     """
+    import app.db.activation_event  # noqa: F401
     import app.db.ai_summary_feedback  # noqa: F401
     import app.db.ai_summary_generation  # noqa: F401
-    import app.db.activation_event  # noqa: F401
     import app.db.assessment_submission  # noqa: F401
     import app.db.asset  # noqa: F401
     import app.db.asset_software  # noqa: F401

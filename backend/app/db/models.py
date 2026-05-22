@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 # pylint: disable=too-few-public-methods,unsubscriptable-object
-from datetime import date
-
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (  # type: ignore[import-not-found]  # pylint: disable=import-error
     Date,
@@ -38,9 +36,7 @@ class CVE(Base):
     published_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     epss_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     epss_percentile: Mapped[float | None] = mapped_column(Float, nullable=True)
-    epss_fetched_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    epss_fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     kev: Mapped[KEV] = relationship(back_populates="cve", uselist=False)
 

@@ -197,9 +197,7 @@ async def test_evaluate_preview_without_org_skips_db_lookup():
     )
     fetch_mock = AsyncMock(return_value=(99, 99, 99))
     asset_mock = AsyncMock(return_value=99)
-    with patch(
-        "app.services.assessment_intake._fetch_counts", new=fetch_mock
-    ), patch(
+    with patch("app.services.assessment_intake._fetch_counts", new=fetch_mock), patch(
         "app.services.assessment_intake._fetch_asset_count", new=asset_mock
     ):
         result = await evaluate_intake_preview(snap, None, MagicMock())

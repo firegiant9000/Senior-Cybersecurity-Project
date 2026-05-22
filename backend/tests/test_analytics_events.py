@@ -46,13 +46,27 @@ async def test_record_event_scrubs_payload_before_persisting(client: AsyncClient
     fake_session.commit = AsyncMock(return_value=None)
     fake_session.refresh = AsyncMock(side_effect=_refresh)
 
+    from unittest.mock import MagicMock
+
+    from app.api.routes.v1.auth import get_current_user
     from app.db.engine import get_session
+    from app.db.user import User
     from app.main import app
 
     async def _override():
         yield fake_session
 
+    async def _user_override():
+        u = MagicMock(spec=User)
+        u.id = 1
+        u.email = "test@example.com"
+        u.role = "admin"
+        u.org_id = 7
+        u.is_active = True
+        return u
+
     app.dependency_overrides[get_session] = _override
+    app.dependency_overrides[get_current_user] = _user_override
     try:
         resp = await client.post(
             "/api/v1/analytics/events",
@@ -67,6 +81,7 @@ async def test_record_event_scrubs_payload_before_persisting(client: AsyncClient
         )
     finally:
         app.dependency_overrides.pop(get_session, None)
+        app.dependency_overrides.pop(get_current_user, None)
 
     assert resp.status_code == 200, resp.text
     body = resp.json()

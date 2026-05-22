@@ -70,17 +70,11 @@ async def admin_org():
         yield admin, org
 
         await session.execute(
-            IntegrationCredential.__table__.delete().where(
-                IntegrationCredential.org_id == org.id
-            )
+            IntegrationCredential.__table__.delete().where(IntegrationCredential.org_id == org.id)
         )
-        await session.execute(
-            OAuthState.__table__.delete().where(OAuthState.org_id == org.id)
-        )
+        await session.execute(OAuthState.__table__.delete().where(OAuthState.org_id == org.id))
         await session.execute(User.__table__.delete().where(User.id == admin.id))
-        await session.execute(
-            Organization.__table__.delete().where(Organization.id == org.id)
-        )
+        await session.execute(Organization.__table__.delete().where(Organization.id == org.id))
         await session.commit()
 
 
@@ -96,9 +90,7 @@ def _clear_override() -> None:
 
 
 @pytest.mark.asyncio
-async def test_status_reports_disabled_when_flag_off(
-    client: AsyncClient, admin_org, monkeypatch
-):
+async def test_status_reports_disabled_when_flag_off(client: AsyncClient, admin_org, monkeypatch):
     admin, org = admin_org
     monkeypatch.setattr(settings, "ENABLE_M365_INTEGRATION", False)
     _override_user(admin)
@@ -189,9 +181,7 @@ async def test_callback_persists_encrypted_credentials(
     admin, org = admin_org
     _override_user(admin)
     try:
-        consent = await client.post(
-            f"/api/v1/integrations/m365/consent?org_id={org.id}"
-        )
+        consent = await client.post(f"/api/v1/integrations/m365/consent?org_id={org.id}")
     finally:
         _clear_override()
     state = consent.json()["state"]
@@ -236,9 +226,7 @@ async def test_callback_persists_encrypted_credentials(
 
     # State token must be single-use.
     async with AsyncSessionLocal() as session:
-        leftover = await session.execute(
-            select(OAuthState).where(OAuthState.state_token == state)
-        )
+        leftover = await session.execute(select(OAuthState).where(OAuthState.state_token == state))
         assert leftover.scalar_one_or_none() is None
 
 
@@ -306,9 +294,7 @@ async def test_sync_lists_devices_and_updates_payload(
                 AsyncMock(return_value=devices),
             ),
         ):
-            resp = await client.post(
-                f"/api/v1/integrations/m365/sync?org_id={org.id}"
-            )
+            resp = await client.post(f"/api/v1/integrations/m365/sync?org_id={org.id}")
     finally:
         _clear_override()
 

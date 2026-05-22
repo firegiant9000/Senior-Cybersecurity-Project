@@ -21,9 +21,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import require_role
 from app.db.ai_summary_feedback import AISummaryFeedback
 from app.db.ai_summary_generation import AISummaryGeneration
+from app.db.assessment_submission import AssessmentSubmission
 from app.db.asset import Asset
 from app.db.asset_software import AssetSoftware
-from app.db.assessment_submission import AssessmentSubmission
 from app.db.audit_log import AuditLog
 from app.db.engine import AsyncSessionLocal, get_session
 from app.db.finding_status import FindingStatus

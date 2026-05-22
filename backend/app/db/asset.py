@@ -53,9 +53,7 @@ class Asset(Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("true"), default=True
     )
-    asset_metadata: Mapped[dict[str, Any] | None] = mapped_column(
-        "metadata", JSON, nullable=True
-    )
+    asset_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSON, nullable=True)
     tags: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     created_by_scan_run_id: Mapped[int | None] = mapped_column(
         ForeignKey("scan_runs.id", ondelete="SET NULL"), nullable=True

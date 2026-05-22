@@ -43,12 +43,8 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column(
-            "asset_count", sa.Integer(), server_default=sa.text("0"), nullable=False
-        ),
-        sa.Column(
-            "software_count", sa.Integer(), server_default=sa.text("0"), nullable=False
-        ),
+        sa.Column("asset_count", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column("software_count", sa.Integer(), server_default=sa.text("0"), nullable=False),
         sa.Column("error_message", sa.String(2000), nullable=True),
         sa.Column("metadata", sa.JSON(), nullable=True),
         sa.Column(

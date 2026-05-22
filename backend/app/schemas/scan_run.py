@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 ScanSource = Literal["csv_upload", "m365", "gws", "agent"]
 ScanStatus = Literal["pending", "running", "succeeded", "failed", "partial"]
@@ -25,7 +25,7 @@ class ScanRunUpdate(BaseModel):
 
 
 class ScanRunRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     id: int  # noqa: A003
     org_id: int
@@ -36,7 +36,12 @@ class ScanRunRead(BaseModel):
     asset_count: int
     software_count: int
     error_message: str | None
-    scan_metadata: dict[str, Any] | None = Field(default=None, alias="metadata")
+    # ORM column is `scan_metadata`; API field stays `metadata`.
+    scan_metadata: dict[str, Any] | None = Field(
+        default=None,
+        validation_alias=AliasChoices("scan_metadata", "metadata"),
+        serialization_alias="metadata",
+    )
     triggered_by_user_id: int | None
 
 

@@ -62,9 +62,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Revert migration."""
-    op.drop_index(
-        "ix_asset_software_created_by_scan_run", table_name="asset_software"
-    )
+    op.drop_index("ix_asset_software_created_by_scan_run", table_name="asset_software")
     op.drop_column("asset_software", "created_by_scan_run_id")
     op.drop_index("ix_assets_created_by_scan_run", table_name="assets")
     op.drop_column("assets", "created_by_scan_run_id")

@@ -21,9 +21,7 @@ class SqlAssetSoftwareRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def create(
-        self, asset_id: int, org_id: int, data: AssetSoftwareCreate
-    ) -> AssetSoftware:
+    async def create(self, asset_id: int, org_id: int, data: AssetSoftwareCreate) -> AssetSoftware:
         row = AssetSoftware(asset_id=asset_id, org_id=org_id, **data.model_dump())
         self._session.add(row)
         await self._session.commit()
@@ -48,19 +46,13 @@ class SqlAssetSoftwareRepository:
         page_size: int = 50,
     ) -> tuple[list[AssetSoftware], int]:
         stmt = select(AssetSoftware).where(AssetSoftware.org_id == org_id)
-        count_stmt = select(func.count(AssetSoftware.id)).where(
-            AssetSoftware.org_id == org_id
-        )
+        count_stmt = select(func.count(AssetSoftware.id)).where(AssetSoftware.org_id == org_id)
         if vendor:
             stmt = stmt.where(func.lower(AssetSoftware.vendor) == vendor.lower())
-            count_stmt = count_stmt.where(
-                func.lower(AssetSoftware.vendor) == vendor.lower()
-            )
+            count_stmt = count_stmt.where(func.lower(AssetSoftware.vendor) == vendor.lower())
         if product:
             stmt = stmt.where(func.lower(AssetSoftware.product) == product.lower())
-            count_stmt = count_stmt.where(
-                func.lower(AssetSoftware.product) == product.lower()
-            )
+            count_stmt = count_stmt.where(func.lower(AssetSoftware.product) == product.lower())
         stmt = (
             stmt.order_by(AssetSoftware.vendor, AssetSoftware.product)
             .limit(page_size)

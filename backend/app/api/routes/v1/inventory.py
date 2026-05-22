@@ -6,7 +6,7 @@ M365 spike (Phase E) and the future agent path.
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import (
@@ -28,11 +28,11 @@ from app.core.limiter import limiter
 from app.db.audit_log import AuditLog
 from app.db.engine import get_session
 from app.db.user import User
-from app.repositories.assets import SqlAssetRepository, get_asset_repo
 from app.repositories.asset_software import (
     SqlAssetSoftwareRepository,
     get_asset_software_repo,
 )
+from app.repositories.assets import SqlAssetRepository, get_asset_repo
 from app.repositories.scan_runs import SqlScanRunRepository, get_scan_run_repo
 from app.schemas.asset import AssetRead, AssetTagsUpdate
 from app.schemas.asset_software import AssetSoftwareRead
@@ -223,7 +223,7 @@ async def import_inventory_csv(
     request: Request,  # noqa: ARG001
     org_id: int,
     file: UploadFile,
-    confirm: Annotated[bool, Query()] = False,
+    confirm: Annotated[bool, Query()] = False,  # noqa: FBT002 — FastAPI query param
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
     scan_repo: SqlScanRunRepository = Depends(get_scan_run_repo),
@@ -255,9 +255,7 @@ async def import_inventory_csv(
         )
     if len(parsed.rows) > MAX_CSV_ROWS:
         # Defensive: parse_csv enforces this, but the caller's intent matters.
-        raise HTTPException(
-            status_code=400, detail=f"CSV exceeds {MAX_CSV_ROWS}-row limit"
-        )
+        raise HTTPException(status_code=400, detail=f"CSV exceeds {MAX_CSV_ROWS}-row limit")
 
     scan_run = await scan_repo.create(
         org_id,
@@ -273,9 +271,7 @@ async def import_inventory_csv(
     )
 
     try:
-        await scan_repo.update(
-            scan_run.id, org_id, ScanRunUpdate(status="running")
-        )
+        await scan_repo.update(scan_run.id, org_id, ScanRunUpdate(status="running"))
         asset_count, software_count = await commit_inventory(
             session, org_id=org_id, rows=parsed.rows, scan_run_id=scan_run.id
         )
@@ -290,7 +286,7 @@ async def import_inventory_csv(
             ScanRunUpdate(
                 status="failed",
                 error_message=str(exc)[:1900],
-                finished_at=datetime.now(timezone.utc),
+                finished_at=datetime.now(UTC),
             ),
         )
         raise HTTPException(status_code=500, detail="Failed to import inventory") from exc
@@ -302,7 +298,7 @@ async def import_inventory_csv(
             status="succeeded",
             asset_count=asset_count,
             software_count=software_count,
-            finished_at=datetime.now(timezone.utc),
+            finished_at=datetime.now(UTC),
             metadata={
                 "original_filename": file.filename,
                 "submitted_rows": len(parsed.rows),
@@ -412,9 +408,7 @@ async def list_assets(
         hostname_search=hostname,
     )
     if not items:
-        return AssetWithKevListResponse(
-            total=total, page=page, page_size=page_size, items=[]
-        )
+        return AssetWithKevListResponse(total=total, page=page, page_size=page_size, items=[])
 
     # Build (lower(vendor), lower(product)) → count for the visible assets
     # by joining asset_software ↔ kev_catalog.
@@ -425,9 +419,7 @@ async def list_assets(
 
     asset_ids = [a.id for a in items]
     kev_pairs = (
-        await session.execute(
-            select(func.lower(KEV.vendor), func.lower(KEV.product)).distinct()
-        )
+        await session.execute(select(func.lower(KEV.vendor), func.lower(KEV.product)).distinct())
     ).all()
     kev_set = {(row[0], row[1]) for row in kev_pairs}
 
@@ -508,9 +500,7 @@ async def get_asset_detail(
     software = await software_repo.list_for_asset(asset_id, org_id)
     return AssetDetailResponse(
         asset=AssetRead.model_validate(asset, from_attributes=True),
-        software=[
-            AssetSoftwareRead.model_validate(s, from_attributes=True) for s in software
-        ],
+        software=[AssetSoftwareRead.model_validate(s, from_attributes=True) for s in software],
     )
 
 
@@ -544,13 +534,17 @@ async def get_asset_findings(
         raise HTTPException(status_code=404, detail="Asset not found")
 
     software_rows = (
-        await session.execute(
-            select(AssetSoftware).where(
-                AssetSoftware.asset_id == asset_id,
-                AssetSoftware.org_id == org_id,
+        (
+            await session.execute(
+                select(AssetSoftware).where(
+                    AssetSoftware.asset_id == asset_id,
+                    AssetSoftware.org_id == org_id,
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     if not software_rows:
         return AssetFindingsResponse(asset_id=asset_id, total=0, items=[])
 
@@ -635,9 +629,7 @@ async def _append_nvd_matches(
             .limit(_NVD_PER_PRODUCT_CAP * 4)  # over-fetch; we filter seen_cves below
         )
         added = 0
-        for cve_id, cvss, severity, description in (
-            await session.execute(nvd_q)
-        ).all():
+        for cve_id, cvss, severity, description in (await session.execute(nvd_q)).all():
             if cve_id in seen_cves:
                 continue
             items.append(
@@ -682,9 +674,7 @@ async def get_inventory_health(
 
     assets_total = int(
         (
-            await session.execute(
-                select(func.count(Asset.id)).where(Asset.org_id == org_id)
-            )
+            await session.execute(select(func.count(Asset.id)).where(Asset.org_id == org_id))
         ).scalar_one()
     )
 
@@ -739,9 +729,7 @@ async def get_inventory_health(
             .limit(5)
         )
     ).all()
-    top_vendors = [
-        VendorAssetCount(vendor=v, asset_count=int(c)) for v, c in top_vendor_rows
-    ]
+    top_vendors = [VendorAssetCount(vendor=v, asset_count=int(c)) for v, c in top_vendor_rows]
 
     return InventoryHealth(
         assets_total=assets_total,
@@ -1108,7 +1096,9 @@ async def get_asset_risk_summary(
             await session.execute(
                 select(Asset).where(Asset.id.in_(top_ids), Asset.org_id == org_id)
             )
-        ).scalars().all()
+        )
+        .scalars()
+        .all()
     }
     return AssetRiskSummary(
         org_id=org_id,

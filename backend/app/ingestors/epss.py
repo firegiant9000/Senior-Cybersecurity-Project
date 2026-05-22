@@ -23,7 +23,7 @@ EPSS_API_URL = "https://api.first.org/data/v1/epss"
 BATCH_SIZE = 100  # ~1.6KB URL per batch; FIRST.org rejects URLs >8KB
 
 
-async def ingest_epss(db: AsyncSession) -> int:
+async def ingest_epss(db: AsyncSession) -> int:  # noqa: C901
     """Fetch EPSS scores from FIRST.org and update cves.epss_score.
 
     Returns the count of CVEs updated with non-null scores.

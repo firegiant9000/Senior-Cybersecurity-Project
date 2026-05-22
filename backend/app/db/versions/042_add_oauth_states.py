@@ -42,7 +42,9 @@ def upgrade() -> None:
         sa.Column("provider", sa.String(length=32), nullable=False),
         sa.Column("state_token", sa.String(length=128), nullable=False, unique=True),
         sa.Column("redirect_uri", sa.String(length=500), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
     )
     op.create_index("ix_oauth_states_state_token", "oauth_states", ["state_token"], unique=True)

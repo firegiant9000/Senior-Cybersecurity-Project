@@ -60,9 +60,7 @@ class SqlAssetRepository:
             like = f"%{hostname_search.lower()}%"
             stmt = stmt.where(func.lower(Asset.hostname).like(like))
             count_stmt = count_stmt.where(func.lower(Asset.hostname).like(like))
-        stmt = (
-            stmt.order_by(Asset.hostname).limit(page_size).offset((page - 1) * page_size)
-        )
+        stmt = stmt.order_by(Asset.hostname).limit(page_size).offset((page - 1) * page_size)
         rows = (await self._session.execute(stmt)).scalars().all()
         total = int((await self._session.execute(count_stmt)).scalar_one())
         return list(rows), total
@@ -81,9 +79,7 @@ class SqlAssetRepository:
         await self._session.refresh(asset)
         return asset
 
-    async def set_tags(
-        self, asset_id: int, org_id: int, tags: list[str]
-    ) -> Asset | None:
+    async def set_tags(self, asset_id: int, org_id: int, tags: list[str]) -> Asset | None:
         """Replace the tag set on an asset. Tags are trimmed + deduplicated."""
         asset = await self.get_by_id(asset_id, org_id)
         if asset is None:

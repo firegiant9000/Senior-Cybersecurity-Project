@@ -19,12 +19,12 @@ STATE_TTL = timedelta(minutes=10)
 PROVIDER_M365 = "m365"
 
 
-class M365NotConfigured(RuntimeError):
+class M365NotConfiguredError(RuntimeError):
     """Raised when required M365 settings are missing."""
 
 
 def require_m365_config() -> None:
-    """Raise ``M365NotConfigured`` unless every required setting is present.
+    """Raise ``M365NotConfiguredError`` unless every required setting is present.
 
     Kept centralised so the consent / callback / sync routes share the same
     pre-flight check and emit the same error.
@@ -35,7 +35,7 @@ def require_m365_config() -> None:
         if not getattr(settings, name)
     ]
     if missing:
-        raise M365NotConfigured(
+        raise M365NotConfiguredError(
             f"M365 integration is not configured (missing: {', '.join(missing)})"
         )
 
@@ -45,7 +45,7 @@ def _fernet() -> Fernet:
     try:
         return Fernet(settings.M365_FERNET_KEY.encode("utf-8"))
     except (ValueError, TypeError) as exc:
-        raise M365NotConfigured(f"M365_FERNET_KEY is malformed: {exc}") from exc
+        raise M365NotConfiguredError(f"M365_FERNET_KEY is malformed: {exc}") from exc
 
 
 def encrypt_token(token: str | None) -> str | None:
@@ -63,7 +63,7 @@ def decrypt_token(encrypted: str | None) -> str | None:
         return _fernet().decrypt(encrypted.encode("ascii")).decode("utf-8")
     except InvalidToken as exc:
         # Almost always means M365_FERNET_KEY was rotated without re-consent.
-        raise M365NotConfigured(
+        raise M365NotConfiguredError(
             "Stored M365 token cannot be decrypted with the current key — reconnect required."
         ) from exc
 

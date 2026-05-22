@@ -56,9 +56,7 @@ class SqlScanRunRepository:
         )
         return list(rows), total
 
-    async def update(
-        self, scan_run_id: int, org_id: int, data: ScanRunUpdate
-    ) -> ScanRun | None:
+    async def update(self, scan_run_id: int, org_id: int, data: ScanRunUpdate) -> ScanRun | None:
         run = await self.get_by_id(scan_run_id, org_id)
         if run is None:
             return None
