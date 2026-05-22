@@ -111,6 +111,12 @@ async def _write_audit_log(
         payload=payload,
     )
     session.add(entry)
+    # Flush so the INSERT is materialized while the FK target (organizations.id)
+    # still exists. The session uses autoflush=False, and the delete route
+    # issues a CORE DELETE against organizations before commit; without an
+    # explicit flush here, the pending INSERT would be reordered after the
+    # parent delete at commit time.
+    await session.flush()
 
 
 @router.delete(
