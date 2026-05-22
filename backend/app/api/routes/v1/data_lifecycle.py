@@ -14,7 +14,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response, StreamingResponse
-from sqlalchemy import delete, text, update
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -137,15 +137,24 @@ async def delete_organization(
     application code rather than via FK cascade so newly added tenant
     tables surface here.
     """
-    org = await session.get(Organization, org_id)
-    if org is None:
+    # Resolve the org name via a scalar SELECT rather than session.get() —
+    # holding an ORM Organization instance in the identity map interacted
+    # badly with the subsequent bulk delete + synchronize_session, causing
+    # the post-delete audit_log INSERT to silently roll back. Avoiding the
+    # identity-map entry sidesteps that entirely.
+    name_row = await session.execute(
+        select(Organization.name).where(Organization.id == org_id)
+    )
+    org_name = name_row.scalar_one_or_none()
+    if org_name is None:
         raise HTTPException(status_code=404, detail="Organization not found")
-
-    org_name = org.name  # capture before delete; org row is gone after this block
 
     try:
         counts = await _delete_org_scoped_rows(session, org_id)
-        await session.execute(delete(Organization).where(Organization.id == org_id))
+        await session.execute(
+            delete(Organization).where(Organization.id == org_id),
+            execution_options={"synchronize_session": False},
+        )
         # Audit row carries org_id=NULL because the parent has been deleted;
         # original_org_id and org_name survive in the payload for compliance.
         # Writing this in the same transaction means a rollback of the delete
