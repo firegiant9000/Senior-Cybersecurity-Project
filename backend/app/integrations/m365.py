@@ -231,9 +231,7 @@ async def list_managed_devices(
     decide whether to mark the scan_run as ``partial`` or ``failed``.
     """
     client = http_client or httpx.AsyncClient(timeout=30.0)
-    url: str | None = (
-        f"{GRAPH_BASE_URL}/deviceManagement/managedDevices?$top={page_size}"
-    )
+    url: str | None = f"{GRAPH_BASE_URL}/deviceManagement/managedDevices?$top={page_size}"
     collected: list[ManagedDevice] = []
     headers = {"Authorization": f"Bearer {access_token}"}
     pages = 0

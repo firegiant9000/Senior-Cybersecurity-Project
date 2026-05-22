@@ -21,9 +21,7 @@ class OAuthState(Base):
     org_id: Mapped[int] = mapped_column(
         ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
     state_token: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
     redirect_uri: Mapped[str] = mapped_column(String(500), nullable=False)

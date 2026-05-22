@@ -122,9 +122,7 @@ def parse_csv(text: str) -> ParseResult:
             result.errors.append(
                 {
                     "row_number": i,
-                    "errors": [
-                        f"Exceeded maximum of {MAX_CSV_ROWS} rows — remaining rows skipped"
-                    ],
+                    "errors": [f"Exceeded maximum of {MAX_CSV_ROWS} rows — remaining rows skipped"],
                 }
             )
             break
@@ -134,9 +132,7 @@ def parse_csv(text: str) -> ParseResult:
             result.errors.append({"row_number": i, "errors": ["missing hostname"]})
             continue
         if len(hostname) > 255:
-            result.errors.append(
-                {"row_number": i, "errors": ["hostname exceeds 255 characters"]}
-            )
+            result.errors.append({"row_number": i, "errors": ["hostname exceeds 255 characters"]})
             continue
 
         ip_raw = _norm(raw.get("ip_address"))
@@ -197,7 +193,7 @@ def parse_csv(text: str) -> ParseResult:
     return result
 
 
-async def commit_inventory(
+async def commit_inventory(  # noqa: C901
     session: AsyncSession,
     *,
     org_id: int,

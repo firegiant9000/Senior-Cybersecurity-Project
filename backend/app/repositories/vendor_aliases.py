@@ -40,18 +40,14 @@ class SqlVendorAliasRepository:
         """
         normalized = alias.strip().lower()
         result = await self._session.execute(
-            select(VendorAlias.canonical_vendor).where(
-                func.lower(VendorAlias.alias) == normalized
-            )
+            select(VendorAlias.canonical_vendor).where(func.lower(VendorAlias.alias) == normalized)
         )
         canonical = result.scalar_one_or_none()
         return canonical if canonical is not None else normalized
 
     async def list_all(self) -> list[VendorAlias]:
         result = await self._session.execute(
-            select(VendorAlias).order_by(
-                VendorAlias.canonical_vendor, VendorAlias.alias
-            )
+            select(VendorAlias).order_by(VendorAlias.canonical_vendor, VendorAlias.alias)
         )
         return list(result.scalars().all())
 

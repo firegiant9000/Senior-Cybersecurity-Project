@@ -33,6 +33,7 @@ def _user_override():
         u = MagicMock(spec=User)
         u.id = 1
         u.org_id = 42
+        u.role = "admin"
         return u
 
     return _override

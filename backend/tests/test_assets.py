@@ -9,8 +9,8 @@ import pytest
 
 from app.db.asset import Asset
 from app.db.asset_software import AssetSoftware
-from app.repositories.assets import SqlAssetRepository
 from app.repositories.asset_software import SqlAssetSoftwareRepository
+from app.repositories.assets import SqlAssetRepository
 from app.schemas.asset import (
     AssetCreate,
     AssetListResponse,

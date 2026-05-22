@@ -13,9 +13,7 @@ from app.db.base import Base
 
 class ScanRun(Base):
     __tablename__ = "scan_runs"
-    __table_args__ = (
-        Index("ix_scan_runs_org_started", "org_id", "started_at"),
-    )
+    __table_args__ = (Index("ix_scan_runs_org_started", "org_id", "started_at"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)  # noqa: A003
     org_id: Mapped[int] = mapped_column(

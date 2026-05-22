@@ -19,9 +19,7 @@ class OrganizationCreate(BaseModel):
     # fast-path landing creates an org with just name (+ domain) and lets
     # the user complete the rest later from the dashboard.
     industry_label: IndustryLabel | None = None
-    primary_state: str | None = Field(
-        None, min_length=2, max_length=2, pattern=r"^[A-Z]{2}$"
-    )
+    primary_state: str | None = Field(None, min_length=2, max_length=2, pattern=r"^[A-Z]{2}$")
     employee_range: EmployeeRange | None = None
     primary_domain: str | None = Field(None, max_length=255)
     revenue_range: RevenueRange | None = None

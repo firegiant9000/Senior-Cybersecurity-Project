@@ -310,9 +310,7 @@ async def _fetch_asset_count(session: AsyncSession, org_id: int) -> int:
     table) still evaluate tiers — they simply lose the asset signal.
     """
     try:
-        result = await session.execute(
-            select(func.count(Asset.id)).where(Asset.org_id == org_id)
-        )
+        result = await session.execute(select(func.count(Asset.id)).where(Asset.org_id == org_id))
         return int(result.scalar_one() or 0)
     except Exception:  # noqa: BLE001 — schema may not be present
         return 0

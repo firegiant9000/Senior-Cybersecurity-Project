@@ -83,8 +83,15 @@ def _make_asset():
 
 
 def _override_session(execute_results: list[MagicMock]):
-    """Install a get_session override that returns canned execute results in order."""
+    """Install a get_session + get_current_user override.
+
+    The current-user override is required so that ``get_current_user``'s own
+    ``session.execute`` calls (user lookup) don't drain the queued results
+    intended for the route under test.
+    """
+    from app.api.routes.v1.auth import get_current_user
     from app.db.engine import get_session
+    from app.db.user import User
     from app.main import app
 
     queue = list(execute_results)
@@ -103,15 +110,27 @@ def _override_session(execute_results: list[MagicMock]):
     async def _gen():
         yield fake_session
 
+    async def _user_override():
+        u = MagicMock(spec=User)
+        u.id = 1
+        u.email = "test@example.com"
+        u.role = "admin"
+        u.org_id = _ORG_ID
+        u.is_active = True
+        return u
+
     app.dependency_overrides[get_session] = _gen
+    app.dependency_overrides[get_current_user] = _user_override
     return fake_session
 
 
 def _clear_overrides():
+    from app.api.routes.v1.auth import get_current_user
     from app.db.engine import get_session
     from app.main import app
 
     app.dependency_overrides.pop(get_session, None)
+    app.dependency_overrides.pop(get_current_user, None)
 
 
 # ---------------------------------------------------------------------------
@@ -130,9 +149,7 @@ async def test_findings_returns_empty_when_asset_has_no_software(client: AsyncCl
                 new=AsyncMock(return_value=_make_asset()),
             ),
         ):
-            resp = await client.get(
-                f"/api/v1/organizations/{_ORG_ID}/assets/{_ASSET_ID}/findings"
-            )
+            resp = await client.get(f"/api/v1/organizations/{_ORG_ID}/assets/{_ASSET_ID}/findings")
     finally:
         _clear_overrides()
 
@@ -153,9 +170,7 @@ async def test_findings_404_when_asset_missing(client: AsyncClient):
             new=AsyncMock(return_value=None),
         ),
     ):
-        resp = await client.get(
-            f"/api/v1/organizations/{_ORG_ID}/assets/{_ASSET_ID}/findings"
-        )
+        resp = await client.get(f"/api/v1/organizations/{_ORG_ID}/assets/{_ASSET_ID}/findings")
     assert resp.status_code == 404
 
 
@@ -198,9 +213,7 @@ async def test_findings_includes_kev_then_nvd_matches(client: AsyncClient):
                 new=AsyncMock(return_value=_make_asset()),
             ),
         ):
-            resp = await client.get(
-                f"/api/v1/organizations/{_ORG_ID}/assets/{_ASSET_ID}/findings"
-            )
+            resp = await client.get(f"/api/v1/organizations/{_ORG_ID}/assets/{_ASSET_ID}/findings")
     finally:
         _clear_overrides()
 
@@ -225,18 +238,16 @@ async def test_findings_includes_kev_then_nvd_matches(client: AsyncClient):
 async def test_inventory_health_zero_state(client: AsyncClient):
     """Brand-new org with no inventory yet — all zero, no last upload, no top vendors."""
     execute_queue = [
-        _exec_result_scalar_one(0),       # assets_total
-        _exec_result_scalar_one(0),       # assets_with_software
-        _exec_result_scalar_one(None),    # kev match assets (scalar_one with None coerces to 0)
-        _exec_result_first(None),         # last_run
-        _exec_result_rows([]),            # top_vendors
+        _exec_result_scalar_one(0),  # assets_total
+        _exec_result_scalar_one(0),  # assets_with_software
+        _exec_result_scalar_one(None),  # kev match assets (scalar_one with None coerces to 0)
+        _exec_result_first(None),  # last_run
+        _exec_result_rows([]),  # top_vendors
     ]
     _override_session(execute_queue)
     try:
         with patch(_CHECK_ORG, new=AsyncMock(return_value=None)):
-            resp = await client.get(
-                f"/api/v1/organizations/{_ORG_ID}/inventory/health"
-            )
+            resp = await client.get(f"/api/v1/organizations/{_ORG_ID}/inventory/health")
     finally:
         _clear_overrides()
 
@@ -266,9 +277,7 @@ async def test_inventory_health_populated(client: AsyncClient):
     _override_session(execute_queue)
     try:
         with patch(_CHECK_ORG, new=AsyncMock(return_value=None)):
-            resp = await client.get(
-                f"/api/v1/organizations/{_ORG_ID}/inventory/health"
-            )
+            resp = await client.get(f"/api/v1/organizations/{_ORG_ID}/inventory/health")
     finally:
         _clear_overrides()
 
