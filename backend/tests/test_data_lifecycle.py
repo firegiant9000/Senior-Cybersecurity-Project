@@ -109,9 +109,12 @@ async def test_delete_org_purges_tenant_rows_and_audits(client: AsyncClient, adm
             select(AuditLog).where(AuditLog.action == "organization.delete")
         )
         rows = audit.scalars().all()
-        assert any(
-            (r.payload or {}).get("original_org_id") == org.id for r in rows
-        ), "audit_log must record the delete with original_org_id"
+        matching = [r for r in rows if (r.payload or {}).get("original_org_id") == org.id]
+        assert matching, (
+            f"audit_log must record the delete with original_org_id={org.id}; "
+            f"got {len(rows)} rows with action='organization.delete': "
+            f"{[{'id': r.id, 'org_id': r.org_id, 'payload': r.payload} for r in rows]}"
+        )
 
 
 @pytest.mark.asyncio
