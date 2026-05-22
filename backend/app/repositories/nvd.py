@@ -156,10 +156,18 @@ class SqlNvdRepository:
                 severity_score=row.cvss_score,
                 published_date=_iso(row.published_date),
                 last_modified=None,
+                epss_score=row.epss_score,
+                epss_percentile=row.epss_percentile,
             )
             for row in rows
         ]
         return items, total
+
+    async def get_by_cve_id(self, cve_id: str) -> CVE | None:
+        """Fetch a single CVE row by ID (case-insensitive)."""
+        stmt = select(CVE).where(func.upper(CVE.cve_id) == cve_id.upper())
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
 
 
 def get_nvd_repo(

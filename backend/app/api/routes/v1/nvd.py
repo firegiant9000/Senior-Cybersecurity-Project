@@ -12,8 +12,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.db.engine import get_session
-from app.repositories.nvd import NvdRepository, get_nvd_repo
-from app.schemas.nvd import ALLOWED_SORT_FIELDS, NvdCveListResponse
+from app.repositories.nvd import (
+    NvdRepository,
+    SqlNvdRepository,
+    _iso,
+    _score_to_label,
+    get_nvd_repo,
+)
+from app.schemas.nvd import ALLOWED_SORT_FIELDS, NvdCveDetailResponse, NvdCveListResponse
 from app.schemas.nvd_analytics import NvdTimelineResponse, SeverityDistributionResponse
 from app.services.nvd_analytics import NVDAnalytics
 
@@ -87,6 +93,31 @@ async def list_nvd_cves(
     except SQLAlchemyError as e:
         logger.error("Database error in NVD route: %s", e)
         raise HTTPException(status_code=500, detail="Internal server error") from e
+
+
+@router.get("/cves/{cve_id}", response_model=NvdCveDetailResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def get_nvd_cve(
+    request: Request,  # noqa: ARG001
+    cve_id: str,
+    *,
+    repo: Annotated[SqlNvdRepository, Depends(get_nvd_repo)],
+) -> NvdCveDetailResponse:
+    """Fetch a single CVE by ID, including EPSS score + percentile."""
+    row = await repo.get_by_cve_id(cve_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"CVE {cve_id} not found")
+    return NvdCveDetailResponse(
+        id=row.cve_id.upper(),
+        description=row.description or "",
+        severity_label=_score_to_label(row.cvss_score),
+        severity_score=row.cvss_score,
+        published_date=_iso(row.published_date),
+        last_modified=None,
+        epss_score=row.epss_score,
+        epss_percentile=row.epss_percentile,
+        epss_fetched_at=row.epss_fetched_at.isoformat() if row.epss_fetched_at else None,
+    )
 
 
 @router.get(

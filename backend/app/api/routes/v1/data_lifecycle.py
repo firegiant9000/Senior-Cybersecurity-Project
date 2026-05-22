@@ -22,6 +22,8 @@ from app.core.dependencies import require_role
 from app.db.ai_summary_feedback import AISummaryFeedback
 from app.db.ai_summary_generation import AISummaryGeneration
 from app.db.assessment_submission import AssessmentSubmission
+from app.db.asset import Asset
+from app.db.asset_software import AssetSoftware
 from app.db.audit_log import AuditLog
 from app.db.engine import AsyncSessionLocal, get_session
 from app.db.finding_status import FindingStatus
@@ -34,6 +36,7 @@ from app.db.org_invite import OrgInvite
 from app.db.org_upload import OrgUpload
 from app.db.org_vendor import OrgVendor
 from app.db.organization import Organization
+from app.db.scan_run import ScanRun
 from app.db.user import User
 
 logger = logging.getLogger(__name__)
@@ -47,6 +50,8 @@ router = APIRouter()
 _ORG_SCOPED_MODELS_BY_ORG_ID: tuple[type, ...] = (
     AISummaryFeedback,
     AISummaryGeneration,
+    AssetSoftware,
+    Asset,
     FindingStatus,
     FindingsSnapshot,
     Invitation,
@@ -56,6 +61,7 @@ _ORG_SCOPED_MODELS_BY_ORG_ID: tuple[type, ...] = (
     OrgInvite,
     OrgUpload,
     OrgVendor,
+    ScanRun,
 )
 
 

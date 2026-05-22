@@ -51,6 +51,11 @@ export const TAB_GROUPS: TabGroupDef[] = [
     requiresOrg: true,
   },
   {
+    id: 'assets',
+    label: 'Assets',
+    requiresOrg: true,
+  },
+  {
     id: 'trendsData',
     label: 'Historical Trends',
     subTabs: [

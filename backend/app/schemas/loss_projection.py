@@ -10,10 +10,11 @@ class LossProjectionResponse(BaseModel):
     projected_annual_loss: float
     projected_annual_loss_formatted: str  # e.g. "$1.2M"
 
-    # Context for the projection
-    sector: str
-    state: str
-    employee_range: str
+    # Context for the projection — nullable after Phase B2 since orgs can
+    # exist with only name + domain. Service swaps None for placeholders.
+    sector: str | None = None
+    state: str | None = None
+    employee_range: str | None = None
     size_multiplier: float  # employee-range scaling factor applied
 
     # IC3 source signals
