@@ -681,6 +681,8 @@ This is the kind of pre-pilot hygiene that has to land before showing the produc
 
 # Month 2 — Reduced Onboarding + Inventory Upload
 
+> **Status: code-complete on branch `feature/month2-onboarding-inventory` (PR #165).** Six commits ship workstreams 2.1, 2.2, and 2.3 plus Phase D (EPSS, pulled forward from Month 3) and Phase F (activation analytics + dashboard polish). Detailed phase tracking lives in [docs/month_2_execution_plan.md](month_2_execution_plan.md); manual smoke test in [docs/manual_test_month2.md](manual_test_month2.md); live-website test plan in [docs/live_test_month2.md](live_test_month2.md). Items still open are scoped follow-ups (CycloneDX SBOM import, Google Workspace OAuth, the cloud-provider integrations) — see the ⏳ rows below.
+
 ## Goal
 
 Fix the onboarding critique by letting users get value through a domain and an upload instead of filling out a long form.
@@ -690,11 +692,9 @@ Fix the onboarding critique by letting users get value through a domain and an u
 ```text
 Create account
 ↓
-Create organization
+Create organization (name + primary domain only)
 ↓
-Enter domain
-↓
-Upload inventory CSV/SBOM OR manually add software
+NextStepsCard offers: Upload CSV  /  Connect M365  /  Complete profile
 ↓
 See first risk dashboard
 ```
@@ -703,68 +703,71 @@ See first risk dashboard
 
 ### Tasks
 
-| Task | Priority | Difficulty | Files |
-|---|---|---|---|
-| Review tier gating logic | High | Medium | `backend/app/services/assessment_intake.py` |
-| Make Basic useful with only org/domain | High | Medium | intake service + frontend wizard |
-| Move controls/compliance questions to optional refinement | High | Medium | `AssessmentIntakePage.tsx`, `OrgProfilePage.tsx` |
-| Add progress indicator: Basic / Enhanced / Comprehensive | Medium | Medium | frontend profile/report pages |
-| Allow users to skip non-critical fields | High | Low/Medium | frontend wizard |
+| Task | Priority | Difficulty | Files | Status |
+|---|---|---|---|---|
+| Review tier gating logic | High | Medium | `backend/app/services/assessment_intake.py` | ✅ [docs/intake_gating_audit.md](intake_gating_audit.md) captures every coupling between tier unlock and downstream features (Phase B1 spike). |
+| Make Basic useful with only org/domain | High | Medium | intake service + frontend wizard | ✅ `services/assessment_intake.py` now computes tier from any of (org profile completeness, inventory presence, connected integrations); Basic unlocks with name + domain (#111). |
+| Move controls/compliance questions to optional refinement | High | Medium | `AssessmentIntakePage.tsx`, `OrgProfilePage.tsx` | ✅ Each intake step carries an `optional` flag; non-required steps render an inline "Optional: improves accuracy" hint and never block tier unlock. |
+| Add progress indicator: Basic / Enhanced / Comprehensive | Medium | Medium | frontend profile/report pages | ✅ `IntakeProgressIndicator` reflects skipped vs incomplete vs complete; `useIntakePreview` shows the unlock delta inline. |
+| Allow users to skip non-critical fields | High | Low/Medium | frontend wizard | ✅ Skip-for-now button on every step; persists to `organizations.intake_skipped_steps` (migration 040, R9 mitigation) so the wall doesn't re-pop on later logins. |
 
 ### Definition of done
 
-A new user can reach a useful dashboard without completing every question.
+✅ A new user can reach a useful dashboard with org name + primary domain alone; skipped steps persist across logins.
 
 ## Workstream 2.2 — Inventory upload MVP
 
 ### Supported first formats
 
-Start with simple CSV. Add SBOM later.
+CSV first; CycloneDX SBOM deferred to Month 3 per scope decision.
 
-CSV columns:
+CSV columns (canonical schema in [docs/inventory_csv_format.md](inventory_csv_format.md); sample at `frontend/public/sample-inventory.csv`):
 
 ```csv
-hostname,os_name,os_version,software_name,software_version,vendor,package_manager
-Office-PC-01,Windows,11,Google Chrome,124.0.0,Google,winget
-Office-PC-01,Windows,11,Node.js,20.11.1,OpenJS,winget
+hostname,ip_address,os_name,os_version,vendor,product,version,notes
+Office-PC-01,10.0.0.12,Windows,11,Google,Google Chrome,124.0.0,
+Office-PC-01,10.0.0.12,Windows,11,OpenJS,Node.js,20.11.1,
 ```
 
 ### Tasks
 
-| Task | Priority | Difficulty |
-|---|---|---|
-| Add `assets` table | Critical | Medium |
-| Add `scan_runs` table | Critical | Medium |
-| Add `asset_software` table | Critical | Medium |
-| Add CSV upload endpoint | Critical | Medium |
-| Validate CSV rows and report row errors | High | Medium |
-| Add upload page | High | Medium |
-| Add uploaded inventory preview | High | Medium |
-| Store upload as a scan run | High | Medium |
+| Task | Priority | Difficulty | Status |
+|---|---|---|---|
+| Add `assets` table | Critical | Medium | ✅ Migration 034; model in `backend/app/db/asset.py`; composite uniqueness on `(org_id, hostname, mac_address)` with NULL-safe matching (#112). |
+| Add `scan_runs` table | Critical | Medium | ✅ Migration 036; one row per upload/sync; status + asset/software counts surface in the upload-history UI. |
+| Add `asset_software` table | Critical | Medium | ✅ Migration 035; `(org_id, vendor, product)` index for matcher lookups; `cpe_uri` nullable now, populated by Month 3 matcher. |
+| Add CSV upload endpoint | Critical | Medium | ✅ `POST /inventory/uploads/csv/preview` + `/import`; idempotent by `(org_id, hostname)`; advisory lock per `(org_id, 'csv_import')` to serialize concurrent uploads (R2) (#113). |
+| Validate CSV rows and report row errors | High | Medium | ✅ Preview returns row-level errors without writing; 10k row cap; required-column check; per-row IP format validation. |
+| Add upload page | High | Medium | ✅ `frontend/src/pages/UploadInventoryPage.tsx` — native HTML5 drag-drop (no new deps), preview table, progress polling against scan_runs (#114). |
+| Add uploaded inventory preview | High | Medium | ✅ Preview endpoint returns `valid_rows`, `invalid_rows`, `would_create`, `would_update` without DB writes; UI renders first 20 rows + error list. |
+| Store upload as a scan run | High | Medium | ✅ `POST /inventory/uploads/csv/import` writes a `scan_runs` row with `discovered_via='csv_upload'`; audit-log entry per import. |
+| Asset list + drill-down UI | Critical | Medium | ✅ `frontend/src/pages/AssetsPage.tsx` — paginated, filter by vendor + KEV-match status, drill into per-asset software + matched CVEs via `GET /assets/{id}/findings` (#114). |
+| Preliminary KEV match on import | High | Medium | ✅ `services/inventory_import.py` does literal vendor+product matching against `kev` + `exploited_vuln`; surfaced as "preliminary match" in UI (R3 mitigation — refined by Month 3 CPE matcher). |
 
 ### Backend routes
 
 ```text
-POST /api/v1/inventory/uploads/csv/preview     # validate + show errors before commit
-POST /api/v1/inventory/uploads/csv/import      # commit
-POST /api/v1/inventory/uploads/sbom/import     # CycloneDX JSON in Sprint 2; SPDX later
-GET  /api/v1/assets
-GET  /api/v1/assets/{asset_id}
-GET  /api/v1/assets/{asset_id}/software
-GET  /api/v1/inventory/scan-runs
+POST /api/v1/organizations/{org_id}/inventory/uploads/csv/preview   ✅ validate + return row errors
+POST /api/v1/organizations/{org_id}/inventory/uploads/csv/import    ✅ commit, returns scan_run_id
+GET  /api/v1/organizations/{org_id}/scan-runs                       ✅ upload history
+GET  /api/v1/organizations/{org_id}/scan-runs/{id}                  ✅ status polling
+GET  /api/v1/organizations/{org_id}/assets                          ✅ paginated, filterable
+GET  /api/v1/organizations/{org_id}/assets/{asset_id}               ✅ detail + software list
+GET  /api/v1/organizations/{org_id}/assets/{asset_id}/findings      ✅ KEV + NVD matches
+POST /api/v1/inventory/uploads/sbom/import                          ⏳ CycloneDX deferred to Month 3 (#115)
 ```
 
 ### SBOM format support sequencing
 
-| Sprint | Format | Why |
+| Sprint | Format | Status |
 |---|---|---|
-| Sprint 1 (Weeks 5–6) | Generic CSV only | Lowest friction for first user |
-| Sprint 2 (Weeks 7–8) | CycloneDX JSON | Most common SBOM format; libraries exist |
-| Later | SPDX, Intune CSV, Lansweeper CSV, JAMF CSV | Driven by pilot demand |
+| Sprint 1 (Weeks 5–6) | Generic CSV only | ✅ Shipped end-to-end. |
+| Sprint 2 (Weeks 7–8) | CycloneDX JSON | ⏳ Deferred to Month 3 (#115). Stretch C11 in [month_2_execution_plan.md](month_2_execution_plan.md). |
+| Later | SPDX, Intune CSV, Lansweeper CSV, JAMF CSV | ⏳ Pilot-demand driven. |
 
 ### Domain enrichment (optional, low-priority)
 
-Add `backend/app/services/domain_enrichment.py` to infer industry/employee/revenue from a primary domain (using public sources or a paid enrichment API). This can replace several manual onboarding fields. **Only build if Week 0 interviews say onboarding friction is a real blocker** — otherwise defer.
+⏳ `backend/app/services/domain_enrichment.py` not built. Tracked in issue #160. Deferred pending pilot signal that onboarding friction is real (Workstream 2.1's skip flow may be enough on its own).
 
 ## Workstream 2.3 — Cloud auto-discovery for segment B (added from interview #1)
 
@@ -776,31 +779,61 @@ Segment B unblocks faster with **"connect what's already running and we'll disco
 
 ### Tasks
 
-| Task | Priority | Difficulty | Files |
-|---|---|---|---|
-| Spike Microsoft 365 / Entra ID OAuth: list-devices + list-users via Graph API against a test tenant | Critical | High | new `backend/app/integrations/m365.py` |
-| Map M365 device data to `assets` / `asset_software` rows | Critical | Medium | `backend/app/services/inventory_ingest.py` |
-| Spike Google Workspace Admin SDK as parallel integration | High | High | new `backend/app/integrations/google_workspace.py` |
-| Spike Salesforce inventory (apps/users/connected apps) | Medium | High | new `backend/app/integrations/salesforce.py` (post-pilot if validated) |
-| Cloud-provider read-only integration (AWS Config / Azure Resource Graph / GCP Asset Inventory) — pick one | High | High | new `backend/app/integrations/cloud_aws.py` etc. |
-| Onboarding UI: "Connect cloud" tab as a peer to "Upload CSV" tab | Critical | Medium | `frontend/src/pages/UploadInventoryPage.tsx` |
-| Per-integration permission disclosure page (exactly what we read, what we don't) | Critical | Low/Medium | new `frontend/src/pages/IntegrationPermissionsPage.tsx` |
+| Task | Priority | Difficulty | Files | Status |
+|---|---|---|---|---|
+| Spike Microsoft 365 / Entra ID OAuth: list-devices + list-users via Graph API against a test tenant | Critical | High | new `backend/app/integrations/m365.py` | ✅ Consent + callback + sync routes shipped behind `ENABLE_M365_INTEGRATION` flag; state tokens in `oauth_states` (migration 042); Fernet-encrypted credentials in `integration_credentials` (migration 043) (#116). |
+| Map M365 device data to `assets` / `asset_software` rows | Critical | Medium | `backend/app/services/m365_oauth.py` | ✅ Sync reuses the CSV-import upsert path; creates a `scan_runs` row with `discovered_via='m365'`. |
+| Onboarding UI: "Connect cloud" tab as a peer to "Upload CSV" tab | Critical | Medium | `frontend/src/pages/UploadInventoryPage.tsx`, `IntegrationsPage.tsx` | ✅ `NextStepsCard` on the dashboard offers Upload CSV / Connect M365 / Complete profile side by side; `IntegrationsPage` hosts the M365 card (#117). |
+| Per-integration permission disclosure page (exactly what we read, what we don't) | Critical | Low/Medium | `IntegrationsPage.tsx` + `docs/m365_integration_notes.md` | ✅ IntegrationsPage card lists required scopes pre-consent; notes file captures Graph rate limits, refresh-token expiry, and tenants-without-Intune edge case. |
+| Spike Google Workspace Admin SDK as parallel integration | High | High | new `backend/app/integrations/google_workspace.py` | ⏳ Deferred to Month 3 — follows M365 pattern; only build after M365 ships in a pilot. |
+| Spike Salesforce inventory (apps/users/connected apps) | Medium | High | new `backend/app/integrations/salesforce.py` | ⏳ Post-pilot. |
+| Cloud-provider read-only integration (AWS Config / Azure Resource Graph / GCP Asset Inventory) — pick one | High | High | new `backend/app/integrations/cloud_aws.py` etc. | ⏳ Pilot-demand driven. |
 
 ### Sequencing decision
 
-The integration spike work is **High** difficulty and OAuth admin consent can drag for weeks per provider. Recommend:
-
-- **Sprint 1 (Month 2):** stand up the M365 OAuth flow as a behind-feature-flag spike — do not block CSV path on it.
-- **Sprint 2 (Month 3, after matcher gate):** wire M365 device output through to the matcher. By this point CSV path is shipping; M365 is the second onboarding option.
+- **Sprint 1 (Month 2):** ✅ M365 OAuth flow shipped behind feature flag — does not block CSV path.
+- **Sprint 2 (Month 3, after matcher gate):** ⏳ Wire M365 device output through to the matcher (#124). CSV path is shipping; M365 becomes the second onboarding option.
 - **Later:** Google Workspace, Salesforce, cloud-provider integrations as pilots demand.
 
 ### Definition of done
 
-A segment-B user can connect their M365 tenant via OAuth, see their devices populate `assets` automatically, and receive a vulnerability report without uploading anything. Permission scopes are documented and shown to the user before consent.
+✅ A segment-B user can connect their M365 tenant via OAuth, see their devices populate `assets` automatically, and receive a vulnerability report without uploading anything. ✅ Permission scopes are documented and shown to the user before consent.
 
-### Definition of done
+✅ A user can upload a CSV inventory and see assets/software listed in the app.
 
-A user can upload a CSV inventory and see assets/software listed in the app.
+## Workstream 2.4 — EPSS (pulled forward from Month 3)
+
+Phase D of the Month 2 plan: EPSS code already existed in `backend/app/ingestors/epss.py` but was never registered with the scheduler. Wiring it in Month 2 lets the Month 3 matcher pull real percentiles from day one.
+
+| Task | Priority | Status |
+|---|---|---|
+| Register EPSS in `workers/scheduler` with `INGEST_SCHEDULE_EPSS` (daily 02:00 UTC, post-NVD) | Critical | ✅ Scheduled; `INGEST_STALE_HOURS_EPSS` surfaces in the freshness endpoint (#118). |
+| Add `epss_percentile` + `epss_fetched_at` columns to `cves` (migration 038) | Critical | ✅ Done; ingestor populates both. |
+| Expose `epss_score` + `epss_percentile` on `GET /api/v1/nvd/{cve_id}` and bulk NVD endpoints | High | ✅ Schemas updated; repository projects EPSS fields. |
+| Add "Exploitability" column to `NvdTable` with high/medium/low styling + tooltip | High | ✅ `frontend/src/components/tabs/NvdTable.tsx` renders score + percentile with tier classification. |
+| Register EPSS in `services/data_status` | Medium | ✅ `key="epss"`, status `real`, label "EPSS exploitation probability" — SourceBadge renders correctly. |
+
+## Workstream 2.5 — Activation analytics + dashboard polish
+
+Phase F of the Month 2 plan. Lightweight client-side event log so we can measure whether the onboarding collapse actually shortens time-to-value, plus the dashboard wiring for the new surfaces.
+
+| Task | Priority | Status |
+|---|---|---|
+| `POST /api/v1/analytics/events` with closed-set event types | High | ✅ Allowlist: `intake_step_skipped`, `csv_upload_started/completed`, `m365_connect_started/completed`, `dashboard_first_view`. Closed set — unknown types rejected 400. |
+| PII scrubbing on all payloads (R10 mitigation) | Critical | ✅ Every payload passes through `observability._scrub` before persist; payload-key cap of 20; dedicated test verifies email-key redaction. |
+| `activation_events` table + per-user/per-org indexing | High | ✅ Migration 039. |
+| Inventory Health card on the overview tab | High | ✅ `frontend/src/components/dashboard/InventoryHealthCard.tsx` — assets total / with software / KEV-matched / last upload + source badge. |
+| Assets tab in dashboard nav | High | ✅ `tabGroups.ts`; routes wired in `App.tsx`. |
+| Demo-org fixtures for new surfaces | High | ✅ `seed_demo_org.py` seeds ~25 assets + ~80 software rows so the public demo dashboard isn't empty. |
+| Trust pack refresh | High | ✅ `DATA_SOURCE_STATUS.md`, `PRODUCT_VIABILITY_ROADMAP.md` updated; `manual_test_month2.md` documents local smoke test; `live_test_month2.md` documents the production-walkthrough script. |
+
+## Open follow-ups (Month 2 → Month 3 handoff)
+
+- ⏳ CycloneDX SBOM import (#115) — same `/inventory/uploads/...` namespace; Phase C11 stretch.
+- ⏳ Domain enrichment service (#160) — only if pilot interviews reaffirm the onboarding-friction signal.
+- ⏳ Google Workspace OAuth — follows M365 pattern; Month 3.
+- ⏳ Wire M365 device output to the Month 3 CPE matcher (#124).
+- ⏳ Ops carryovers from Month 1 still open: rotate NVD + Census keys, deploy Sentry DSN to Render + Firebase Hosting, enable branch protection on `main`.
 
 ---
 
