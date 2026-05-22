@@ -11,6 +11,23 @@ interface NVDCVEItem {
     severity_score: number | null;
     published_date: string;
     last_modified: string;
+    epss_score: number | null;
+    epss_percentile: number | null;
+}
+
+function formatEpss(score: number | null, percentile: number | null): string {
+    if (score === null || score === undefined) return '—';
+    const pct = (score * 100).toFixed(1);
+    if (percentile === null || percentile === undefined) return `${pct}%`;
+    const rank = (percentile * 100).toFixed(0);
+    return `${pct}% (p${rank})`;
+}
+
+function epssTier(score: number | null): 'high' | 'medium' | 'low' | 'unknown' {
+    if (score === null || score === undefined) return 'unknown';
+    if (score >= 0.5) return 'high';
+    if (score >= 0.1) return 'medium';
+    return 'low';
 }
 
 interface ApiResponse {
@@ -142,8 +159,8 @@ const NvdTable: React.FC<Props> = ({ apiBaseUrl }) => {
                     disabled={data.length === 0}
                     onClick={() => downloadCsv(
                         'nvd-cves.csv',
-                        ['CVE ID', 'Description', 'Severity', 'Score', 'Published', 'Last Modified'],
-                        data.map(r => [r.id, r.description, r.severity_label, r.severity_score, r.published_date, r.last_modified]),
+                        ['CVE ID', 'Description', 'Severity', 'Score', 'EPSS', 'EPSS Percentile', 'Published', 'Last Modified'],
+                        data.map(r => [r.id, r.description, r.severity_label, r.severity_score, r.epss_score, r.epss_percentile, r.published_date, r.last_modified]),
                     )}
                 >
                     Export CSV
@@ -168,6 +185,7 @@ const NvdTable: React.FC<Props> = ({ apiBaseUrl }) => {
                                     <th>Description</th>
                                     <th>Severity</th>
                                     <th>Score</th>
+                                    <th title="EPSS — 30-day probability the CVE will be exploited in the wild (source: FIRST.org). Percentile rank shown in parens.">Exploitability</th>
                                     <th>Published</th>
                                 </tr>
                             </thead>
@@ -182,6 +200,18 @@ const NvdTable: React.FC<Props> = ({ apiBaseUrl }) => {
                                         <td>{item.description.substring(0, 80)}...</td>
                                         <td>{item.severity_label || 'Unknown'}</td>
                                         <td>{item.severity_score || 'N/A'}</td>
+                                        <td>
+                                            <span
+                                                className={`epss-cell epss-${epssTier(item.epss_score)}`}
+                                                title={
+                                                    item.epss_score === null
+                                                        ? 'No EPSS score available'
+                                                        : `EPSS ${(item.epss_score * 100).toFixed(2)}% — 30-day exploitation probability${item.epss_percentile !== null ? ` (percentile ${(item.epss_percentile * 100).toFixed(0)})` : ''}`
+                                                }
+                                            >
+                                                {formatEpss(item.epss_score, item.epss_percentile)}
+                                            </span>
+                                        </td>
                                         <td>{item.published_date}</td>
                                     </tr>
                                 ))}
