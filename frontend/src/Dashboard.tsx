@@ -12,6 +12,7 @@ import WidgetSkeleton from './components/shared/WidgetSkeleton';
 import { API_BASE_URL } from './api/fetchWithAuth';
 import { TAB_GROUPS, LEGACY_TAB_MAP } from './config/tabGroups';
 import { getVisibleGroups } from './utils/roleUtils';
+import { logActivationEvent } from './api/analytics';
 
 const RiskScoringTable = lazy(() => import('./components/tabs/RiskScoringTable'));
 const ThreatIntelTab = lazy(() => import('./components/tabs/ThreatIntelTab'));
@@ -24,6 +25,7 @@ const DataSourcesTab = lazy(() => import('./components/tabs/DataSourcesTab'));
 const FindingsTab = lazy(() => import('./components/tabs/FindingsTab'));
 const AISummaryTab = lazy(() => import('./components/tabs/AISummaryTab'));
 const AnomaliesTab = lazy(() => import('./components/tabs/AnomaliesTab'));
+const AssetsPage = lazy(() => import('./pages/AssetsPage'));
 
 const Dashboard: React.FC = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -65,6 +67,19 @@ const Dashboard: React.FC = () => {
             setSearchParams({}, { replace: true });
         }
     }, [activeGroupDef, visibleGroups, setSearchParams]);
+
+    // F4: emit `dashboard_first_view` at most once per browser session so the
+    // funnel knows when a user actually reaches a populated dashboard.
+    useEffect(() => {
+        if (user == null) return;
+        const KEY = 'ht.dashboardFirstViewSent';
+        if (window.sessionStorage.getItem(KEY)) return;
+        window.sessionStorage.setItem(KEY, '1');
+        void logActivationEvent({
+            event_type: 'dashboard_first_view',
+            org_id: orgId ?? null,
+        });
+    }, [user, orgId]);
 
     const handleGroupChange = useCallback(
         (groupId: string) => {
@@ -154,6 +169,7 @@ const Dashboard: React.FC = () => {
                     {activeComponent === 'pipelineHealth' && <PipelineHealthTab />}
                     {activeComponent === 'normalizationLog' && <NormalizationLogTab />}
                     {activeComponent === 'anomalies' && <AnomaliesTab />}
+                    {activeComponent === 'assets' && <AssetsPage />}
                 </Suspense>
             </main>
         </div>

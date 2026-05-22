@@ -282,6 +282,7 @@ async def get_ingest_health(
         "cisa_kev": settings.INGEST_STALE_HOURS_KEV,
         "ic3": settings.INGEST_STALE_HOURS_IC3,
         "economics": settings.INGEST_STALE_HOURS_ECON,
+        "epss": settings.INGEST_STALE_HOURS_EPSS,
     }
 
     stmt = select(IngestRun).order_by(IngestRun.source, IngestRun.started_at.desc())
@@ -588,6 +589,7 @@ async def get_ingest_schedule(
         "cisa_kev": settings.INGEST_SCHEDULE_KEV,
         "ic3": settings.INGEST_SCHEDULE_IC3,
         "economics": settings.INGEST_SCHEDULE_ECONOMICS,
+        "epss": settings.INGEST_SCHEDULE_EPSS,
     }
 
     jobs: list[ScheduleJobInfo] = []
