@@ -1,6 +1,8 @@
 import * as Sentry from '@sentry/react'
 
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g
+// KEEP IN SYNC with _SENSITIVE_KEY_PATTERNS in backend/app/core/observability.py.
+// A backend test (test_observability_scrubber.py) asserts the two lists agree.
 const SENSITIVE_KEY_PATTERNS = [
   'authorization',
   'cookie',

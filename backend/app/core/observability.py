@@ -29,6 +29,9 @@ _OUTBOUND_REQUEST_ID_HEADER = "x-request-id"
 # Keys whose values must be redacted from any Sentry event before leaving the
 # process. Match is substring + case-insensitive against both event dict paths
 # and breadcrumb data.
+# KEEP IN SYNC with SENSITIVE_KEY_PATTERNS in frontend/src/lib/observability.ts —
+# the frontend scrubber maintains an identical list. A test in
+# backend/tests/test_observability_scrubber.py asserts the two lists agree.
 _SENSITIVE_KEY_PATTERNS = (
     "authorization",
     "cookie",

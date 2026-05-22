@@ -96,7 +96,7 @@ def _coerce(value: Any) -> Any:
     return value
 
 
-async def _write_audit_log(
+async def _write_audit_log_and_flush(
     session: AsyncSession,
     *,
     actor_user_id: int | None,
@@ -143,7 +143,7 @@ async def delete_organization(
 
     try:
         counts = await _delete_org_scoped_rows(session, org_id)
-        await _write_audit_log(
+        await _write_audit_log_and_flush(
             session,
             actor_user_id=current_user.id,
             org_id=org_id,
@@ -202,7 +202,7 @@ async def export_organization(
         )
         row_counts[table_name] = int(count_result.scalar() or 0)
 
-    await _write_audit_log(
+    await _write_audit_log_and_flush(
         session,
         actor_user_id=current_user.id,
         org_id=org_id,
@@ -230,12 +230,14 @@ async def export_organization(
             yield f"{json.dumps(table_name)}: [".encode()
             stream_session = AsyncSessionLocal()
             try:
-                rows = await stream_session.execute(
-                    text(f"SELECT * FROM {table_name} WHERE {fk_column} = :org_id"),
+                result = await stream_session.stream(
+                    text(
+                        f"SELECT * FROM {table_name} WHERE {fk_column} = :org_id"
+                    ).execution_options(yield_per=200),
                     {"org_id": org_id},
                 )
                 first_row = True
-                for row in rows.mappings().all():
+                async for row in result.mappings():
                     if not first_row:
                         yield b", "
                     first_row = False
