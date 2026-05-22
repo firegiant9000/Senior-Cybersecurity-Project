@@ -1,10 +1,11 @@
 """Organization routes — v1."""
 
 import logging
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -208,6 +209,10 @@ async def preview_assessment_intake(
         primary_state=body.primary_state,
         employee_range=body.employee_range,
         revenue_range=body.revenue_range,
+        # primary_domain is part of the BASIC "identity_signal" disjunction
+        # in the post-B2 ladder — pass it through so the typed-but-unsaved
+        # domain unlocks Basic immediately in the preview.
+        primary_domain=body.primary_domain,
         security_controls=body.security_controls,
         compliance_frameworks=body.compliance_frameworks,
         data_types=body.data_types,
@@ -218,6 +223,81 @@ async def preview_assessment_intake(
         domain_count=1 if (body.primary_domain and body.primary_domain.strip()) else 0,
     )
     return await evaluate_intake_preview(snap, current_org, db)
+
+
+class IntakeSkipRequest(BaseModel):
+    """Body for POST /mine/intake/skip — record that the user dismissed a step."""
+
+    step: str = Field(..., min_length=1, max_length=64)
+
+
+class IntakeStateResponse(BaseModel):
+    """Snapshot of the org's intake-wizard state — what's been skipped/completed."""
+
+    skipped_steps: list[str]
+    completed_at: datetime | None = None
+
+
+@router.post("/mine/intake/skip", response_model=IntakeStateResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def skip_assessment_intake_step(
+    request: Request,  # noqa: ARG001
+    body: IntakeSkipRequest,
+    current_user: User = Depends(get_current_user),  # noqa: ARG001
+    org: Organization = Depends(get_current_org),
+    db: AsyncSession = Depends(get_session),
+):
+    """Record that the user dismissed an intake-wizard step.
+
+    Persisted on `organizations.intake_skipped_steps` so the wizard
+    doesn't re-pop the same wall on a later login (R9 mitigation).
+    Idempotent — skipping the same step twice is a no-op.
+    """
+    existing = list(org.intake_skipped_steps or [])
+    if body.step not in existing:
+        existing.append(body.step)
+        org.intake_skipped_steps = existing
+        try:
+            await db.commit()
+            await db.refresh(org)
+        except SQLAlchemyError:
+            await db.rollback()
+            logger.exception("Failed to persist intake skip for org %s", org.id)
+            raise HTTPException(status_code=500, detail="Failed to record skip")
+    return IntakeStateResponse(
+        skipped_steps=list(org.intake_skipped_steps or []),
+        completed_at=org.intake_completed_at,
+    )
+
+
+@router.post("/mine/intake/complete", response_model=IntakeStateResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def complete_assessment_intake(
+    request: Request,  # noqa: ARG001
+    current_user: User = Depends(get_current_user),  # noqa: ARG001
+    org: Organization = Depends(get_current_org),
+    db: AsyncSession = Depends(get_session),
+):
+    """Mark the intake as user-completed (timestamp only).
+
+    Sets `intake_completed_at` so the frontend can stop showing the
+    "complete your intake" call-to-action even if the user reached the
+    end with several skipped steps.
+    """
+    from datetime import UTC  # noqa: PLC0415 — only needed here
+
+    org.intake_completed_at = datetime.now(UTC)
+    try:
+        await db.commit()
+        await db.refresh(org)
+    except SQLAlchemyError:
+        await db.rollback()
+        logger.exception("Failed to mark intake complete for org %s", org.id)
+        raise HTTPException(status_code=500, detail="Failed to mark intake complete")
+    return IntakeStateResponse(
+        skipped_steps=list(org.intake_skipped_steps or []),
+        completed_at=org.intake_completed_at,
+    )
 
 
 @router.get("/mine/validation", response_model=AssessmentValidationResponse)
