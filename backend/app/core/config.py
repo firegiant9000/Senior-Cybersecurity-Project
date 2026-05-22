@@ -110,6 +110,8 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     INGEST_SCHEDULE_KEV: str = ""
     INGEST_SCHEDULE_IC3: str = ""
     INGEST_SCHEDULE_ECONOMICS: str = ""
+    # EPSS runs daily by default, after NVD (02:00 UTC) so scores cover the freshest CVE set.
+    INGEST_SCHEDULE_EPSS: str = "0 2 * * *"
     # Maximum seconds a run may be "running" before it is considered stale/timed-out
     INGEST_LOCK_TIMEOUT_SECONDS: int = 3600
     # Number of automatic retries on failure (exponential back-off: 30s, 120s)
@@ -121,10 +123,24 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     INGEST_STALE_HOURS_KEV: int = 25
     INGEST_STALE_HOURS_IC3: int = 168
     INGEST_STALE_HOURS_ECON: int = 168
+    INGEST_STALE_HOURS_EPSS: int = 49
 
     # Rate limiting
     RATE_LIMIT_AUTH: str = "30/minute"
     RATE_LIMIT_DATA: str = "60/minute"
+
+    # M365 / Entra OAuth integration (Phase E spike — see docs/m365_integration_notes.md)
+    # Feature-flagged off in prod; the frontend reads ENABLE_M365_INTEGRATION via the
+    # public-config endpoint and hides the card when false.
+    ENABLE_M365_INTEGRATION: bool = False
+    M365_CLIENT_ID: str = ""
+    M365_CLIENT_SECRET: str = ""
+    M365_AUTHORITY: str = "https://login.microsoftonline.com/common"
+    M365_REDIRECT_URI: str = ""
+    # Fernet key (urlsafe base64, 32 bytes). Generated once per env with
+    # `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
+    # Stored credentials are unrecoverable if this key is lost — rotate by re-consent.
+    M365_FERNET_KEY: str = ""
 
     # File uploads
     UPLOAD_DIR: str = "./uploads"
