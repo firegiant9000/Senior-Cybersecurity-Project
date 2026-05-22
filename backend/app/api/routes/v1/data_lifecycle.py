@@ -141,22 +141,27 @@ async def delete_organization(
     if org is None:
         raise HTTPException(status_code=404, detail="Organization not found")
 
+    org_name = org.name  # capture before delete; org row is gone after this block
+
     try:
         counts = await _delete_org_scoped_rows(session, org_id)
+        await session.execute(delete(Organization).where(Organization.id == org_id))
+        # Audit row carries org_id=NULL because the parent has been deleted;
+        # original_org_id and org_name survive in the payload for compliance.
+        # Writing this in the same transaction means a rollback of the delete
+        # also rolls back the audit row — we never claim a delete happened
+        # if it didn't commit.
         await _write_audit_log_and_flush(
             session,
             actor_user_id=current_user.id,
-            org_id=org_id,
+            org_id=None,
             action="organization.delete",
             payload={
                 "deleted_counts": counts,
-                "org_name": org.name,
-                # Preserved so the audit trail survives the FK ON DELETE SET
-                # NULL on audit_log.org_id once the org row is removed below.
+                "org_name": org_name,
                 "original_org_id": org_id,
             },
         )
-        await session.execute(delete(Organization).where(Organization.id == org_id))
         await session.commit()
     except SQLAlchemyError as exc:
         await session.rollback()
