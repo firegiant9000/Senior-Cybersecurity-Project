@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import delete, text, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -113,12 +113,17 @@ async def _write_audit_log(
     session.add(entry)
 
 
-@router.delete("/organizations/{org_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/organizations/{org_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    response_model=None,
+)
 async def delete_organization(
     org_id: int,
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(require_role("admin")),
-) -> None:
+) -> Response:
     """Hard-delete an organisation and every row scoped to it.
 
     Writes a single ``audit_log`` entry summarising the per-table delete
@@ -151,6 +156,8 @@ async def delete_organization(
         await session.rollback()
         logger.exception("Failed to delete organization %s: %s", org_id, exc)
         raise HTTPException(status_code=500, detail="Failed to delete organization") from exc
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/organizations/{org_id}/export")
