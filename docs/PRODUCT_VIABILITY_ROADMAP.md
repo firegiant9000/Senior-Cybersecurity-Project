@@ -12,20 +12,35 @@ Companion docs:
 
 ---
 
-## Where we are today (Month 1 — May 2026)
+## Where we are today (Month 2 — May 2026)
 
 **Position:** early-stage MSP/SMB-facing cyber threat intelligence platform.
 Out of academic prototype, not yet generally available.
 
 **Real, working capabilities:**
 - Live NVD CVE ingestion with severity / KEV labelling.
+- EPSS (Exploit Prediction Scoring System) probabilities and percentile rank
+  on every CVE the NVD ingest sees, refreshed daily.
 - Per-org vendor matching against CISA KEV.
+- Org onboarding "fast path": new user can reach a populated dashboard with
+  just org name + primary domain — assessment intake is non-blocking.
+- CSV asset inventory upload (drag-drop, preview, idempotent import) with
+  a preliminary literal-match KEV cross-reference per asset.
+- Per-asset CVE drill-down (KEV-listed CVEs first; full vendor/version
+  matching arrives in Month 3 with the CPE matcher).
+- Inventory health card on the dashboard overview.
+- Activation analytics for the onboarding funnel (non-PII payloads only).
 - Org onboarding, role-based access (Firebase + role gates).
 - Static IC3 (FBI Internet Crime Complaint Center) aggregate analytics.
 - Composite CVSS + KEV risk scoring per CVE.
 - AI-generated executive summaries grounded in the above.
 
 **Honest limits:**
+- The asset → CVE matcher is a *literal* vendor+product match for Month 2.
+  Expect false positives until the Month 3 CPE matcher lands; the UI
+  labels every match as preliminary.
+- M365 / Entra device discovery is a working spike (Phase E) but stays
+  behind the `ENABLE_M365_INTEGRATION` feature flag — not enabled in prod.
 - IC3 incident data is a curated static snapshot of the 2023 annual report,
   not a live feed. Labelled as such everywhere it appears.
 - Domain reputation checks (HIBP / Shodan / OTX) are *not* shipped yet — keys
@@ -45,10 +60,18 @@ Out of academic prototype, not yet generally available.
 - Data-source transparency labels on every widget.
 - Trust pack (this document).
 
-### Month 2 — MSP-shaped onboarding + per-client views
-- Sub-org / client hierarchy for MSPs.
-- Bulk import of client tech stacks.
-- Per-client filtered dashboards.
+### Month 2 — Onboarding wedge + inventory MVP (delivered)
+- Onboarding collapse: assessment intake is non-blocking; new users reach
+  a useful dashboard with org name + primary domain only.
+- Asset / inventory data model (`assets`, `asset_software`, `scan_runs`,
+  `cpe_match_cache`, `vendor_aliases`) — migrations v034–v037.
+- CSV inventory upload, preview, and idempotent import endpoint.
+- Per-asset KEV-match findings (literal match; CPE matcher follows in
+  Month 3).
+- EPSS scheduling + storage; Exploitability column on the NVD table.
+- M365 / Entra OAuth spike (behind feature flag, staging only).
+- Activation analytics (`activation_events`, migration v039) for the
+  onboarding funnel — non-PII payloads only.
 
 ### Month 3 — Vendor aliasing + real assessment outcomes
 - Canonical `vendor_aliases` table — collapse "MSFT" / "Microsoft" / "ms.com".

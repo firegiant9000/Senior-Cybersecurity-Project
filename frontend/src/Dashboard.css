@@ -1794,3 +1794,15 @@
     font-weight: 500;
     text-decoration: underline;
 }
+
+.epss-cell {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.9em;
+}
+.epss-high { background: #fde2e2; color: #8a1f1f; }
+.epss-medium { background: #fdedd0; color: #8a5a00; }
+.epss-low { background: #e3f1e6; color: #1f5a2c; }
+.epss-unknown { color: #888; }

@@ -29,6 +29,7 @@ for human review and audit purposes.
 |------------------------------|-------------------------------------------|----------|-----------------------------------------------------------------------|
 | `nvd_cves`                   | NVD CVE catalog, totals, severity bars   | real     | NIST National Vulnerability Database (scheduled ingest)              |
 | `kev`                        | KEV count, CVEs Exploited card           | real     | CISA KEV catalog (scheduled ingest)                                  |
+| `epss`                       | Exploitability column in NVD table       | real     | FIRST.org EPSS API — daily scheduled ingest                          |
 | `ic3_incidents`              | IC3 incident list + most stat cards      | static   | FBI IC3 2023 annual report (static summary)                          |
 | `ic3_geographic`             | Cyber Crime Map, States with Incidents   | static   | FBI IC3 2023 annual report (static summary)                          |
 | `ic3_sector_attack_matrix`   | Sector × Attack heatmap, Incident Mgmt   | static   | FBI IC3 2023 annual report (static summary)                          |
@@ -42,6 +43,11 @@ for human review and audit purposes.
 | `domain_checks`              | Domain reputation tab                    | pending  | HIBP / Shodan / OTX — Month 1 Phase E (#110)                         |
 | `anomalies_ic3`              | State Threat Anomalies card              | static   | Statistical z-score over IC3 static dataset                          |
 | `anomalies_vendors`          | Vendor anomaly tab                       | real     | Derived from live KEV / NVD signals                                  |
+| `assets_inventory`           | Assets tab, Inventory Health card        | real     | User-uploaded CSV (Phase C) + M365 sync (Phase E, behind flag)       |
+| `asset_software`             | Per-asset software list, drill-down      | real     | Derived from uploaded inventory                                      |
+| `scan_runs`                  | Upload history / "last upload" badge     | real     | One row per CSV upload / M365 sync                                   |
+| `asset_kev_matches`          | Asset → CVE drill-down, KEV badges       | real     | Literal vendor+product match — preliminary until Month 3 CPE matcher |
+| `vendor_aliases`             | Matcher dictionary (Month 3 input)       | static   | Hand-curated alias → canonical map (Phase A5 seed)                   |
 
 ---
 

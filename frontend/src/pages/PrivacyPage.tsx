@@ -41,6 +41,20 @@ export default function PrivacyPage() {
               entries — which API your account called, when, and whether it
               succeeded. Retained for 12 months.
             </li>
+            <li>
+              <strong>Asset inventory:</strong> CSV uploads or
+              cloud-integration (e.g. Microsoft 365) syncs you initiate.
+              Hostnames, IPs, OS, and software vendor/product/version land in
+              your org-scoped <code>assets</code> table. Used only to match
+              your inventory against KEV/NVD and surface relevant CVEs. We
+              never sync these without an explicit action from your admin.
+            </li>
+            <li>
+              <strong>Integration tokens:</strong> when you connect Microsoft
+              365 / Entra, the OAuth access and refresh tokens are stored
+              encrypted at rest (Fernet) and only used to call Microsoft Graph
+              on your behalf.
+            </li>
           </ul>
 
           <h2>What we do not collect</h2>

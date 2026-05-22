@@ -49,6 +49,13 @@ _REGISTRY: list[DatasetStatus] = [
         source="CISA KEV catalog — refreshed via scheduled ingest",
     ),
     DatasetStatus(
+        key="epss",
+        label="EPSS exploitation probability",
+        status="real",
+        source="FIRST.org EPSS API — refreshed daily via scheduled ingest",
+        notes="30-day probability that a CVE will be exploited in the wild.",
+    ),
+    DatasetStatus(
         key="ic3_incidents",
         label="IC3 incidents (national)",
         status="static",
@@ -128,6 +135,44 @@ _REGISTRY: list[DatasetStatus] = [
         label="Vendor anomaly detection",
         status="real",
         source="Derived from live KEV / NVD signals",
+    ),
+    DatasetStatus(
+        key="assets_inventory",
+        label="Asset inventory",
+        status="real",
+        source="User-uploaded CSV (Phase C) and cloud integrations (Phase E, pending)",
+        notes="Empty until first CSV upload; M365 sync still behind feature flag.",
+    ),
+    DatasetStatus(
+        key="asset_software",
+        label="Asset software catalog",
+        status="real",
+        source="Derived from uploaded inventory; cross-referenced against KEV/NVD",
+        notes="Empty until first CSV upload (Phase C) or M365 sync (Phase E).",
+    ),
+    DatasetStatus(
+        key="scan_runs",
+        label="Inventory scan history",
+        status="real",
+        source="One row per CSV upload / M365 sync / agent check-in",
+    ),
+    DatasetStatus(
+        key="asset_kev_matches",
+        label="Asset → KEV matches (preliminary)",
+        status="real",
+        source="Literal vendor+product match: uploaded inventory ∩ CISA KEV",
+        notes=(
+            "Preliminary literal match — the Month 3 CPE matcher will "
+            "replace this with vendor/product/version-aware lookups. "
+            "Expect false positives until then."
+        ),
+    ),
+    DatasetStatus(
+        key="vendor_aliases",
+        label="Vendor alias dictionary",
+        status="static",
+        source="Hand-curated alias → canonical vendor map (seeded in Phase A5)",
+        notes="Drives matcher-quality work in Month 3.",
     ),
 ]
 

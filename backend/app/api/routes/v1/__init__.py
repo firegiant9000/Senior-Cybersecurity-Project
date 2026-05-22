@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends
 
 from app.api.routes.v1 import (
+    analytics,
     anomalies,
     assessments,
     auth,
@@ -13,6 +14,8 @@ from app.api.routes.v1 import (
     health,
     ic3,
     ingest,
+    integrations,
+    inventory,
     members,
     nvd,
     onboarding,
@@ -72,6 +75,15 @@ router.include_router(vendors.router, tags=["vendors"])
 
 # Uploads: org file upload management (per-route auth).
 router.include_router(uploads.router, tags=["uploads"])
+
+# Inventory: CSV asset upload + scan runs + assets list (per-route auth).
+router.include_router(inventory.router, tags=["inventory"])
+
+# Integrations: M365 / Entra OAuth spike (Phase E, feature-flagged).
+router.include_router(integrations.router)
+
+# Activation analytics: onboarding-funnel events (Phase F4).
+router.include_router(analytics.router, tags=["analytics"])
 
 # Domains: org domain management (per-route auth).
 router.include_router(domains.router, tags=["domains"])
