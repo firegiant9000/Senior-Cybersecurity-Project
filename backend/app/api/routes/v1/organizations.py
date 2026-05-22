@@ -784,5 +784,3 @@ async def update_organization(
         )
 
     return org
-
-
