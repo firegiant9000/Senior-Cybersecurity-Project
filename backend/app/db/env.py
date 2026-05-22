@@ -15,24 +15,13 @@ from sqlalchemy import (  # type: ignore[import-not-found]  # pylint: disable=im
 # Add app to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-import app.db.ai_summary_feedback  # noqa: E402, F401
-import app.db.ai_summary_generation  # noqa: E402, F401
-import app.db.assessment_submission  # noqa: E402, F401
-import app.db.audit_log  # noqa: E402, F401
-import app.db.finding_status  # noqa: E402, F401
-import app.db.findings_snapshot  # noqa: E402, F401
-import app.db.invitation  # noqa: E402, F401
-import app.db.membership  # noqa: E402, F401
-import app.db.models  # noqa: E402, F401  # core ORM models (CVE, KEV, IC3, etc.)
-import app.db.normalization_log  # noqa: E402, F401
-import app.db.org_domain  # noqa: E402, F401
-import app.db.org_invite  # noqa: E402, F401
-import app.db.org_upload  # noqa: E402, F401
-import app.db.org_vendor  # noqa: E402, F401
-import app.db.organization  # noqa: E402, F401
-import app.db.user  # noqa: E402, F401
 from app.core.config import settings  # noqa: E402
 from app.db.base import Base  # noqa: E402
+from app.db.engine import _import_all_orm_models  # noqa: E402
+
+# Single point of truth for "every model module Alembic must see". Defined in
+# engine.py so application startup and migration tooling share one list.
+_import_all_orm_models()
 
 # this is the Alembic Config object
 config = context.config
