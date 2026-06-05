@@ -242,7 +242,9 @@ jobs:
           fi
 
       - name: Upload source maps to Sentry
+        id: sentry-upload
         if: steps.sentry-check.outputs.enabled == 'true'
+        continue-on-error: true
         uses: getsentry/action-release@v1
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
@@ -251,6 +253,10 @@ jobs:
           environment: production
           sourcemaps: ./frontend/dist
           working_directory: frontend
+
+      - name: Warn when Sentry upload fails
+        if: steps.sentry-upload.outcome == 'failure'
+        run: echo "::warning::Sentry source-map upload failed; continuing with Firebase deploy."
 
       - name: Strip source maps from deploy artifact
         run: find dist -name '*.map' -delete
