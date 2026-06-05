@@ -234,11 +234,11 @@ jobs:
       - name: Check Sentry source-map config
         id: sentry-check
         run: |
-          if [ -n "${{ secrets.SENTRY_AUTH_TOKEN }}" ] && [ -n "${{ secrets.SENTRY_ORG }}" ] && [ -n "${{ secrets.SENTRY_PROJECT }}" ]; then
+          if [ -n "${{ secrets.SENTRY_AUTH_TOKEN }}" ] && [ -n "${{ secrets.SENTRY_PROJECT }}" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::SENTRY_AUTH_TOKEN/ORG/PROJECT not all set; skipping source-map upload"
+            echo "::warning::SENTRY_AUTH_TOKEN/PROJECT not all set; skipping source-map upload"
           fi
 
       - name: Upload source maps to Sentry
@@ -246,7 +246,6 @@ jobs:
         uses: getsentry/action-release@v1
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
         with:
           environment: production
