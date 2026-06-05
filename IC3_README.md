@@ -15,8 +15,8 @@ python scripts/ingest_ic3_enhanced.py
 ```
 
 This will:
-1. Download official FBI IC3 PDF reports (2022, 2023, 2024)
-2. Parse crime type statistics from pages 9-10 of each report
+1. Download official FBI IC3 PDF reports (2022, 2023, 2024, 2025)
+2. Parse crime type statistics from pages 7-8 of each report
 3. Extract complaint counts and loss amounts
 4. Store data in PostgreSQL database
 

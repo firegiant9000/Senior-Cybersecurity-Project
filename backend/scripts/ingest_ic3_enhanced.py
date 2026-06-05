@@ -8,6 +8,7 @@ and extracts:
 - Temporal trends across years
 
 Data sources (official FBI IC3 annual reports):
+- 2025: https://www.ic3.gov/AnnualReport/Reports/2025_IC3Report.pdf
 - 2024: https://www.ic3.gov/Media/PDF/AnnualReport/2024_IC3Report.pdf
 - 2023: https://www.ic3.gov/Media/PDF/AnnualReport/2023_IC3Report.pdf
 - 2022: https://www.ic3.gov/Media/PDF/AnnualReport/2022_IC3Report.pdf
@@ -45,6 +46,7 @@ logger = logging.getLogger(__name__)
 
 # Official IC3 report URLs by year
 IC3_REPORT_URLS = {
+    2025: "https://www.ic3.gov/AnnualReport/Reports/2025_IC3Report.pdf",
     2024: "https://www.ic3.gov/Media/PDF/AnnualReport/2024_IC3Report.pdf",
     2023: "https://www.ic3.gov/Media/PDF/AnnualReport/2023_IC3Report.pdf",
     2022: "https://www.ic3.gov/Media/PDF/AnnualReport/2022_IC3Report.pdf",
@@ -317,7 +319,7 @@ async def ingest_ic3_real_data(db_url: str, years: list[int] | None = None) -> i
         Number of incidents ingested
     """
     if years is None:
-        years = [2024, 2023, 2022]  # Try in reverse order (newest first)
+        years = [2025, 2024, 2023, 2022]  # Try in reverse order (newest first)
 
     if not HAS_PDF:
         print("❌ ERROR: pdfplumber not installed")
