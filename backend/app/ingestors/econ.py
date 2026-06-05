@@ -103,9 +103,9 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:  # noqa
         )
 
     try:
-        # Using 2021 data (most recent complete Census data)
-        cbp_url = "https://api.census.gov/data/2021/cbp"
-        income_url = "https://api.census.gov/data/2021/acs/acs5"
+        # Using 2023 data (most recent complete Census ACS 5-year estimates as of 2026)
+        cbp_url = "https://api.census.gov/data/2023/cbp"
+        income_url = "https://api.census.gov/data/2023/acs/acs5"
 
         states = {
             "AL": "01",
