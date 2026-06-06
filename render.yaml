@@ -34,6 +34,14 @@ services:
         value: /app/service-account.json
       - key: FIREBASE_SERVICE_ACCOUNT_JSON
         sync: false          # paste the full JSON of your service-account.json here
+      - key: NVD_API_KEY
+        sync: false          # set manually in dashboard; rotate at NIST
+      - key: CENSUS_API_KEY
+        sync: false          # set manually in dashboard; rotate at Census
+      - key: SENTRY_DSN
+        sync: false          # set manually in dashboard; backend error tracking (no-op if blank)
+      - key: SENTRY_ENVIRONMENT
+        value: production
 
 databases:
   - name: hacker-tracker-db
