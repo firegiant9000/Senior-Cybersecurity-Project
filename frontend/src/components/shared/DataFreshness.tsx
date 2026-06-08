@@ -45,15 +45,32 @@ function getTooltip(s: SourceFreshness): string {
   return parts.join(' · ');
 }
 
+const POLL_INTERVAL_MS = 5 * 60 * 1000;
+
+export const FRESHNESS_REFRESH_EVENT = 'freshness:refresh';
+
 const DataFreshness: React.FC = () => {
   const [sources, setSources] = useState<SourceFreshness[]>([]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    fetchIngestFreshness(controller.signal)
-      .then(r => setSources(r.sources))
-      .catch(() => { /* non-fatal — hide silently */ });
-    return () => controller.abort();
+    let controller = new AbortController();
+
+    const doFetch = () => {
+      controller.abort();
+      controller = new AbortController();
+      fetchIngestFreshness(controller.signal)
+        .then(r => setSources(r.sources))
+        .catch(() => { /* non-fatal — hide silently */ });
+    };
+
+    doFetch();
+    const interval = setInterval(doFetch, POLL_INTERVAL_MS);
+    window.addEventListener(FRESHNESS_REFRESH_EVENT, doFetch);
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+      window.removeEventListener(FRESHNESS_REFRESH_EVENT, doFetch);
+    };
   }, []);
 
   if (sources.length === 0) return null;

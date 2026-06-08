@@ -10,6 +10,7 @@ import {
 } from '../../api/ingest';
 import { useAuth } from '../../context/AuthContext';
 import { formatDateWithTz } from '../../utils/formatTime';
+import { FRESHNESS_REFRESH_EVENT } from '../shared/DataFreshness';
 
 const PAGE_SIZE = 15;
 
@@ -184,6 +185,7 @@ const PipelineHealthTab: React.FC = () => {
         try {
             const res = await triggerIngestion(controller.signal, triggerSource || undefined);
             setTriggerMsg(res.message ?? 'Ingestion triggered.');
+            window.dispatchEvent(new Event(FRESHNESS_REFRESH_EVENT));
             refreshTimerRef.current = window.setTimeout(() => fetchData(1, sourceFilter), 2000);
         } catch (err) {
             if (err instanceof DOMException && err.name === 'AbortError') return;
