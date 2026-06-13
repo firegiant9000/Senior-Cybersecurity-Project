@@ -138,15 +138,45 @@ def _clear_overrides():
 # ---------------------------------------------------------------------------
 
 
+def _make_finding(*, fid, software_id, cve_id, confidence, risk, kev, cvss, severity):
+    f = MagicMock()
+    f.id = fid
+    f.asset_software_id = software_id
+    f.cve_id = cve_id
+    f.cvss_score = cvss
+    f.epss_score = None
+    f.severity = severity
+    f.kev_flag = kev
+    f.match_confidence = confidence
+    f.risk_score = risk
+    f.status = "open"
+    f.remediation_summary = None
+    return f
+
+
 @pytest.mark.asyncio
-async def test_findings_returns_empty_when_asset_has_no_software(client: AsyncClient):
-    _override_session([_exec_result_scalars([])])
+async def test_findings_returns_empty_when_no_persisted_findings(client: AsyncClient):
+    """Month 3 Phase 3: route reads asset_findings; no findings → empty, matcher ran."""
+    _override_session([])
     try:
         with (
             patch(_CHECK_ORG, new=AsyncMock(return_value=None)),
             patch(
                 "app.repositories.assets.SqlAssetRepository.get_by_id",
                 new=AsyncMock(return_value=_make_asset()),
+            ),
+            patch(
+                "app.repositories.asset_findings.SqlAssetFindingRepository.count_for_asset",
+                new=AsyncMock(return_value=0),
+            ),
+            patch(
+                "app.services.asset_findings_service.AssetFindingsService"
+                ".compute_and_persist_for_asset",
+                new=AsyncMock(return_value=[]),
+            ) as compute,
+            patch(
+                "app.repositories.asset_findings.SqlAssetFindingRepository.list_for_asset",
+                new=AsyncMock(return_value=[]),
             ),
         ):
             resp = await client.get(f"/api/v1/organizations/{_ORG_ID}/assets/{_ASSET_ID}/findings")
@@ -158,7 +188,77 @@ async def test_findings_returns_empty_when_asset_has_no_software(client: AsyncCl
     assert body["asset_id"] == _ASSET_ID
     assert body["total"] == 0
     assert body["items"] == []
-    assert "preliminary" in body["note"].lower()
+    # No persisted findings yet → the matcher is lazily run to materialize them.
+    compute.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_findings_returns_persisted_with_confidence_and_risk(client: AsyncClient):
+    """Persisted findings come back riskiest-first with confidence + risk tier."""
+    software = [_make_software(sid=11, vendor="nginx", product="nginx", version="1.24.0")]
+    findings = [
+        _make_finding(
+            fid=1,
+            software_id=11,
+            cve_id="CVE-2024-1",
+            confidence="high",
+            risk=98.0,
+            kev=True,
+            cvss=9.8,
+            severity="CRITICAL",
+        ),
+        _make_finding(
+            fid=2,
+            software_id=11,
+            cve_id="CVE-2024-2",
+            confidence="medium",
+            risk=50.0,
+            kev=False,
+            cvss=7.5,
+            severity="HIGH",
+        ),
+    ]
+    # Single session.execute in the route: the CVE-description bulk lookup.
+    _override_session(
+        [_exec_result_rows([("CVE-2024-1", "RCE in nginx"), ("CVE-2024-2", "DoS in nginx parser")])]
+    )
+    try:
+        with (
+            patch(_CHECK_ORG, new=AsyncMock(return_value=None)),
+            patch(
+                "app.repositories.assets.SqlAssetRepository.get_by_id",
+                new=AsyncMock(return_value=_make_asset()),
+            ),
+            patch(
+                "app.repositories.asset_findings.SqlAssetFindingRepository.count_for_asset",
+                new=AsyncMock(return_value=len(findings)),
+            ),
+            patch(
+                "app.repositories.asset_findings.SqlAssetFindingRepository.list_for_asset",
+                new=AsyncMock(return_value=findings),
+            ),
+            patch(
+                "app.repositories.asset_software.SqlAssetSoftwareRepository.list_for_asset",
+                new=AsyncMock(return_value=software),
+            ),
+        ):
+            resp = await client.get(f"/api/v1/organizations/{_ORG_ID}/assets/{_ASSET_ID}/findings")
+    finally:
+        _clear_overrides()
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["total"] == 2
+    items = body["items"]
+    # Riskiest-first ordering preserved from the repo.
+    assert items[0]["cve_id"] == "CVE-2024-1"
+    assert items[0]["in_kev"] is True
+    assert items[0]["match_confidence"] == "high"
+    assert items[0]["risk_tier"] in {"Critical", "High", "Medium", "Low", "Needs Review"}
+    assert items[0]["description"] == "RCE in nginx"
+    assert items[1]["cve_id"] == "CVE-2024-2"
+    assert items[1]["in_kev"] is False
+    assert items[1]["match_confidence"] == "medium"
 
 
 @pytest.mark.asyncio
@@ -172,61 +272,6 @@ async def test_findings_404_when_asset_missing(client: AsyncClient):
     ):
         resp = await client.get(f"/api/v1/organizations/{_ORG_ID}/assets/{_ASSET_ID}/findings")
     assert resp.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_findings_includes_kev_then_nvd_matches(client: AsyncClient):
-    """KEV-matched rows come first; NVD-described rows follow with in_kev=False."""
-    software = [_make_software(sid=11, vendor="nginx", product="nginx", version="1.24.0")]
-
-    # Sequence:
-    #  1. select(AssetSoftware) → software list
-    #  2. KEV join CVE → one row (CVE-2024-1)
-    #  3. NVD LIKE %nginx% → CVE-2024-1 (already seen, skipped) + CVE-2024-2
-    execute_queue = [
-        _exec_result_scalars(software),
-        _exec_result_rows(
-            [
-                (
-                    "CVE-2024-1",
-                    "nginx",
-                    "nginx",
-                    9.8,
-                    "CRITICAL",
-                    "RCE in nginx",
-                ),
-            ]
-        ),
-        _exec_result_rows(
-            [
-                ("CVE-2024-1", 9.8, "CRITICAL", "RCE in nginx"),
-                ("CVE-2024-2", 7.5, "HIGH", "DoS in nginx parser"),
-            ]
-        ),
-    ]
-    _override_session(execute_queue)
-    try:
-        with (
-            patch(_CHECK_ORG, new=AsyncMock(return_value=None)),
-            patch(
-                "app.repositories.assets.SqlAssetRepository.get_by_id",
-                new=AsyncMock(return_value=_make_asset()),
-            ),
-        ):
-            resp = await client.get(f"/api/v1/organizations/{_ORG_ID}/assets/{_ASSET_ID}/findings")
-    finally:
-        _clear_overrides()
-
-    assert resp.status_code == 200, resp.text
-    body = resp.json()
-    assert body["total"] == 2
-    items = body["items"]
-    # KEV first
-    assert items[0]["cve_id"] == "CVE-2024-1"
-    assert items[0]["in_kev"] is True
-    # NVD second, dedup'd (no second CVE-2024-1)
-    assert items[1]["cve_id"] == "CVE-2024-2"
-    assert items[1]["in_kev"] is False
 
 
 # ---------------------------------------------------------------------------

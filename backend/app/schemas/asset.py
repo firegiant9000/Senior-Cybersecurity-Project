@@ -41,6 +41,7 @@ class AssetRead(BaseModel):
     first_seen: datetime
     last_seen: datetime
     is_active: bool
+    asset_criticality: str = "normal"
     # `Asset.metadata` collides with SQLAlchemy DeclarativeBase.metadata, so
     # the ORM column is `asset_metadata`; the API field stays `metadata`.
     asset_metadata: dict[str, Any] | None = Field(

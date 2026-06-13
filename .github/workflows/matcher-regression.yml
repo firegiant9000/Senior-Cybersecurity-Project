@@ -1,0 +1,50 @@
+name: Matcher Regression (nightly)
+
+# Month 3, Phase 5 — runs the CPE matcher known-good set against the
+# calibration gate (>=95% pass, <2% high-confidence false-positive rate) and
+# fails on drift. The main CI runs on push/PR; this runs nightly so matcher
+# regressions are caught even between merges. Also runnable on demand and on
+# changes to the matcher or the regression harness itself.
+
+on:
+  schedule:
+    # 07:15 UTC daily (after the EPSS/NVD nightly ingest window).
+    - cron: "15 7 * * *"
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/app/services/cpe_matcher.py"
+      - "backend/tests/regression/**"
+      - ".github/workflows/matcher-regression.yml"
+
+jobs:
+  matcher-regression:
+    name: CPE Matcher Calibration Gate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    # The regression harness mocks the DB session, so no Postgres service is
+    # needed; a dummy DATABASE_URL only satisfies settings validation on import.
+    env:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/cyber_threat_test_db
+      APP_ENV: testing
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run matcher regression suite
+        run: pytest -v tests/regression/
+
+      - name: Print calibration report
+        if: always()
+        run: python -m tests.regression.matcher_known_good

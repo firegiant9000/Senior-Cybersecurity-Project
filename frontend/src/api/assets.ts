@@ -97,15 +97,31 @@ export async function getAsset(
   return resp.json();
 }
 
+export type MatchConfidence = "high" | "medium" | "low" | "needs_review";
+
+export type FindingStatus =
+  | "open"
+  | "accepted_risk"
+  | "false_positive"
+  | "in_progress"
+  | "fixed";
+
 export interface AssetFindingMatch {
+  finding_id: number;
   software_id: number;
   vendor: string;
   product: string;
   version: string | null;
   cve_id: string;
   cvss_score: number | null;
+  epss_score: number | null;
   severity: string | null;
   in_kev: boolean;
+  match_confidence: MatchConfidence;
+  risk_score: number | null;
+  risk_tier: string;
+  status: FindingStatus;
+  remediation_summary: string | null;
   description: string | null;
 }
 
@@ -171,14 +187,43 @@ export async function getAssetRiskSummary(
 export async function getAssetFindings(
   orgId: number,
   assetId: number,
+  opts: { refresh?: boolean } = {},
 ): Promise<AssetFindingsResponse> {
+  const qs = opts.refresh ? "?refresh=true" : "";
   const resp = await fetchWithAuth(
-    `${API_BASE_URL}/api/v1/organizations/${orgId}/assets/${assetId}/findings`,
+    `${API_BASE_URL}/api/v1/organizations/${orgId}/assets/${assetId}/findings${qs}`,
   );
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({}));
     throw new Error(
       (body as { detail?: string }).detail ?? "Failed to load asset findings",
+    );
+  }
+  return resp.json();
+}
+
+export async function patchAssetFindingStatus(
+  orgId: number,
+  assetId: number,
+  findingId: number,
+  status: FindingStatus,
+  remediationSummary?: string,
+): Promise<{ finding_id: number; status: FindingStatus }> {
+  const resp = await fetchWithAuth(
+    `${API_BASE_URL}/api/v1/organizations/${orgId}/assets/${assetId}/findings/${findingId}/status`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        status,
+        remediation_summary: remediationSummary,
+      }),
+    },
+  );
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    throw new Error(
+      (body as { detail?: string }).detail ?? "Failed to update finding status",
     );
   }
   return resp.json();

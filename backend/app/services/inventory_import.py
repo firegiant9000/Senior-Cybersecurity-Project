@@ -199,6 +199,7 @@ async def commit_inventory(  # noqa: C901
     org_id: int,
     rows: list[ParsedRow],
     scan_run_id: int | None = None,
+    source: str = "csv_upload",
 ) -> tuple[int, int]:
     """Upsert assets + asset_software for an org. Returns (assets, software) counts.
 
@@ -206,6 +207,10 @@ async def commit_inventory(  # noqa: C901
     selected fields refreshed instead of being duplicated. Software is
     deduplicated by (org_id, asset_id, vendor, product, version) — matching
     rows refresh ``last_seen``; new rows are inserted.
+
+    ``source`` labels the provenance on new ``assets.discovered_via`` /
+    ``asset_software.source`` rows (e.g. ``"csv_upload"`` or ``"m365"``) so the
+    same upsert path serves both onboarding entry points.
 
     Caller is responsible for the surrounding transaction commit (this
     function only flushes).
@@ -239,7 +244,7 @@ async def commit_inventory(  # noqa: C901
                 ip_address=row.ip_address,
                 os_name=row.os_name,
                 os_version=row.os_version,
-                discovered_via="csv_upload",
+                discovered_via=source,
                 is_active=True,
                 created_by_scan_run_id=scan_run_id,
             )
@@ -305,7 +310,7 @@ async def commit_inventory(  # noqa: C901
                     vendor=row.vendor,
                     product=row.product,
                     version=row.version,
-                    source="csv_upload",
+                    source=source,
                     created_by_scan_run_id=scan_run_id,
                 )
             )
