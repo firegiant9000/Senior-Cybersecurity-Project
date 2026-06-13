@@ -28,6 +28,11 @@ from app.core.limiter import limiter
 from app.db.audit_log import AuditLog
 from app.db.engine import get_session
 from app.db.user import User
+from app.repositories.asset_findings import (
+    ALLOWED_FINDING_STATUSES,
+    SqlAssetFindingRepository,
+    get_asset_finding_repo,
+)
 from app.repositories.asset_software import (
     SqlAssetSoftwareRepository,
     get_asset_software_repo,
@@ -91,20 +96,28 @@ class AssetDetailResponse(BaseModel):
 
 
 class AssetFindingMatch(BaseModel):
-    """One KEV/CVE match against an asset's software (Phase F2).
+    """One persisted version-aware CVE match against an asset's software.
 
-    The pairing is a literal vendor+product match. Month 3's CPE matcher
-    will replace this with version-aware lookups.
+    Produced by the Month 3 CPE matcher (Phase 2) and stored in
+    ``asset_findings`` (Phase 3). Carries the confidence tier, per-finding
+    risk score/tier, and remediation status.
     """
 
+    finding_id: int
     software_id: int
     vendor: str
     product: str
     version: str | None = None
     cve_id: str
     cvss_score: float | None = None
+    epss_score: float | None = None
     severity: str | None = None
     in_kev: bool = False
+    match_confidence: str
+    risk_score: float | None = None
+    risk_tier: str
+    status: str = "open"
+    remediation_summary: str | None = None
     description: str | None = None
 
 
@@ -113,9 +126,19 @@ class AssetFindingsResponse(BaseModel):
     total: int
     items: list[AssetFindingMatch]
     note: str = (
-        "Preliminary literal vendor+product match. Month 3's CPE matcher "
-        "will replace this with version-aware lookups."
+        "Version-aware CPE matcher results, persisted in asset_findings. "
+        "Confidence tiers: high/medium/low/needs_review."
     )
+
+
+class FindingStatusUpdate(BaseModel):
+    status: str
+    remediation_summary: str | None = None
+
+
+class FindingStatusResponse(BaseModel):
+    finding_id: int
+    status: str
 
 
 class VendorAssetCount(BaseModel):
@@ -328,6 +351,15 @@ async def import_inventory_csv(
         await session.rollback()
         logger.exception("audit log failed for scan_run %s", scan_run.id)
 
+    # Month 3 Phase 4: kick off version-aware matching off the request path so
+    # the new inventory auto-populates asset_findings without a manual refresh.
+    # run_matcher_for_org opens its own session, so it outlives this request.
+    import asyncio
+
+    from app.workers.matcher_job import run_matcher_for_org
+
+    asyncio.create_task(run_matcher_for_org(org_id, trigger="csv_import"))
+
     return final or scan_run
 
 
@@ -513,142 +545,138 @@ async def get_asset_findings(
     request: Request,  # noqa: ARG001
     org_id: int,
     asset_id: int,
+    refresh: Annotated[bool, Query()] = False,  # noqa: FBT002 — FastAPI query param
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
     asset_repo: SqlAssetRepository = Depends(get_asset_repo),
+    software_repo: SqlAssetSoftwareRepository = Depends(get_asset_software_repo),
+    finding_repo: SqlAssetFindingRepository = Depends(get_asset_finding_repo),
 ):
-    """Return CVE/KEV matches for one asset (Phase F2).
+    """Return persisted version-aware CVE findings for one asset (Month 3 Phase 3).
 
-    Literal (vendor, product) match between ``asset_software`` and the KEV
-    catalog / NVD CVE table. KEV-listed CVEs come first; same-vendor NVD
-    rows follow. The Month 3 CPE matcher will replace this.
+    Reads from ``asset_findings`` (produced by the Phase 2 CPE matcher). When the
+    asset has no persisted findings yet — or ``refresh=true`` is passed — the
+    matcher is run and the results materialized first. Findings are returned
+    riskiest-first with their confidence tier and remediation status.
     """
-    from sqlalchemy import func, select
+    from sqlalchemy import select
 
-    from app.db.asset_software import AssetSoftware
-    from app.db.models import CVE, KEV
+    from app.db.models import CVE
+    from app.services.asset_findings_service import AssetFindingsService
+    from app.services.risk_scorer import tier_for
 
     await check_org_access(current_user, org_id, session)
     asset = await asset_repo.get_by_id(asset_id, org_id)
     if asset is None:
         raise HTTPException(status_code=404, detail="Asset not found")
 
-    software_rows = (
-        (
+    if refresh or await finding_repo.count_for_asset(asset_id, org_id) == 0:
+        await AssetFindingsService(session).compute_and_persist_for_asset(asset_id, org_id)
+
+    findings = await finding_repo.list_for_asset(asset_id, org_id)
+    if not findings:
+        return AssetFindingsResponse(asset_id=asset_id, total=0, items=[])
+
+    # Resolve software vendor/product/version and CVE descriptions in two
+    # bulk lookups rather than per-row queries.
+    software = {s.id: s for s in await software_repo.list_for_asset(asset_id, org_id)}
+    cve_ids = {f.cve_id for f in findings}
+    descriptions = {
+        str(cid).upper(): desc
+        for cid, desc in (
             await session.execute(
-                select(AssetSoftware).where(
-                    AssetSoftware.asset_id == asset_id,
-                    AssetSoftware.org_id == org_id,
-                )
+                select(CVE.cve_id, CVE.description).where(CVE.cve_id.in_(cve_ids))
             )
-        )
-        .scalars()
-        .all()
-    )
-    if not software_rows:
-        return AssetFindingsResponse(asset_id=asset_id, total=0, items=[])
-
-    pairs = {(s.vendor.lower(), s.product.lower()): s for s in software_rows}
-    if not pairs:
-        return AssetFindingsResponse(asset_id=asset_id, total=0, items=[])
-
-    # KEV matches first (these have a CVE link).
-    kev_q = (
-        select(
-            KEV.cve_id,
-            KEV.vendor,
-            KEV.product,
-            CVE.cvss_score,
-            CVE.severity,
-            CVE.description,
-        )
-        .join(CVE, CVE.cve_id == KEV.cve_id)
-        .where(
-            func.lower(KEV.vendor).in_([v for v, _ in pairs]),
-            func.lower(KEV.product).in_([p for _, p in pairs]),
-        )
-        .limit(500)
-    )
-    kev_rows = (await session.execute(kev_q)).all()
+        ).all()
+    }
 
     items: list[AssetFindingMatch] = []
-    seen_cves: set[str] = set()
-    for cve_id, vendor, product, cvss, severity, description in kev_rows:
-        key = (vendor.lower(), product.lower())
-        if key not in pairs:
-            continue
-        sw = pairs[key]
+    for f in findings:
+        sw = software.get(f.asset_software_id)
         items.append(
             AssetFindingMatch(
-                software_id=sw.id,
-                vendor=sw.vendor,
-                product=sw.product,
-                version=sw.version,
-                cve_id=cve_id,
-                cvss_score=cvss,
-                severity=severity,
-                in_kev=True,
-                description=description,
+                finding_id=f.id,
+                software_id=f.asset_software_id,
+                vendor=sw.vendor if sw else "",
+                product=sw.product if sw else "",
+                version=sw.version if sw else None,
+                cve_id=f.cve_id,
+                cvss_score=f.cvss_score,
+                epss_score=f.epss_score,
+                severity=f.severity,
+                in_kev=f.kev_flag,
+                match_confidence=f.match_confidence,
+                risk_score=f.risk_score,
+                risk_tier=tier_for(f.match_confidence, f.risk_score),
+                status=f.status,
+                remediation_summary=f.remediation_summary,
+                description=descriptions.get(f.cve_id.upper()),
             )
         )
-        seen_cves.add(cve_id)
-
-    # NVD-second: surface NVD CVEs whose description literally mentions the
-    # product name and aren't already covered by KEV. Marked ``in_kev=False``
-    # so the UI can render them in a distinct section.
-    await _append_nvd_matches(session, pairs, seen_cves, items)
 
     return AssetFindingsResponse(asset_id=asset_id, total=len(items), items=items)
 
 
-# NVD CVEs aren't keyed by vendor/product; we only get a literal product-name
-# match via description ILIKE. Cap per product to keep noise low — the Month 3
-# CPE matcher replaces this entirely.
-_NVD_PER_PRODUCT_CAP = 5
+@router.patch(
+    "/organizations/{org_id}/assets/{asset_id}/findings/{finding_id}/status",
+    response_model=FindingStatusResponse,
+)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def patch_asset_finding_status(
+    request: Request,  # noqa: ARG001
+    org_id: int,
+    asset_id: int,
+    finding_id: int,
+    body: FindingStatusUpdate,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+    finding_repo: SqlAssetFindingRepository = Depends(get_asset_finding_repo),
+):
+    """Move a finding through its remediation status workflow.
 
-
-async def _append_nvd_matches(
-    session: AsyncSession,
-    pairs: dict[tuple[str, str], Any],
-    seen_cves: set[str],
-    items: list[AssetFindingMatch],
-) -> None:
-    from sqlalchemy import func, select
-
-    from app.db.models import CVE
-
-    for (_vendor, product), sw in pairs.items():
-        if not product or len(product) < 3:
-            # Skip 1-2 char "products" — they explode the LIKE result set.
-            continue
-        like = f"%{product.lower()}%"
-        nvd_q = (
-            select(CVE.cve_id, CVE.cvss_score, CVE.severity, CVE.description)
-            .where(func.lower(CVE.description).like(like))
-            .order_by(CVE.cvss_score.desc().nullslast())
-            .limit(_NVD_PER_PRODUCT_CAP * 4)  # over-fetch; we filter seen_cves below
+    Statuses: ``open | accepted_risk | false_positive | in_progress | fixed``.
+    Reporting ``false_positive`` stamps the acting user onto
+    ``false_positive_reported_by``; any other status clears it.
+    """
+    await check_org_access(current_user, org_id, session)
+    if body.status not in ALLOWED_FINDING_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"status must be one of {sorted(ALLOWED_FINDING_STATUSES)}",
         )
-        added = 0
-        for cve_id, cvss, severity, description in (await session.execute(nvd_q)).all():
-            if cve_id in seen_cves:
-                continue
-            items.append(
-                AssetFindingMatch(
-                    software_id=sw.id,
-                    vendor=sw.vendor,
-                    product=sw.product,
-                    version=sw.version,
-                    cve_id=cve_id,
-                    cvss_score=cvss,
-                    severity=severity,
-                    in_kev=False,
-                    description=description,
-                )
-            )
-            seen_cves.add(cve_id)
-            added += 1
-            if added >= _NVD_PER_PRODUCT_CAP:
-                break
+    existing = await finding_repo.get(finding_id, org_id)
+    if existing is None or existing.asset_id != asset_id:
+        raise HTTPException(status_code=404, detail="Finding not found")
+
+    remediation = body.remediation_summary[:5000] if body.remediation_summary else None
+    updated = await finding_repo.update_status(
+        finding_id,
+        org_id,
+        body.status,
+        reported_by=current_user.id,
+        remediation_summary=remediation,
+    )
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Finding not found")
+
+    try:
+        await _audit(
+            session,
+            actor=current_user,
+            org_id=org_id,
+            action="asset_finding.status_updated",
+            payload={
+                "finding_id": finding_id,
+                "asset_id": asset_id,
+                "status": body.status,
+            },
+        )
+        await session.commit()
+    except SQLAlchemyError:
+        await session.rollback()
+        logger.exception("audit log failed for asset_finding.status_updated %s", finding_id)
+
+    return FindingStatusResponse(finding_id=finding_id, status=updated.status)
 
 
 @router.get(

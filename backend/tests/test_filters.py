@@ -37,7 +37,11 @@ async def test_nvd_cves_search_filter(client: AsyncClient) -> None:
     if response.status_code == 200:
         data = response.json()
         for item in data["items"]:
-            assert "CVE-2021" in item["id"].upper()
+            # The search matches CVE id OR description (repositories/nvd.py),
+            # so a hit can come from either field — e.g. a later CVE whose
+            # description references an older "CVE-2021-…".
+            haystack = f"{item['id']}\n{item.get('description', '')}".upper()
+            assert "CVE-2021" in haystack
 
 
 @pytest.mark.asyncio

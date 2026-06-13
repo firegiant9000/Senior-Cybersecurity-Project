@@ -52,7 +52,7 @@ async def _scheduled_ingest(source: str) -> None:
         logger.debug("Scheduled ingest exception swallowed by scheduler wrapper: %s", exc)
 
 
-def init_scheduler() -> None:
+def init_scheduler() -> None:  # noqa: C901 — flat per-source registration loop
     """Register a scheduled job for each source with a configured cron expression.
 
     Called once during app startup.  Does nothing if SCHEDULER_ENABLED=false.
@@ -88,6 +88,58 @@ def init_scheduler() -> None:
         )
         registered.append(f"{source} ({cron_expr})")
         logger.info("Scheduled ingest job registered: %s @ %s", source, cron_expr)
+
+    # Month 3 Phase 4: background CPE-matcher sweep (separate job function from
+    # the ingestors, so it is registered outside the source loop).
+    matcher_cron = settings.MATCHER_SCHEDULE
+    if matcher_cron:
+        try:
+            matcher_trigger = CronTrigger.from_crontab(matcher_cron, timezone="UTC")
+        except (ValueError, TypeError) as exc:
+            logger.error(
+                "Invalid MATCHER_SCHEDULE cron (%r): %s — matcher sweep not scheduled",
+                matcher_cron,
+                exc,
+            )
+        else:
+            from app.workers.matcher_job import run_matcher_sweep
+
+            scheduler.add_job(
+                run_matcher_sweep,
+                trigger=matcher_trigger,
+                id="matcher_sweep",
+                replace_existing=True,
+                misfire_grace_time=300,
+                coalesce=True,
+            )
+            registered.append(f"matcher_sweep ({matcher_cron})")
+            logger.info("Scheduled matcher sweep registered @ %s", matcher_cron)
+
+    # Month 3 Phase 1 tail: scheduled CPE-criteria backfill for the pre-existing
+    # CVE corpus. Bounded per run and TTL-skipping, so it converges then no-ops.
+    backfill_cron = settings.NVD_CPE_BACKFILL_SCHEDULE
+    if backfill_cron:
+        try:
+            backfill_trigger = CronTrigger.from_crontab(backfill_cron, timezone="UTC")
+        except (ValueError, TypeError) as exc:
+            logger.error(
+                "Invalid NVD_CPE_BACKFILL_SCHEDULE cron (%r): %s — backfill not scheduled",
+                backfill_cron,
+                exc,
+            )
+        else:
+            from app.workers.cpe_backfill_job import run_cpe_backfill_sweep
+
+            scheduler.add_job(
+                run_cpe_backfill_sweep,
+                trigger=backfill_trigger,
+                id="cpe_backfill",
+                replace_existing=True,
+                misfire_grace_time=300,
+                coalesce=True,
+            )
+            registered.append(f"cpe_backfill ({backfill_cron})")
+            logger.info("Scheduled CPE backfill registered @ %s", backfill_cron)
 
     if not registered:
         logger.info("No ingest schedules configured — scheduler idle")
