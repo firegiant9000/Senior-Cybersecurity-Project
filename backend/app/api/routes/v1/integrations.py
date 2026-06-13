@@ -4,12 +4,13 @@ Endpoints (all under ``/api/v1/integrations/m365``):
 
 - ``POST .../consent``   — issue a Microsoft consent URL + state token
 - ``GET  .../callback``  — finalise the OAuth roundtrip (Microsoft-hosted browser)
-- ``POST .../sync``      — pull managed devices into ``last_sync_payload``
+- ``POST .../sync``      — pull managed devices into ``assets`` (+ a scan_run)
 - ``GET  .../``          — current connection state for the org
 
-The ``sync`` endpoint stores Graph results on
-``integration_credentials.last_sync_payload`` rather than ``assets`` —
-Phase A + C3 wire the proper asset insertion. See
+The ``sync`` endpoint upserts Graph managed devices into ``assets`` via the
+shared CSV import path (``commit_inventory`` with ``source="m365"``) and records
+a ``scan_run``, then triggers the version-aware matcher. Software-level
+discovery (Graph ``detectedApps``) is a later enhancement. See
 docs/m365_integration_notes.md.
 """
 
@@ -34,6 +35,9 @@ from app.db.engine import get_session
 from app.db.integration_credential import IntegrationCredential
 from app.db.user import User
 from app.integrations import m365 as graph
+from app.repositories.scan_runs import SqlScanRunRepository
+from app.schemas.scan_run import ScanRunCreate, ScanRunUpdate
+from app.services.inventory_import import ParsedRow, commit_inventory
 from app.services.m365_oauth import (
     PROVIDER_M365,
     M365NotConfiguredError,
@@ -56,6 +60,83 @@ def _ensure_enabled() -> None:
             status_code=503,
             detail="M365 integration is disabled (ENABLE_M365_INTEGRATION=false)",
         )
+
+
+async def _persist_devices_as_assets(
+    session: AsyncSession,
+    *,
+    org_id: int,
+    user_id: int,
+    devices: list[graph.ManagedDevice],
+) -> int | None:
+    """Upsert M365 managed devices into ``assets`` under a new ``scan_run``.
+
+    Reuses the CSV import upsert path (``commit_inventory`` with
+    ``source="m365"``) so M365 devices land in the same ``assets`` table the
+    matcher reads. Devices carry no installed-software list from the basic
+    managedDevices call, so only assets (not ``asset_software``) are created —
+    software-level discovery (Graph ``detectedApps``) is a later enhancement.
+
+    Returns the created ``scan_run`` id, or ``None`` if there was nothing to
+    persist (no device had a hostname).
+    """
+    rows = [
+        ParsedRow(
+            hostname=d.hostname,
+            ip_address=None,
+            os_name=d.os_name,
+            os_version=d.os_version,
+            vendor=None,
+            product=None,
+            version=None,
+            notes=None,
+        )
+        for d in devices
+        if d.hostname
+    ]
+    if not rows:
+        return None
+
+    scan_repo = SqlScanRunRepository(session)
+    scan_run = await scan_repo.create(
+        org_id,
+        ScanRunCreate(
+            source="m365",
+            triggered_by_user_id=user_id,
+            metadata={"device_count": len(devices)},
+        ),
+    )
+    try:
+        await scan_repo.update(scan_run.id, org_id, ScanRunUpdate(status="running"))
+        asset_count, software_count = await commit_inventory(
+            session, org_id=org_id, rows=rows, scan_run_id=scan_run.id, source="m365"
+        )
+        await session.commit()
+    except SQLAlchemyError:
+        await session.rollback()
+        logger.exception("M365 device persistence failed for org %s", org_id)
+        await scan_repo.update(
+            scan_run.id,
+            org_id,
+            ScanRunUpdate(
+                status="failed",
+                error_message="device persistence failed",
+                finished_at=datetime.now(UTC),
+            ),
+        )
+        raise
+
+    await scan_repo.update(
+        scan_run.id,
+        org_id,
+        ScanRunUpdate(
+            status="succeeded",
+            asset_count=asset_count,
+            software_count=software_count,
+            finished_at=datetime.now(UTC),
+        ),
+    )
+    return scan_run.id
 
 
 def _connection_view(cred: IntegrationCredential | None) -> dict[str, Any]:
@@ -239,17 +320,17 @@ async def oauth_callback(  # noqa: C901 — OAuth callback enumerates error case
 
 @router.post("/sync")
 @limiter.limit(settings.RATE_LIMIT_DATA)
-async def sync_devices(
+async def sync_devices(  # noqa: C901 — linear sync→persist→match flow, not branchy
     request: Request,  # noqa: ARG001
     org_id: int = Query(...),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    """Pull managed devices via Graph and stash them on the credential row.
+    """Pull managed devices via Graph, persist them as assets, and match.
 
-    Phase A + C3 will replace ``last_sync_payload`` with proper ``assets`` /
-    ``scan_runs`` writes — the spike just proves the OAuth + Graph path end
-    to end.
+    Devices are upserted into ``assets`` under a new ``scan_run`` (source
+    ``m365``) and the version-aware matcher is triggered off the request path.
+    A summary is also kept on ``last_sync_payload`` for the connection view.
     """
     _ensure_enabled()
     try:
@@ -330,10 +411,32 @@ async def sync_devices(
     cred.status = "active" if status_label == "succeeded" else cred.status
     await session.commit()
 
+    # Month 3 Phase 4 (#124): persist the synced devices as assets under a
+    # scan_run, then recompute version-aware findings off the request path.
+    scan_run_id: int | None = None
+    if status_label == "succeeded":
+        try:
+            scan_run_id = await _persist_devices_as_assets(
+                session, org_id=org_id, user_id=current_user.id, devices=devices
+            )
+        except SQLAlchemyError:
+            # Persistence already logged + rolled back; the credential sync still
+            # succeeded, so surface a partial rather than failing the whole call.
+            status_label = "partial"
+            # Re-stamp the credential so the stored status matches the response —
+            # the earlier commit recorded "succeeded" before persistence ran.
+            cred.last_sync_status = status_label
+            await session.commit()
+
+        from app.workers.matcher_job import trigger_matcher_async
+
+        trigger_matcher_async(org_id, trigger="m365_sync")
+
     return {
         "status": status_label,
         "device_count": len(devices),
         "synced_at": cred.last_sync_at.isoformat(),
+        "scan_run_id": scan_run_id,
     }
 
 

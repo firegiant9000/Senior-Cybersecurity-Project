@@ -32,6 +32,7 @@ def test_jobs_added_when_enabled(mock_scheduler):
         patch("app.workers.scheduler._SOURCE_SCHEDULE_MAP", source_map),
     ):
         mock_settings.SCHEDULER_ENABLED = True
+        mock_settings.MATCHER_SCHEDULE = ""
         init_scheduler()
 
     assert mock_scheduler.add_job.call_count == 2
@@ -47,6 +48,7 @@ def test_empty_cron_skipped(mock_scheduler):
         patch("app.workers.scheduler._SOURCE_SCHEDULE_MAP", source_map),
     ):
         mock_settings.SCHEDULER_ENABLED = True
+        mock_settings.MATCHER_SCHEDULE = ""
         init_scheduler()
     mock_scheduler.add_job.assert_not_called()
 
@@ -58,5 +60,32 @@ def test_invalid_cron_skipped(mock_scheduler):
         patch("app.workers.scheduler._SOURCE_SCHEDULE_MAP", source_map),
     ):
         mock_settings.SCHEDULER_ENABLED = True
+        mock_settings.MATCHER_SCHEDULE = ""
+        init_scheduler()
+    mock_scheduler.add_job.assert_not_called()
+
+
+def test_matcher_sweep_job_registered(mock_scheduler):
+    source_map = {"nvd": "", "cisa_kev": "", "ic3": "", "economics": ""}
+    with (
+        patch("app.workers.scheduler.settings") as mock_settings,
+        patch("app.workers.scheduler._SOURCE_SCHEDULE_MAP", source_map),
+    ):
+        mock_settings.SCHEDULER_ENABLED = True
+        mock_settings.MATCHER_SCHEDULE = "30 2 * * *"
+        init_scheduler()
+
+    job_ids = {call.kwargs["id"] for call in mock_scheduler.add_job.call_args_list}
+    assert job_ids == {"matcher_sweep"}
+
+
+def test_matcher_sweep_invalid_cron_skipped(mock_scheduler):
+    source_map = {"nvd": "", "cisa_kev": "", "ic3": "", "economics": ""}
+    with (
+        patch("app.workers.scheduler.settings") as mock_settings,
+        patch("app.workers.scheduler._SOURCE_SCHEDULE_MAP", source_map),
+    ):
+        mock_settings.SCHEDULER_ENABLED = True
+        mock_settings.MATCHER_SCHEDULE = "not-a-cron"
         init_scheduler()
     mock_scheduler.add_job.assert_not_called()

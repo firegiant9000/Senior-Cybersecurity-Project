@@ -87,6 +87,16 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
 
     # External API Keys for Data Ingestion
     NVD_API_KEY: str = ""
+    # NVD CPE configurations (per-CVE affected version ranges → cve_cpe_match).
+    # Persist CPE criteria during NVD CVE ingest; disable to keep ingest lean.
+    NVD_CPE_PERSIST_ON_INGEST: bool = True
+    # Backfill skips CVEs whose CPE rows are newer than this; commits per batch.
+    NVD_CPE_CACHE_TTL_HOURS: int = 168
+    NVD_CPE_BATCH_SIZE: int = 50
+    # Max CVEs the scheduled CPE backfill sweep processes per run. Bounds NVD
+    # load (each CVE = one rate-limited request) so the existing corpus is
+    # backfilled incrementally over successive runs rather than in one burst.
+    NVD_CPE_BACKFILL_MAX_PER_RUN: int = 500
     CENSUS_API_KEY: str = ""
     BEA_API_KEY: str = ""
 
@@ -112,6 +122,15 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     INGEST_SCHEDULE_ECONOMICS: str = ""
     # EPSS runs daily by default, after NVD (02:00 UTC) so scores cover the freshest CVE set.
     INGEST_SCHEDULE_EPSS: str = "0 2 * * *"
+    # Month 3 Phase 4: background CPE-matcher sweep. Runs after the EPSS refresh
+    # so recomputed findings pick up the freshest scores. The inline triggers on
+    # CSV import / M365 sync cover the real-time path; this backstops them.
+    MATCHER_SCHEDULE: str = "30 2 * * *"
+    # Month 3 Phase 1 tail: scheduled CPE backfill for the pre-existing CVE
+    # corpus (CVEs ingested before version-criteria capture landed). Runs after
+    # the nightly NVD window; the TTL skip makes it converge then no-op. Empty
+    # disables it (the inline persist-on-ingest still covers new CVEs).
+    NVD_CPE_BACKFILL_SCHEDULE: str = "0 4 * * *"
     # Maximum seconds a run may be "running" before it is considered stale/timed-out
     INGEST_LOCK_TIMEOUT_SECONDS: int = 3600
     # Number of automatic retries on failure (exponential back-off: 30s, 120s)

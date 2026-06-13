@@ -53,6 +53,11 @@ class Asset(Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("true"), default=True
     )
+    # Drives the per-finding risk scorer (low|normal|high|critical). Defaults
+    # to ``normal`` so existing assets score neutrally until classified.
+    asset_criticality: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=text("'normal'"), default="normal"
+    )
     asset_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSON, nullable=True)
     tags: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     created_by_scan_run_id: Mapped[int | None] = mapped_column(

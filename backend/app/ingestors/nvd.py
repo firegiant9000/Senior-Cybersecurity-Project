@@ -383,6 +383,9 @@ async def ingest_nvd(  # noqa: C901
     - Descriptions (default provided if missing)
     - Published dates (parsed to ISO format or None)
     """
+    # Local import avoids a circular dependency (nvd_cpe imports fetch_nvd_cve_by_id).
+    from app.ingestors.nvd_cpe import persist_cpe_configurations
+
     settings = get_settings()
     api_key = settings.NVD_API_KEY
 
@@ -477,6 +480,11 @@ async def ingest_nvd(  # noqa: C901
                     total_fetched += 1
                 if changed:
                     total_validated += 1
+
+                if settings.NVD_CPE_PERSIST_ON_INGEST:
+                    # Capture the full CPE criteria (version ranges) NVD publishes
+                    # alongside the CVE so the matcher can do version-aware matching.
+                    await persist_cpe_configurations(db, cve_id=cve_id, cve=cve_data)
 
             await db.commit()
 

@@ -7,12 +7,15 @@ import {
   AssetFindingsResponse,
   AssetRiskSummary,
   AssetWithKev,
+  FindingStatus,
   InventoryHealth,
+  MatchConfidence,
   getAsset,
   getAssetFindings,
   getAssetRiskSummary,
   getInventoryHealth,
   listAssets,
+  patchAssetFindingStatus,
   setAssetTags,
 } from "../api/assets";
 import "../Dashboard.css";
@@ -71,6 +74,81 @@ function SourceBadge({ via }: { via: Asset["discovered_via"] }) {
   );
 }
 
+const CONFIDENCE_META: Record<
+  MatchConfidence,
+  { label: string; color: string; deemphasized: boolean }
+> = {
+  high: { label: "High confidence", color: "#15803d", deemphasized: false },
+  medium: { label: "Medium confidence", color: "#b45309", deemphasized: false },
+  low: { label: "Low confidence", color: "#64748b", deemphasized: true },
+  needs_review: { label: "Needs review", color: "#64748b", deemphasized: true },
+};
+
+function ConfidenceChip({ confidence }: { confidence: MatchConfidence }) {
+  const meta = CONFIDENCE_META[confidence] ?? CONFIDENCE_META.needs_review;
+  return (
+    <span
+      style={{
+        background: `${meta.color}1f`,
+        color: meta.color,
+        border: meta.deemphasized ? `1px dashed ${meta.color}` : "none",
+        padding: "2px 8px",
+        borderRadius: 10,
+        fontSize: 11,
+        fontWeight: 700,
+        whiteSpace: "nowrap",
+      }}
+      aria-label={
+        meta.deemphasized
+          ? `${meta.label} — unverified match, review before acting`
+          : meta.label
+      }
+      title={
+        meta.deemphasized
+          ? "This match is unverified — review before acting on it."
+          : "Version-aware match against the CVE's affected ranges."
+      }
+    >
+      {meta.label}
+    </span>
+  );
+}
+
+const TIER_COLORS: Record<string, string> = {
+  Critical: "#991b1b",
+  High: "#c2410c",
+  Medium: "#b45309",
+  Low: "#15803d",
+  "Needs Review": "#64748b",
+};
+
+function RiskTierChip({ tier }: { tier: string }) {
+  const color = TIER_COLORS[tier] ?? "#64748b";
+  return (
+    <span
+      style={{
+        background: `${color}1f`,
+        color,
+        padding: "2px 8px",
+        borderRadius: 10,
+        fontSize: 11,
+        fontWeight: 700,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {tier}
+    </span>
+  );
+}
+
+const STATUS_LABELS: Record<FindingStatus, string> = {
+  open: "Open",
+  in_progress: "In progress",
+  fixed: "Fixed",
+  accepted_risk: "Accepted risk",
+  false_positive: "False positive",
+};
+
 export default function AssetsPage() {
   const { orgId } = useAuth();
   const [items, setItems] = useState<AssetWithKev[]>([]);
@@ -86,8 +164,11 @@ export default function AssetsPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [findings, setFindings] = useState<AssetFindingsResponse | null>(null);
   const [findingsLoading, setFindingsLoading] = useState(false);
+  const [findingsError, setFindingsError] = useState("");
+  const [findingsRefreshing, setFindingsRefreshing] = useState(false);
   const [tagDraft, setTagDraft] = useState("");
   const [tagSaving, setTagSaving] = useState(false);
+  const [findingActionId, setFindingActionId] = useState<number | null>(null);
   const [tagFilter, setTagFilter] = useState("");
   const [risk, setRisk] = useState<AssetRiskSummary | null>(null);
   const pageSize = 50;
@@ -143,20 +224,37 @@ export default function AssetsPage() {
     setDetailLoading(true);
     setFindings(null);
     setFindingsLoading(true);
+    setFindingsError("");
     setTagDraft("");
     try {
-      const [d, f] = await Promise.all([
-        getAsset(orgId, assetId),
-        getAssetFindings(orgId, assetId).catch(() => null),
-      ]);
+      const d = await getAsset(orgId, assetId);
       setDetail(d);
       setTagDraft((d.asset.tags ?? []).join(", "));
-      setFindings(f);
+      try {
+        setFindings(await getAssetFindings(orgId, assetId));
+      } catch (e) {
+        // Surface in the modal rather than the page-level banner (which renders
+        // behind the overlay) so the "(—)" count isn't an unexplained dead-end.
+        setFindingsError((e as Error).message);
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setDetailLoading(false);
       setFindingsLoading(false);
+    }
+  };
+
+  const refreshFindings = async () => {
+    if (!orgId || !detail) return;
+    setFindingsRefreshing(true);
+    setFindingsError("");
+    try {
+      setFindings(await getAssetFindings(orgId, detail.asset.id, { refresh: true }));
+    } catch (e) {
+      setFindingsError((e as Error).message);
+    } finally {
+      setFindingsRefreshing(false);
     }
   };
 
@@ -179,6 +277,38 @@ export default function AssetsPage() {
       setError((e as Error).message);
     } finally {
       setTagSaving(false);
+    }
+  };
+
+  const updateFindingStatus = async (
+    findingId: number,
+    status: FindingStatus,
+  ) => {
+    if (!orgId || !detail) return;
+    setFindingActionId(findingId);
+    setFindingsError("");
+    try {
+      const updated = await patchAssetFindingStatus(
+        orgId,
+        detail.asset.id,
+        findingId,
+        status,
+      );
+      // Trust the server's authoritative status, not the requested one.
+      setFindings((prev) =>
+        prev
+          ? {
+              ...prev,
+              items: prev.items.map((m) =>
+                m.finding_id === findingId ? { ...m, status: updated.status } : m,
+              ),
+            }
+          : prev,
+      );
+    } catch (e) {
+      setFindingsError((e as Error).message);
+    } finally {
+      setFindingActionId(null);
     }
   };
 
@@ -552,13 +682,48 @@ export default function AssetsPage() {
                 </button>
               </div>
             </div>
-            <h3>
-              CVE matches{" "}
-              {findingsLoading ? "(loading…)" : findings ? `(${findings.total})` : "(—)"}
-            </h3>
+            <div
+              style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}
+            >
+              <h3 style={{ marginBottom: 0 }}>
+                CVE matches{" "}
+                {findingsLoading ? "(loading…)" : findings ? `(${findings.total})` : "(—)"}
+              </h3>
+              <button
+                type="button"
+                onClick={refreshFindings}
+                disabled={findingsLoading || findingsRefreshing}
+                title="Re-run the version-aware matcher against this asset's software"
+                style={{
+                  background: "transparent",
+                  border: "1px solid #cbd5e1",
+                  color: "#475569",
+                  borderRadius: 6,
+                  padding: "2px 8px",
+                  fontSize: 11,
+                  cursor: "pointer",
+                }}
+              >
+                {findingsRefreshing ? "Recomputing…" : "Recompute"}
+              </button>
+            </div>
+            {findingsError && (
+              <p
+                role="alert"
+                style={{
+                  color: "#991b1b",
+                  background: "#fee2e2",
+                  borderRadius: 6,
+                  padding: "6px 10px",
+                  fontSize: 13,
+                }}
+              >
+                {findingsError}
+              </p>
+            )}
             {findings && findings.items.length === 0 && !findingsLoading && (
               <p style={{ color: "#64748b", fontSize: 13 }}>
-                No KEV-listed CVEs match this asset's software.
+                No CVEs match this asset's software.
               </p>
             )}
             {findings && findings.items.length > 0 && (
@@ -567,45 +732,151 @@ export default function AssetsPage() {
                   <tr style={{ background: "#fff7ed", textAlign: "left" }}>
                     <th style={{ padding: 6 }}>CVE</th>
                     <th style={{ padding: 6 }}>Software</th>
-                    <th style={{ padding: 6 }}>Severity</th>
+                    <th style={{ padding: 6 }}>Confidence</th>
+                    <th style={{ padding: 6 }}>Risk</th>
                     <th style={{ padding: 6 }}>CVSS</th>
+                    <th style={{ padding: 6 }}>EPSS</th>
                     <th style={{ padding: 6 }}>KEV</th>
+                    <th style={{ padding: 6 }}>Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {findings.items.map((m, i) => (
-                    <tr
-                      key={`${m.cve_id}-${m.software_id}-${i}`}
-                      style={{ borderBottom: "1px solid #e2e8f0" }}
-                    >
-                      <td style={{ padding: 6, fontFamily: "monospace" }}>{m.cve_id}</td>
-                      <td style={{ padding: 6 }}>
-                        {m.vendor} {m.product}
-                        {m.version ? ` ${m.version}` : ""}
-                      </td>
-                      <td style={{ padding: 6 }}>{m.severity ?? "—"}</td>
-                      <td style={{ padding: 6 }}>{m.cvss_score?.toFixed(1) ?? "—"}</td>
-                      <td style={{ padding: 6 }}>
-                        {m.in_kev && (
+                  {findings.items.map((m) => {
+                    const deemphasized = CONFIDENCE_META[m.match_confidence]?.deemphasized;
+                    const isFalsePositive = m.status === "false_positive";
+                    return (
+                      <tr
+                        key={m.finding_id}
+                        style={{
+                          borderBottom: "1px solid #e2e8f0",
+                          opacity: deemphasized || isFalsePositive ? 0.55 : 1,
+                          textDecoration: isFalsePositive ? "line-through" : "none",
+                        }}
+                      >
+                        <td style={{ padding: 6, fontFamily: "monospace" }}>{m.cve_id}</td>
+                        <td style={{ padding: 6 }}>
+                          {m.vendor} {m.product}
+                          {m.version ? ` ${m.version}` : ""}
+                        </td>
+                        <td style={{ padding: 6 }}>
+                          <ConfidenceChip confidence={m.match_confidence} />
+                        </td>
+                        <td style={{ padding: 6 }}>
+                          <RiskTierChip tier={m.risk_tier} />
+                        </td>
+                        <td style={{ padding: 6 }}>{m.cvss_score?.toFixed(1) ?? "—"}</td>
+                        <td style={{ padding: 6 }}>
+                          {m.epss_score !== null
+                            ? `${(m.epss_score * 100).toFixed(1)}%`
+                            : "—"}
+                        </td>
+                        <td style={{ padding: 6 }}>
+                          {m.in_kev && (
+                            <span
+                              style={{
+                                background: "#fee2e2",
+                                color: "#991b1b",
+                                padding: "2px 6px",
+                                borderRadius: 4,
+                                fontSize: 11,
+                                fontWeight: 600,
+                              }}
+                            >
+                              KEV
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: 6, whiteSpace: "nowrap" }}>
                           <span
-                            style={{
-                              background: "#fee2e2",
-                              color: "#991b1b",
-                              padding: "2px 6px",
-                              borderRadius: 4,
-                              fontSize: 11,
-                              fontWeight: 600,
-                            }}
+                            style={{ fontSize: 12, color: "#475569" }}
+                            aria-label={
+                              isFalsePositive ? "Status: false positive (dismissed)" : undefined
+                            }
                           >
-                            KEV
+                            {STATUS_LABELS[m.status] ?? m.status}
                           </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                          {!isFalsePositive && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateFindingStatus(m.finding_id, "false_positive")
+                              }
+                              disabled={findingActionId === m.finding_id}
+                              title="Flag this match as a false positive"
+                              style={{
+                                marginLeft: 8,
+                                background: "transparent",
+                                border: "1px solid #cbd5e1",
+                                color: "#64748b",
+                                borderRadius: 6,
+                                padding: "2px 6px",
+                                fontSize: 11,
+                                cursor: "pointer",
+                              }}
+                            >
+                              {findingActionId === m.finding_id
+                                ? "…"
+                                : "Report false positive"}
+                            </button>
+                          )}
+                          {isFalsePositive && (
+                            <button
+                              type="button"
+                              onClick={() => updateFindingStatus(m.finding_id, "open")}
+                              disabled={findingActionId === m.finding_id}
+                              title="Undo false-positive flag"
+                              style={{
+                                marginLeft: 8,
+                                background: "transparent",
+                                border: "none",
+                                color: "#2563eb",
+                                fontSize: 11,
+                                cursor: "pointer",
+                              }}
+                            >
+                              Undo
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
+            {findings &&
+              findings.items.some((m) => m.remediation_summary) && (
+                <div
+                  style={{
+                    background: "#f8fafc",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 6,
+                    padding: 12,
+                    marginBottom: 12,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: "#475569",
+                      marginBottom: 6,
+                    }}
+                  >
+                    Remediation
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
+                    {findings.items
+                      .filter((m) => m.remediation_summary)
+                      .map((m) => (
+                        <li key={m.finding_id} style={{ marginBottom: 4 }}>
+                          <span style={{ fontFamily: "monospace" }}>{m.cve_id}</span>:{" "}
+                          {m.remediation_summary}
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )}
             {findings && (
               <p style={{ fontSize: 11, color: "#94a3b8", marginTop: -8, marginBottom: 12 }}>
                 {findings.note}

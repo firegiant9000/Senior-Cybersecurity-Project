@@ -19,10 +19,14 @@ from sqlalchemy import select
 
 from app.api.routes.v1.auth import get_current_user
 from app.core.config import settings
+from app.db.asset import Asset
+from app.db.asset_finding import AssetFinding
+from app.db.asset_software import AssetSoftware
 from app.db.engine import AsyncSessionLocal
 from app.db.integration_credential import IntegrationCredential
 from app.db.oauth_state import OAuthState
 from app.db.organization import Organization
+from app.db.scan_run import ScanRun
 from app.db.user import User
 from app.integrations import m365 as graph
 from app.main import app
@@ -73,6 +77,14 @@ async def admin_org():
             IntegrationCredential.__table__.delete().where(IntegrationCredential.org_id == org.id)
         )
         await session.execute(OAuthState.__table__.delete().where(OAuthState.org_id == org.id))
+        # Sync now persists devices as assets/scan_runs — clean them up FK-first
+        # so the org delete below doesn't hit a constraint.
+        await session.execute(AssetFinding.__table__.delete().where(AssetFinding.org_id == org.id))
+        await session.execute(
+            AssetSoftware.__table__.delete().where(AssetSoftware.org_id == org.id)
+        )
+        await session.execute(Asset.__table__.delete().where(Asset.org_id == org.id))
+        await session.execute(ScanRun.__table__.delete().where(ScanRun.org_id == org.id))
         await session.execute(User.__table__.delete().where(User.id == admin.id))
         await session.execute(Organization.__table__.delete().where(Organization.id == org.id))
         await session.commit()
@@ -293,6 +305,12 @@ async def test_sync_lists_devices_and_updates_payload(
                 "app.api.routes.v1.integrations.graph.list_managed_devices",
                 AsyncMock(return_value=devices),
             ),
+            # Keep the test deterministic — assert the synchronous asset
+            # persistence; the background matcher is exercised in its own tests.
+            patch(
+                "app.workers.matcher_job.run_matcher_for_org",
+                AsyncMock(return_value=0),
+            ),
         ):
             resp = await client.post(f"/api/v1/integrations/m365/sync?org_id={org.id}")
     finally:
@@ -302,6 +320,21 @@ async def test_sync_lists_devices_and_updates_payload(
     body = resp.json()
     assert body["status"] == "succeeded"
     assert body["device_count"] == 2
+    assert body["scan_run_id"] is not None
+
+    # Devices were persisted as assets under an m365 scan_run (#124).
+    async with AsyncSessionLocal() as session:
+        assets = (
+            (await session.execute(select(Asset).where(Asset.org_id == org.id))).scalars().all()
+        )
+        assert {a.hostname for a in assets} == {"LAPTOP-01", "LAPTOP-02"}
+        assert all(a.discovered_via == "m365" for a in assets)
+        scan_run = (
+            await session.execute(select(ScanRun).where(ScanRun.id == body["scan_run_id"]))
+        ).scalar_one()
+        assert scan_run.source == "m365"
+        assert scan_run.status == "succeeded"
+        assert scan_run.asset_count == 2
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(
