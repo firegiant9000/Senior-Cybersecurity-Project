@@ -51,6 +51,13 @@ class AssetFinding(Base):
         ForeignKey("asset_software.id", ondelete="CASCADE"), nullable=False
     )
     cve_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    # Denormalized software identity. ``asset_software_id`` is a surrogate key
+    # that churns when inventory is re-imported (a version change inserts a new
+    # row), so reviewer decisions are re-associated on recompute by the stable
+    # ``(software_vendor, software_product, cve_id)`` tuple — see
+    # ``SqlAssetFindingRepository.replace_for_asset``.
+    software_vendor: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    software_product: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # How the pairing was produced (e.g. ``cpe_matcher``). Distinct from the
     # asset_software ``source`` (where the inventory row came from).
     source: Mapped[str] = mapped_column(String(32), nullable=False, server_default="cpe_matcher")

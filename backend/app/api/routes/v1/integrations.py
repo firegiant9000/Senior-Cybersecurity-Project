@@ -423,12 +423,14 @@ async def sync_devices(  # noqa: C901 — linear sync→persist→match flow, no
             # Persistence already logged + rolled back; the credential sync still
             # succeeded, so surface a partial rather than failing the whole call.
             status_label = "partial"
+            # Re-stamp the credential so the stored status matches the response —
+            # the earlier commit recorded "succeeded" before persistence ran.
+            cred.last_sync_status = status_label
+            await session.commit()
 
-        import asyncio
+        from app.workers.matcher_job import trigger_matcher_async
 
-        from app.workers.matcher_job import run_matcher_for_org
-
-        asyncio.create_task(run_matcher_for_org(org_id, trigger="m365_sync"))
+        trigger_matcher_async(org_id, trigger="m365_sync")
 
     return {
         "status": status_label,

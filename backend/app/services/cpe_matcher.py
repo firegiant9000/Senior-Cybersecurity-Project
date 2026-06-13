@@ -238,6 +238,12 @@ def _cpe_core(cpe_uri: str | None) -> str | None:
     return ":".join(parts[3:6])
 
 
+def _cpe_version_concrete(cpe_uri: str | None) -> bool:
+    """True only when the CPE pins a real version (not ``*``/``-``/empty)."""
+    version = cpe_version_field(cpe_uri)
+    return version is not None and version.strip().lower() not in _VERSION_WILDCARDS
+
+
 def evaluate_criterion(
     asset_version: str | None,
     *,
@@ -303,7 +309,17 @@ def assign_confidence(
         return "needs_review"
 
     # verdict is True from here on.
-    if asset_cpe_uri and _cpe_core(asset_cpe_uri) == _cpe_core(criterion_cpe_uri):
+    # An exact-CPE match only earns ``high`` when BOTH sides pin a concrete
+    # version. Two wildcard-version CPEs (e.g. ``...:log4j:*:...``) share a core
+    # but only agree on vendor/product — granting ``high`` there would be the
+    # version-blind false positive the roadmap forbids; fall through to the
+    # range/concrete logic, which yields ``medium``/``low`` as appropriate.
+    if (
+        asset_cpe_uri
+        and _cpe_core(asset_cpe_uri) == _cpe_core(criterion_cpe_uri)
+        and _cpe_version_concrete(asset_cpe_uri)
+        and _cpe_version_concrete(criterion_cpe_uri)
+    ):
         return "high"
     if not asset_version or not asset_version.strip():
         return "low"
