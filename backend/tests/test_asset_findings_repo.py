@@ -51,13 +51,19 @@ async def test_false_positive_survives_software_rekey():
         session.add(org)
         await session.flush()
 
-        asset = Asset(org_id=org.id, hostname=f"host-{uuid4().hex[:8]}", discovered_via="csv_upload")
+        asset = Asset(
+            org_id=org.id, hostname=f"host-{uuid4().hex[:8]}", discovered_via="csv_upload"
+        )
         session.add(asset)
         await session.flush()
 
         sw_old = AssetSoftware(
-            asset_id=asset.id, org_id=org.id, vendor="apache", product="log4j",
-            version="2.14.1", source="csv_upload",
+            asset_id=asset.id,
+            org_id=org.id,
+            vendor="apache",
+            product="log4j",
+            version="2.14.1",
+            source="csv_upload",
         )
         session.add(sw_old)
         await session.flush()
@@ -74,8 +80,12 @@ async def test_false_positive_survives_software_rekey():
 
             # Re-import re-keys the software (version bump → new surrogate id).
             sw_new = AssetSoftware(
-                asset_id=asset.id, org_id=org.id, vendor="apache", product="log4j",
-                version="2.14.1", source="csv_upload",
+                asset_id=asset.id,
+                org_id=org.id,
+                vendor="apache",
+                product="log4j",
+                version="2.14.1",
+                source="csv_upload",
             )
             session.add(sw_new)
             await session.flush()
