@@ -105,6 +105,19 @@ describe('asset findings API', () => {
     expect(result.status).toBe('false_positive')
   })
 
+  it('omits remediation_summary from the body when none is supplied', async () => {
+    mockFetchWithAuth.mockResolvedValue(okJson({ finding_id: 11, status: 'open' }))
+
+    await patchAssetFindingStatus(1, 7, 11, 'open')
+
+    const [, init] = mockFetchWithAuth.mock.calls[0]
+    // The key must be absent (not null) so the backend preserves any existing
+    // reviewer remediation note rather than clearing it.
+    expect(Object.prototype.hasOwnProperty.call(JSON.parse(init.body), 'remediation_summary')).toBe(
+      false,
+    )
+  })
+
   it('throws the API detail when the status PATCH fails', async () => {
     mockFetchWithAuth.mockResolvedValue(errJson('invalid status'))
 
