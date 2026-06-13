@@ -98,6 +98,11 @@ function ConfidenceChip({ confidence }: { confidence: MatchConfidence }) {
         fontWeight: 700,
         whiteSpace: "nowrap",
       }}
+      aria-label={
+        meta.deemphasized
+          ? `${meta.label} — unverified match, review before acting`
+          : meta.label
+      }
       title={
         meta.deemphasized
           ? "This match is unverified — review before acting on it."
@@ -159,6 +164,8 @@ export default function AssetsPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [findings, setFindings] = useState<AssetFindingsResponse | null>(null);
   const [findingsLoading, setFindingsLoading] = useState(false);
+  const [findingsError, setFindingsError] = useState("");
+  const [findingsRefreshing, setFindingsRefreshing] = useState(false);
   const [tagDraft, setTagDraft] = useState("");
   const [tagSaving, setTagSaving] = useState(false);
   const [findingActionId, setFindingActionId] = useState<number | null>(null);
@@ -217,20 +224,37 @@ export default function AssetsPage() {
     setDetailLoading(true);
     setFindings(null);
     setFindingsLoading(true);
+    setFindingsError("");
     setTagDraft("");
     try {
-      const [d, f] = await Promise.all([
-        getAsset(orgId, assetId),
-        getAssetFindings(orgId, assetId).catch(() => null),
-      ]);
+      const d = await getAsset(orgId, assetId);
       setDetail(d);
       setTagDraft((d.asset.tags ?? []).join(", "));
-      setFindings(f);
+      try {
+        setFindings(await getAssetFindings(orgId, assetId));
+      } catch (e) {
+        // Surface in the modal rather than the page-level banner (which renders
+        // behind the overlay) so the "(—)" count isn't an unexplained dead-end.
+        setFindingsError((e as Error).message);
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setDetailLoading(false);
       setFindingsLoading(false);
+    }
+  };
+
+  const refreshFindings = async () => {
+    if (!orgId || !detail) return;
+    setFindingsRefreshing(true);
+    setFindingsError("");
+    try {
+      setFindings(await getAssetFindings(orgId, detail.asset.id, { refresh: true }));
+    } catch (e) {
+      setFindingsError((e as Error).message);
+    } finally {
+      setFindingsRefreshing(false);
     }
   };
 
@@ -262,20 +286,27 @@ export default function AssetsPage() {
   ) => {
     if (!orgId || !detail) return;
     setFindingActionId(findingId);
+    setFindingsError("");
     try {
-      await patchAssetFindingStatus(orgId, detail.asset.id, findingId, status);
+      const updated = await patchAssetFindingStatus(
+        orgId,
+        detail.asset.id,
+        findingId,
+        status,
+      );
+      // Trust the server's authoritative status, not the requested one.
       setFindings((prev) =>
         prev
           ? {
               ...prev,
               items: prev.items.map((m) =>
-                m.finding_id === findingId ? { ...m, status } : m,
+                m.finding_id === findingId ? { ...m, status: updated.status } : m,
               ),
             }
           : prev,
       );
     } catch (e) {
-      setError((e as Error).message);
+      setFindingsError((e as Error).message);
     } finally {
       setFindingActionId(null);
     }
@@ -651,10 +682,45 @@ export default function AssetsPage() {
                 </button>
               </div>
             </div>
-            <h3>
-              CVE matches{" "}
-              {findingsLoading ? "(loading…)" : findings ? `(${findings.total})` : "(—)"}
-            </h3>
+            <div
+              style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}
+            >
+              <h3 style={{ marginBottom: 0 }}>
+                CVE matches{" "}
+                {findingsLoading ? "(loading…)" : findings ? `(${findings.total})` : "(—)"}
+              </h3>
+              <button
+                type="button"
+                onClick={refreshFindings}
+                disabled={findingsLoading || findingsRefreshing}
+                title="Re-run the version-aware matcher against this asset's software"
+                style={{
+                  background: "transparent",
+                  border: "1px solid #cbd5e1",
+                  color: "#475569",
+                  borderRadius: 6,
+                  padding: "2px 8px",
+                  fontSize: 11,
+                  cursor: "pointer",
+                }}
+              >
+                {findingsRefreshing ? "Recomputing…" : "Recompute"}
+              </button>
+            </div>
+            {findingsError && (
+              <p
+                role="alert"
+                style={{
+                  color: "#991b1b",
+                  background: "#fee2e2",
+                  borderRadius: 6,
+                  padding: "6px 10px",
+                  fontSize: 13,
+                }}
+              >
+                {findingsError}
+              </p>
+            )}
             {findings && findings.items.length === 0 && !findingsLoading && (
               <p style={{ color: "#64748b", fontSize: 13 }}>
                 No CVEs match this asset's software.
@@ -721,8 +787,13 @@ export default function AssetsPage() {
                           )}
                         </td>
                         <td style={{ padding: 6, whiteSpace: "nowrap" }}>
-                          <span style={{ fontSize: 12, color: "#475569" }}>
-                            {STATUS_LABELS[m.status]}
+                          <span
+                            style={{ fontSize: 12, color: "#475569" }}
+                            aria-label={
+                              isFalsePositive ? "Status: false positive (dismissed)" : undefined
+                            }
+                          >
+                            {STATUS_LABELS[m.status] ?? m.status}
                           </span>
                           {!isFalsePositive && (
                             <button
