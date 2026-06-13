@@ -353,12 +353,11 @@ async def import_inventory_csv(
 
     # Month 3 Phase 4: kick off version-aware matching off the request path so
     # the new inventory auto-populates asset_findings without a manual refresh.
-    # run_matcher_for_org opens its own session, so it outlives this request.
-    import asyncio
+    # run_matcher_for_org opens its own session, so it outlives this request;
+    # trigger_matcher_async keeps a strong ref so the task isn't GC'd mid-run.
+    from app.workers.matcher_job import trigger_matcher_async
 
-    from app.workers.matcher_job import run_matcher_for_org
-
-    asyncio.create_task(run_matcher_for_org(org_id, trigger="csv_import"))
+    trigger_matcher_async(org_id, trigger="csv_import")
 
     return final or scan_run
 

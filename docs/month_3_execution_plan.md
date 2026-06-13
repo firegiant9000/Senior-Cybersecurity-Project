@@ -109,6 +109,8 @@ Dependency order: **Phase 1 → 2 → 3** are the critical path. Phase 4 depends
 *Owner suggestion: QA/testing. Start once Phase 2 has a callable matcher.*
 
 > Delivered: `backend/tests/regression/matcher_known_good.py` (51 `(vendor, product, version) → expected_cve_set` cases drawn from real KEV/NVD CVEs — Log4Shell, Heartbleed, Struts, Spring4Shell, Citrix/FortiOS, etc. — spanning all five tiers: `high`/`medium`/`low`/`needs_review`/negative). The harness drives `CpeMatcher.match()` through an in-memory criteria catalog via a fake session (no DB, runs in <1s) and computes a `CalibrationReport` enforcing the gate. `backend/tests/regression/test_matcher_known_good.py` asserts the gate in pytest (one case per finding + the aggregate). A nightly GitHub Actions workflow (`.github/workflows/matcher-regression.yml`, `cron 15 7 * * *`, also `workflow_dispatch` + path-filtered on PRs touching the matcher) runs the suite and prints the calibration report. Current baseline: **51 cases, 54/54 tests pass (100%), 0 high-confidence false positives** (re-verified locally 2026-06-13 — `pytest tests/regression/` green; calibration gate satisfied).
+>
+> **⚠️ Scope of the gate (clarified 2026-06-13 review).** The harness feeds a hand-curated in-memory criteria catalog through a fake session, so it validates the **version comparator + confidence assignment** — NOT the production DB pipeline. It does **not** exercise the real `_fetch_criteria` SQL, the `vendor_aliases` lookup, the `cpe_match_cache` write-back, or the empty-`cve_cpe_match` state (the realistic not-yet-backfilled case). A green gate therefore does not by itself prove production matching works. That gap is now covered by `tests/test_cpe_matcher_integration.py`, which persists criteria via the real NVD parser and drives `CpeMatcher.match()` through real SQL (empty-table → `[]`, in-range → finding, write-back → `cpe_match_cache`). Treat the 51-case harness as a comparator-calibration gate, not end-to-end validation.
 
 1. `backend/tests/regression/matcher_known_good.py` — 50+ `(vendor, product, version) → expected_cve_set` cases drawn from real KEV/NVD entries, spanning all confidence tiers.
 2. Assert calibration gate: **≥95% pass**, **<2% high-confidence false-positive rate**.
@@ -153,6 +155,16 @@ The three code/QA gaps below were **closed on 2026-06-13** (kept here for the au
 2. ~~**[Carryover #124] M365 sync → assets/scan_runs persistence.**~~ ✅ **Done** — `sync_devices` upserts devices as assets under an `m365` scan_run via the shared `commit_inventory` path.
 3. ~~**[QA] `docs/manual_test_month3.md` smoke script.**~~ ✅ **Done** — [manual_test_month3.md](manual_test_month3.md) written.
 4. ~~**[QA, minor] Vitest coverage** for the findings API/UI.~~ ✅ **Done** — `src/api/__tests__/assets.findings.test.ts`.
+
+### Review fixes applied (2026-06-13 senior review)
+
+A code review of the PR surfaced issues now fixed on the branch:
+
+- **Reviewer decisions survive software re-key.** `asset_findings` gained denormalized `software_vendor`/`software_product` (migration `047`); `replace_for_asset` re-associates a reviewer's `status`/false-positive verdict to the new row by the stable `(software_vendor, software_product, cve_id)` identity instead of the churning `asset_software_id`. Covered by `tests/test_asset_findings_repo.py`.
+- **No version-blind `high`.** `assign_confidence` now grants the exact-CPE `high` tier only when both the asset and criterion CPEs pin a concrete (non-wildcard) version; two wildcard CPEs that share only vendor/product stay `medium`. A regression case that previously encoded the buggy `high` was corrected.
+- **Fire-and-forget matcher is no longer GC-eligible.** `trigger_matcher_async` keeps a strong task reference (CSV import + M365 sync use it) so an import-triggered run can't be collected mid-flight.
+- **M365 partial sync is consistent.** `sync_devices` re-stamps `last_sync_status="partial"` when device persistence fails after the credential commit, so the stored status matches the response.
+- **Real-SQL integration test added** (`tests/test_cpe_matcher_integration.py`) — see the Phase 5 scope note above.
 
 Still open (not code gaps):
 

@@ -163,6 +163,8 @@ class AssetFindingsService:
                 candidate = FindingInput(
                     asset_software_id=sw.id,
                     cve_id=match.cve_id.upper(),
+                    software_vendor=sw.vendor,
+                    software_product=sw.product,
                     source="cpe_matcher",
                     cpe_uri=match.cpe_uri[:500],
                     cvss_score=cvss,

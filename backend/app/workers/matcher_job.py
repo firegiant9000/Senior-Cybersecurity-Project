@@ -19,6 +19,7 @@ and would otherwise be skipped.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from sqlalchemy import func, select
@@ -30,6 +31,24 @@ from app.services.asset_findings_service import AssetFindingsService
 from app.services.ingest_lock import release_lock, try_acquire_lock
 
 logger = logging.getLogger(__name__)
+
+# Strong references to in-flight fire-and-forget matcher tasks. The event loop
+# only holds a *weak* reference to a bare ``create_task`` result, so without this
+# an import-triggered matcher run could be garbage-collected mid-flight. Tasks
+# discard themselves on completion.
+_BACKGROUND_TASKS: set[asyncio.Task] = set()
+
+
+def trigger_matcher_async(org_id: int, *, trigger: str) -> asyncio.Task:
+    """Fire ``run_matcher_for_org`` off the request path, keeping a strong ref.
+
+    Used by the CSV-import and M365-sync handlers so the new inventory
+    auto-populates findings without the task being collected before it runs.
+    """
+    task = asyncio.create_task(run_matcher_for_org(org_id, trigger=trigger))
+    _BACKGROUND_TASKS.add(task)
+    task.add_done_callback(_BACKGROUND_TASKS.discard)
+    return task
 
 
 def _lock_source(org_id: int) -> str:
@@ -128,4 +147,4 @@ async def run_matcher_sweep() -> None:
             logger.debug("Matcher sweep continuing past org %s failure", org_id)
 
 
-__all__ = ["run_matcher_for_org", "run_matcher_sweep"]
+__all__ = ["run_matcher_for_org", "run_matcher_sweep", "trigger_matcher_async"]

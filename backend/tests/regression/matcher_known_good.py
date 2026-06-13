@@ -311,16 +311,21 @@ CASES: list[Case] = [
         },
     ),
     Case(
-        "log4j exact asset CPE → high",
-        "high",
+        # The asset CPE pins only a wildcard version (`log4j:*`), so it shares a
+        # CPE core with the wildcard-range criterion but agrees only on
+        # vendor/product — NOT on a concrete version. That must stay `medium`
+        # (name normalized + version-in-range), never inflate to `high`, or it
+        # becomes the version-blind false positive the roadmap forbids.
+        "log4j wildcard asset CPE stays medium (no version-blind high)",
+        "medium",
         "apache",
         "log4j",
         "2.14.1",
         frozenset({"CVE-2021-44228", "CVE-2021-45046", "CVE-2021-45105"}),
         {
-            "CVE-2021-44228": "high",
-            "CVE-2021-45046": "high",
-            "CVE-2021-45105": "high",
+            "CVE-2021-44228": "medium",
+            "CVE-2021-45046": "medium",
+            "CVE-2021-45105": "medium",
         },
         cpe_uri="cpe:2.3:a:apache:log4j:*:*:*:*:*:*:*:*",
     ),
