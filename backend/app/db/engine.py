@@ -25,9 +25,11 @@ def _import_all_orm_models() -> None:
     import app.db.ai_summary_generation  # noqa: F401
     import app.db.assessment_submission  # noqa: F401
     import app.db.asset  # noqa: F401
+    import app.db.asset_finding  # noqa: F401
     import app.db.asset_software  # noqa: F401
     import app.db.audit_log  # noqa: F401
     import app.db.cpe_match_cache  # noqa: F401
+    import app.db.cve_cpe_match  # noqa: F401
     import app.db.finding_status  # noqa: F401
     import app.db.findings_snapshot  # noqa: F401
     import app.db.integration_credential  # noqa: F401
@@ -147,6 +149,27 @@ def _ensure_cve_columns(connection: Connection) -> None:
         logger.info("Added column cves.epss_score")
 
 
+def _ensure_asset_columns(connection: Connection) -> None:
+    """Add ``assets.asset_criticality`` (migration 046) when upgrading in place.
+
+    ``create_all`` creates new tables but does not alter existing ones, so the
+    per-finding risk scorer's criticality input is patched in here for installs
+    that skip Alembic.
+    """
+    inspector = inspect(connection)
+    if not inspector.has_table("assets"):
+        return
+    existing = {col["name"].lower() for col in inspector.get_columns("assets")}
+    if "asset_criticality" not in existing:
+        connection.execute(
+            text(
+                "ALTER TABLE assets ADD COLUMN asset_criticality "
+                "VARCHAR(20) NOT NULL DEFAULT 'normal'"
+            )
+        )
+        logger.info("Added column assets.asset_criticality")
+
+
 async def init_db() -> None:
     """Initialize database: create missing tables and align known schema drifts."""
     _import_all_orm_models()
@@ -156,6 +179,7 @@ async def init_db() -> None:
         await conn.run_sync(_ensure_ingest_run_columns)
         await conn.run_sync(_ensure_finding_status_columns)
         await conn.run_sync(_ensure_cve_columns)
+        await conn.run_sync(_ensure_asset_columns)
     logger.info("Database initialized")
 
 

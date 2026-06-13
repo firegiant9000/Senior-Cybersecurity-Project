@@ -554,7 +554,7 @@ The repo investigation found that some parts are real and wired, while others ar
 | Add visible labels for real/static/demo data | High | Low | Dashboard components, IC3 pages, exploited vulns page | ✅ `SourceBadge` + `useDataStatus` hook render on every overview widget via `WIDGET_DATASET_KEY`; backend registry at `services/data_status.py` is the single source of truth, exposed at `GET /api/v1/data-status` (#102). |
 | Add data freshness cards | High | Medium | `backend/app/workers/scheduler.py`, ingest routes, frontend dashboard | ✅ `DataFreshness.tsx` consumes `GET /api/v1/ingest/freshness`; surfaced in `ThreatOverviewWidget` as last-ingest timestamp. |
 | Show last successful NVD/KEV ingest | High | Medium | ingest service/routes | ✅ `/ingest/freshness` returns latest run per source with started/completed/duration; UI shows the timestamp inline on the threat overview. |
-| Show failed/stale ingestion warnings | Medium | Medium | backend ingest routes, frontend status component | ✅ `FreshnessResponse.stale: bool` (per-source thresholds in `ingest.py:280`); flips to stale on >threshold age or ≥2 consecutive failures. |
+| Show failed/stale ingestion warnings | Medium | Medium | backend ingest routes, frontend status component | ✅ Stale detection lives on the ingest **health** endpoint (`SourceHealthItem.stale`, per-source thresholds at `ingest.py:280`); flips to stale on >threshold age or ≥2 consecutive failures. The `/ingest/freshness` response surfaces per-source `status` + `consecutive_failures` (UI derives staleness from these); it does not itself emit a computed `stale` bool. |
 | Make `ENABLE_DEMO_MODE` visible in UI if active | High | Low | backend config, frontend banner | ✅ Global flag removed; replaced by per-org `organizations.is_demo` + `DemoBanner` gated on `AuthContext.orgIsDemo && !loading` (no flash) — see WS 1.5 (#107). |
 
 ### Definition of done
@@ -736,7 +736,7 @@ Office-PC-01,10.0.0.12,Windows,11,OpenJS,Node.js,20.11.1,
 | Add `assets` table | Critical | Medium | ✅ Migration 034; model in `backend/app/db/asset.py`; composite uniqueness on `(org_id, hostname, mac_address)` with NULL-safe matching (#112). |
 | Add `scan_runs` table | Critical | Medium | ✅ Migration 036; one row per upload/sync; status + asset/software counts surface in the upload-history UI. |
 | Add `asset_software` table | Critical | Medium | ✅ Migration 035; `(org_id, vendor, product)` index for matcher lookups; `cpe_uri` nullable now, populated by Month 3 matcher. |
-| Add CSV upload endpoint | Critical | Medium | ✅ `POST /inventory/uploads/csv/preview` + `/import`; idempotent by `(org_id, hostname)`; advisory lock per `(org_id, 'csv_import')` to serialize concurrent uploads (R2) (#113). |
+| Add CSV upload endpoint | Critical | Medium | ✅ `POST /inventory/uploads/csv/preview` + `/import`; idempotent by `(org_id, hostname)` with in-upload dedupe in `commit_inventory` (re-imports refresh `last_seen` rather than duplicate) (#113). ⏳ R2 advisory lock per `(org_id, 'csv_import')` was specced but **not implemented** — concurrent same-org uploads currently rely on the idempotent upsert, not a serializing lock. Add `pg_advisory_xact_lock` before Month 4 pilots if concurrent uploads become real. |
 | Validate CSV rows and report row errors | High | Medium | ✅ Preview returns row-level errors without writing; 10k row cap; required-column check; per-row IP format validation. |
 | Add upload page | High | Medium | ✅ `frontend/src/pages/UploadInventoryPage.tsx` — native HTML5 drag-drop (no new deps), preview table, progress polling against scan_runs (#114). |
 | Add uploaded inventory preview | High | Medium | ✅ Preview endpoint returns `valid_rows`, `invalid_rows`, `would_create`, `would_update` without DB writes; UI renders first 20 rows + error list. |
@@ -843,24 +843,26 @@ Phase F of the Month 2 plan. Lightweight client-side event log so we can measure
 
 Make Hacker Tracker operationally useful by matching actual software inventory to vulnerabilities. **This month is harder than the original plan estimated** — CPE matching is genuinely difficult and needs the full month plus regression tooling. Do not start the scanner (Month 4) until the Month 3 go/no-go gate passes.
 
-## Workstream 3.0 — EPSS ingestion (currently missing from the repo)
+## Workstream 3.0 — EPSS ingestion — ✅ DONE (pulled forward into Month 2)
+
+> **Status (verified 2026-06-12):** Shipped during Month 2, not Month 3. See [month_3_execution_plan.md](month_3_execution_plan.md) Phase 0 and Workstream 2.4 above. This workstream is closed; do not rebuild.
 
 ### Why first
 
-Risk scoring (Workstream 3.2) weights EPSS "High," but the repo has no EPSS ingestor today. Add it before scoring depends on it.
+Risk scoring (Workstream 3.2) weights EPSS "High." EPSS was wired in during Month 2 so the matcher can pull real percentiles from day one.
 
 ### Tasks
 
-| Task | Priority | Difficulty | Files |
-|---|---|---|---|
-| Add `backend/app/ingestors/epss.py` (FIRST.org daily CSV) | Critical | Low/Medium | new file |
-| Add `epss_scores` table + Alembic migration | Critical | Low | new |
-| Wire ingestor into APScheduler (daily) | High | Low | `backend/app/workers/scheduler.py` |
-| Add EPSS staleness threshold to `/ingest/health` | Medium | Low | `backend/app/api/routes/v1/ingest.py` |
+| Task | Priority | Difficulty | Files | Status |
+|---|---|---|---|---|
+| Add `backend/app/ingestors/epss.py` (FIRST.org daily CSV) | Critical | Low/Medium | new file | ✅ `backend/app/ingestors/epss.py` |
+| Add EPSS columns + Alembic migration | Critical | Low | new | ✅ Migrations 025 + 038 (`epss_score`/`epss_percentile`/`epss_fetched_at` on `cves`) |
+| Wire ingestor into APScheduler (daily) | High | Low | `backend/app/workers/scheduler.py` | ✅ `INGEST_SCHEDULE_EPSS` (daily 02:00 UTC) |
+| Add EPSS staleness threshold to `/ingest/health` | Medium | Low | `backend/app/api/routes/v1/ingest.py` | ✅ `INGEST_STALE_HOURS_EPSS` + `data_status` registry |
 
 ### Definition of done
 
-EPSS scores update daily and are queryable per CVE.
+✅ EPSS scores update daily and are queryable per CVE. Covered by `test_epss_ingest.py`.
 
 ## Workstream 3.1 — CPE/CVE matching service
 

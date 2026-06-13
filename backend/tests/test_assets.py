@@ -55,6 +55,7 @@ def test_asset_read_round_trip():
     fake.os_version = "23H2"
     fake.mac_address = None
     fake.discovered_via = "csv_upload"
+    fake.asset_criticality = "normal"
     fake.first_seen = datetime(2026, 5, 1, tzinfo=UTC)
     fake.last_seen = datetime(2026, 5, 1, tzinfo=UTC)
     fake.is_active = True

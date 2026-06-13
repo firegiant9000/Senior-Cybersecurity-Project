@@ -640,6 +640,31 @@ async def trigger_ingestion(
     return results
 
 
+@router.post("/cpe-backfill", response_model=IngestTriggerResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def trigger_cpe_backfill(
+    request: Request,  # noqa: ARG001
+    _: User = Depends(require_role("admin")),
+) -> IngestTriggerResponse:
+    """Backfill CPE version-criteria for the pre-existing CVE corpus.
+
+    Runs one bounded backfill pass (``NVD_CPE_BACKFILL_MAX_PER_RUN`` CVEs) in the
+    background. Re-run until it reports no further CVEs to seed the matcher for
+    the initial corpus; the nightly sweep handles steady state thereafter.
+    """
+    from app.workers.cpe_backfill_job import run_cpe_backfill_sweep
+
+    asyncio.create_task(run_cpe_backfill_sweep(trigger="manual"))
+    return IngestTriggerResponse(
+        source="cpe_backfill",
+        status="started",
+        message=(
+            "CPE backfill started in background (bounded per run). "
+            "Re-run until persisted=0 for the initial corpus."
+        ),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Normalization log — admin read endpoint
 # ---------------------------------------------------------------------------
