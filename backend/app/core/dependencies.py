@@ -48,9 +48,7 @@ async def get_agent_from_token(
     """
     repo = SqlAgentEnrollmentRepository(session)
     enrollment = (
-        await agent_token.verify(repo, credentials.credentials)
-        if credentials is not None
-        else None
+        await agent_token.verify(repo, credentials.credentials) if credentials is not None else None
     )
     if enrollment is None:
         raise HTTPException(

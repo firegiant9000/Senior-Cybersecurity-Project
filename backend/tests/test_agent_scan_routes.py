@@ -182,9 +182,7 @@ async def test_upload_without_services_or_ports_leaves_asset_untouched(
     asset = SimpleNamespace(services=[{"name": "old"}], listening_ports=[{"port": 1}])
     _override(scan_repo=scan_repo, nonce_repo=nonce_repo, asset_repo=_asset_repo(asset))
     try:
-        resp = await client.post(
-            "/api/v1/inventory/scans", json=_payload(services=[], ports=[])
-        )
+        resp = await client.post("/api/v1/inventory/scans", json=_payload(services=[], ports=[]))
     finally:
         _clear()
 

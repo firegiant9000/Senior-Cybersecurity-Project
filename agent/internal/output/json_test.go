@@ -89,7 +89,7 @@ func TestNoExtraTopLevelKeys(t *testing.T) {
 		got = append(got, k)
 	}
 	sort.Strings(got)
-	want := []string{"host", "nonce", "ports", "scan_id", "schema_version", "scanner_version", "services", "software"}
+	want := []string{"host", "nonce", "ports", "scan_id", "scanner_version", "schema_version", "services", "software"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("top-level keys = %v, want %v", got, want)
 	}

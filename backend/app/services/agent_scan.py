@@ -122,9 +122,7 @@ def extract_observations(
     reported it fully replaces the prior value.
     """
     services = (
-        [{"name": s.name, "state": s.state} for s in payload.services]
-        if payload.services
-        else None
+        [{"name": s.name, "state": s.state} for s in payload.services] if payload.services else None
     )
     ports = (
         [{"port": p.port, "protocol": p.protocol, "process": p.process} for p in payload.ports]
