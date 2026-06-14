@@ -131,6 +131,18 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     # the nightly NVD window; the TTL skip makes it converge then no-op. Empty
     # disables it (the inline persist-on-ingest still covers new CVEs).
     NVD_CPE_BACKFILL_SCHEDULE: str = "0 4 * * *"
+    # Month 4 Phase 7: retention sweep. Ages out scan history past the time window
+    # (with a per-org safety ceiling), ages out audit_log rows past the 365-day
+    # window, and purges expired replay nonces. Runs after the nightly matcher
+    # sweep so it never deletes a run mid-recompute. Empty disables.
+    RETENTION_SWEEP_SCHEDULE: str = "0 5 * * *"
+    # Primary scan-history retention: keep runs newer than this. Sized for the
+    # month-over-month report comparison (needs >= 13 months of history).
+    SCAN_RUN_RETENTION_DAYS: int = 400
+    # Safety ceiling on scan_runs kept per org regardless of age, so a pathological
+    # upload loop can't grow the table without bound. NOT the primary policy — the
+    # time window above is. Set high so multi-host scanner orgs keep full history.
+    MAX_SCAN_RUNS_PER_ORG: int = 2000
     # Maximum seconds a run may be "running" before it is considered stale/timed-out
     INGEST_LOCK_TIMEOUT_SECONDS: int = 3600
     # Number of automatic retries on failure (exponential back-off: 30s, 120s)
@@ -147,6 +159,21 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     # Rate limiting
     RATE_LIMIT_AUTH: str = "30/minute"
     RATE_LIMIT_DATA: str = "60/minute"
+
+    # Agent trust model (Month 4 Phase 1 — frozen in docs/month_4_phase0_closeout.md).
+    # Default token lifetime; per-org override is a future enhancement.
+    AGENT_TOKEN_DEFAULT_EXPIRY_DAYS: int = 365
+    # Rotation keeps the old token valid for this long so live hosts don't break.
+    AGENT_TOKEN_ROTATION_GRACE_HOURS: int = 24
+    # Agents with no contact for this long are surfaced as stale in the admin UI.
+    AGENT_INACTIVE_AFTER_DAYS: int = 30
+    # Scanner upload endpoint (Month 4 Phase 3).
+    # Per-token rate limit applied to POST /inventory/scans (keyed by token prefix).
+    RATE_LIMIT_AGENT_UPLOAD: str = "12/minute"
+    # Reject scan payloads from scanners older than this (semver, "major.minor.patch").
+    MIN_AGENT_VERSION: str = "0.1.0"
+    # Reject a re-submitted (scan_id, nonce) pair seen within this window.
+    AGENT_SCAN_REPLAY_WINDOW_HOURS: int = 24
 
     # M365 / Entra OAuth integration (Phase E spike — see docs/m365_integration_notes.md)
     # Feature-flagged off in prod; the frontend reads ENABLE_M365_INTEGRATION via the

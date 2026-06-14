@@ -1,4 +1,4 @@
-.PHONY: help up down logs backend-test backend-lint migrate makemigrations rollback seed
+.PHONY: help up down logs backend-test backend-lint migrate makemigrations rollback seed agent-build agent-build-all agent-test
 
 help:
 	@echo "Available commands:"
@@ -14,6 +14,9 @@ help:
 	@echo "  make backend-lint      - Lint backend code with ruff"
 	@echo "  make frontend-install  - Install frontend dependencies"
 	@echo "  make frontend-lint     - Lint frontend code"
+	@echo "  make agent-build       - Build the Linux host scanner (agent/)"
+	@echo "  make agent-build-all   - Cross-build linux/amd64+arm64 + checksums (mirrors CI release)"
+	@echo "  make agent-test        - Run the Go scanner unit tests"
 
 up:
 	docker compose up -d
@@ -66,6 +69,28 @@ frontend-lint:
 
 frontend-format:
 	cd frontend && npm run format
+
+# Agent: read-only Linux host scanner (Month 4 Phase 4)
+agent-build:
+	cd agent && GOOS=linux GOARCH=amd64 go build -o hacker-tracker ./cmd/hacker-tracker
+
+# Mirror the CI release build locally (Phase 5): version-stamped, stripped,
+# cross-compiled amd64+arm64 with a SHA256SUMS manifest. Override the version
+# with `make agent-build-all VERSION=0.2.0`; defaults to the source ScannerVersion.
+agent-build-all:
+	cd agent && \
+	VERSION=$${VERSION:-$$(grep -oE 'ScannerVersion = "[^"]+"' internal/output/json.go | grep -oE '[0-9][^"]*')}; \
+	LDFLAGS="-s -w -X github.com/firegiant9000/hacker-tracker/agent/internal/output.ScannerVersion=$$VERSION"; \
+	mkdir -p dist; \
+	for arch in amd64 arm64; do \
+		out="dist/hacker-tracker-$$VERSION-linux-$$arch"; \
+		echo "==> $$out"; \
+		CGO_ENABLED=0 GOOS=linux GOARCH=$$arch go build -trimpath -ldflags "$$LDFLAGS" -o "$$out" ./cmd/hacker-tracker; \
+	done; \
+	cd dist && sha256sum hacker-tracker-* > SHA256SUMS && cat SHA256SUMS
+
+agent-test:
+	cd agent && go test ./...
 
 # Local development (without Docker)
 venv:

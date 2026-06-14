@@ -294,14 +294,14 @@ async def run_retention(
     org_id: int,
     _current_user: User = Depends(require_role("admin")),
 ) -> dict[str, Any]:
-    """Manual hook into the retention-sweep stub.
+    """Manual hook into the retention sweep, scoped to one org.
 
-    The Month 4 cron job will call ``retention.run_retention_sweep`` on a
-    schedule; this endpoint exists so admins can dry-run the call now and
-    so the public API contract is stable before the cron lands.
+    The Month 4 cron job (``RETENTION_SWEEP_SCHEDULE``) calls
+    ``retention.run_retention_sweep`` across all orgs on a schedule; this
+    endpoint lets an admin run it on demand for their own org.
     """
     # pylint: disable-next=import-outside-toplevel
     from app.services.retention import get_policy, run_retention_sweep
 
-    deleted = await run_retention_sweep()
+    deleted = await run_retention_sweep(org_id=org_id)
     return {"org_id": org_id, "policy": get_policy().__dict__, "deleted": deleted}

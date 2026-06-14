@@ -82,6 +82,18 @@ export default function DataHandlingPage() {
             registry wins.
           </p>
 
+          <h2>Optional host scanner</h2>
+          <p>
+            One data source is opt-in and host-side: the read-only inventory
+            agent. Nothing is collected from a host until an admin enrolls an
+            agent and you run the binary there. It collects installed packages,
+            running services, OS/host metadata, and (only with{" "}
+            <code>--include-ports</code>) listening ports — and never file
+            contents, secrets, credentials, or browser data. Inspect exactly
+            what would be sent with <code>scan --print</code> before uploading.
+            See <a href="/privacy">Privacy</a> for the full disclosure.
+          </p>
+
           <h2>Related</h2>
           <ul>
             <li>

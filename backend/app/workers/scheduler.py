@@ -141,6 +141,33 @@ def init_scheduler() -> None:  # noqa: C901 — flat per-source registration loo
             registered.append(f"cpe_backfill ({backfill_cron})")
             logger.info("Scheduled CPE backfill registered @ %s", backfill_cron)
 
+    # Month 4 Phase 7: retention sweep (prune scan history + age out audit log).
+    # Separate job function from the ingestors; runs after the matcher sweep so it
+    # never prunes a scan_run mid-recompute.
+    retention_cron = settings.RETENTION_SWEEP_SCHEDULE
+    if retention_cron:
+        try:
+            retention_trigger = CronTrigger.from_crontab(retention_cron, timezone="UTC")
+        except (ValueError, TypeError) as exc:
+            logger.error(
+                "Invalid RETENTION_SWEEP_SCHEDULE cron (%r): %s — retention sweep not scheduled",
+                retention_cron,
+                exc,
+            )
+        else:
+            from app.services.retention import run_retention_sweep
+
+            scheduler.add_job(
+                run_retention_sweep,
+                trigger=retention_trigger,
+                id="retention_sweep",
+                replace_existing=True,
+                misfire_grace_time=300,
+                coalesce=True,
+            )
+            registered.append(f"retention_sweep ({retention_cron})")
+            logger.info("Scheduled retention sweep registered @ %s", retention_cron)
+
     if not registered:
         logger.info("No ingest schedules configured — scheduler idle")
     else:

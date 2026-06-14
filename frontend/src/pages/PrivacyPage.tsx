@@ -42,12 +42,13 @@ export default function PrivacyPage() {
               succeeded. Retained for 12 months.
             </li>
             <li>
-              <strong>Asset inventory:</strong> CSV uploads or
-              cloud-integration (e.g. Microsoft 365) syncs you initiate.
-              Hostnames, IPs, OS, and software vendor/product/version land in
-              your org-scoped <code>assets</code> table. Used only to match
-              your inventory against KEV/NVD and surface relevant CVEs. We
-              never sync these without an explicit action from your admin.
+              <strong>Asset inventory:</strong> CSV uploads, cloud-integration
+              (e.g. Microsoft 365) syncs, or the optional read-only host scanner
+              you choose to install. Hostnames, IPs, OS, and software
+              vendor/product/version land in your org-scoped{" "}
+              <code>assets</code> table. Used only to match your inventory
+              against KEV/NVD and surface relevant CVEs. We never sync these
+              without an explicit action from your admin.
             </li>
             <li>
               <strong>Integration tokens:</strong> when you connect Microsoft
@@ -57,9 +58,38 @@ export default function PrivacyPage() {
             </li>
           </ul>
 
+          <h2>The optional host scanner</h2>
+          <p>
+            The host scanner is <strong>opt-in</strong>: nothing is collected
+            from a host until an admin enrolls an agent and you run the binary
+            on that host with the token. It is <strong>read-only</strong> — it
+            never writes, installs, or changes anything.
+          </p>
+          <ul>
+            <li>
+              <strong>Collects:</strong> installed package names + versions
+              (<code>dpkg</code>/<code>rpm</code>), running service names
+              (<code>systemctl</code>), OS/hostname/architecture, and listening
+              ports (only with <code>--include-ports</code>).
+            </li>
+            <li>
+              <strong>Never collects:</strong> file contents, documents, source
+              code, environment variables, secrets, tokens, credentials, browser
+              history, cookies, or saved passwords.
+            </li>
+            <li>
+              Review exactly what would be sent with <code>scan --print</code>{" "}
+              before any upload. Per-host tokens are stored hashed and can be
+              rotated or revoked from the dashboard at any time.
+            </li>
+          </ul>
+
           <h2>What we do not collect</h2>
           <ul>
-            <li>We do not install agents on your endpoints.</li>
+            <li>
+              We do not install or run the host scanner without your explicit
+              action — it is opt-in, per-host, and read-only (see above).
+            </li>
             <li>We do not scan your network without explicit consent.</li>
             <li>We do not sell or share your data with advertisers.</li>
             <li>
