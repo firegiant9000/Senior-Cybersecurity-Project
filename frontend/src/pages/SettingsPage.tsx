@@ -77,7 +77,7 @@ export default function SettingsPage() {
     setAgentsError("");
     try {
       const data = await listAgents();
-      setAgentsList(data.items);
+      setAgentsList(data.items ?? []);
     } catch {
       setAgentsError("Failed to load agents");
     } finally {

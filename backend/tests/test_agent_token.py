@@ -145,6 +145,32 @@ async def test_verify_accepts_valid_token_and_bumps_last_used(repo):
 
 
 @pytest.mark.asyncio
+async def test_verify_debounces_last_used_writes(repo):
+    # A burst of polls within the debounce window must not re-write last_used_at
+    # on every call (each write is a DB commit). Count the touches.
+    touches = 0
+    original_touch = repo.touch_last_used
+
+    async def counting_touch(enrollment, when):
+        nonlocal touches
+        touches += 1
+        await original_touch(enrollment, when)
+
+    repo.touch_last_used = counting_touch
+    issued = await agent_token.issue(repo, org_id=1, name="a", scopes=None, created_by_user_id=None)
+    base = datetime(2026, 1, 1, tzinfo=UTC)
+
+    # First verify records last_used_at.
+    await agent_token.verify(repo, issued.raw_token, now=base)
+    # A second verify 5s later is inside the debounce window → no write.
+    await agent_token.verify(repo, issued.raw_token, now=base + timedelta(seconds=5))
+    assert touches == 1
+    # A verify well past the window writes again.
+    await agent_token.verify(repo, issued.raw_token, now=base + timedelta(seconds=120))
+    assert touches == 2
+
+
+@pytest.mark.asyncio
 async def test_verify_rejects_wrong_secret(repo):
     issued = await agent_token.issue(repo, org_id=1, name="a", scopes=None, created_by_user_id=None)
     _, prefix, _ = issued.raw_token.split("_", 2)

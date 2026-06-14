@@ -25,6 +25,7 @@ from app.core.dependencies import get_agent_from_token
 from app.db.engine import get_session
 from app.main import app
 from app.repositories.agent_scan_nonces import get_agent_scan_nonce_repo
+from app.repositories.assets import get_asset_repo
 from app.repositories.scan_runs import get_scan_run_repo
 
 GOLDEN = Path(__file__).parent / "fixtures" / "agent_scan_v1.json"
@@ -72,15 +73,31 @@ def _scan_run(status="pending", **overrides):
     return SimpleNamespace(**base)
 
 
-def _override(*, enrollment=None, scan_repo=None, nonce_repo=None):
+def _override(*, enrollment=None, scan_repo=None, nonce_repo=None, asset_repo=None):
     app.dependency_overrides[get_agent_from_token] = lambda: enrollment or _enrollment()
     app.dependency_overrides[get_session] = lambda: _FakeSession()
     app.dependency_overrides[get_scan_run_repo] = lambda: scan_repo
     app.dependency_overrides[get_agent_scan_nonce_repo] = lambda: nonce_repo
+    # Default: no matching asset, so the services/ports persistence is a no-op
+    # unless a test supplies an asset_repo that resolves one.
+    repo = asset_repo or _asset_repo()
+    app.dependency_overrides[get_asset_repo] = lambda: repo
+
+
+def _asset_repo(asset=None):
+    repo = MagicMock()
+    repo.get_by_hostname = AsyncMock(return_value=asset)
+    return repo
 
 
 def _clear():
-    for dep in (get_agent_from_token, get_session, get_scan_run_repo, get_agent_scan_nonce_repo):
+    for dep in (
+        get_agent_from_token,
+        get_session,
+        get_scan_run_repo,
+        get_agent_scan_nonce_repo,
+        get_asset_repo,
+    ):
         app.dependency_overrides.pop(dep, None)
 
 
@@ -123,6 +140,57 @@ async def test_upload_happy_path_persists_and_triggers_matcher(client: AsyncClie
     nonce_repo.record.assert_awaited_once()
     triggered.assert_called_once()
     assert triggered.call_args.kwargs.get("trigger") == "agent_scan"
+
+
+@pytest.mark.asyncio
+async def test_upload_persists_services_and_ports_on_asset(client: AsyncClient, monkeypatch):
+    scan_repo = _scan_repo_success()
+    nonce_repo = _nonce_repo(seen=False)
+    monkeypatch.setattr(inventory_module, "commit_inventory", AsyncMock(return_value=(1, 3)))
+    monkeypatch.setattr("app.workers.matcher_job.trigger_matcher_async", MagicMock())
+
+    asset = SimpleNamespace(services=None, listening_ports=None)
+    _override(scan_repo=scan_repo, nonce_repo=nonce_repo, asset_repo=_asset_repo(asset))
+    try:
+        resp = await client.post("/api/v1/inventory/scans", json=_payload())
+    finally:
+        _clear()
+
+    assert resp.status_code == 201
+    # The golden payload carries 2 services and 2 ports; both land on the asset.
+    assert asset.services == [
+        {"name": "nginx.service", "state": "running"},
+        {"name": "ssh.service", "state": "running"},
+    ]
+    assert asset.listening_ports == [
+        {"port": 443, "protocol": "tcp", "process": "nginx"},
+        {"port": 22, "protocol": "tcp", "process": "sshd"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_upload_without_services_or_ports_leaves_asset_untouched(
+    client: AsyncClient, monkeypatch
+):
+    scan_repo = _scan_repo_success()
+    nonce_repo = _nonce_repo(seen=False)
+    monkeypatch.setattr(inventory_module, "commit_inventory", AsyncMock(return_value=(1, 3)))
+    monkeypatch.setattr("app.workers.matcher_job.trigger_matcher_async", MagicMock())
+
+    # Prior scan data on the asset must not be clobbered when this scan reports
+    # neither services nor ports (empty lists → None → skip the write).
+    asset = SimpleNamespace(services=[{"name": "old"}], listening_ports=[{"port": 1}])
+    _override(scan_repo=scan_repo, nonce_repo=nonce_repo, asset_repo=_asset_repo(asset))
+    try:
+        resp = await client.post(
+            "/api/v1/inventory/scans", json=_payload(services=[], ports=[])
+        )
+    finally:
+        _clear()
+
+    assert resp.status_code == 201
+    assert asset.services == [{"name": "old"}]
+    assert asset.listening_ports == [{"port": 1}]
 
 
 @pytest.mark.asyncio

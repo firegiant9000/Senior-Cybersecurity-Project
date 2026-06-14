@@ -110,6 +110,30 @@ def payload_to_rows(payload: AgentScanPayload) -> list[ParsedRow]:
     ]
 
 
+def extract_observations(
+    payload: AgentScanPayload,
+) -> tuple[list[dict] | None, list[dict] | None]:
+    """Flatten the scan's services/ports into the JSON shape stored on the asset.
+
+    Returns ``(services, listening_ports)``. A field is ``None`` when the scan
+    reported nothing for it (services not collected, or ``--include-ports`` not
+    set) so the caller can skip the write and avoid clobbering a previous scan's
+    data — these are replace-on-scan snapshots, not history. When a field *is*
+    reported it fully replaces the prior value.
+    """
+    services = (
+        [{"name": s.name, "state": s.state} for s in payload.services]
+        if payload.services
+        else None
+    )
+    ports = (
+        [{"port": p.port, "protocol": p.protocol, "process": p.process} for p in payload.ports]
+        if payload.ports
+        else None
+    )
+    return services, ports
+
+
 def payload_hash(payload: AgentScanPayload) -> str:
     """Stable sha256 of the canonical payload, stored on the scan_run for audit."""
     canonical = json.dumps(payload.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))

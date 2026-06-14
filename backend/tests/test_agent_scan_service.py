@@ -104,6 +104,35 @@ def test_payload_to_rows_host_only_when_no_software():
     assert rows[0].vendor is None and rows[0].product is None
 
 
+# --- observations (services / ports) -----------------------------------------
+
+
+def test_extract_observations_maps_services_and_ports():
+    payload = AgentScanPayload.model_validate(_golden_dict())
+    services, ports = agent_scan.extract_observations(payload)
+    assert services == [
+        {"name": "nginx.service", "state": "running"},
+        {"name": "ssh.service", "state": "running"},
+    ]
+    assert ports == [
+        {"port": 443, "protocol": "tcp", "process": "nginx"},
+        {"port": 22, "protocol": "tcp", "process": "sshd"},
+    ]
+
+
+def test_extract_observations_none_when_not_reported():
+    # A scan run without --include-ports (and with services collection failing)
+    # reports empty lists; the helper returns None so the caller skips the write
+    # and never clobbers a prior scan's data.
+    data = _golden_dict()
+    data["services"] = []
+    data["ports"] = []
+    payload = AgentScanPayload.model_validate(data)
+    services, ports = agent_scan.extract_observations(payload)
+    assert services is None
+    assert ports is None
+
+
 # --- payload hash -------------------------------------------------------------
 
 
