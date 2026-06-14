@@ -89,3 +89,33 @@ def test_matcher_sweep_invalid_cron_skipped(mock_scheduler):
         mock_settings.MATCHER_SCHEDULE = "not-a-cron"
         init_scheduler()
     mock_scheduler.add_job.assert_not_called()
+
+
+def test_retention_sweep_job_registered(mock_scheduler):
+    source_map = {"nvd": "", "cisa_kev": "", "ic3": "", "economics": ""}
+    with (
+        patch("app.workers.scheduler.settings") as mock_settings,
+        patch("app.workers.scheduler._SOURCE_SCHEDULE_MAP", source_map),
+    ):
+        mock_settings.SCHEDULER_ENABLED = True
+        mock_settings.MATCHER_SCHEDULE = ""
+        mock_settings.NVD_CPE_BACKFILL_SCHEDULE = ""
+        mock_settings.RETENTION_SWEEP_SCHEDULE = "0 5 * * *"
+        init_scheduler()
+
+    job_ids = {call.kwargs["id"] for call in mock_scheduler.add_job.call_args_list}
+    assert "retention_sweep" in job_ids
+
+
+def test_retention_sweep_invalid_cron_skipped(mock_scheduler):
+    source_map = {"nvd": "", "cisa_kev": "", "ic3": "", "economics": ""}
+    with (
+        patch("app.workers.scheduler.settings") as mock_settings,
+        patch("app.workers.scheduler._SOURCE_SCHEDULE_MAP", source_map),
+    ):
+        mock_settings.SCHEDULER_ENABLED = True
+        mock_settings.MATCHER_SCHEDULE = ""
+        mock_settings.NVD_CPE_BACKFILL_SCHEDULE = ""
+        mock_settings.RETENTION_SWEEP_SCHEDULE = "not-a-cron"
+        init_scheduler()
+    mock_scheduler.add_job.assert_not_called()

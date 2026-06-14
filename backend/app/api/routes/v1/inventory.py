@@ -6,7 +6,7 @@ M365 spike (Phase E) and the future agent path.
 """
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import (
@@ -18,16 +18,21 @@ from fastapi import (
     UploadFile,
 )
 from pydantic import BaseModel
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.routes.v1.auth import get_current_user
 from app.core.config import settings
-from app.core.dependencies import check_org_access
-from app.core.limiter import limiter
+from app.core.dependencies import check_org_access, get_agent_from_token
+from app.core.limiter import agent_token_key, limiter
+from app.db.agent_enrollment import AgentEnrollment
 from app.db.audit_log import AuditLog
 from app.db.engine import get_session
 from app.db.user import User
+from app.repositories.agent_scan_nonces import (
+    SqlAgentScanNonceRepository,
+    get_agent_scan_nonce_repo,
+)
 from app.repositories.asset_findings import (
     ALLOWED_FINDING_STATUSES,
     SqlAssetFindingRepository,
@@ -39,6 +44,7 @@ from app.repositories.asset_software import (
 )
 from app.repositories.assets import SqlAssetRepository, get_asset_repo
 from app.repositories.scan_runs import SqlScanRunRepository, get_scan_run_repo
+from app.schemas.agent_scan import AgentScanPayload, ScanUploadAccepted
 from app.schemas.asset import AssetRead, AssetTagsUpdate
 from app.schemas.asset_software import AssetSoftwareRead
 from app.schemas.scan_run import (
@@ -47,6 +53,7 @@ from app.schemas.scan_run import (
     ScanRunRead,
     ScanRunUpdate,
 )
+from app.services import agent_scan
 from app.services.inventory_import import (
     MAX_CSV_ROWS,
     commit_inventory,
@@ -399,6 +406,179 @@ async def get_scan_run(
 ):
     await check_org_access(current_user, org_id, session)
     run = await scan_repo.get_by_id(scan_run_id, org_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Scan run not found")
+    return run
+
+
+# ---- Agent scan upload (Month 4 Phase 3) --------------------------------
+#
+# These two routes authenticate by the agent bearer token (get_agent_from_token),
+# NOT Firebase. The org is derived from the resolved enrollment — the agent can
+# never assert an arbitrary org. The payload contract is frozen in
+# schemas/agent_scan.py; the ingest path reuses commit_inventory + the matcher
+# exactly like the CSV wedge.
+
+
+async def _audit_agent(
+    session: AsyncSession,
+    *,
+    org_id: int,
+    action: str,
+    payload: dict[str, Any],
+) -> None:
+    """Audit an agent action. Unlike ``_audit`` there is no human actor, so
+    ``actor_user_id`` is null and the enrolled agent id lives in the payload."""
+    session.add(AuditLog(actor_user_id=None, org_id=org_id, action=action, payload=payload))
+    await session.flush()
+
+
+@router.post("/inventory/scans", response_model=ScanUploadAccepted, status_code=201)
+@limiter.limit(settings.RATE_LIMIT_AGENT_UPLOAD, key_func=agent_token_key)
+async def upload_agent_scan(
+    request: Request,  # noqa: ARG001 — required by limiter
+    payload: AgentScanPayload,
+    enrollment: AgentEnrollment = Depends(get_agent_from_token),
+    session: AsyncSession = Depends(get_session),
+    scan_repo: SqlScanRunRepository = Depends(get_scan_run_repo),
+    nonce_repo: SqlAgentScanNonceRepository = Depends(get_agent_scan_nonce_repo),
+):
+    """Ingest a read-only host scan from an enrolled agent.
+
+    Auth is the agent bearer token; the org is the token's org. Validates the
+    versioned schema, rejects replays and below-min scanners, persists a
+    ``scan_run`` (source=agent), upserts assets/software via ``commit_inventory``,
+    and kicks off the CPE matcher. The agent polls ``GET /inventory/scans/{id}``.
+    """
+    org_id = enrollment.org_id
+
+    # Version gates first — cheap, and an old/unknown scanner should fail loudly
+    # before we touch the DB.
+    try:
+        agent_scan.assert_schema_supported(payload.schema_version)
+        agent_scan.assert_scanner_version_allowed(
+            payload.scanner_version, settings.MIN_AGENT_VERSION
+        )
+    except agent_scan.ScanRejectedError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+    # Replay fast-path: reject a duplicate (scan_id, nonce) inside the window
+    # before creating an orphan scan_run. The unique constraint below is the
+    # backstop for a concurrent double-POST that races past this check.
+    now = datetime.now(UTC)
+    window_start = now - timedelta(hours=settings.AGENT_SCAN_REPLAY_WINDOW_HOURS)
+    if await nonce_repo.seen_within(payload.scan_id, payload.nonce, window_start):
+        raise HTTPException(status_code=409, detail="Duplicate scan submission (replay detected)")
+
+    rows = agent_scan.payload_to_rows(payload)
+    base_meta = {
+        "hostname": payload.host.hostname,
+        "scanner_version": payload.scanner_version,
+        "schema_version": payload.schema_version,
+        "scan_id": payload.scan_id,
+        "raw_payload_hash": agent_scan.payload_hash(payload),
+        "submitted_software": len(payload.software),
+        "agent_enrollment_id": enrollment.id,
+    }
+    scan_run = await scan_repo.create(
+        org_id,
+        ScanRunCreate(source="agent", triggered_by_user_id=None, metadata=base_meta),
+    )
+
+    try:
+        await scan_repo.update(scan_run.id, org_id, ScanRunUpdate(status="running"))
+        # Record the replay marker in the same transaction as the import so a
+        # failed import frees the (scan_id, nonce) for a legit retry.
+        await nonce_repo.record(
+            org_id=org_id,
+            agent_enrollment_id=enrollment.id,
+            scan_id=payload.scan_id,
+            nonce=payload.nonce,
+        )
+        asset_count, software_count = await commit_inventory(
+            session, org_id=org_id, rows=rows, scan_run_id=scan_run.id, source="agent"
+        )
+        await session.commit()
+    except IntegrityError as exc:
+        # Lost the race to the unique (scan_id, nonce) constraint → replay.
+        await session.rollback()
+        await scan_repo.update(
+            scan_run.id,
+            org_id,
+            ScanRunUpdate(
+                status="failed",
+                error_message="duplicate scan submission",
+                finished_at=datetime.now(UTC),
+            ),
+        )
+        raise HTTPException(
+            status_code=409, detail="Duplicate scan submission (replay detected)"
+        ) from exc
+    except SQLAlchemyError as exc:
+        await session.rollback()
+        logger.exception("agent scan import failed for org %s", org_id)
+        await scan_repo.update(
+            scan_run.id,
+            org_id,
+            ScanRunUpdate(
+                status="failed", error_message=str(exc)[:1900], finished_at=datetime.now(UTC)
+            ),
+        )
+        raise HTTPException(status_code=500, detail="Failed to import scan") from exc
+
+    final = await scan_repo.update(
+        scan_run.id,
+        org_id,
+        ScanRunUpdate(
+            status="succeeded",
+            asset_count=asset_count,
+            software_count=software_count,
+            finished_at=datetime.now(UTC),
+            metadata={**base_meta, "asset_count": asset_count, "software_count": software_count},
+        ),
+    )
+
+    try:
+        await _audit_agent(
+            session,
+            org_id=org_id,
+            action="inventory.agent_scan",
+            payload={
+                "scan_run_id": scan_run.id,
+                "agent_enrollment_id": enrollment.id,
+                "asset_count": asset_count,
+                "software_count": software_count,
+                "scanner_version": payload.scanner_version,
+            },
+        )
+        await session.commit()
+    except SQLAlchemyError:
+        await session.rollback()
+        logger.exception("audit log failed for agent scan_run %s", scan_run.id)
+
+    # Reuse the Month 3 matcher off the request path, same as CSV import.
+    from app.workers.matcher_job import trigger_matcher_async
+
+    trigger_matcher_async(org_id, trigger="agent_scan")
+
+    return ScanUploadAccepted(
+        scan_run_id=scan_run.id,
+        status=(final or scan_run).status,
+        asset_count=asset_count,
+        software_count=software_count,
+    )
+
+
+@router.get("/inventory/scans/{scan_run_id}", response_model=ScanRunRead)
+@limiter.limit(settings.RATE_LIMIT_AGENT_UPLOAD, key_func=agent_token_key)
+async def get_agent_scan_status(
+    request: Request,  # noqa: ARG001
+    scan_run_id: int,
+    enrollment: AgentEnrollment = Depends(get_agent_from_token),
+    scan_repo: SqlScanRunRepository = Depends(get_scan_run_repo),
+):
+    """Let an agent poll its own scan_run status (org scoped to the token)."""
+    run = await scan_repo.get_by_id(scan_run_id, enrollment.org_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Scan run not found")
     return run

@@ -10,6 +10,23 @@ Tracker for Week 0 (and beyond) discovery interviews. One section per interview.
 
 ---
 
+## Month 4 entry-gate status (Checkpoint 2 process + Checkpoint 3)
+
+> Tracks the human gates that block Month 4 scanner work. Full ratification record
+> in [month_4_phase0_closeout.md](month_4_phase0_closeout.md). Update this table as
+> interviews land; Phase 1 code starts only when both gates read PASS.
+
+| Gate | Requirement | Status | Gap |
+|---|---|---|---|
+| Checkpoint 2 (process) | ≥1 interviewee reviewed **actual sample findings** and judged them useful | ⛔ OPEN | Interview 1 endorsed the report *concept* (Q12) but never reviewed real findings output. |
+| Checkpoint 3 | ≥2 users explicitly say they'd test a **read-only inventory agent** | ⛔ NOT MET (0 of 2) | Only 1 interview on file; agent-install willingness was never asked. |
+
+**To clear:** (1) one interview reviewing real sample findings; (2) two interviews
+that explicitly ask about installing a read-only agent and get a yes. Record both
+below with verbatim answers, then flip the rows above to ✅.
+
+---
+
 ## Interview 1 — The Common Market
 
 - **Date:** 2026-05-11
