@@ -212,9 +212,10 @@ func newScanID() string {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
-// newNonce returns a 16-byte random hex string, fresh per upload attempt so a
-// retried scan with the same scan_id still presents a distinct (scan_id, nonce)
-// pair where intended.
+// newNonce returns a 16-byte random hex string. A fresh (scan_id, nonce) pair is
+// minted per scan invocation; re-running the binary always produces new values,
+// so the backend's replay window only ever rejects a byte-for-byte re-POST of
+// the same emitted payload.
 func newNonce() string {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {

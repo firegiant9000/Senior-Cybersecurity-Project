@@ -59,6 +59,13 @@ class Asset(Base):
         String(20), nullable=False, server_default=text("'normal'"), default="normal"
     )
     asset_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSON, nullable=True)
+    # Latest read-only host observations from the agent scanner (Month 4 Phase 3).
+    # Replace-on-scan snapshots, not history: ``services`` is a list of
+    # {name, state}; ``listening_ports`` a list of {port, protocol, process}.
+    # Only the agent path writes these, and only when a scan actually reports the
+    # field, so a CSV/M365 import never clobbers agent-collected data.
+    services: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
+    listening_ports: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
     tags: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     created_by_scan_run_id: Mapped[int | None] = mapped_column(
         ForeignKey("scan_runs.id", ondelete="SET NULL"), nullable=True

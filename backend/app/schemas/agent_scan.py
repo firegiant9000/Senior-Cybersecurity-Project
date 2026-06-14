@@ -48,8 +48,8 @@ class ScanSoftware(BaseModel):
 
 
 class ScanService(BaseModel):
-    """A running service (e.g. from systemctl). Captured for transparency /
-    future use; not yet persisted by ``commit_inventory``."""
+    """A running service (e.g. from systemctl). Persisted as a replace-on-scan
+    snapshot on ``assets.services`` and shown in the asset detail."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -58,7 +58,9 @@ class ScanService(BaseModel):
 
 
 class ScanPort(BaseModel):
-    """A listening port (only when the scanner was run with --include-ports)."""
+    """A listening port (only when the scanner was run with --include-ports).
+    Persisted as a replace-on-scan snapshot on ``assets.listening_ports``; feeds
+    the Month 5 internet-exposed-port risk factor."""
 
     model_config = ConfigDict(extra="forbid")
 

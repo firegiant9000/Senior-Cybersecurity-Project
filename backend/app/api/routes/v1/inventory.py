@@ -100,6 +100,9 @@ class AssetWithKevListResponse(BaseModel):
 class AssetDetailResponse(BaseModel):
     asset: AssetRead
     software: list[AssetSoftwareRead]
+    # Latest agent-reported host observations (empty for CSV/M365-only assets).
+    services: list[dict[str, Any]] = []
+    listening_ports: list[dict[str, Any]] = []
 
 
 class AssetFindingMatch(BaseModel):
@@ -442,6 +445,7 @@ async def upload_agent_scan(
     session: AsyncSession = Depends(get_session),
     scan_repo: SqlScanRunRepository = Depends(get_scan_run_repo),
     nonce_repo: SqlAgentScanNonceRepository = Depends(get_agent_scan_nonce_repo),
+    asset_repo: SqlAssetRepository = Depends(get_asset_repo),
 ):
     """Ingest a read-only host scan from an enrolled agent.
 
@@ -498,6 +502,17 @@ async def upload_agent_scan(
         asset_count, software_count = await commit_inventory(
             session, org_id=org_id, rows=rows, scan_run_id=scan_run.id, source="agent"
         )
+        # Persist the host's services/ports snapshot onto its asset. The agent
+        # reports exactly one host per payload, so resolve that single asset and
+        # overwrite only the fields this scan actually reported (None = skip).
+        services, listening_ports = agent_scan.extract_observations(payload)
+        if services is not None or listening_ports is not None:
+            asset = await asset_repo.get_by_hostname(org_id, payload.host.hostname)
+            if asset is not None:
+                if services is not None:
+                    asset.services = services
+                if listening_ports is not None:
+                    asset.listening_ports = listening_ports
         await session.commit()
     except IntegrityError as exc:
         # Lost the race to the unique (scan_id, nonce) constraint → replay.
@@ -712,6 +727,8 @@ async def get_asset_detail(
     return AssetDetailResponse(
         asset=AssetRead.model_validate(asset, from_attributes=True),
         software=[AssetSoftwareRead.model_validate(s, from_attributes=True) for s in software],
+        services=asset.services or [],
+        listening_ports=asset.listening_ports or [],
     )
 
 

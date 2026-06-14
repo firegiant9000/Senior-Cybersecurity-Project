@@ -52,9 +52,23 @@ export interface AssetSoftware {
   created_at: string;
 }
 
+export interface AssetService {
+  name: string;
+  state: string | null;
+}
+
+export interface AssetPort {
+  port: number;
+  protocol: string;
+  process: string | null;
+}
+
 export interface AssetDetailResponse {
   asset: Asset;
   software: AssetSoftware[];
+  // Latest agent-reported host observations; empty for CSV/M365-only assets.
+  services: AssetService[];
+  listening_ports: AssetPort[];
 }
 
 export async function listAssets(

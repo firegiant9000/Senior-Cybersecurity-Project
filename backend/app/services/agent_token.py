@@ -34,6 +34,10 @@ _PREFIX_BYTES = 4
 # 256 bits of secret entropy.
 _SECRET_BYTES = 32
 _PREFIX_COLLISION_RETRIES = 5
+# Debounce ``last_used_at`` writes: the agent uploads then polls status a few
+# times in quick succession, and each verify would otherwise be a DB commit just
+# to bump a timestamp. Only persist when the recorded value is older than this.
+_LAST_USED_DEBOUNCE_SECONDS = 60
 
 
 @dataclass(frozen=True)
@@ -150,7 +154,13 @@ async def verify(
     if enrollment.expires_at is not None and _as_aware(enrollment.expires_at) <= now:
         return None
 
-    await repo.touch_last_used(enrollment, now)
+    # Debounced: skip the write (and its commit) when last_used_at is already
+    # recent, so a burst of status polls doesn't amplify into a write per request.
+    last_used = enrollment.last_used_at
+    if last_used is None or (now - _as_aware(last_used)) > timedelta(
+        seconds=_LAST_USED_DEBOUNCE_SECONDS
+    ):
+        await repo.touch_last_used(enrollment, now)
     return enrollment
 
 

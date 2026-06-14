@@ -28,11 +28,16 @@ _ROLE_LEVELS: dict[str, int] = {
 # Firebase ID token fed here fails to parse as ``ht_<prefix>_<secret>`` (401),
 # and an agent token fed to a human route fails Firebase verification (401), so
 # the two credential types can never satisfy each other's routes.
-_agent_bearer_scheme = HTTPBearer(auto_error=True)
+#
+# ``auto_error=False`` so a *missing* Authorization header returns 401 (the same
+# code as a bad token) instead of HTTPBearer's default 403 — the scanner client
+# only treats 401 as "auth problem", and a missing vs. malformed header is the
+# same failure from its perspective.
+_agent_bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_agent_from_token(
-    credentials: HTTPAuthorizationCredentials = Depends(_agent_bearer_scheme),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_agent_bearer_scheme),
     session: AsyncSession = Depends(get_session),
 ) -> AgentEnrollment:
     """Authenticate a scanner agent by its bearer token.
@@ -42,7 +47,11 @@ async def get_agent_from_token(
     can never assert an arbitrary org.
     """
     repo = SqlAgentEnrollmentRepository(session)
-    enrollment = await agent_token.verify(repo, credentials.credentials)
+    enrollment = (
+        await agent_token.verify(repo, credentials.credentials)
+        if credentials is not None
+        else None
+    )
     if enrollment is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
