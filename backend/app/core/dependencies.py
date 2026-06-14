@@ -3,14 +3,18 @@
 import functools
 
 from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.routes.v1.auth import get_current_user
+from app.db.agent_enrollment import AgentEnrollment
 from app.db.engine import get_session
 from app.db.membership import Membership
 from app.db.organization import Organization
 from app.db.user import User
+from app.repositories.agent_enrollments import SqlAgentEnrollmentRepository
+from app.services import agent_token
 
 # Maps role names to a numeric level so hierarchy comparisons are simple.
 _ROLE_LEVELS: dict[str, int] = {
@@ -18,6 +22,41 @@ _ROLE_LEVELS: dict[str, int] = {
     "member": 1,
     "admin": 2,
 }
+
+
+# Agent auth is a deliberately separate scheme from ``get_current_user``. A
+# Firebase ID token fed here fails to parse as ``ht_<prefix>_<secret>`` (401),
+# and an agent token fed to a human route fails Firebase verification (401), so
+# the two credential types can never satisfy each other's routes.
+#
+# ``auto_error=False`` so a *missing* Authorization header returns 401 (the same
+# code as a bad token) instead of HTTPBearer's default 403 — the scanner client
+# only treats 401 as "auth problem", and a missing vs. malformed header is the
+# same failure from its perspective.
+_agent_bearer_scheme = HTTPBearer(auto_error=False)
+
+
+async def get_agent_from_token(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_agent_bearer_scheme),
+    session: AsyncSession = Depends(get_session),
+) -> AgentEnrollment:
+    """Authenticate a scanner agent by its bearer token.
+
+    Returns the resolved enrollment (carrying ``org_id`` + ``scopes``) for the
+    scan-upload route in Phase 3. The org is derived from the token — the agent
+    can never assert an arbitrary org.
+    """
+    repo = SqlAgentEnrollmentRepository(session)
+    enrollment = (
+        await agent_token.verify(repo, credentials.credentials) if credentials is not None else None
+    )
+    if enrollment is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired agent token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return enrollment
 
 
 @functools.cache

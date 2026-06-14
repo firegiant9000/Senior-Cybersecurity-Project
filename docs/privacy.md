@@ -16,10 +16,38 @@ this doc says the same thing in plain language and is mirrored on the in-app
   actual environment.
 - **Activity:** anonymized request logs and audit entries — which API your
   account called, when, and whether it succeeded. Kept for 12 months.
+- **Host inventory (optional agent):** if *you* choose to install and enroll
+  the read-only host scanner (see below), it sends installed-package
+  names/versions, running service names, OS/hostname/arch, and — only when you
+  pass `--include-ports` — listening port numbers. Used solely to match your
+  inventory against KEV/NVD and surface relevant CVEs.
+
+## The optional host scanner
+
+The scanner is **opt-in**: nothing is collected from a host until an admin in
+your org enrolls an agent and you run the binary on that host with the token.
+It is **read-only** — it never writes, installs, or changes anything.
+
+**What it collects:** installed package names + versions (`dpkg`/`rpm`), running
+service names (`systemctl`), OS/hostname/architecture, and listening ports
+(**only** with `--include-ports`).
+
+**What it never collects:**
+
+- file **contents**, documents, or source code,
+- environment variables, secrets, tokens, or credentials,
+- browser history, cookies, or saved passwords.
+
+You can review exactly what would be sent with `scan --print` **before** any
+upload. Per-host enrollment tokens are stored hashed (never recoverable) and can
+be rotated or revoked from the dashboard at any time. Full field-by-field
+disclosure and the enrollment/revocation flow live in
+[agent_enrollment.md](agent_enrollment.md) and [../agent/README.md](../agent/README.md).
 
 ## What we do *not* collect
 
-- We do not install agents on your endpoints.
+- We do not install or run the host scanner without your explicit action —
+  it is opt-in, per-host, and read-only (see above).
 - We do not scan your network without explicit consent.
 - We do not sell or share your data with advertisers.
 - We do not store your password directly — authentication is delegated to

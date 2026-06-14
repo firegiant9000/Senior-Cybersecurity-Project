@@ -1,0 +1,3 @@
+# Go tooling (gofmt) requires LF line endings; enforce it so a Windows checkout
+# can't introduce CRLF that fails the CI `gofmt -l` check.
+*.go text eol=lf

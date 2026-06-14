@@ -21,6 +21,8 @@ def _import_all_orm_models() -> None:
     rely on this single list — do not duplicate it elsewhere.
     """
     import app.db.activation_event  # noqa: F401
+    import app.db.agent_enrollment  # noqa: F401
+    import app.db.agent_scan_nonce  # noqa: F401
     import app.db.ai_summary_feedback  # noqa: F401
     import app.db.ai_summary_generation  # noqa: F401
     import app.db.assessment_submission  # noqa: F401

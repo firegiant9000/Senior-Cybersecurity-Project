@@ -16,6 +16,10 @@ const {
   mockRevokeInvite,
   mockUpdateMemberRole,
   mockRemoveMember,
+  mockListAgents,
+  mockEnrollAgent,
+  mockRotateAgent,
+  mockRevokeAgent,
 } = vi.hoisted(() => {
   const mockNavigate = vi.fn()
   const mockLogout = vi.fn()
@@ -26,6 +30,10 @@ const {
   const mockRevokeInvite = vi.fn()
   const mockUpdateMemberRole = vi.fn()
   const mockRemoveMember = vi.fn()
+  const mockListAgents = vi.fn()
+  const mockEnrollAgent = vi.fn()
+  const mockRotateAgent = vi.fn()
+  const mockRevokeAgent = vi.fn()
 
   return {
     mockNavigate,
@@ -37,6 +45,10 @@ const {
     mockRevokeInvite,
     mockUpdateMemberRole,
     mockRemoveMember,
+    mockListAgents,
+    mockEnrollAgent,
+    mockRotateAgent,
+    mockRevokeAgent,
   }
 })
 
@@ -93,6 +105,13 @@ vi.mock('../../api/members', () => ({
   revokeInvite: (...args: unknown[]) => mockRevokeInvite(...args),
   updateMemberRole: (...args: unknown[]) => mockUpdateMemberRole(...args),
   removeMember: (...args: unknown[]) => mockRemoveMember(...args),
+}))
+
+vi.mock('../../api/agents', () => ({
+  listAgents: (...args: unknown[]) => mockListAgents(...args),
+  enrollAgent: (...args: unknown[]) => mockEnrollAgent(...args),
+  rotateAgent: (...args: unknown[]) => mockRotateAgent(...args),
+  revokeAgent: (...args: unknown[]) => mockRevokeAgent(...args),
 }))
 
 // Import component AFTER mocks
@@ -196,6 +215,12 @@ describe('SettingsPage - Member Management', () => {
     mockRevokeInvite.mockResolvedValue(undefined)
     mockUpdateMemberRole.mockResolvedValue(undefined)
     mockRemoveMember.mockResolvedValue(undefined)
+    // The Month 4 agent-enrollment panel loads on mount for org owners/admins;
+    // default to an empty list so these member-focused tests aren't affected.
+    mockListAgents.mockResolvedValue({ items: [], total: 0 })
+    mockEnrollAgent.mockResolvedValue(undefined)
+    mockRotateAgent.mockResolvedValue(undefined)
+    mockRevokeAgent.mockResolvedValue(undefined)
   })
 
   describe('Page Loading & Access Control', () => {

@@ -1,0 +1,161 @@
+# Builds, signs, and publishes the read-only Linux host scanner (agent/) on a
+# tag push of the form `agent-vX.Y.Z`. See docs/agent_release_signing.md.
+#
+# Signing model (Month 4 = Linux only): we sign the SHA256SUMS manifest with GPG
+# (detached, armored). Windows Authenticode / the EV cert is a Month 5 concern.
+# If no signing key secret is configured the workflow still publishes, but as a
+# PRERELEASE marked "unsigned — internal pilots only", per the plan's documented
+# fallback. Public/general distribution should only ship signed artifacts.
+name: Agent Release
+
+on:
+  push:
+    tags:
+      - "agent-v*"
+  # Manual dry-run: builds + uploads artifacts to the run, never creates a release.
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to build (branch, tag, or SHA)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write # required to create the GitHub Release
+
+jobs:
+  build:
+    name: Build & sign Linux binaries
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: false # stdlib-only module, no go.sum to key a cache on
+
+      # Derive the release version from the tag (agent-v0.2.0 -> 0.2.0). For a
+      # manual dispatch with no tag we fall back to 0.0.0-dev so ldflags still
+      # has a clean semver to stamp.
+      - name: Resolve version
+        id: version
+        run: |
+          REF="${GITHUB_REF}"
+          if [[ "${REF}" == refs/tags/agent-v* ]]; then
+            VERSION="${REF#refs/tags/agent-v}"
+          else
+            VERSION="0.0.0-dev"
+          fi
+          if ! [[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Tag version '${VERSION}' is not a clean semver (expected agent-vX.Y.Z)"
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Building agent version ${VERSION}"
+
+      # Guard against scanner_version drift: the stamped tag must match the source
+      # default in internal/output (the value the backend's MIN_AGENT_VERSION
+      # gate compares against). Skip the check for dev dispatch builds.
+      - name: Verify tag matches source ScannerVersion
+        if: startsWith(github.ref, 'refs/tags/agent-v')
+        run: |
+          SRC=$(grep -oE 'ScannerVersion = "[^"]+"' internal/output/json.go | grep -oE '[0-9][^"]*')
+          if [ "${SRC}" != "${{ steps.version.outputs.version }}" ]; then
+            echo "::error::Tag agent-v${{ steps.version.outputs.version }} != source ScannerVersion ${SRC}. Bump internal/output/json.go before tagging."
+            exit 1
+          fi
+          echo "ScannerVersion ${SRC} matches tag."
+
+      - name: Vet & test
+        run: |
+          go vet ./...
+          go test ./...
+
+      - name: Build (linux/amd64 + linux/arm64)
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          LDFLAGS="-s -w -X github.com/firegiant9000/hacker-tracker/agent/internal/output.ScannerVersion=${VERSION}"
+          for arch in amd64 arm64; do
+            out="dist/hacker-tracker-${VERSION}-linux-${arch}"
+            echo "==> ${out}"
+            CGO_ENABLED=0 GOOS=linux GOARCH="${arch}" \
+              go build -trimpath -ldflags "${LDFLAGS}" -o "${out}" ./cmd/hacker-tracker
+          done
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum hacker-tracker-* > SHA256SUMS
+          cat SHA256SUMS
+
+      # Sign the checksum manifest with GPG when a key is configured. One
+      # signature over SHA256SUMS authenticates every artifact it lists.
+      - name: Check for signing key
+        id: signing
+        env:
+          GPG_KEY: ${{ secrets.AGENT_SIGNING_GPG_KEY }}
+        run: |
+          if [ -n "${GPG_KEY}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::AGENT_SIGNING_GPG_KEY not set — publishing an UNSIGNED prerelease for internal pilots only. Configure the signing key before general distribution (see docs/agent_release_signing.md)."
+          fi
+
+      - name: Sign checksums (GPG)
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          GPG_KEY: ${{ secrets.AGENT_SIGNING_GPG_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.AGENT_SIGNING_GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          echo "${GPG_KEY}" | gpg --batch --import
+          KEYID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/ {print $5; exit}')
+          gpg --batch --yes --pinentry-mode loopback \
+            ${GPG_PASSPHRASE:+--passphrase "$GPG_PASSPHRASE"} \
+            --armor --detach-sign --local-user "${KEYID}" \
+            --output dist/SHA256SUMS.asc dist/SHA256SUMS
+          gpg --armor --export "${KEYID}" > dist/hacker-tracker-signing-key.pub.asc
+          echo "Signed SHA256SUMS with ${KEYID}"
+
+      - name: Upload build artifacts (dispatch & release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-linux-${{ steps.version.outputs.version }}
+          path: agent/dist/*
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/agent-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: agent/dist/*
+          # Unsigned builds publish as a prerelease so they aren't surfaced as a
+          # general-distribution "latest" release.
+          prerelease: ${{ steps.signing.outputs.enabled != 'true' }}
+          body: |
+            Read-only Linux host scanner ${{ steps.version.outputs.version }}.
+
+            **Signing:** ${{ steps.signing.outputs.enabled == 'true' && 'GPG-signed — verify with `gpg --verify SHA256SUMS.asc SHA256SUMS`, then `sha256sum -c SHA256SUMS`.' || '⚠️ UNSIGNED build — internal pilots only. Do not distribute publicly until signing is configured.' }}
+
+            Artifacts: `linux/amd64`, `linux/arm64`, `SHA256SUMS`.
+            See [docs/agent_release_signing.md](../blob/main/docs/agent_release_signing.md).
+
+  # ── macOS notarization (DEFERRED — Month 6 macOS path) ─────────────────────
+  # Stub only. When the macOS collectors land and the Apple Developer ID cert is
+  # provisioned, add a `macos` job here that:
+  #   1. builds darwin/amd64 + darwin/arm64,
+  #   2. `codesign --options runtime` with the Developer ID Application cert,
+  #   3. submits the zipped binary to `xcrun notarytool submit --wait`,
+  #   4. `xcrun stapler staple` the ticket, then attaches to the release.
+  # Tracked in docs/agent_release_signing.md ("macOS notarization (deferred)").

@@ -906,6 +906,66 @@ export default function AssetsPage() {
                 </tbody>
               </table>
             )}
+
+            {detail.services?.length > 0 && (
+              <>
+                <h3 style={{ marginTop: 20 }}>
+                  Running services ({detail.services.length})
+                </h3>
+                <p style={{ fontSize: 11, color: "#94a3b8", marginTop: -8, marginBottom: 12 }}>
+                  Latest snapshot from the host scanner.
+                </p>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ background: "#f1f5f9", textAlign: "left" }}>
+                      <th style={{ padding: 6 }}>Service</th>
+                      <th style={{ padding: 6 }}>State</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detail.services.map((svc) => (
+                      <tr key={svc.name} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                        <td style={{ padding: 6 }}>{svc.name}</td>
+                        <td style={{ padding: 6 }}>{svc.state ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+
+            {detail.listening_ports?.length > 0 && (
+              <>
+                <h3 style={{ marginTop: 20 }}>
+                  Listening ports ({detail.listening_ports.length})
+                </h3>
+                <p style={{ fontSize: 11, color: "#94a3b8", marginTop: -8, marginBottom: 12 }}>
+                  Collected only when the scanner is run with --include-ports.
+                </p>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ background: "#f1f5f9", textAlign: "left" }}>
+                      <th style={{ padding: 6 }}>Port</th>
+                      <th style={{ padding: 6 }}>Protocol</th>
+                      <th style={{ padding: 6 }}>Process</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detail.listening_ports.map((p) => (
+                      <tr
+                        key={`${p.protocol}/${p.port}`}
+                        style={{ borderBottom: "1px solid #e2e8f0" }}
+                      >
+                        <td style={{ padding: 6 }}>{p.port}</td>
+                        <td style={{ padding: 6 }}>{p.protocol}</td>
+                        <td style={{ padding: 6 }}>{p.process ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+
             <div style={{ marginTop: 16 }}>
               <button type="button" onClick={() => setDetail(null)}>
                 Close
