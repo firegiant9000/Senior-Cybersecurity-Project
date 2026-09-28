@@ -3,7 +3,7 @@
 User-facing guide for installing, enrolling, rotating, and revoking the
 read-only host scanner (the Month 4 Linux agent). The technical reference for
 the binary itself — flags, collected fields, distro support, schema contract —
-lives in [../agent/README.md](../agent/README.md). What the agent does and does
+lives in [../agent/README.md](../../agent/README.md). What the agent does and does
 not collect is summarized on the in-app `/privacy` page and in
 [privacy.md](privacy.md).
 
@@ -89,4 +89,4 @@ Every enroll / rotate / revoke is recorded in the audit log (`agent.enroll`,
 
 Scan history is pruned to the latest 12 runs per organization and audit entries
 age out after 365 days, via the nightly retention sweep
-(`RETENTION_SWEEP_SCHEDULE`). See [retention](../backend/app/services/retention.py).
+(`RETENTION_SWEEP_SCHEDULE`). See [retention](../../backend/app/services/retention.py).

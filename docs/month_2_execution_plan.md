@@ -100,7 +100,7 @@ Recommend two-week sprint cadence; A+B+D+E ship in Sprint 1, C+F ship in Sprint 
 
 **Purpose:** The primary Month 2 wedge. Depends on Phase A (model) but is otherwise independent of B, D, E.
 
-- [ ] **C1 — Define canonical CSV format.** Headers: `hostname,ip_address,os_name,os_version,vendor,product,version,notes`. Document in [docs/inventory_csv_format.md](inventory_csv_format.md). Provide a sample CSV at `frontend/public/sample-inventory.csv` for users to download.
+- [ ] **C1 — Define canonical CSV format.** Headers: `hostname,ip_address,os_name,os_version,vendor,product,version,notes`. Document in [docs/inventory_csv_format.md](architecture/inventory_csv_format.md). Provide a sample CSV at `frontend/public/sample-inventory.csv` for users to download.
 - [ ] **C2 — `POST /api/v1/inventory/uploads/csv/preview`.** Accepts multipart file upload. Returns `{ valid_rows, invalid_rows[{row_number, errors[]}], total_assets, total_software, would_create, would_update }`. No DB writes. Validation: required columns present, valid IPs (or empty), no duplicate hostnames within file, max 10k rows per upload. Returns request_id in audit log (Month 1 D-pattern).
 - [ ] **C3 — `POST /api/v1/inventory/uploads/csv/import`.** Accepts the same payload + `confirm: true`. Creates a `scan_runs` row, parses + inserts/updates `assets` + `asset_software`. Idempotent by `(org_id, hostname)` — re-uploading the same CSV updates `last_seen` rather than duplicating. Writes audit log. Returns `scan_run_id` so the frontend can poll status.
 - [ ] **C4 — `GET /api/v1/scan-runs/{id}` + `GET /api/v1/scan-runs?org_id=...`.** Status polling + list of past uploads. Required for the "review last upload" UX.

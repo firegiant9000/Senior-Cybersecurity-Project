@@ -163,7 +163,7 @@ Phase 0 (gate + cert kickoff + privacy rewrite)
 > generates `SHA256SUMS`, GPG-signs the manifest, and publishes a GitHub Release on
 > `agent-v*` tags. A Go `agent` job (vet/gofmt/test/build) was added to `ci.yml`
 > (closes the "no Go build step in CI" gap). Signing flow is documented in
-> [agent_release_signing.md](agent_release_signing.md); macOS notarization and Windows
+> [agent_release_signing.md](security/agent_release_signing.md); macOS notarization and Windows
 > Authenticode are stubbed there. **Open:** Linux uses **GPG over SHA256SUMS**, not the
 > EV cert (the cert mainly unblocks Month 5 Windows per the risk table). Until
 > `AGENT_SIGNING_GPG_KEY` is configured, releases publish as **unsigned prereleases for
@@ -172,7 +172,7 @@ Phase 0 (gate + cert kickoff + privacy rewrite)
 > binary.
 
 1. ~~Once the EV cert lands:~~ `.github/workflows/agent-release.yml` builds the Go binary (linux/amd64 + arm64), signs the release artifact (GPG over `SHA256SUMS`), publishes to GitHub Releases. **(Done — Linux uses GPG signing; EV/Authenticode deferred to Month 5.)**
-2. Document the signing flow; stub the macOS notarization step (deferred to Month 6). **(Done — [agent_release_signing.md](agent_release_signing.md).)**
+2. Document the signing flow; stub the macOS notarization step (deferred to Month 6). **(Done — [agent_release_signing.md](security/agent_release_signing.md).)**
 - **Verification:** a tagged release produces a signed, downloadable Linux binary from CI.
 - **Risk:** cert lead time. Mitigated by ordering on day 1; if the cert slips, ship an **unsigned** Linux binary to internal pilots only and gate public distribution on the signature (Linux tolerates unsigned far better than Windows — the EV cert mainly unblocks Month 5 Windows).
 

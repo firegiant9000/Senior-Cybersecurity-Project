@@ -1,12 +1,12 @@
 # Agent Release & Code-Signing Flow (Month 4 Phase 5)
 
-> Phase 5 of [month_4_execution_plan.md](month_4_execution_plan.md). Covers how the
+> Phase 5 of [month_4_execution_plan.md](../month_4_execution_plan.md). Covers how the
 > read-only Linux scanner (`agent/`) is built, signed, and published, and stubs the
 > macOS notarization path deferred to Month 6.
 
 ## TL;DR
 
-- **Trigger:** push a tag `agent-vX.Y.Z`. CI ([.github/workflows/agent-release.yml](../.github/workflows/agent-release.yml))
+- **Trigger:** push a tag `agent-vX.Y.Z`. CI ([.github/workflows/agent-release.yml](../../.github/workflows/agent-release.yml))
   builds `linux/amd64` + `linux/arm64`, generates `SHA256SUMS`, signs it with GPG,
   and publishes a GitHub Release.
 - **Signing primitive (Linux, Month 4):** a **GPG detached signature over the
@@ -33,7 +33,7 @@ leaves Authenticode for when the Windows agent (and its cert) lands.
 1. **Bump the version in source.** Edit `ScannerVersion` in
    [agent/internal/output/json.go](../agent/internal/output/json.go). This is the
    value emitted in every scan payload and gated by the backend's
-   `MIN_AGENT_VERSION` ([backend/app/core/config.py](../backend/app/core/config.py)).
+   `MIN_AGENT_VERSION` ([backend/app/core/config.py](../../backend/app/core/config.py)).
    The release job **fails** if the git tag and this source value disagree.
 2. **Verify locally:** `make agent-test` then `make agent-build-all` (mirrors the CI
    build: version-stamped, stripped, cross-compiled, with `SHA256SUMS`).
@@ -96,7 +96,7 @@ it. Publish the **public** key for downstream verification.
 
 ## Unsigned-pilot fallback (current state)
 
-Per [month_4_phase0_closeout.md](month_4_phase0_closeout.md) Step 3, the code-signing
+Per [month_4_phase0_closeout.md](../month_4_phase0_closeout.md) Step 3, the code-signing
 cert is **not yet ordered**, and the GPG signing key may not be configured yet.
 Until `AGENT_SIGNING_GPG_KEY` is set, the workflow:
 

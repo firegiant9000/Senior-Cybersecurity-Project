@@ -26,7 +26,7 @@ Per the plan's two entry gates. Evidence lives in
 | Checkpoint 2 (code) | Regression ≥95% pass, high-conf FP <2% | ✅ PASS | 51 cases, 100%, 0 high-conf FPs on `feature/month3-cpe-matching-plan` |
 | Checkpoint 2 (process) | ≥1 interviewee reviewed **sample findings** and judged them useful | ⛔ OPEN | No interview records a findings review. Interview 1 endorsed the *concept* of a one-page report, but never saw real findings output. |
 | Checkpoint 3 | ≥2 real users explicitly say they'd test a **read-only inventory agent** | ⛔ NOT MET (0 of 2) | Only 1 interview on file; it never asked about installing an agent. |
-| Checkpoint 3 | Privacy/data-handling pages updated **for the agent** | ⛔ OPEN | [privacy.md](privacy.md) still says "we do not install agents." Fixed in Phase 7, which must land before this gate flips. |
+| Checkpoint 3 | Privacy/data-handling pages updated **for the agent** | ⛔ OPEN | [privacy.md](security/privacy.md) still says "we do not install agents." Fixed in Phase 7, which must land before this gate flips. |
 | Checkpoint 3 | Code-signing cert procurement **initiated** | ⛔ OPEN | See Step 3. |
 
 **Action required before Phase 1 code:**

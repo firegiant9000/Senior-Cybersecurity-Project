@@ -77,7 +77,7 @@ What leaves our infrastructure, where it goes, and why.
 
 ## Companion docs
 
-- [DATA_SOURCE_STATUS.md](DATA_SOURCE_STATUS.md) — what data backs each widget.
-- [PRODUCT_VIABILITY_ROADMAP.md](PRODUCT_VIABILITY_ROADMAP.md) — what the
+- [DATA_SOURCE_STATUS.md](../DATA_SOURCE_STATUS.md) — what data backs each widget.
+- [PRODUCT_VIABILITY_ROADMAP.md](../PRODUCT_VIABILITY_ROADMAP.md) — what the
   product actually does today.
 - [privacy.md](privacy.md) — user-facing privacy promise.

@@ -19,7 +19,7 @@ recommend poll for v1, so there is little backend to build).
 
 **Reuses, does not reinvent:**
 - The signing primitive is the **same GPG-over-`SHA256SUMS`** scheme Phase 5
-  already ships ([agent_release_signing.md](agent_release_signing.md)). The updater
+  already ships ([agent_release_signing.md](security/agent_release_signing.md)). The updater
   verifies an update the same way a human verifies a manual download — one signed
   manifest authenticates every artifact it lists. No second signing system.
 - Distribution stays on **GitHub Releases** keyed by the `agent-vX.Y.Z` tag. The

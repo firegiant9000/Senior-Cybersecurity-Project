@@ -68,7 +68,7 @@ supply-chain / code-signing surface (Phase 5) minimal.
 version-stamped, stripped, cross-compiled `linux/amd64`+`arm64` with a
 `SHA256SUMS` manifest. Tagged releases (`agent-vX.Y.Z`) are built, GPG-signed, and
 published to GitHub Releases by `.github/workflows/agent-release.yml`; see
-[../docs/agent_release_signing.md](../docs/agent_release_signing.md) for the
+[../docs/agent_release_signing.md](../docs/security/agent_release_signing.md) for the
 signing and verification flow.
 
 ## Test
@@ -122,7 +122,7 @@ The token is a **per-host** bearer credential minted in the dashboard
 (Settings → Agents). It is shown **once** at enrollment time and stored hashed
 server-side — there is no "show it again". Treat it like an SSH key. The
 user-facing walkthrough (enroll → install → rotate → revoke → lost host) is in
-[../docs/agent_enrollment.md](../docs/agent_enrollment.md).
+[../docs/agent_enrollment.md](../docs/security/agent_enrollment.md).
 
 1. **Enroll** — in the dashboard, *Enroll new agent*; copy the `ht_…` token.
 2. **Install** — drop the binary on the host and run `scan --upload` with the token

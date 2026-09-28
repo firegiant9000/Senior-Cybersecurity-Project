@@ -42,7 +42,7 @@ You can review exactly what would be sent with `scan --print` **before** any
 upload. Per-host enrollment tokens are stored hashed (never recoverable) and can
 be rotated or revoked from the dashboard at any time. Full field-by-field
 disclosure and the enrollment/revocation flow live in
-[agent_enrollment.md](agent_enrollment.md) and [../agent/README.md](../agent/README.md).
+[agent_enrollment.md](agent_enrollment.md) and [../agent/README.md](../../agent/README.md).
 
 ## What we do *not* collect
 
@@ -95,7 +95,7 @@ See [pii_inventory.md](pii_inventory.md) for the full scrubber spec.
 
 Hacker Tracker is an early-stage product. We do not currently hold SOC 2 or
 ISO 27001 certifications. Treat this tool as decision-support, not a system
-of record. See [PRODUCT_VIABILITY_ROADMAP.md](PRODUCT_VIABILITY_ROADMAP.md)
+of record. See [PRODUCT_VIABILITY_ROADMAP.md](../PRODUCT_VIABILITY_ROADMAP.md)
 for the full list of what is and is not in scope today.
 
 ## Updates
