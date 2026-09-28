@@ -15,7 +15,7 @@ ruff==0.1.11
 psycopg[binary]==3.3.2
 python-multipart==0.0.6
 email-validator==2.1.0
-cachetools==5.3.3
+cachetools==7.2.0
 firebase-admin==6.4.0
 slowapi==0.1.9
 dnspython==2.6.1
