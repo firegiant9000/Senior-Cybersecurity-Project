@@ -9,7 +9,7 @@ Reference doc for Month 1 of [hacker_tracker_6_month_development_plan.md](hacker
 ## Phase B — Foundational rails
 
 - [x] **B1 / #106 — CI pipeline.** `pytest`, `ruff` (lint + format), frontend `eslint` + `tsc --noEmit`, `vitest`, single-Alembic-head check (Python-based, exact), `alembic check` drift detection. See [.github/workflows/ci.yml](../.github/workflows/ci.yml).
-- [x] **B2 / #105 — Observability.** Sentry SDK on backend + frontend (no-op when DSN unset), PII scrubber for keys (`authorization`, `cookie`, `password`, `secret`, `token`, `api_key`, `email`, `hostname`) and inline email regex, `RequestContextMiddleware` binding `request_id` (UUID or honored `X-Request-ID`), JSON log formatter pulling `request_id`/`org_id`/`user_id` from `ContextVars`. PII inventory in [docs/pii_inventory.md](pii_inventory.md).
+- [x] **B2 / #105 — Observability.** Sentry SDK on backend + frontend (no-op when DSN unset), PII scrubber for keys (`authorization`, `cookie`, `password`, `secret`, `token`, `api_key`, `email`, `hostname`) and inline email regex, `RequestContextMiddleware` binding `request_id` (UUID or honored `X-Request-ID`), JSON log formatter pulling `request_id`/`org_id`/`user_id` from `ContextVars`. PII inventory in [docs/pii_inventory.md](security/pii_inventory.md).
 
 ## Phase C — Demo segregation + data lifecycle
 
@@ -21,7 +21,7 @@ Reference doc for Month 1 of [hacker_tracker_6_month_development_plan.md](hacker
 - [x] **D1 / #102 — Source-status badges.** Backend registry at [backend/app/services/data_status.py](../backend/app/services/data_status.py) is the single source of truth; exposed at `GET /api/v1/data-status`. Frontend `SourceBadge` + `useDataStatus` hook (cached singleton) render on every overview widget via `WIDGET_DATASET_KEY`. Human mirror in [docs/DATA_SOURCE_STATUS.md](DATA_SOURCE_STATUS.md).
 - [x] **D2 / #103 — IC3 static labels.** All 7 IC3 Pydantic schemas (`schemas/ic3.py`, `schemas/ic3_analytics.py`) carry `source: str = IC3_SOURCE_LABEL` so every response advertises "FBI IC3 2023 annual report (static summary)".
 - [x] **D3 / #104 — Threat dashboard polish.** New `ThreatOverviewWidget` with CVEs ingested, KEV count, high-severity count, top exploited vendors, avg risk, last-ingest timestamp (from `/api/v1/ingest/freshness`), and a plain-English CVSS/KEV/EPSS glossary card.
-- [x] **D4 / #109 — Trust pack.** New docs: [PRODUCT_VIABILITY_ROADMAP.md](PRODUCT_VIABILITY_ROADMAP.md), [DATA_SOURCE_STATUS.md](DATA_SOURCE_STATUS.md), [pii_inventory.md](pii_inventory.md), [privacy.md](privacy.md). New routes `/privacy` and `/data-handling`, linked from the dashboard user dropdown.
+- [x] **D4 / #109 — Trust pack.** New docs: [PRODUCT_VIABILITY_ROADMAP.md](PRODUCT_VIABILITY_ROADMAP.md), [DATA_SOURCE_STATUS.md](DATA_SOURCE_STATUS.md), [pii_inventory.md](security/pii_inventory.md), [privacy.md](security/privacy.md). New routes `/privacy` and `/data-handling`, linked from the dashboard user dropdown.
 
 ## Phase E — Cleanup + optional wedge
 

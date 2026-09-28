@@ -38,6 +38,7 @@ services:
       SERVER_PORT: 8000
       FRONTEND_URL: http://localhost:5174
       CORS_ORIGINS: '["http://localhost:5174"]'
+      # Put your own Firebase Admin key at backend/service-account.json (gitignored).
       GOOGLE_APPLICATION_CREDENTIALS: /app/service-account.json
     ports:
       - "8000:8000"
@@ -57,15 +58,18 @@ services:
       dockerfile: Dockerfile
       target: dev
     container_name: cyber_threat_frontend
+    env_file:
+      - ./frontend/.env
     environment:
       VITE_API_BASE_URL: http://localhost:8000
-      VITE_FIREBASE_API_KEY: "AIzaSyBnAXNUyzYeG86sh9QagO3LcFt4SyKf1LE"
-      VITE_FIREBASE_AUTH_DOMAIN: "hacker-tracker-75f91.firebaseapp.com"
-      VITE_FIREBASE_PROJECT_ID: "hacker-tracker-75f91"
-      VITE_FIREBASE_STORAGE_BUCKET: "hacker-tracker-75f91.firebasestorage.app"
-      VITE_FIREBASE_MESSAGING_SENDER_ID: "954812460719"
-      VITE_FIREBASE_APP_ID: "1:954812460719:web:f0a085c739bc66902fae5a"
-      VITE_FIREBASE_MEASUREMENT_ID: "G-CD425EPQBH"
+      # Firebase web config comes from ./frontend/.env (see frontend/.env.example).
+      VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY:-}
+      VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN:-}
+      VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID:-}
+      VITE_FIREBASE_STORAGE_BUCKET: ${VITE_FIREBASE_STORAGE_BUCKET:-}
+      VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID:-}
+      VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID:-}
+      VITE_FIREBASE_MEASUREMENT_ID: ${VITE_FIREBASE_MEASUREMENT_ID:-}
       VITE_USE_POLLING: "true"
     ports:
       - "5174:5174"

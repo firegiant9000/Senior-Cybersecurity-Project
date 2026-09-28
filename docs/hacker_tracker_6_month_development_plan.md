@@ -721,7 +721,7 @@ See first risk dashboard
 
 CSV first; CycloneDX SBOM deferred to Month 3 per scope decision.
 
-CSV columns (canonical schema in [docs/inventory_csv_format.md](inventory_csv_format.md); sample at `frontend/public/sample-inventory.csv`):
+CSV columns (canonical schema in [docs/inventory_csv_format.md](architecture/inventory_csv_format.md); sample at `frontend/public/sample-inventory.csv`):
 
 ```csv
 hostname,ip_address,os_name,os_version,vendor,product,version,notes

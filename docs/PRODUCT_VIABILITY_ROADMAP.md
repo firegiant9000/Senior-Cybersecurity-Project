@@ -7,8 +7,8 @@ exactly where we are.
 
 Companion docs:
 - [DATA_SOURCE_STATUS.md](DATA_SOURCE_STATUS.md) — per-widget data backing
-- [pii_inventory.md](pii_inventory.md) — what personal data we collect/log
-- [privacy.md](privacy.md) — user-facing privacy promise
+- [pii_inventory.md](security/pii_inventory.md) — what personal data we collect/log
+- [privacy.md](security/privacy.md) — user-facing privacy promise
 
 ---
 

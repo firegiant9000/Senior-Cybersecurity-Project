@@ -4,9 +4,11 @@
 **/.env.*
 !frontend/.env.production
 
-# Firebase service account keys
+# Firebase / Google service account keys (never commit these)
 *firebase-adminsdk*
 *serviceAccountKey*.json
+service-account.json
+**/service-account*.json
 
 # Python venv + caches
 .venv/
