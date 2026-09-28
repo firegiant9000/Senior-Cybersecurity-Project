@@ -1,0 +1,24 @@
+# Reviewed gitleaks false positives (2026-09-28). One fingerprint per line:
+# <commit>:<file>:<rule>:<line>. These are 8-character placeholder strings
+# labelled as an NVD key in early docs and one route file (real NVD keys are
+# UUIDs), a dataset key name, a Render env-var key name, and the Firebase
+# *web* API key once hardcoded in docker-compose.yml (identifies the project;
+# not a credential). Add a line only after confirming a match is not real.
+c0f89405d51c96e7d6723cc0ad5e74ec54877fa3:render.yaml:generic-api-key:41
+42412f10e606844c831e5f02a65f996fba7c3764:backend/app/services/data_status.py:generic-api-key:71
+2c1d3050feff47ddf477f4e54053440e33e8b6ff:docker-compose.yml:gcp-api-key:58
+e705c7963325c28212a7b2d2dcff769e3f83b3f3:backend/app/api/routes/v1/nvd.py:generic-api-key:21
+0a192e61d84a039d3ca78b5a4eb15f6c7381920e:backend/app/api/routes/v1/nvd.py:generic-api-key:16
+5e6c1498ff3552bf4fbf89b57f245154598cbba2:backend/app/api/routes/v1/nvd.py:generic-api-key:16
+d962d54db47f43bceffdbec7ec4bef34610bc010:backend/docs/REAL_DATA_SETUP.md:generic-api-key:19
+d962d54db47f43bceffdbec7ec4bef34610bc010:backend/docs/REAL_DATA_SETUP.md:generic-api-key:22
+7bb27553ee524aa17f405402f3cdd121fea0e4e6:REAL_DATA_QUICK_START.md:generic-api-key:36
+7bb27553ee524aa17f405402f3cdd121fea0e4e6:REAL_DATA_QUICK_START.md:generic-api-key:37
+d962d54db47f43bceffdbec7ec4bef34610bc010:backend/docs/DATA_INGESTION_ARCHITECTURE.md:generic-api-key:152
+d962d54db47f43bceffdbec7ec4bef34610bc010:backend/docs/DATA_INGESTION_ARCHITECTURE.md:generic-api-key:153
+7bb27553ee524aa17f405402f3cdd121fea0e4e6:backend/INGESTION_COMPLETE.md:generic-api-key:55
+7bb27553ee524aa17f405402f3cdd121fea0e4e6:backend/INGESTION_COMPLETE.md:generic-api-key:56
+7bb27553ee524aa17f405402f3cdd121fea0e4e6:backend/INGESTION_COMPLETE.md:generic-api-key:156
+7bb27553ee524aa17f405402f3cdd121fea0e4e6:API_ENDPOINTS_CONFIG.md:generic-api-key:265
+7bb27553ee524aa17f405402f3cdd121fea0e4e6:API_ENDPOINTS_CONFIG.md:generic-api-key:266
+7bb27553ee524aa17f405402f3cdd121fea0e4e6:REAL_DATA_FINAL_STATUS.md:generic-api-key:49
