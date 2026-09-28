@@ -284,8 +284,7 @@ over full history on every push, PR and weekly.
 
 ## License
 
-No license yet. Six people own copyright in this code, so a license needs
-their agreement (and a check of any university policy on capstone work)
-before it is added. Until then the code is all rights reserved. When the team
-agrees, MIT or Apache-2.0 is the recommended choice; the dependencies are all
-permissively licensed and no third-party datasets are redistributed.
+[MIT](LICENSE). Contributors are listed in [CONTRIBUTORS.md](CONTRIBUTORS.md).
+The dependencies are all permissively licensed and no third-party datasets
+are redistributed; the CVE, KEV, EPSS, IC3 and Census data is fetched at
+runtime from its public sources under their own terms.
