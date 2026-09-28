@@ -278,7 +278,7 @@ jobs:
         id: sentry-upload
         if: steps.sentry-check.outputs.enabled == 'true'
         continue-on-error: true
-        uses: getsentry/action-release@v1
+        uses: getsentry/action-release@v3
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
