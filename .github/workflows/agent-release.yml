@@ -129,7 +129,7 @@ jobs:
           echo "Signed SHA256SUMS with ${KEYID}"
 
       - name: Upload build artifacts (dispatch & release)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: agent-linux-${{ steps.version.outputs.version }}
           path: agent/dist/*
