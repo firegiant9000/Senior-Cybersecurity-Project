@@ -1,5 +1,7 @@
 # Hacker Tracker 6-Month Development Plan
 
+> **Revision note, 2026-09-29.** Months 1 to 4 of this plan are code-complete and remain the record of what was built. **Months 5 and 6 are superseded.** The project is reframed from a possible SMB/MSP product to an AppSec and DevSecOps reference implementation; the canonical roadmap is now the 2026-09 revision in [`PRODUCT_VIABILITY_ROADMAP.md`](PRODUCT_VIABILITY_ROADMAP.md) (milestones S0 to S6), and the evidence for the change is in [`roadmap-review-2026-09.md`](roadmap-review-2026-09.md). Status of each Month 5 and 6 workstream: 5.1 DEFERRED; 5.2, 5.2.2, 5.2.5 CANCELLED; 5.3 CANCELLED; 5.4 SUPERSEDED by S4; 6.0 CANCELLED; 6.1 CANCELLED; 6.2 CANCELLED; 6.3 SUPERSEDED by S2 and S3 (secret scanning is done); 6.4 OPTIONAL; 6.5 CANCELLED. The Week 0 validation gate and Checkpoints 1 to 4 are CANCELLED as commercial gates. The promised `threat_model_tenancy.md` and `tests/security/test_tenancy_isolation.py` never existed; S3 and S4 replace them.
+
 ## Purpose
 
 This document turns the repo investigation findings into an implementation roadmap for taking Hacker Tracker beyond a semester project. The plan keeps the original Cyber Security Threat Intelligence Dashboard alive while also developing the stronger pivot: a lightweight SMB vulnerability/exposure management platform with asset inventory, scanner-based visibility, CVE matching, and executive reporting.

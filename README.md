@@ -13,6 +13,14 @@ plain-English executive report.
 > developing through a Month 4 milestone. It runs end to end locally and has
 > been deployed to a pilot environment for testing. It has no paying users, no
 > certifications, and should be read as a working prototype, not a product.
+>
+> **Direction (2026-09):** Hacker Tracker is developed as an application-security
+> and DevSecOps reference implementation, not as a startup. The next work is
+> assurance of the product itself: a threat model, a route-enumerating
+> authorization suite, blocking SAST/SCA/DAST gates, an attested agent release
+> with an SBOM, and matcher accuracy measured against Trivy on real images. See
+> [docs/PRODUCT_VIABILITY_ROADMAP.md](docs/PRODUCT_VIABILITY_ROADMAP.md) and
+> [docs/roadmap-review-2026-09.md](docs/roadmap-review-2026-09.md).
 
 ## Why it exists
 
@@ -80,7 +88,7 @@ flowchart LR
 
 | Component | Where | Notes |
 | --- | --- | --- |
-| Backend | `backend/` | FastAPI, SQLAlchemy 2 async, Alembic (50 migrations), pytest |
+| Backend | `backend/` | FastAPI, SQLAlchemy 2 async, Alembic (49 migration files; two carry the 021 prefix), pytest |
 | Frontend | `frontend/` | React 18, TypeScript, Vite, React Router, Recharts, Vitest |
 | Host agent | `agent/` | Go 1.22, standard library only, Linux (dpkg/rpm, systemd, optional `ss`) |
 | Auth | Firebase Authentication | Backend verifies ID tokens with the Admin SDK |
@@ -116,10 +124,13 @@ flowchart LR
   the same transaction as the import
   ([`inventory.py`](backend/app/api/routes/v1/inventory.py),
   [`agent_token.py`](backend/app/services/agent_token.py)).
-- **Signed agent releases.** Tagging `agent-vX.Y.Z` builds linux/amd64 and
-  arm64, writes `SHA256SUMS`, GPG-signs the manifest and publishes a GitHub
-  Release. Without a signing key the release is marked as an unsigned
-  prerelease rather than silently shipping
+- **Agent release pipeline (not yet exercised).** Tagging `agent-vX.Y.Z` builds
+  linux/amd64 and arm64, writes `SHA256SUMS`, GPG-signs the manifest if a key
+  is configured and publishes a GitHub Release. No tag has been pushed and no
+  release exists yet; the first release (with GitHub artifact attestations and
+  a CycloneDX SBOM replacing the GPG step) is roadmap milestone S1. Without a
+  signing key the release is marked as an unsigned prerelease rather than
+  silently shipping
   ([`agent-release.yml`](.github/workflows/agent-release.yml)).
 - **AI summaries with guarded input.** The executive summary prompt
   ([`ai_summary.py`](backend/app/services/ai_summary.py)) passes organization
@@ -134,9 +145,14 @@ flowchart LR
 
 - **Authentication.** Users sign in through Firebase Authentication. The API
   verifies the ID token on every request with the Admin SDK and resolves the
-  user's organization memberships and role (`admin` / `member`).
-- **Authorization and data isolation.** Every organization-scoped route takes
-  the org ID and checks membership server-side. Demo organizations are flagged
+  user's global role (`viewer` / `member` / `admin`) and organization role
+  (`member` / `admin` / `owner`). Known gap (2026-09): the email-link
+  fallback does not yet require `email_verified`; fixing it is roadmap item S0.
+- **Authorization and data isolation.** Organization-scoped routes resolve the
+  caller's organization server-side and repositories filter by it; global
+  admins can read any organization by design. This is enforced by convention
+  in each handler, not by a route-enumerating test yet; that suite is roadmap
+  milestone S4. Demo organizations are flagged
   and segregated. Data lifecycle endpoints allow per-org export and deletion,
   and a retention job prunes old scan runs and audit rows per org.
 - **Agent tokens and replay protection.** Described above; the enrollment,
@@ -150,7 +166,9 @@ flowchart LR
   `FIREBASE_SERVICE_ACCOUNT_JSON` variable and is gitignored.
 - **Input boundaries.** Uploaded inventory files are size-limited and
   filename-sanitized; the agent payload is a versioned schema validated with
-  Pydantic; AI prompts receive data as JSON, not interpolated prose.
+  Pydantic; AI prompts receive findings as a JSON block, but organization
+  name, industry, size and state are still interpolated as prose without
+  delimiters (hardening and an injection corpus are roadmap milestone S5).
 - **Privacy.** What is collected and logged is documented in
   [docs/security/pii_inventory.md](docs/security/pii_inventory.md) and the
   user-facing [privacy page](docs/security/privacy.md). The agent never reads
@@ -259,7 +277,8 @@ Manual ingestion: `POST /api/v1/ingest/{source}`; status at
 | Agent (Go) | 9 test functions in 3 files | `make agent-test` |
 
 CI ([`ci.yml`](.github/workflows/ci.yml)) runs ruff lint and format checks,
-`alembic upgrade head` plus `alembic check` against a Postgres service, the
+`alembic upgrade head` plus a blocking single-head check and an advisory
+`alembic check` against a Postgres service, the
 backend suite, ESLint and `tsc --noEmit`, the frontend suite, `go vet`,
 `go test` and `go build`, then deploys previews and the production frontend.
 [`matcher-regression.yml`](.github/workflows/matcher-regression.yml) runs
