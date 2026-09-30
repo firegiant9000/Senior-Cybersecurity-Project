@@ -1,5 +1,7 @@
 # Month 4 — Phase 0 Closeout (Entry gate, trust-model freeze, cert kickoff)
 
+> **Status 2026-09-29: HISTORICAL.** The entry gate's interview conditions are CANCELLED (not a commercial project), so the "accepted risk" below is closed rather than outstanding. The trust-model freeze stands and feeds the S3 threat model in [PRODUCT_VIABILITY_ROADMAP.md](PRODUCT_VIABILITY_ROADMAP.md).
+
 > Phase 0 of [month_4_execution_plan.md](month_4_execution_plan.md). This is the
 > ratification record. Nothing in Phases 1–7 starts until the **gate status**
 > below reads PASS in writing. The **trust-model table** here is frozen — Phase 1

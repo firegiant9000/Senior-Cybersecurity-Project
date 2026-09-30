@@ -1,5 +1,7 @@
 # Month 3 Execution Plan — Version-Aware CVE Matching + Risk Scoring
 
+> **Status 2026-09-29: HISTORICAL, merged (PR #171).** The "uncommitted on branch" note below is out of date. The go/no-go interview item is CANCELLED (not a commercial project). The matcher's 100 % figure is a regression result on a self-authored fixture; real-world precision and recall are milestone S6 of [PRODUCT_VIABILITY_ROADMAP.md](PRODUCT_VIABILITY_ROADMAP.md).
+
 > **Status: code-complete; all six phases + prior gaps closed (2026-06-13).** This document decomposes Month 3 of [hacker_tracker_6_month_development_plan.md](hacker_tracker_6_month_development_plan.md) into numbered, independently-shippable phases. All six phases are implemented and tests pass locally; the two functional gaps flagged earlier (CPE backfill of the existing corpus, M365→asset persistence) plus the QA gaps (manual smoke doc, Vitest) are now **closed** — see "What's left to implement". Only process/hygiene items remain (go/no-go interview evidence, commit/PR). Work is uncommitted on branch `feature/month3-cpe-matching-plan`. Supersedes the roadmap's Month 3 task tables where they are now stale.
 >
 > **Headline finding:** ~60% of the roadmap's stated Month 3 scope already shipped in Months 1–2 (EPSS, the `cpe_match_cache` and `vendor_aliases` tables, the findings engine, an org-level risk scorer, and the assets/findings UI). The genuinely greenfield work is the **version-aware CPE→CVE matcher** and its **regression harness**. The roadmap was written before that pull-forward; do not rebuild what exists.

@@ -6,6 +6,8 @@ notes, and known edge cases. This is a **spike** — production hardening is a
 Month 3 deliverable.
 
 Status: feature-flagged off in production (`ENABLE_M365_INTEGRATION=false`).
+Production hardening is DEFERRED as of 2026-09-29; no M365 expansion is
+planned (see [PRODUCT_VIABILITY_ROADMAP.md](PRODUCT_VIABILITY_ROADMAP.md)).
 
 ---
 
