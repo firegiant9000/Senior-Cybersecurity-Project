@@ -146,8 +146,9 @@ flowchart LR
 - **Authentication.** Users sign in through Firebase Authentication. The API
   verifies the ID token on every request with the Admin SDK and resolves the
   user's global role (`viewer` / `member` / `admin`) and organization role
-  (`member` / `admin` / `owner`). Known gap (2026-09): the email-link
-  fallback does not yet require `email_verified`; fixing it is roadmap item S0.
+  (`member` / `admin` / `owner`). An existing account is linked to a new
+  Firebase sign-in only when the email is verified and the account has no
+  Firebase identity yet; revoked and disabled tokens are rejected.
 - **Authorization and data isolation.** Organization-scoped routes resolve the
   caller's organization server-side and repositories filter by it; global
   admins can read any organization by design. This is enforced by convention

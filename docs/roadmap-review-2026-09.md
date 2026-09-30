@@ -53,7 +53,7 @@ Two documents disagree. `PRODUCT_VIABILITY_ROADMAP.md` still says "Where we are 
 
 ## 5. Defects and gaps confirmed by inspection
 
-1. **Email-rebind account takeover path.** `routes/v1/auth.py:62-70` matches an unknown `firebase_uid` to an existing local user by email and rebinds it, without checking `email_verified`. An unverified Firebase account claiming a victim's address takes over that local user. `check_revoked` is also not used.
+1. **Email-rebind account takeover path.** `routes/v1/auth.py:62-70` matches an unknown `firebase_uid` to an existing local user by email and rebinds it, without checking `email_verified`. An unverified Firebase account claiming a victim's address takes over that local user. `check_revoked` is also not used. **Fixed 2026-09-30 in PR #192** (verified email and an unbound row are both required; revocation is checked).
 2. **No security headers** on the API (`main.py:184-207` has only request-context, SlowAPI and CORS middleware) or on Firebase Hosting (`firebase.json` has no `headers` block).
 3. **Rate limiting is in-memory per process** (`core/limiter.py:7`), keyed by `get_remote_address`, which behind Render's proxy may be the proxy address.
 4. **`/health` is static** (`routes/health.py:20-28`); the post-deploy check tests only for HTTP 200.
@@ -102,7 +102,7 @@ Old plan items that survive:
 
 ## 9. Current risks
 
-- The email-rebind path (section 5, item 1) is exploitable today against the deployed pilot. It should be fixed before any other milestone starts; it needs one condition and one test.
+- ~~The email-rebind path (section 5, item 1) is exploitable today against the deployed pilot.~~ Fixed 2026-09-30 in PR #192 and deployed. Its remaining follow-up (auto-created accounts store unverified emails) is an S3 input.
 - Stale pins with published advisories in a public security tool.
 - The pilot deployment on Render uses free-tier Postgres with no backups.
 - Public repository with a Firebase project ID and Render blueprint in the tree; no secrets found, but the gitleaks allowlist should be reviewed when actions are pinned.

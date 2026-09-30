@@ -26,7 +26,7 @@ This repository owns, for the whole portfolio: threat modelling, SAST/SCA/DAST g
 
 Month 4 of the six-month plan is code-complete: Linux read-only Go agent, hash-only rotating agent tokens with replay protection, CSV and agent inventory, CPE matcher with a nightly calibration gate (51 self-authored cases, 95 % floor, zero high-confidence false positives), EPSS, JSON logging with correlation IDs, a Sentry PII scrubber with a sync test, PostgreSQL-backed CI with a single-head migration check, gitleaks, Dependabot. Pilot deployed on Render and Firebase Hosting; idle since June.
 
-What does not exist: any release (the release workflow has never run), any SBOM or provenance, any SAST or dependency audit, a threat model (promised at four places in the plan), a cross-tenant test suite (promised as `backend/tests/security/test_tenancy_isolation.py`), security headers, real token verification in tests (a global autouse mock accepts any bearer string), and any real-world matcher accuracy number. One concrete defect: the email-link sign-in fallback rebinds an existing local user by email without checking `email_verified` (`backend/app/api/routes/v1/auth.py:62-70`), which is an account-takeover path. That is fixed first, before S1.
+What does not exist: any release (the release workflow has never run), any SBOM or provenance, any SAST or dependency audit, a threat model (promised at four places in the plan), a cross-tenant test suite (promised as `backend/tests/security/test_tenancy_isolation.py`), security headers, real token verification in tests (a global autouse mock accepts any bearer string), and any real-world matcher accuracy number. One concrete defect found by the review, the email-link sign-in fallback linking an existing local user without checking `email_verified`, was fixed on 2026-09-30 in PR #192 (S0 below).
 
 ### R3. Status of the previous roadmap items
 
@@ -56,9 +56,11 @@ What does not exist: any release (the release workflow has never run), any SBOM 
 
 Each milestone lists its acceptance criterion, the artifact it produces, a resume bullet with placeholders that are not filled until the work is done, and the interview questions it prepares for. S0 is a prerequisite fix, not a milestone.
 
-#### S0. Fix the email-rebind takeover path
+#### S0. Require a verified email before linking an existing account — DONE 2026-09-30 (PR #192)
 
-Require `email_verified` before matching an unknown Firebase UID to an existing local user by email; use `check_revoked=True` on verification. Add the test that reproduces the takeover before the fix and passes after. Ship to the pilot.
+The email fallback now links a Firebase account to an existing user only when the token's `email_verified` is true **and** the existing row has no `firebase_uid`; any other email match returns 403 and logs no email or token. `verify_id_token` runs with `check_revoked=True`, so revoked or disabled accounts get 401. Seven tests cover it, and the reproducing test failed before the fix. Deployed to the pilot on merge.
+
+Follow-ups recorded by that PR, carried into S3 as threat-model inputs: the new-user auto-create path stores the token's email even when it is unverified, which lets someone hold an address before its owner signs up; invite acceptance compares against that stored email (it still requires the invite token); and `check_revoked` adds a Firebase lookup per request, so an unreachable Firebase now yields 401.
 
 #### S1. A real agent release: `agent-v0.1.0` with SBOM and provenance
 

@@ -31,7 +31,7 @@ Add these in **GitHub repo > Settings > Secrets and variables > Actions:**
 
 ## Optional Future Enhancements
 
-- **Enforce email verification** — _No longer optional (2026-09-29)._ The backend's email-link fallback rebinds an existing user by email without checking `email_verified`, which is an account-takeover path. The backend fix is milestone S0 in [PRODUCT_VIABILITY_ROADMAP.md](PRODUCT_VIABILITY_ROADMAP.md); the Firebase Console setting is defence in depth, not a substitute.
+- **Enforce email verification** — _No longer optional._ The backend now requires a verified email before linking an existing account (PR #192, 2026-09-30; S0 in [PRODUCT_VIABILITY_ROADMAP.md](PRODUCT_VIABILITY_ROADMAP.md)). The Firebase Console setting is defence in depth on top of that.
 - **Social sign-in providers** — Add Google/GitHub in Firebase Console > Authentication > Sign-in method. The `auth_provider` column will auto-populate from the token.
 - **Role-based access control** — Use the `role` column on the User model to restrict certain routes to admin users.
 
