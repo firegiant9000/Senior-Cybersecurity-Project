@@ -36,7 +36,11 @@ async def get_current_user(
     """Verify Firebase ID token and return (or auto-create) the local User."""
     token = credentials.credentials
     try:
-        decoded = firebase_auth.verify_id_token(token, clock_skew_seconds=_TOKEN_CLOCK_SKEW_SECONDS)
+        # check_revoked also rejects tokens belonging to disabled Firebase users.
+        # RevokedIdTokenError and UserDisabledError are FirebaseErrors -> 401 below.
+        decoded = firebase_auth.verify_id_token(
+            token, check_revoked=True, clock_skew_seconds=_TOKEN_CLOCK_SKEW_SECONDS
+        )
     except (ValueError, FirebaseError) as exc:
         _log.warning("Firebase token verification failed: %s", exc)
         raise HTTPException(
@@ -59,11 +63,26 @@ async def get_current_user(
     result = await session.execute(select(User).where(User.firebase_uid == firebase_uid))
     user = result.scalar_one_or_none()
 
-    # Fallback: match by email for users migrating from old auth
+    # Fallback: match by email for users migrating from old auth. Only link a row
+    # that has never been bound to a Firebase account, and only when Firebase has
+    # verified the caller owns the email address.
     if user is None:
         result = await session.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
         if user is not None:
+            if decoded.get("email_verified") is not True or user.firebase_uid is not None:
+                _log.warning(
+                    "Refused to link Firebase account to existing user by email",
+                    extra={
+                        "user_id": user.id,
+                        "email_verified": decoded.get("email_verified") is True,
+                        "existing_uid_bound": user.firebase_uid is not None,
+                    },
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Unable to link this sign-in to an existing account",
+                )
             user.firebase_uid = firebase_uid
             user.auth_provider = decoded.get("firebase", {}).get("sign_in_provider", "email")
             await session.commit()
