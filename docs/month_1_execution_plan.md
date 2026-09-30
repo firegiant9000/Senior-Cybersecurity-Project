@@ -1,5 +1,7 @@
 # Month 1 Execution Plan — Stabilize + Foundations
 
+> **Status 2026-09-29: HISTORICAL, merged (PR #164).** The current plan is the Revision 2026-09-29 in [PRODUCT_VIABILITY_ROADMAP.md](PRODUCT_VIABILITY_ROADMAP.md).
+
 Reference doc for Month 1 of [hacker_tracker_6_month_development_plan.md](hacker_tracker_6_month_development_plan.md). Branch `feature/week0-month1-foundations` (off `main`). Issue numbers map to the GitHub milestone *Month 1 — Stabilize + Foundations*.
 
 **Status: all five workstreams are implemented in this branch.** Remaining items are operational (deploy, branch protection, manual staging verification) and tracked at the bottom of this doc.

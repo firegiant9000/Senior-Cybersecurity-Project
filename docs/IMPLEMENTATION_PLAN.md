@@ -21,17 +21,17 @@ Add these in **GitHub repo > Settings > Secrets and variables > Actions:**
 - Create a Render service for the backend
 - Get the deploy hook URL from Render dashboard > service > Settings
 - Add it as `RENDER_DEPLOY_HOOK_URL` secret in GitHub
-- Uncomment the `curl` line in `.github/workflows/ci.yml` under `deploy-backend`
+- ~~Uncomment the `curl` line in `.github/workflows/ci.yml` under `deploy-backend`~~ Already active (2026-09-29). S2 moves the hook secret out of shell interpolation.
 - Set the backend start command to: `alembic -c app/db/alembic.ini upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000`
 
 ### Post-Deploy Health Check
-- Uncomment the backend health check step in `.github/workflows/ci.yml` under `post-deploy-healthcheck` once `BACKEND_URL` is configured
+- ~~Uncomment the backend health check step~~ Already active (2026-09-29). It only checks for HTTP 200 against a static `/health`; S4 deepens `/health` to check the database.
 
 ---
 
 ## Optional Future Enhancements
 
-- **Enforce email verification** — In Firebase Console > Authentication > Settings, enable "Email enumeration protection" and require verification before sign-in.
+- **Enforce email verification** — _No longer optional._ The backend now requires a verified email before linking an existing account (PR #192, 2026-09-30; S0 in [PRODUCT_VIABILITY_ROADMAP.md](PRODUCT_VIABILITY_ROADMAP.md)). The Firebase Console setting is defence in depth on top of that.
 - **Social sign-in providers** — Add Google/GitHub in Firebase Console > Authentication > Sign-in method. The `auth_provider` column will auto-populate from the token.
 - **Role-based access control** — Use the `role` column on the User model to restrict certain routes to admin users.
 
