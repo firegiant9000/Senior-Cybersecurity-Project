@@ -68,7 +68,7 @@ _**Revision 2026-10-19: S5a evaluation made reproducible.** S5a's live evaluatio
 - _cost per summary;_
 - _rules for what may be claimed._
 
-_S5a's acceptance and effort below are updated to match, with the earlier text struck through. Separately, S1 moves after S2 only because S2 now directly follows S5a (the shared requirements file); S1's content is unchanged._
+_S5a's acceptance and effort below are updated to match, with the earlier text struck through. The milestone order is the one set on 2026-10-18 above, unchanged._
 
 ### R4. Milestones
 
