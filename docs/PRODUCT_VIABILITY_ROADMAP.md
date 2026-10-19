@@ -52,6 +52,14 @@ What does not exist: any release (the release workflow has never run), any SBOM 
 | Non-goal "we do not install agents" | SUPERSEDED | No agents | An agent shipped in Month 4; the non-goal is rewritten below. | n/a | n/a |
 | Non-goals: no active scanning without consent, no exploit code, no managed SOC | CURRENT | Boundaries | Unchanged. | n/a | n/a |
 
+_**Revision 2026-10-18: S5a pulled forward.** A new milestone, **S5a (AI summary quality and injection hardening)**, runs next, ahead of S2. The new order is **S0 (done) → S5a → S2 → S1 → S3 → S4 → S5 → S6**. Reasons:_
+- _The AI executive summary has the most visible defects. The code comment in `_build_prompt` (`ai_summary.py:75-76`) and the README claim that org-supplied fields go into a data block, but `org.name`, `industry_label` and `primary_state` are interpolated raw into the prompt (lines 105-108)._
+- _The output is not schema-enforced, not grounded in the input findings and not evaluated._
+- _The SDK (`google-generativeai==0.8.3`) is deprecated, and the call has no timeout._
+- _The fix is Python, the language of most AI-related job postings in a 2026-10-18 sample._
+
+_S2 follows immediately, because the S5a SDK migration and the S2 dependency upgrades touch the same requirements file. **S5a adds no new AI feature, so R5's ban on "arbitrary AI features" stands.** S5a hardens and measures the one feature that already ships. Its prompt-escaping and injection-corpus work was already planned in S5 and moves here from there._
+
 ### R4. Milestones
 
 Each milestone lists its acceptance criterion, the artifact it produces, a resume bullet with placeholders that are not filled until the work is done, and the interview questions it prepares for. S0 is a prerequisite fix, not a milestone.
@@ -61,6 +69,67 @@ Each milestone lists its acceptance criterion, the artifact it produces, a resum
 The email fallback now links a Firebase account to an existing user only when the token's `email_verified` is true **and** the existing row has no `firebase_uid`; any other email match returns 403 and logs no email or token. `verify_id_token` runs with `check_revoked=True`, so revoked or disabled accounts get 401. Seven tests cover it, and the reproducing test failed before the fix. Deployed to the pilot on merge.
 
 Follow-ups recorded by that PR, carried into S3 as threat-model inputs: the new-user auto-create path stores the token's email even when it is unverified, which lets someone hold an address before its owner signs up; invite acceptance compares against that stored email (it still requires the invite token); and `check_revoked` adds a Firebase lookup per request, so an unreachable Firebase now yields 401.
+
+#### S5a. AI summary quality and injection hardening (added 2026-10-18; runs next, before S2)
+
+**Scope rule.** No new AI feature. This milestone hardens and measures the existing executive summary only (see R5).
+
+Work:
+1. **SDK migration.** Replace the deprecated `google-generativeai==0.8.3` with the current Google Gen AI SDK (`google-genai`). Confirm the model id and the structured-output API against the vendor docs on the day you implement. Keep the existing mock tests green first.
+2. **Schema enforcement.** Pass `response_schema`, using the pydantic model the code already validates with. On validation failure, fall back to the deterministic template (`_build_fallback`). **Never fall back to raw model text.**
+3. **Grounding.**
+   - Each `notable_risks` item carries `finding_ids` drawn from the input.
+   - A post-validator drops any item that cites an id not in the input and logs a count (no content).
+   - Put the EPSS and KEV values in the input.
+   - Replace "never cite CVE ids" with "cite only ids present in the input".
+4. **Injection hardening.**
+   - Move `org.name`, `industry_label` and `primary_state` into a JSON data block serialised with `json.dumps`.
+   - Add an instruction that the data block is data, not instructions.
+   - Allow no raw interpolation anywhere in the prompt. This makes the README claim and the comment at `ai_summary.py:75-76` true.
+5. **Timeout and budget.** A request timeout (proposed: 20 s) that leads to the fallback. Keep the 5/minute limit and document it as per process.
+6. **Tests that run in CI, deterministic and with no network:**
+   - prompt-construction tests: every org-supplied field appears only inside the data block, escaped;
+   - output-validator tests: unknown ids are stripped; schema failure → template; timeout → template;
+   - an injection corpus of at least 20 hostile org names and industry labels (instruction override, delimiter breakout, JSON breakout, Unicode tricks, long input), each asserting the prompt structure is intact.
+7. **Live evaluation (manual or nightly, never a blocking CI gate).** Run about 25 synthetic golden cases plus the injection corpus against the real model. Record the results in `docs/ai/eval-YYYY-MM-DD.md` with the model id, SDK version and date:
+   - schema-valid rate;
+   - citation-valid rate before the validator;
+   - KEV coverage (do the top-N KEV findings appear?);
+   - injection success rate, judged by a fixed rubric committed with the cases.
+
+   Check Gemini API pricing before the first run and cap the number of runs.
+8. **Deploy.** Declare `GEMINI_API_KEY` in `render.yaml` with `sync: false` (the value is set in the dashboard). Check on the Render dashboard whether the pilot has been serving the template.
+9. **Fix the doc contradictions in the same PR:**
+   - README: the injection claim (now true); the migration count (49 files, with 021 duplicated); "signed agent releases" → "release workflow exists, not yet run (S1)".
+   - `docs/security/pii_inventory.md`: OpenAI → Gemini, and state that the org name is sent.
+   - Repository description: drop "(Private)"; the repository is public.
+
+**Acceptance.**
+- `google-generativeai` is absent from every requirements file.
+- `response_schema` is set.
+- The validator, timeout and injection-corpus tests are green in CI.
+- One eval record is committed with all four numbers.
+- README, `pii_inventory.md` and the repository description match the code.
+- `render.yaml` declares the key.
+
+**Verification.**
+```sh
+git grep -n "google-generativeai" -- "*.txt" "*.toml" "*.lock"   # expect nothing
+pytest backend/tests -q -k "ai_summary or injection or grounding"
+gh repo view firegiant9000/Senior-Cybersecurity-Project --json description
+```
+
+**Evidence produced.** The tests, the corpus, the eval record, the corrected docs.
+
+**Resume potential.** "Hardened Hacker Tracker's LLM executive summaries with schema-enforced output, citation grounding to input finding ids (validator-checked) and a [N]-case prompt-injection corpus in CI; measured [S] % schema-valid and [C] % citation-valid output on a [K]-case eval set, with a deterministic fallback."
+
+**Effort and cost.** About 12–15 hours. A few dollars of API calls at most; pricing is not checked yet.
+
+**Interview questions.**
+- Why does a schema not stop hallucinated content, and what does the citation check add?
+- Why does the eval set live outside the blocking CI gate?
+- How did you judge whether an injection succeeded?
+- What is the blast radius if one succeeds, and why does that shape how much you invest?
 
 #### S1. A real agent release: `agent-v0.1.0` with SBOM and provenance
 
@@ -80,7 +149,7 @@ Work: tag `agent-v0.1.0` and let the existing workflow run once, as-is, to learn
 
 #### S2. Dependency and supply-chain hardening
 
-Work: blocking CI gates for each language: **CodeQL** (Python, JavaScript/TypeScript, Go) on PR and weekly; **pip-audit** with a lockfile or hashes for the backend (introduce `requirements.lock` or `uv.lock`); **govulncheck** for the agent; **npm audit** at high severity for the frontend; **Trivy** on the backend image with CRITICAL and HIGH failing; **Semgrep** with a small curated ruleset if it catches something CodeQL does not (drop it if not). Pin every GitHub Action to a commit SHA; add a top-level `permissions: contents: read` to every workflow; move the Render deploy-hook secret out of shell interpolation. Upgrade the 2023-vintage backend pins (fastapi, starlette, pydantic, python-multipart, sqlalchemy) and Go to a supported version; fix what breaks. Remove pytest and ruff from the production requirements. Document allowed exceptions in `docs/security/scan_exceptions.md` with an expiry date for each.
+Work: blocking CI gates for each language: **CodeQL** (Python, JavaScript/TypeScript, Go) on PR and weekly; **pip-audit** with a lockfile or hashes for the backend (introduce `requirements.lock` or `uv.lock`); **govulncheck** for the agent; **npm audit** at high severity for the frontend; **Trivy** on the backend image with CRITICAL and HIGH failing; **Semgrep** with a small curated ruleset if it catches something CodeQL does not (drop it if not). Pin every GitHub Action to a commit SHA; add a top-level `permissions: contents: read` to every workflow; move the Render deploy-hook secret out of shell interpolation. Upgrade the 2023-vintage backend pins (fastapi, starlette, pydantic, python-multipart, sqlalchemy) and Go to a supported version; fix what breaks. Remove pytest and ruff from the production requirements. Document allowed exceptions in `docs/security/scan_exceptions.md` with an expiry date for each. _(2026-10-18: S2 now runs right after S5a. Added:)_ make `alembic check` blocking by removing `continue-on-error`, or record in `scan_exceptions.md`, with an expiry date, why it can't be.
 
 **Acceptance.** Five gates (CodeQL, pip-audit, govulncheck, npm audit, Trivy) are required on `main`; all green; every action pinned by SHA; every exception documented with an expiry; the pip Dependabot job passes.
 
@@ -128,9 +197,9 @@ Work: a **route-enumerating authorization suite**. A test walks the FastAPI rout
 
 #### S5. DAST and manual AppSec
 
-Work: **OWASP ZAP baseline** against the docker-compose stack in CI, failing at medium and above once the header work in S4 lands. Harden the AI summary prompt: delimit and escape org-supplied fields, add a prompt-injection test corpus, validate output against the schema. If pursuing BSCP, perform a **manual Burp assessment** of the API and record each finding as: finding, risk, exploit path, fix, regression test.
+Work: **OWASP ZAP baseline** against the docker-compose stack in CI, failing at medium and above once the header work in S4 lands. ~~Harden the AI summary prompt: delimit and escape org-supplied fields, add a prompt-injection test corpus, validate output against the schema.~~ _(Moved to S5a on 2026-10-18.)_ If pursuing BSCP, perform a **manual Burp assessment** of the API and record each finding as: finding, risk, exploit path, fix, regression test.
 
-**Acceptance.** ZAP baseline green at medium and above on every PR; the injection corpus runs in CI; if the Burp assessment is done, `docs/security/assessment-YYYY-MM.md` exists with every finding closed by a regression test or accepted.
+**Acceptance.** ZAP baseline green at medium and above on every PR; ~~the injection corpus runs in CI~~ (moved to S5a, 2026-10-18); if the Burp assessment is done, `docs/security/assessment-YYYY-MM.md` exists with every finding closed by a regression test or accepted.
 
 **Evidence produced.** ZAP report artifact, injection tests, assessment document.
 
