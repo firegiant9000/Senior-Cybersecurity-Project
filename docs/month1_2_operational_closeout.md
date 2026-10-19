@@ -1,5 +1,7 @@
 # Month 1 & 2 — Operational Closeout Checklist
 
+> **Status 2026-09-29: HISTORICAL.** Any unchecked item below that concerns pilots, staging walk-throughs for customers or commercial readiness is CANCELLED. Items about secrets and GitHub settings are superseded by S2 (SHA-pinned actions, workflow permissions, scanning gates) in [PRODUCT_VIABILITY_ROADMAP.md](PRODUCT_VIABILITY_ROADMAP.md).
+
 **Purpose:** Everything left to clear out Month 1 and Month 2 that is **not** code and **not** the Month 2 PR merge. These are human/ops/verification tasks — keys, secrets, GitHub settings, and staging walk-throughs. The code is already written and verified.
 
 **Created:** 2026-06-04

@@ -1,5 +1,7 @@
 # Hacker Tracker 6-Month Development Plan
 
+> **Revision note, 2026-09-29.** Months 1 to 4 of this plan are code-complete and remain the record of what was built. **Months 5 and 6 are superseded.** The project is reframed from a possible SMB/MSP product to an AppSec and DevSecOps reference implementation; the canonical roadmap is now the 2026-09 revision in [`PRODUCT_VIABILITY_ROADMAP.md`](PRODUCT_VIABILITY_ROADMAP.md) (milestones S0 to S6), and the evidence for the change is in [`roadmap-review-2026-09.md`](roadmap-review-2026-09.md). Status of each Month 5 and 6 workstream: 5.1 DEFERRED; 5.2, 5.2.2, 5.2.5 CANCELLED; 5.3 CANCELLED; 5.4 SUPERSEDED by S4; 6.0 CANCELLED; 6.1 CANCELLED; 6.2 CANCELLED; 6.3 SUPERSEDED by S2 and S3 (secret scanning is done); 6.4 OPTIONAL; 6.5 CANCELLED. The Week 0 validation gate and Checkpoints 1 to 4 are CANCELLED as commercial gates. The promised `threat_model_tenancy.md` and `tests/security/test_tenancy_isolation.py` never existed; S3 and S4 replace them.
+
 ## Purpose
 
 This document turns the repo investigation findings into an implementation roadmap for taking Hacker Tracker beyond a semester project. The plan keeps the original Cyber Security Threat Intelligence Dashboard alive while also developing the stronger pivot: a lightweight SMB vulnerability/exposure management platform with asset inventory, scanner-based visibility, CVE matching, and executive reporting.
@@ -20,7 +22,7 @@ If the team is unable to commit, the timeline must be extended or scope reduced 
 
 ---
 
-## Product Direction
+## Product Direction — SUPERSEDED 2026-09-29 (AppSec/DevSecOps reference implementation; see PRODUCT_VIABILITY_ROADMAP.md R1)
 
 ### Current product identity
 
@@ -411,7 +413,7 @@ The current vendor-based matching is too broad. A company entering a vendor name
 
 These are mandatory checkpoints. Do not pass without the criteria met. Each has explicit "stop or pivot" criteria — they exist to prevent the most expensive failure mode (building toward an invalid premise).
 
-#### Checkpoint 1 — End of Week 0 (validation gate)
+#### Checkpoint 1 — End of Week 0 (validation gate) — CANCELLED 2026-09-29 (commercial gate; never met)
 
 **Proceed if:**
 - ≥8 interviews done; ≥6/12 ask unprompted for asset-specific vulnerability reporting
@@ -425,7 +427,7 @@ These are mandatory checkpoints. Do not pass without the criteria met. Each has 
 - No pilot offers
 → Drop Months 3–6 pivot work; stay on threat-intel-dashboard polish path only.
 
-#### Checkpoint 2 — End of Month 3 (matcher quality gate)
+#### Checkpoint 2 — End of Month 3 (matcher quality gate) — CURRENT (regression gate met on the self-authored fixture; real-world accuracy is S6)
 
 **Proceed if:**
 - Regression set passes ≥95% on the known-good set
@@ -438,7 +440,7 @@ These are mandatory checkpoints. Do not pass without the criteria met. Each has 
 - Reports still feel generic to interview reviewers
 → Spend Month 4 hardening the matcher instead of starting the scanner.
 
-#### Checkpoint 3 — Before scanner build (Month 4 entry gate)
+#### Checkpoint 3 — Before scanner build (Month 4 entry gate) — CANCELLED 2026-09-29 (proceeded under accepted risk; interview conditions no longer apply)
 
 **Proceed if:**
 - Checkpoint 2 passed
@@ -452,7 +454,7 @@ These are mandatory checkpoints. Do not pass without the criteria met. Each has 
 - Code-signing or distribution complexity outweighs pilot demand
 → Skip scanner; reallocate Month 4 to OAuth integrations (M365/GWS) and report polish.
 
-#### Checkpoint 4 — End of Month 5 (pilot gate)
+#### Checkpoint 4 — End of Month 5 (pilot gate) — SUPERSEDED 2026-09-29 (its tenancy-isolation condition becomes S4; the pilot conditions are cancelled)
 
 **Proceed if:**
 - ≥1 external pilot user has run the scanner end-to-end
@@ -1153,7 +1155,7 @@ The Windows code-signing cert is in hand (or in flight) by end of Month 4 so Mon
 
 Turn the backend capability into something useful for users, demos, and pilots.
 
-## Workstream 5.1 — Asset dashboard
+## Workstream 5.1 — Asset dashboard — DEFERRED 2026-09-29
 
 ### Pages
 
@@ -1192,7 +1194,7 @@ Users can answer:
 - What vulnerabilities affect each machine?
 - What should I fix first?
 
-## Workstream 5.2 — Executive and technical reports
+## Workstream 5.2 — Executive and technical reports — CANCELLED 2026-09-29 (5.2.1 included)
 
 ### Report types
 
@@ -1270,7 +1272,7 @@ A user generates a deterministic PDF with three mode toggles, every claim cites 
 
 Two consecutive monthly reports for the same org can be opened side-by-side and a non-technical reader can answer: "what changed since last month, and which fixes from last month are still outstanding?"
 
-## Workstream 5.2.2 — Email-delivered reports (push, not pull) (added from interview #1)
+## Workstream 5.2.2 — Email-delivered reports (push, not pull) (added from interview #1) — CANCELLED 2026-09-29
 
 The Common Market interview produced direct evidence (abandoned internal ticketing system) that segment B will not log into a portal. The monthly report must be delivered, not retrieved.
 
@@ -1290,7 +1292,7 @@ The Common Market interview produced direct evidence (abandoned internal ticketi
 
 A new pilot org receives a styled, branded monthly report PDF and HTML summary in the recipient's inbox on the configured send-date. No login required to view the share link.
 
-## Workstream 5.2.5 — Forecasting / predictive MVP
+## Workstream 5.2.5 — Forecasting / predictive MVP — CANCELLED 2026-09-29
 
 ### Why now
 
@@ -1325,7 +1327,7 @@ The original project proposal promised "predictive" analytics. The current app d
 
 The dashboard surfaces a "Rising Risks" section. Every prediction-language claim either points at a real forecast endpoint or has been renamed to descriptive language. Watchlist appears in the executive report when an org has uploaded inventory.
 
-## Workstream 5.3 — Windows scanner
+## Workstream 5.3 — Windows scanner — CANCELLED 2026-09-29
 
 Now that the Linux scanner is shipping in pilots and the agent trust model is proven, add Windows. Use Workstream 4.2 collector patterns.
 
@@ -1339,7 +1341,7 @@ Now that the Linux scanner is shipping in pilots and the agent trust model is pr
 | Build signed `.exe` in CI using Month 4 cert | Critical | Medium |
 | Test on Windows 10, 11, Server 2019, Server 2022 | High | Medium |
 
-## Workstream 5.4 — Multi-tenancy isolation tests (required before MSP path)
+## Workstream 5.4 — Multi-tenancy isolation tests (required before MSP path) — SUPERSEDED 2026-09-29 by S4 (route-enumerating suite with real token verification)
 
 ### Why now
 
@@ -1367,7 +1369,7 @@ A test suite explicitly attempts cross-org access against every endpoint and all
 
 Prepare the product for real-world feedback and possible pilot use.
 
-## Workstream 6.0 — Security Profile / Partner Questionnaire pack (added from interview #1)
+## Workstream 6.0 — Security Profile / Partner Questionnaire pack (added from interview #1) — CANCELLED 2026-09-29 (replaced by the S3 threat model)
 
 ### Why it earned a workstream
 
@@ -1399,7 +1401,7 @@ A segment-B user can press one button and download a 1–2 page PDF answering co
 
 This workstream should only be built if **interviews 2–4 confirm that partner/insurance questionnaires are a real, named pain across at least 2 of the next 3 interviewees**. Otherwise defer — it's a strong feature, but the evidence base is currently a single interview.
 
-## Workstream 6.1 — Validation and pilot readiness
+## Workstream 6.1 — Validation and pilot readiness — CANCELLED 2026-09-29
 
 ### Pilot length (updated from interview #1)
 
@@ -1439,7 +1441,7 @@ Track which model each pilot accepts. After 3 pilots, you'll have evidence on wh
 
 A pilot user understands what the product collects, what it does not collect, and what the results mean. The 3-month minimum is documented and accepted in writing. Pricing is shown in both flat and per-endpoint forms.
 
-## Workstream 6.2 — MSP/client management
+## Workstream 6.2 — MSP/client management — CANCELLED 2026-09-29
 
 ### Tasks
 
@@ -1455,7 +1457,7 @@ A pilot user understands what the product collects, what it does not collect, an
 
 The app can support the most realistic buyer: someone managing security reporting for multiple small businesses.
 
-## Workstream 6.3 — Security hardening
+## Workstream 6.3 — Security hardening — SUPERSEDED 2026-09-29 by S2 to S5 (secret scanning is done)
 
 ### Tasks
 
@@ -1474,7 +1476,7 @@ The app can support the most realistic buyer: someone managing security reportin
 
 The app is not enterprise-ready, but it is responsible enough to show to real users.
 
-## Workstream 6.4 — Backup restore drill
+## Workstream 6.4 — Backup restore drill — OPTIONAL 2026-09-29
 
 ### Why now
 
@@ -1493,7 +1495,7 @@ Render's managed Postgres has automated backups. Untested backups are not backup
 
 The team has restored a backup at least once and recorded the time it took. Procedure is documented.
 
-## Workstream 6.5 — macOS scanner (optional, only if pilots demand)
+## Workstream 6.5 — macOS scanner (optional, only if pilots demand) — CANCELLED 2026-09-29
 
 If a pilot is on macOS, ship the macOS collector + notarization. Otherwise defer to post-roadmap. See Workstream 4.2 for collector design.
 
@@ -1538,7 +1540,7 @@ Weekend/extra:
 
 ## 24-Week Detailed Implementation Plan
 
-## Week 0: Validation gate
+## Week 0: Validation gate — CANCELLED 2026-09-29 (two interviews held; not a commercial project)
 
 ### Tasks
 
@@ -1656,7 +1658,7 @@ Software inventory generates vulnerability findings with confidence levels. EPSS
 - **Add nightly CI job that runs the regression set and fails on drift.**
 - **Add "report false positive" button on findings UI.**
 
-### Month 3 go/no-go gate
+### Month 3 go/no-go gate — CANCELLED 2026-09-29 (commercial gate)
 
 - Regression set ≥95% pass rate.
 - High-confidence false-positive rate <2%.

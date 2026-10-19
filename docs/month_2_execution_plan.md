@@ -1,5 +1,7 @@
 # Month 2 Execution Plan — Onboarding Wedge + Inventory MVP
 
+> **Status 2026-09-29: HISTORICAL, merged.** CycloneDX SBOM import (#115), deferred here, is now the OPTIONAL dogfooding extension of the current plan. The M365 spike stays behind its flag and is DEFERRED. Current plan: the Revision 2026-09-29 in [PRODUCT_VIABILITY_ROADMAP.md](PRODUCT_VIABILITY_ROADMAP.md).
+
 Reference doc for Month 2 of [hacker_tracker_6_month_development_plan.md](hacker_tracker_6_month_development_plan.md). Builds on the foundation laid in [month_1_execution_plan.md](month_1_execution_plan.md) (CI, observability, demo segregation, data lifecycle, source-status badges, trust pack — all merged via PR #164 at commit `79f61ad`).
 
 **Theme:** Make the platform *usable by a real SMB* without forcing them through the 5-step assessment intake. Users should be able to (a) sign up, (b) point us at *something* they own (domain, CSV inventory, or cloud tenant), and (c) get a meaningful dashboard inside their first session.

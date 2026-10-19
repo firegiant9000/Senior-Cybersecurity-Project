@@ -1,5 +1,7 @@
 # Agent Release & Code-Signing Flow (Month 4 Phase 5)
 
+> **Status 2026-09-29: SUPERSEDED by milestone S1** of [PRODUCT_VIABILITY_ROADMAP.md](../PRODUCT_VIABILITY_ROADMAP.md). The flow below has never run: there are no tags and no releases. S1 replaces the secret-dependent GPG step with keyless GitHub artifact attestations and an attested CycloneDX SBOM, verified by `gh attestation verify`. This file stays until S1 lands and `agent_release_verification.md` replaces it. The macOS notarization stub is CANCELLED with the macOS scanner.
+
 > Phase 5 of [month_4_execution_plan.md](../month_4_execution_plan.md). Covers how the
 > read-only Linux scanner (`agent/`) is built, signed, and published, and stubs the
 > macOS notarization path deferred to Month 6.
