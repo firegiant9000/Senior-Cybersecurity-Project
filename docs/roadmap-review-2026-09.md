@@ -68,7 +68,7 @@ Two documents disagree. `PRODUCT_VIABILITY_ROADMAP.md` still says "Where we are 
 
 ## 6. Technically useful future work (kept or added)
 
-The six milestones S1 to S6 in `PRODUCT_VIABILITY_ROADMAP.md`: real attested agent release with SBOM; dependency and supply-chain gates; STRIDE threat model; route-enumerating authorization suite with real token verification; DAST and manual AppSec; matcher validation against Trivy or Grype on real images. Plus the optional dogfooding extension: ingest CycloneDX SBOMs from the author's own repositories and show dependency inventory, KEV status and EPSS priority.
+_(2026-10-19: a seventh milestone, S5a, was added on 2026-10-18 and runs first; see the roadmap's revision notes. This review is kept as written.)_ The six milestones S1 to S6 in `PRODUCT_VIABILITY_ROADMAP.md`: real attested agent release with SBOM; dependency and supply-chain gates; STRIDE threat model; route-enumerating authorization suite with real token verification; DAST and manual AppSec; matcher validation against Trivy or Grype on real images. Plus the optional dogfooding extension: ingest CycloneDX SBOMs from the author's own repositories and show dependency inventory, KEV status and EPSS priority.
 
 Old plan items that survive:
 - 6.3 "Add secret scanning in CI" is done (gitleaks). "Add dependency scanning" and "basic threat model document" are promoted to S2 and S3 with real acceptance criteria.
