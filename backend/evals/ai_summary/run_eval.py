@@ -52,8 +52,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_RUNS_DIR = Path(__file__).resolve().parent / "runs"
 DEFAULT_ENV_FILE = BACKEND_DIR / ".env.local"
 DRY_SUBDIR = "_dry"
-# Stage A ships only the fixture; stage B switches this to "v1".
-DEFAULT_DATASET = "fixture"
+# Reported runs use v1; tests pass the fixture (or a temp dataset) explicitly.
+DEFAULT_DATASET = "v1"
 FIXTURE_VERSION = "fixture"
 
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")

@@ -1,0 +1,53 @@
+{
+  "attack_cases": {
+    "dev": {
+      "v1-dev-finding-injection-01": "json_breakout",
+      "v1-dev-finding-injection-02": "unicode_homoglyph",
+      "v1-dev-finding-injection-03": "very_long_input",
+      "v1-dev-finding-injection-04": "fake_system_block",
+      "v1-dev-org-injection-01": "instruction_override",
+      "v1-dev-org-injection-02": "unicode_homoglyph",
+      "v1-dev-org-injection-03": "delimiter_breakout",
+      "v1-dev-org-injection-04": "very_long_input",
+      "v1-dev-org-injection-05": "json_breakout",
+      "v1-dev-org-injection-06": "fake_system_block",
+      "v1-dev-org-injection-07": "instruction_override",
+      "v1-dev-org-injection-08": "delimiter_breakout"
+    },
+    "heldout": {
+      "v1-heldout-finding-injection-01": "instruction_override",
+      "v1-heldout-finding-injection-02": "delimiter_breakout",
+      "v1-heldout-finding-injection-03": "very_long_input",
+      "v1-heldout-org-injection-01": "delimiter_breakout",
+      "v1-heldout-org-injection-02": "fake_system_block",
+      "v1-heldout-org-injection-03": "instruction_override",
+      "v1-heldout-org-injection-04": "unicode_homoglyph",
+      "v1-heldout-org-injection-05": "very_long_input",
+      "v1-heldout-org-injection-06": "json_breakout",
+      "v1-heldout-org-injection-07": "fake_system_block"
+    }
+  },
+  "counts": {
+    "dev": {
+      "edge": 5,
+      "finding_injection": 4,
+      "normal": 10,
+      "org_injection": 8
+    },
+    "heldout": {
+      "edge": 4,
+      "finding_injection": 3,
+      "normal": 8,
+      "org_injection": 7
+    }
+  },
+  "date": "2026-10-19",
+  "files": {
+    "CHANGELOG.md": "32dd430a94c26bf364ca2e2de143d95bf15dc50a6167f77825961e7e1601a3d2",
+    "cases.jsonl": "6969ef369f6f9916c3462a8cda9bf7b29466298905a3b46b089389147b9448e5"
+  },
+  "generator": "dataset/generate_v1.py",
+  "generator_sha256": "0ffdea6f66896d53019771fab44e1ed34e9f61fe45ce3d4e0f106f12f8d6bcea",
+  "seed": 20261019,
+  "version": "v1"
+}

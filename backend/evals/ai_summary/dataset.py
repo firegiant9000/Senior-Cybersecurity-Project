@@ -151,8 +151,12 @@ def write_manifest(
     date: str,
     generator: str | None = None,
     seed: int | None = None,
+    generator_sha256: str | None = None,
 ) -> Path:
-    """Write MANIFEST.json for the files currently in `dataset_dir`."""
+    """Write MANIFEST.json for the files currently in `dataset_dir`.
+
+    `generator_sha256` is recorded only when given (generated versions).
+    """
     dataset_dir = Path(dataset_dir)
     cases = _parse_cases(dataset_dir / CASES_FILE)
     files = {
@@ -173,6 +177,8 @@ def write_manifest(
         "generator": generator,
         "seed": seed,
     }
+    if generator_sha256 is not None:
+        manifest["generator_sha256"] = generator_sha256
     path = dataset_dir / MANIFEST_FILE
     # LF on every OS, so the manifest hash matches across checkouts.
     path.write_text(
