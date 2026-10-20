@@ -60,6 +60,16 @@ _**Revision 2026-10-18: S5a pulled forward.** A new milestone, **S5a (AI summary
 
 _S2 follows immediately, because the S5a SDK migration and the S2 dependency upgrades touch the same requirements file. **S5a adds no new AI feature, so R5's ban on "arbitrary AI features" stands.** S5a hardens and measures the one feature that already ships. Its prompt-escaping and injection-corpus work was already planned in S5 and moves here from there._
 
+_**Revision 2026-10-19: S5a evaluation made reproducible.** S5a's live evaluation (item 7) now follows [`docs/ai/eval-protocol.md`](ai/eval-protocol.md), with these elements:_
+- _pinned model settings;_
+- _a versioned dataset with a held-out split that is never used for tuning;_
+- _a baseline run before any change;_
+- _committed raw responses and failure examples;_
+- _cost per summary;_
+- _rules for what may be claimed._
+
+_S5a's acceptance and effort below are updated to match, with the earlier text struck through. The milestone order is the one set on 2026-10-18 above, unchanged._
+
 ### R4. Milestones
 
 Each milestone lists its acceptance criterion, the artifact it produces, a resume bullet with placeholders that are not filled until the work is done, and the interview questions it prepares for. S0 is a prerequisite fix, not a milestone.
@@ -83,7 +93,7 @@ Work:
    - Put the EPSS and KEV values in the input.
    - Replace "never cite CVE ids" with "cite only ids present in the input".
 4. **Injection hardening.**
-   - Move `org.name`, `industry_label` and `primary_state` into a JSON data block serialised with `json.dumps`.
+   - Move `org.name`, `industry_label`, `employee_range` _(added 2026-10-19: also interpolated raw, `ai_summary.py:107`)_ and `primary_state` into a JSON data block serialised with `json.dumps`.
    - Add an instruction that the data block is data, not instructions.
    - Allow no raw interpolation anywhere in the prompt. This makes the README claim and the comment at `ai_summary.py:75-76` true.
 5. **Timeout and budget.** A request timeout (proposed: 20 s) that leads to the fallback. Keep the 5/minute limit and document it as per process.
@@ -91,13 +101,22 @@ Work:
    - prompt-construction tests: every org-supplied field appears only inside the data block, escaped;
    - output-validator tests: unknown ids are stripped; schema failure → template; timeout → template;
    - an injection corpus of at least 20 hostile org names and industry labels (instruction override, delimiter breakout, JSON breakout, Unicode tricks, long input), each asserting the prompt structure is intact.
-7. **Live evaluation (manual or nightly, never a blocking CI gate).** Run about 25 synthetic golden cases plus the injection corpus against the real model. Record the results in `docs/ai/eval-YYYY-MM-DD.md` with the model id, SDK version and date:
-   - schema-valid rate;
-   - citation-valid rate before the validator;
-   - KEV coverage (do the top-N KEV findings appear?);
-   - injection success rate, judged by a fixed rubric committed with the cases.
+7. **Live evaluation (manual or nightly, never a blocking CI gate).** ~~Run about 25 synthetic golden cases plus the injection corpus against the real model. Record the results in `docs/ai/eval-YYYY-MM-DD.md` with the model id, SDK version and date:~~
+   - ~~schema-valid rate;~~
+   - ~~citation-valid rate before the validator;~~
+   - ~~KEV coverage (do the top-N KEV findings appear?);~~
+   - ~~injection success rate, judged by a fixed rubric committed with the cases.~~
 
-   Check Gemini API pricing before the first run and cap the number of runs.
+   ~~Check Gemini API pricing before the first run and cap the number of runs.~~
+
+   _(Replaced 2026-10-19.)_ Follow [`docs/ai/eval-protocol.md`](ai/eval-protocol.md):
+   - **Settings:** pinned in `eval_config.yaml`; production reads the same values.
+   - **Dataset:** versioned `dataset/v1` with 27 dev and 22 held-out synthetic cases. The held-out split is never used for tuning.
+   - **Runs:** B0 (as shipped, before any change), B1 (after the SDK migration only) and F (final), 3 repeats each. Raw responses and `usage_metadata` are committed.
+   - **Metrics:** schema-valid, citation-valid before the validator, KEV coverage, injection success (canary tokens plus a fixed rubric), fallback/timeout/error rates, latency, and **cost per summary**.
+   - **Reporting:** k/n with intervals; B1→F paired flips; failure examples in `docs/ai/failures-YYYY-MM-DD.md`.
+   - **Harness:** bypasses the database last-good fallback.
+   - **Spend:** a paid-tier key used for evaluation only, a budget alert, and a `--max-calls` guard.
 8. **Deploy.** Declare `GEMINI_API_KEY` in `render.yaml` with `sync: false` (the value is set in the dashboard). Check on the Render dashboard whether the pilot has been serving the template.
 9. **Fix the doc contradictions in the same PR:**
    - README: the injection claim (now true); the migration count (49 files, with 021 duplicated); "signed agent releases" → "release workflow exists, not yet run (S1)".
@@ -108,7 +127,10 @@ Work:
 - `google-generativeai` is absent from every requirements file.
 - `response_schema` is set.
 - The validator, timeout and injection-corpus tests are green in CI.
-- One eval record is committed with all four numbers.
+- ~~One eval record is committed with all four numbers.~~ _(Replaced 2026-10-19.)_ The B0 (or a record of why it's unavailable), B1 and F runs are committed per the protocol: `run_meta.json`, raw responses, scores, and `runs/index.jsonl` with no undisclosed held-out runs. `docs/ai/eval-YYYY-MM-DD.md` reports every metric as k/n with an interval, the repeat range, the B1→F flips, and cost per summary.
+- `docs/ai/failures-YYYY-MM-DD.md` is committed for B1 and F.
+- `model_version` is the same across B1 and F, or the difference is flagged in the report.
+- A test asserts that production's model id, temperature, thinking budget and timeout match `eval_config.yaml`.
 - README, `pii_inventory.md` and the repository description match the code.
 - `render.yaml` declares the key.
 
@@ -119,11 +141,11 @@ pytest backend/tests -q -k "ai_summary or injection or grounding"
 gh repo view firegiant9000/Senior-Cybersecurity-Project --json description
 ```
 
-**Evidence produced.** The tests, the corpus, the eval record, the corrected docs.
+**Evidence produced.** The tests, the corpus, the versioned dataset, the B0/B1/F run records, the eval report, the failures doc, the corrected docs.
 
-**Resume potential.** "Hardened Hacker Tracker's LLM executive summaries with schema-enforced output, citation grounding to input finding ids (validator-checked) and a [N]-case prompt-injection corpus in CI; measured [S] % schema-valid and [C] % citation-valid output on a [K]-case eval set, with a deterministic fallback."
+**Resume potential.** "Hardened Hacker Tracker's LLM executive summaries with schema-enforced output, citation grounding to input finding ids (validator-checked) and a [N]-case prompt-injection corpus in CI; measured [S] % schema-valid and [C] % citation-valid output on a [K]-case eval set, with a deterministic fallback." _(2026-10-19: the placeholders are filled only from the committed held-out F record, compared with B1, and worded per `docs/ai/eval-protocol.md` §5. If a difference isn't significant, the bullet says so, or leaves it out.)_
 
-**Effort and cost.** About 12–15 hours. A few dollars of API calls at most; pricing is not checked yet.
+**Effort and cost.** ~~About 12–15 hours. A few dollars of API calls at most; pricing is not checked yet.~~ _(Revised 2026-10-19.)_ About 25–35 hours including the protocol. About $2–3 of API calls at `gemini-2.5-flash` list prices checked 2026-10-19 (re-check on the day of the first run).
 
 **Interview questions.**
 - Why does a schema not stop hallucinated content, and what does the citation check add?
