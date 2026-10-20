@@ -147,7 +147,7 @@ gh repo view firegiant9000/Senior-Cybersecurity-Project --json description
 
 **Resume potential.** "Hardened Hacker Tracker's LLM executive summaries with schema-enforced output, citation grounding to input finding ids (validator-checked) and a [N]-case prompt-injection corpus in CI; measured [S] % schema-valid and [C] % citation-valid output on a [K]-case eval set, with a deterministic fallback." _(2026-10-19: the placeholders are filled only from the committed held-out F record, compared with B1, and worded per `docs/ai/eval-protocol.md` §5. If a difference isn't significant, the bullet says so, or leaves it out.)_
 
-**Effort and cost.** ~~About 12–15 hours. A few dollars of API calls at most; pricing is not checked yet.~~ _(Revised 2026-10-19.)_ About 25–35 hours including the protocol. About $2–3 of API calls at `gemini-2.5-flash` list prices checked 2026-10-19 (re-check on the day of the first run).
+**Effort and cost.** ~~About 12–15 hours. A few dollars of API calls at most; pricing is not checked yet.~~ _(Revised 2026-10-19.)_ About 25–35 hours including the protocol. ~~About $2–3 of API calls at `gemini-2.5-flash` list prices checked 2026-10-19 (re-check on the day of the first run).~~ _(Revised 2026-10-20: `gemini-2.5-flash` is closed to new API keys, so S5a moved to `gemini-3.6-flash`; see `docs/ai/eval-protocol.md`.)_ About $8–12 of API calls across the protocol at 3.6-flash prices checked 2026-10-20, which double on 2027-01-01. The SDK migration also needed the framework part of S2 first (fastapi, starlette, pydantic, httpx), because `google-genai` requires newer versions.
 
 **Interview questions.**
 - Why does a schema not stop hallucinated content, and what does the citation check add?

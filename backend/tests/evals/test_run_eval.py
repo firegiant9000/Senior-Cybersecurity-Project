@@ -29,7 +29,7 @@ from tests.evals.helpers import attack_case, case, write_dataset
 SENTINEL = "AIzaSySENTINEL-must-never-be-written-0123456789"
 
 _CONFIG = """\
-model: gemini-2.5-flash
+model: gemini-3.6-flash
 sdk_target: google-genai
 temperature: 0
 top_p: 0.95
@@ -44,7 +44,7 @@ timeout_ms: 20000
 # Input is free, output costs $1 per 1M tokens: every call is estimated at
 # exactly max_output_tokens (1000) x $1/1M = $0.001, whatever the prompt length.
 _PRICING = """\
-model: gemini-2.5-flash
+model: gemini-3.6-flash
 currency: USD
 verified: {verified}
 checked_on: 2026-10-20
@@ -387,7 +387,7 @@ def test_real_run_logs_sdk_fields(env, fake_gemini):
         "total_token_count": 2500,
     }
     meta = json.loads((env.runs / "D1-test" / "run_meta.json").read_text(encoding="utf-8"))
-    assert meta["sdk_name"] == "google-generativeai"
+    assert meta["sdk_name"] == "google-genai"
     assert meta["dry_run"] is False
     assert len(_lines(env.runs / "index.jsonl")) == 1
 

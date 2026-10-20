@@ -4,9 +4,11 @@
 # 2026-10-20 amendment: gemini-2.5-flash is closed to new API keys (404).
 model: gemini-3.6-flash
 # The SDK B1 and F run on (pinned exactly in requirements.txt in stage C).
-# B0 runs the legacy google-generativeai==0.8.3 still in requirements.txt.
+# B0 ran the legacy google-generativeai==0.8.3.
 sdk_target: google-genai
-temperature: 0
+# Google advises 1.0 for all Gemini 3 models; lower values risk looping
+# (2026-10-20 amendment). The 3 repeats measure the variance.
+temperature: 1.0
 top_p: 0.95
 top_k: 40
 candidate_count: 1

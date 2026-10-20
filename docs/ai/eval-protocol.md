@@ -19,8 +19,8 @@ The settings live in `backend/evals/ai_summary/eval_config.yaml`. **Production r
 | Setting | Value | Why |
 |---|---|---|
 | Model id | ~~`gemini-2.5-flash`~~ `gemini-3.6-flash` _(2026-10-20: 2.5-flash is closed to new keys; see the amendment above)_ | ~~The current production model. The id is not a dated snapshot, so~~ The production model from stage C. It resolves to the dated snapshot `3.6-flash-07-2026`; still record the response's `model_version` on every call and flag any change between the baseline and final runs |
-| SDK | `google-genai==<exact>`, pinned in ~~requirements and the lockfile~~ `backend/requirements.txt` _(2026-10-19: an exact pin in requirements only; the repo has no lockfile yet, and S2 adds it)_ | `google-generativeai` lost upstream support on 2025-11-30 |
-| `temperature` | 0 | Lowest variance |
+| SDK | `google-genai==<exact>` _(2026-10-20: `2.31.0`, after the framework upgrade in PR #200)_, pinned in ~~requirements and the lockfile~~ `backend/requirements.txt` _(2026-10-19: an exact pin in requirements only; the repo has no lockfile yet, and S2 adds it)_ | `google-generativeai` lost upstream support on 2025-11-30 |
+| `temperature` | ~~0~~ `1.0` _(2026-10-20)_ | ~~Lowest variance~~ Google strongly advises keeping 1.0 for all Gemini 3 models: lower values "may lead to unexpected behavior, such as looping or degraded performance". The 3 repeats (§3) measure the variance, so B1's repeat range is wider and the bar for "improved" (§5) is higher |
 | `top_p`, `top_k` | Set explicitly | So vendor defaults can't drift between runs |
 | `candidate_count` | 1 | — |
 | `seed` | A fixed integer | Best effort only; the repeats (§3) measure the variance that's left |

@@ -31,7 +31,7 @@ def test_committed_config_has_protocol_values():
     cfg = load_config(DEFAULT_CONFIG_PATH)
     assert cfg.model == "gemini-3.6-flash"
     assert cfg.sdk_target == "google-genai"
-    assert cfg.temperature == 0
+    assert cfg.temperature == 1.0
     assert cfg.candidate_count == 1
     assert cfg.thinking_level == "minimal"
     assert cfg.timeout_ms == 20000
