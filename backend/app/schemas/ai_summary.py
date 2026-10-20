@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.schemas.disclaimer import DisclaimerBlock
 
@@ -11,6 +11,15 @@ class RiskItem(BaseModel):
     title: str
     severity: str
     context: str
+    # Ids of the input findings this risk is based on. Defaulted so the API
+    # response stays backward compatible; the model must send it (CitedRiskItem).
+    finding_ids: list[str] = Field(default_factory=list)
+
+
+# A notable risk as the model returns it: finding_ids is required. (Comments,
+# not docstrings: pydantic would send a docstring to Gemini as a description.)
+class CitedRiskItem(RiskItem):
+    finding_ids: list[str]
 
 
 class GapItem(BaseModel):
@@ -24,10 +33,11 @@ class StepItem(BaseModel):
     rationale: str
 
 
+# The model's output, and Gemini's response_schema.
 class StructuredSummary(BaseModel):
     narrative: str
     posture_statement: str
-    notable_risks: list[RiskItem]
+    notable_risks: list[CitedRiskItem]
     data_gaps: list[GapItem]
     next_steps: list[StepItem]
 

@@ -15,6 +15,7 @@ against the real model. CI runs only its unit tests (`tests/evals/`).
 | `rubric_v1.md` | How to judge attack repeats in `manual_judgement.csv`, with the one-line-rationale rule |
 | `run_eval.py` | Renders the production prompt and calls the production SDK seam, `_call_gemini_raw`, bypassing the DB last-good fallback |
 | `score.py` | Pure re-scoring of stored responses; writes `scores.json` and `manual_judgement.csv` |
+| `schemas.py` | The response schema each run requested: a frozen copy of v1 (B0, B1, no `finding_ids`) and the current one. Schema-valid is scored against the run's own schema (`response_schema_sha256` in `run_meta.json`; absent means v1). A run with an unknown schema is refused |
 | `stats.py` | Wilson interval, exact McNemar, B1→F flips |
 | `runs/` | One folder per real run plus `index.jsonl`. `runs/_dry/` is gitignored |
 
@@ -68,7 +69,11 @@ cost when the API reports it.
   repeat is never counted as a defence.
 - `fallback_stage_d_policy` is the rate the template would apply after stage
   D. B0/B1 production instead serves fence-stripped raw text when parsing
-  fails, so don't report it as their fallback rate.
+  fails, so don't report it as their fallback rate. It is pre-validator and
+  ignores `finish_reason`; a `MAX_TOKENS` response is nearly always
+  schema-invalid anyway.
+- Citation-valid and KEV coverage are measured on the raw output, before
+  the grounding validator that production applies.
 - KEV ground truth ranks only the 20 findings the prompt shows, in the
   engine's order.
 

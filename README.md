@@ -133,11 +133,17 @@ flowchart LR
   silently shipping
   ([`agent-release.yml`](.github/workflows/agent-release.yml)).
 - **AI summaries with guarded input.** The executive summary prompt
-  ([`ai_summary.py`](backend/app/services/ai_summary.py)) passes organization
-  and finding data to Gemini as a structured JSON data block rather than free
-  text, instructs the model to use only that data, and returns a schema-shaped
-  response that is cached and versioned. This limits, but does not eliminate,
-  prompt-injection risk from user-supplied names.
+  ([`ai_summary.py`](backend/app/services/ai_summary.py)) puts every
+  organization field (name, industry, size, state) and every finding into one
+  JSON data block, labelled as data rather than instructions; nothing
+  user-supplied is interpolated as prose. Gemini must answer in a response
+  schema in which each notable risk cites the ids of the findings it is based
+  on. A validator then drops any risk that cites no id or an id not in the
+  input, logging only a count. Output that is truncated or fails the schema is
+  replaced by a deterministic template, never served as raw text. This limits,
+  but does not eliminate, prompt-injection risk: a model can still be steered
+  inside a schema-valid answer. The evaluation method is in
+  [docs/ai/eval-protocol.md](docs/ai/eval-protocol.md).
 - **Statistical anomaly detection** over IC3 trends and vendor KEV velocity
   ([`anomaly_detection.py`](backend/app/services/anomaly_detection.py)).
 
@@ -167,9 +173,10 @@ flowchart LR
   `FIREBASE_SERVICE_ACCOUNT_JSON` variable and is gitignored.
 - **Input boundaries.** Uploaded inventory files are size-limited and
   filename-sanitized; the agent payload is a versioned schema validated with
-  Pydantic; AI prompts receive findings as a JSON block, but organization
-  name, industry, size and state are still interpolated as prose without
-  delimiters (hardening and an injection corpus are roadmap milestone S5).
+  Pydantic; AI prompts receive organization and finding data only inside a
+  JSON data block (above), and a deterministic CI corpus of injection strings
+  checks that structure
+  ([`test_ai_summary_injection.py`](backend/tests/test_ai_summary_injection.py)).
 - **Privacy.** What is collected and logged is documented in
   [docs/security/pii_inventory.md](docs/security/pii_inventory.md) and the
   user-facing [privacy page](docs/security/privacy.md). The agent never reads
@@ -192,10 +199,11 @@ on `main` (395 of 560 commits are mine, across the identities listed in
   Postgres advisory-lock concurrency protection
 - EPSS ingestion and enrichment
 - Go host inventory agent (all of `agent/`), agent token issue / verify /
-  rotate / revoke, nonce-based replay protection, and the GPG-signed release
-  workflow
-- Gemini executive summaries with structured (JSON data block) prompting,
-  response schema and cache versioning
+  rotate / revoke, nonce-based replay protection, and the agent release
+  workflow (not yet exercised: no release has been published)
+- Gemini executive summaries: the JSON data block for organization and
+  finding data, the cited response schema and its grounding validator, the
+  template fallback, cache versioning, and the offline evaluation harness
 - Statistical anomaly detection; vendor-matched alerts and vendor
   prioritization
 - Authentication: the original JWT implementation, the migration to Firebase
@@ -206,7 +214,7 @@ on `main` (395 of 560 commits are mine, across the identities listed in
 - Most of the React dashboard: the analytics-tab rebuild, component
   reorganization, assets and findings views, executive report page, Firebase
   auth UI
-- All three CI workflows; 45 of the 50 Alembic migrations; the majority of the
+- All four CI workflows; 47 of the 49 Alembic migration files; the majority of the
   644 backend tests
 
 ### Major contributions by me (originally built by a teammate)

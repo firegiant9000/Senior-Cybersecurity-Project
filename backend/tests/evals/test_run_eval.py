@@ -346,6 +346,11 @@ def test_dry_run_is_offline_and_writes_every_field(env, monkeypatch, capsys):
     assert meta["sdk_name"] == "dry-run-fake"
     assert meta["dataset_version"] == "t1"
     assert len(meta["prompt_template_sha256"]) == 64
+    # Stage D: the response schema the run requested, so it is scored against it.
+    from app.schemas.ai_summary import StructuredSummary
+    from evals.ai_summary.schemas import schema_sha256
+
+    assert meta["response_schema_sha256"] == schema_sha256(StructuredSummary)
 
     index = _lines(env.runs / "_dry" / "index.jsonl")
     assert len(index) == 1

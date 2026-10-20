@@ -53,7 +53,7 @@ What leaves our infrastructure, where it goes, and why.
 | Sentry           | Scrubbed exceptions + `request_id` / `org_id` / `user_id` tags    | Error monitoring       |
 | Render           | All persisted data (managed PostgreSQL + backend host)            | Hosting + DB           |
 | Firebase Hosting | Static frontend assets only                                       | Frontend hosting       |
-| OpenAI (planned) | Aggregated org signals — never individual user identifiers        | AI summary generation  |
+| ~~OpenAI (planned)~~ Google Gemini API _(2026-10-20)_ | ~~Aggregated org signals — never individual user identifiers~~ The organization's name, industry, employee range and state, plus up to 20 findings (id, type, severity, score, source, title, description; titles can name the org's vendors), the risk score and finding counts. No individual user identifiers. Each prompt and the response are also stored in `ai_summary_generations` (`prompt_inputs`, `rendered_prompt`, `output_text`), readable by the org's admins | AI summary generation (only when `GEMINI_API_KEY` is set; otherwise a local template) |
 | NVD / KEV / BEA  | Outbound only — public APIs, no PII transmitted                   | Threat-intel ingest    |
 
 ## Data lifecycle paths (Phase C / #108)

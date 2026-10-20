@@ -47,6 +47,7 @@ from evals.ai_summary.dataset import (
     resolve_dataset,
 )
 from evals.ai_summary.pricing import Pricing, call_cost_usd, load_pricing
+from evals.ai_summary.schemas import schema_sha256
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_RUNS_DIR = Path(__file__).resolve().parent / "runs"
@@ -119,6 +120,7 @@ RUN_META_FIELDS = (
     "dataset_path",
     "manifest_hash",
     "prompt_template_sha256",
+    "response_schema_sha256",
     "pricing_file",
     "pricing_hash",
     "pricing_verified",
@@ -499,6 +501,8 @@ def main(argv: list[str] | None = None) -> int:
         else str(dataset.path.resolve()),
         "manifest_hash": dataset.manifest_hash,
         "prompt_template_sha256": prompt_template_sha256(),
+        # The scorer checks schema-valid against the schema the run requested.
+        "response_schema_sha256": schema_sha256(StructuredSummary),
         "pricing_file": args.pricing.name,
         "pricing_hash": file_sha256(args.pricing),
         "pricing_verified": pricing.verified,

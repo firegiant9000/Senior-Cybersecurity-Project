@@ -360,6 +360,58 @@ def test_scoring_is_deterministic(tmp_path):
     assert (run_dir / "scores.json").read_bytes() == first
 
 
+# ── the response schema each run requested (stage D) ───────────────────────
+
+# B0 and B1 recorded this hash in their provisional scores.json (stage C).
+B1_SCHEMA_SHA256 = "2f673fa76f875a89362b91c60b201ff072b64a4f043d3b6914f1b00083000aea"
+UNCITED = _summary({"title": "t", "severity": "high", "context": "c"})
+
+
+def _set_meta(run_dir: Path, **fields) -> None:
+    meta = json.loads((run_dir / "run_meta.json").read_text(encoding="utf-8"))
+    meta.update(fields)
+    (run_dir / "run_meta.json").write_text(json.dumps(meta), encoding="utf-8")
+
+
+def test_frozen_v1_schema_is_the_one_b0_and_b1_requested():
+    from evals.ai_summary.schemas import StructuredSummaryV1, schema_sha256
+
+    assert schema_sha256(StructuredSummaryV1) == B1_SCHEMA_SHA256
+
+
+def test_run_without_a_recorded_schema_is_scored_against_v1(tmp_path):
+    runs, _, _ = _run(tmp_path, [case("a")], _all_repeats("a", UNCITED))
+    scores = _score(runs)
+    assert scores["splits"]["dev"]["schema_valid"]["k"] == 1
+    assert scores["schema_sha256"] == B1_SCHEMA_SHA256
+    assert scores["schema_name"] == "StructuredSummaryV1"
+
+
+def test_run_recording_the_current_schema_requires_finding_ids(tmp_path):
+    from app.schemas.ai_summary import StructuredSummary
+    from evals.ai_summary.schemas import schema_sha256
+
+    current = schema_sha256(StructuredSummary)
+    runs, run_dir, _ = _run(tmp_path, [case("a")], _all_repeats("a", UNCITED))
+    _set_meta(run_dir, response_schema_sha256=current)
+    scores = _score(runs)
+    assert scores["splits"]["dev"]["schema_valid"]["k"] == 0
+    assert scores["schema_sha256"] == current
+    assert scores["schema_name"] == "StructuredSummary"
+    # The same output with citations is valid.
+    runs2, run_dir2, _ = _run(tmp_path / "b", [case("a")], _all_repeats("a", VALID))
+    _set_meta(run_dir2, response_schema_sha256=current)
+    assert _score(runs2)["splits"]["dev"]["schema_valid"]["k"] == 1
+
+
+def test_refuses_a_run_whose_schema_the_scorer_does_not_know(tmp_path, capsys):
+    runs, run_dir, _ = _run(tmp_path, [case("a")], _all_repeats("a"))
+    _set_meta(run_dir, response_schema_sha256="e" * 64)
+    assert main(["--run-id", "D1-x", "--runs-dir", str(runs)]) == 2
+    assert "schema" in capsys.readouterr().err.lower()
+    assert not (run_dir / "scores.json").exists()
+
+
 def test_finds_dry_runs(tmp_path):
     runs, run_dir, _ = _run(tmp_path, [case("a")], _all_repeats("a"))
     dry = runs / "_dry"
