@@ -111,7 +111,9 @@ def _build_prompt(
         "(example: 'SPF record — an email setting that blocks attackers from spoofing your domain').\n"
         "Never use these words: leverage, robust, posture, ensure, comprehensive.\n"
         "Cite only finding ids present in the input: each notable risk lists, in finding_ids, "
-        'the "id" of every finding it is based on. Never invent an id.'
+        'the "id" of every finding it is based on. Never invent an id.\n'
+        "Never write a CVE number or any other identifier that does not appear in the DATA "
+        "block. Refer to vulnerabilities by vendor, product, and severity."
     )
 
     # Every org field and every finding (titles and descriptions can carry

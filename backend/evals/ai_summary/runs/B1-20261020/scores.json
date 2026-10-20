@@ -293,6 +293,11 @@
             0.0,
             0.045278085432415204
           ]
+        },
+        "uncited_risks": {
+          "calls_with_uncited": 77,
+          "risks": 230,
+          "uncited": 230
         }
       },
       "schema_valid": {
@@ -596,6 +601,11 @@
             0.0,
             0.05500255701354129
           ]
+        },
+        "uncited_risks": {
+          "calls_with_uncited": 66,
+          "risks": 204,
+          "uncited": 204
         }
       },
       "schema_valid": {

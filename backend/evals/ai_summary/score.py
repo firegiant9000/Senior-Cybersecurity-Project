@@ -80,6 +80,17 @@ def cited_ids(raw: str | None) -> set[str] | None:
     return ids
 
 
+def _risk_counts(raw: str | None) -> tuple[int, int]:
+    """(notable risks, risks citing no id) in a JSON output; (0, 0) otherwise."""
+    try:
+        data = json.loads(raw) if raw is not None else None
+    except ValueError:
+        return 0, 0
+    risks = data.get("notable_risks") if isinstance(data, dict) else None
+    items = [r for r in risks if isinstance(r, dict)] if isinstance(risks, list) else []
+    return len(items), sum(1 for r in items if not r.get("finding_ids"))
+
+
 def _citation_valid(raw: str | None, case: Case) -> bool:
     ids = cited_ids(raw)
     return ids is not None and ids <= set(case.expect.allowed_citation_ids)
@@ -163,6 +174,7 @@ def _operational(rows: list[dict], valid) -> dict[str, Any]:
     fallbacks = [r for r in rows if not _determinate(r) or not valid(r["raw_text"])]
     costs = [r["cost_usd"] for r in rows if r.get("cost_usd") is not None]
     latencies = [r["latency_ms"] for r in rows if r.get("latency_ms") is not None]
+    counts = [_risk_counts(r.get("raw_text")) for r in rows]
     finish: dict[str, int] = {}
     for r in rows:
         key = str(r.get("finish_reason"))
@@ -180,6 +192,13 @@ def _operational(rows: list[dict], valid) -> dict[str, Any]:
         "fallback_stage_d_policy": _rate(len(fallbacks), n)
         | {"definition": "an API error, blocked response or schema-invalid output"},
         "finish_reasons": dict(sorted(finish.items())),
+        # Citation-valid accepts a risk with no finding_ids; production's
+        # grounding validator drops it. Pre-validator diagnostic, not a metric.
+        "uncited_risks": {
+            "risks": sum(n for n, _ in counts),
+            "uncited": sum(u for _, u in counts),
+            "calls_with_uncited": sum(1 for _, u in counts if u),
+        },
         "latency_ms": {"p50": _percentile(latencies, 50), "p95": _percentile(latencies, 95)},
         "cost_usd": {
             "n": len(costs),

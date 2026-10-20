@@ -145,6 +145,16 @@ def test_citation_valid_rules(tmp_path):
     }
 
 
+def test_uncited_risks_are_counted_for_the_production_validator(tmp_path):
+    # Citation-valid accepts an empty finding_ids list; production drops such
+    # a risk, so the scorer reports how many the model sent.
+    cases = [case("a", findings=[finding("f1")])]
+    rows = _all_repeats("a", _summary(_risk(), _risk("f1")))
+    runs, _, _ = _run(tmp_path, cases, rows)
+    ops = _score(runs)["splits"]["dev"]["operational"]
+    assert ops["uncited_risks"] == {"risks": 6, "uncited": 3, "calls_with_uncited": 3}
+
+
 # ── KEV coverage ───────────────────────────────────────────────────────────
 
 

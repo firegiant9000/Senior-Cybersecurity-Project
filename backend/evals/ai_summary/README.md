@@ -73,7 +73,9 @@ cost when the API reports it.
   ignores `finish_reason`; a `MAX_TOKENS` response is nearly always
   schema-invalid anyway.
 - Citation-valid and KEV coverage are measured on the raw output, before
-  the grounding validator that production applies.
+  the grounding validator that production applies. A risk with no
+  `finding_ids` passes citation-valid but production drops it;
+  `operational.uncited_risks` counts them.
 - KEV ground truth ranks only the 20 findings the prompt shows, in the
   engine's order.
 

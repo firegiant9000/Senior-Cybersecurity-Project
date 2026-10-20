@@ -4,7 +4,7 @@
 
 ~~**These scores are provisional.** Both runs are re-scored, with no new calls, once stage D changes the response schema (`schema_sha256`). Citation-valid and KEV coverage can't be measured until then (see "N/M" below).~~
 
-**Re-scored 2026-10-20 (S5a stage D), with no new calls.** Stage D made `finding_ids` required, and the protocol now scores schema-valid against the schema each run requested (protocol, stage-D amendment). B0 and B1 requested v1, which `backend/evals/ai_summary/schemas.py` keeps as a frozen copy; its hash equals the `schema_sha256` these runs were first scored with. The re-score changed no metric: each `scores.json` only gained `"schema_name": "StructuredSummaryV1"`. The former N/M rows now show their values, which are fixed **by construction**: neither run was asked to cite findings, so nothing is cited.
+**Re-scored 2026-10-20 (S5a stage D), with no new calls.** Stage D made `finding_ids` required, and the protocol now scores schema-valid against the schema each run requested (protocol, stage-D amendment). B0 and B1 requested v1, which `backend/evals/ai_summary/schemas.py` keeps as a frozen copy; its hash equals the `schema_sha256` these runs were first scored with. The re-score changed no metric: each `scores.json` only gained `"schema_name": "StructuredSummaryV1"` and the new `operational.uncited_risks` diagnostic (every B0/B1 risk is uncited). The former N/M rows now show their values, which are fixed **by construction**: neither run was asked to cite findings, so nothing is cited.
 
 ## 1. What ran
 
