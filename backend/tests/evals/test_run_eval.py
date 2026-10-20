@@ -184,9 +184,21 @@ def test_heldout_guard_refuses_dev_run_ids(env, fake_gemini, capsys, split):
 
 
 def test_heldout_allowed_for_b0(env, fake_gemini):
-    assert main(_args(env, "B0-20261020", split="heldout")) == 0
+    assert main(_args(env, "B0-20261020", split="heldout", repeats=3)) == 0
     rows = _lines(env.runs / "B0-20261020" / "responses.jsonl")
-    assert [r["case_id"] for r in rows] == ["ho-1"]
+    assert [r["case_id"] for r in rows] == ["ho-1"] * 3
+
+
+@pytest.mark.parametrize(("repeats", "max_calls"), [(1, 50), (3, 11)])
+def test_reported_runs_need_three_repeats_and_room_for_every_call(
+    env, fake_gemini, capsys, repeats, max_calls
+):
+    # 4 cases x 3 repeats = 12 planned calls for --split all.
+    code = main(_args(env, "F-20261101", split="all", repeats=repeats, max_calls=max_calls))
+    assert code == 2
+    assert "B0, B1 and F" in capsys.readouterr().err
+    assert not env.runs.exists()
+    assert fake_gemini == []
 
 
 # ── spend guard ────────────────────────────────────────────────────────────
@@ -229,6 +241,59 @@ def test_spend_tally_uses_actual_cost_when_it_exceeds_the_estimate(env, monkeypa
     monkeypatch.setattr(ai_summary, "_call_gemini_raw", _raw)
     assert main(_args(env, spend="0.0025")) == 3
     assert len(calls) == 1
+
+
+def test_thinking_tokens_derived_when_the_sdk_does_not_report_them(env, monkeypatch):
+    # google-generativeai 0.8.3's UsageMetadata has no thoughts_token_count,
+    # but gemini-2.5-flash thinks by default and bills it as output.
+    def _raw(_prompt):
+        response = _fake_response()
+        response.usage_metadata = SimpleNamespace(
+            prompt_token_count=1500, candidates_token_count=1000, total_token_count=3000
+        )
+        return response
+
+    monkeypatch.setattr(ai_summary, "_call_gemini_raw", _raw)
+    main(_args(env, max_calls=1))
+    row = _lines(env.runs / "D1-test" / "responses.jsonl")[0]
+    assert row["usage_metadata"]["thoughts_token_count"] is None  # as reported
+    assert row["thoughts_tokens_derived"] == 500
+    assert row["cost_usd"] == pytest.approx(1500 / 1e6)  # 1000 + 500 output tokens
+
+
+def test_interrupted_run_is_marked_and_tallies_the_inflight_call(env, monkeypatch):
+    calls: list[str] = []
+
+    def _raw(prompt):
+        calls.append(prompt)
+        if len(calls) == 2:
+            raise KeyboardInterrupt
+        return _fake_response()
+
+    monkeypatch.setattr(ai_summary, "_call_gemini_raw", _raw)
+    with pytest.raises(KeyboardInterrupt):
+        main(_args(env))
+    run_dir = env.runs / "D1-test"
+    meta = json.loads((run_dir / "run_meta.json").read_text(encoding="utf-8"))
+    assert meta["status"] == "interrupted"
+    rows = _lines(run_dir / "responses.jsonl")
+    assert len(rows) == 2
+    assert rows[1]["error_class"] == "KeyboardInterrupt"
+    assert rows[1]["cost_usd"] is None
+    # The in-flight call may have been billed: count its estimate.
+    assert meta["calls_made"] == 2
+    assert meta["spend_usd"] == pytest.approx(0.002)
+
+
+def test_sdk_name_detects_either_import_style():
+    def new_style(prompt):
+        from google.genai import types  # noqa: F401
+
+    def old_style(prompt):
+        import google.generativeai as genai  # noqa: F401
+
+    assert run_eval._sdk_name_of(new_style) == "google-genai"
+    assert run_eval._sdk_name_of(old_style) == "google-generativeai"
 
 
 def test_each_response_line_is_on_disk_with_its_cost(env, fake_gemini):

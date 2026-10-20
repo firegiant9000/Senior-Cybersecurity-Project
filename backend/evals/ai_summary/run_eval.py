@@ -59,6 +59,8 @@ FIXTURE_VERSION = "fixture"
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 # Protocol §3: the held-out split runs only in B0, B1 and F.
 HELDOUT_RUN_RE = re.compile(r"^(B0|B1|F)(-|$)")
+# Protocol §3: every case runs 3 times in a reported run.
+REPORTED_REPEATS = 3
 # Conservative prompt-token estimate: ~4 chars/token for English, 3 leaves
 # headroom for injected Unicode, which tokenises worse.
 CHARS_PER_TOKEN_ESTIMATE = 3
@@ -78,6 +80,7 @@ RESPONSE_FIELDS = (
     "parse_error_class",
     "finish_reason",
     "usage_metadata",
+    "thoughts_tokens_derived",
     "latency_ms",
     "model_version",
     "error_class",
@@ -190,9 +193,14 @@ def _installed(dist: str) -> str | None:
         return None
 
 
-def _production_sdk_name() -> str:
-    source = inspect.getsource(ai_summary._call_gemini_raw)
-    return "google-genai" if "from google import genai" in source else "google-generativeai"
+def _sdk_name_of(obj: Any) -> str:
+    """Which SDK the production code imports (lazily, so read the source)."""
+    source = inspect.getsource(obj)
+    if "generativeai" in source:
+        return "google-generativeai"
+    if "genai" in source:
+        return "google-genai"
+    return "unknown"
 
 
 def prompt_template_sha256() -> str:
@@ -311,14 +319,37 @@ def _estimate_cost(prompt: str, config: EvalConfig, pricing: Pricing) -> float:
     )
 
 
+def _derived_thoughts(usage: dict[str, int | None]) -> int | None:
+    """Thinking tokens implied by the total when the SDK doesn't report them.
+
+    google-generativeai 0.8.3's UsageMetadata has no thoughts_token_count, but
+    gemini-2.5-flash thinks by default and bills it as output. The total is
+    prompt + candidates + thoughts (prompt already includes cached tokens).
+    """
+    if usage["thoughts_token_count"] is not None:
+        return None
+    parts = (
+        usage["total_token_count"],
+        usage["prompt_token_count"],
+        usage["candidates_token_count"],
+    )
+    if None in parts:
+        return None
+    total, prompt, candidates = parts
+    return max(0, total - prompt - candidates)
+
+
 def _actual_cost(usage: dict[str, int | None], pricing: Pricing) -> float | None:
     if usage["prompt_token_count"] is None or usage["candidates_token_count"] is None:
         return None
+    thoughts = usage["thoughts_token_count"]
+    if thoughts is None:
+        thoughts = _derived_thoughts(usage) or 0
     return call_cost_usd(
         pricing,
         prompt_tokens=usage["prompt_token_count"],
         candidates_tokens=usage["candidates_token_count"],
-        thoughts_tokens=usage["thoughts_token_count"] or 0,
+        thoughts_tokens=thoughts,
     )
 
 
@@ -377,18 +408,33 @@ def _check(args: argparse.Namespace) -> tuple[EvalConfig, Pricing, Dataset, str 
     if not dataset.select(args.split):
         raise RefusedError(f"no {args.split} cases in dataset {dataset.version}")
 
-    key = None
-    if not args.dry_run:
-        if dataset.version == FIXTURE_VERSION and heldout_allowed(args.run_id):
-            raise RefusedError("B0, B1 and F runs cannot use the fixture dataset")
-        if not pricing.verified:
-            raise RefusedError("pricing file is unverified; real runs need a dated, checked file")
-        if pricing.model != config.model or ai_summary.settings.GEMINI_MODEL != config.model:
-            raise RefusedError("production model, pricing model and eval_config model differ")
-        key = _load_key(args.env_file)
-        if key is None:
-            raise RefusedError("key not set")
+    key = None if args.dry_run else _check_real_run(args, config, pricing, dataset)
     return config, pricing, dataset, key
+
+
+def _check_real_run(
+    args: argparse.Namespace, config: EvalConfig, pricing: Pricing, dataset: Dataset
+) -> str:
+    """Guards for a run that calls the model; returns the key."""
+    if dataset.version == FIXTURE_VERSION and heldout_allowed(args.run_id):
+        raise RefusedError("B0, B1 and F runs cannot use the fixture dataset")
+    planned = len(dataset.select(args.split)) * args.repeats
+    if heldout_allowed(args.run_id) and (
+        args.repeats != REPORTED_REPEATS or args.max_calls < planned
+    ):
+        # A reported run consumes the held-out split once; it must not stop short.
+        raise RefusedError(
+            f"B0, B1 and F runs need --repeats {REPORTED_REPEATS} and "
+            f"--max-calls >= the {planned} planned calls"
+        )
+    if not pricing.verified:
+        raise RefusedError("pricing file is unverified; real runs need a dated, checked file")
+    if pricing.model != config.model or ai_summary.settings.GEMINI_MODEL != config.model:
+        raise RefusedError("production model, pricing model and eval_config model differ")
+    key = _load_key(args.env_file)
+    if key is None:
+        raise RefusedError("key not set")
+    return key
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -418,7 +464,7 @@ def main(argv: list[str] | None = None) -> int:
         "git_dirty": bool(_git("status", "--porcelain")),
         "harness_patch_sha": _harness_patch_sha(),
         "ai_summary_py_sha256": file_sha256(Path(_ai_summary_path())),
-        "sdk_name": "dry-run-fake" if args.dry_run else _production_sdk_name(),
+        "sdk_name": "dry-run-fake" if args.dry_run else _sdk_name_of(ai_summary),
         "sdk_version": None,
         "sdk_versions_installed": {
             "google-generativeai": _installed("google-generativeai"),
@@ -455,17 +501,15 @@ def main(argv: list[str] | None = None) -> int:
 
     call = _dry_run_call if args.dry_run else ai_summary._call_gemini_raw
     saved_key = ai_summary.settings.GEMINI_API_KEY
-    status = "completed"
+    status = "running"
     try:
         if key is not None:
             ai_summary.settings.GEMINI_API_KEY = key
-        for repeat in range(1, args.repeats + 1):
-            for case in cases:
-                status = _one_call(args, config, pricing, case, repeat, meta, call, responses)
-                if status != "completed":
-                    break
-            if status != "completed":
-                break
+        status = _run_calls(args, config, pricing, cases, meta, call, responses)
+    except BaseException:
+        # Ctrl-C or a harness crash: never let the run read as completed.
+        status = "interrupted"
+        raise
     finally:
         ai_summary.settings.GEMINI_API_KEY = saved_key
         meta["status"] = status
@@ -478,7 +522,18 @@ def main(argv: list[str] | None = None) -> int:
     return EXIT_OK if status == "completed" else EXIT_ABORTED
 
 
-def _one_call(args, config, pricing, case, repeat, meta, call, responses) -> str:
+def _run_calls(args, config, pricing, cases, meta, call, responses) -> str:
+    """Repeat-major loop, so an abort leaves whole repeats behind it."""
+    for repeat in range(1, args.repeats + 1):
+        for case in cases:
+            aborted = _one_call(args, config, pricing, case, repeat, meta, call, responses)
+            if aborted:
+                return aborted
+    return "completed"
+
+
+def _one_call(args, config, pricing, case, repeat, meta, call, responses) -> str | None:
+    """Make one call and log it. Returns an abort status, or None to continue."""
     if meta["calls_made"] >= args.max_calls:
         print(f"abort: --max-calls {args.max_calls} reached", file=sys.stderr)
         return "aborted_max_calls"
@@ -497,10 +552,15 @@ def _one_call(args, config, pricing, case, repeat, meta, call, responses) -> str
     started = time.perf_counter()
     error_class = None
     response = None
+    interrupted: BaseException | None = None
     try:
         response = call(prompt)
     except Exception as exc:  # noqa: BLE001 - class only; messages can carry the key
         error_class = type(exc).__name__
+    except BaseException as exc:  # noqa: BLE001 - logged, then re-raised below
+        # Ctrl-C mid-call: the request may already be billed, so log and tally it.
+        error_class = type(exc).__name__
+        interrupted = exc
     latency_ms = int((time.perf_counter() - started) * 1000)
 
     raw_text, text_error = (None, None) if response is None else _text(response)
@@ -518,6 +578,7 @@ def _one_call(args, config, pricing, case, repeat, meta, call, responses) -> str
         "parse_error_class": parse_error,
         "finish_reason": _finish_reason(response),
         "usage_metadata": usage,
+        "thoughts_tokens_derived": _derived_thoughts(usage),
         "latency_ms": latency_ms,
         "model_version": None
         if response is None
@@ -532,7 +593,9 @@ def _one_call(args, config, pricing, case, repeat, meta, call, responses) -> str
     meta["spend_usd"] += cost if cost is not None else estimate
     outcome = "ok" if parse_ok else (record["error_class"] or "unparsed")
     print(f"[{meta['calls_made']}/{meta['planned_calls']}] {case.id} r{repeat} {outcome}")
-    return "completed"
+    if interrupted is not None:
+        raise interrupted
+    return None
 
 
 if __name__ == "__main__":

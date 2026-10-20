@@ -97,6 +97,25 @@ def test_kev_ids_follow_r1_definition():
     assert kev_finding_ids(findings) == ["crit", "high1", "high2"]
 
 
+def test_kev_ids_only_from_findings_the_prompt_shows():
+    # _build_prompt shows report.findings[:20]; a KEV finding ranked 21st is
+    # never seen by the model, so it can't be required.
+    filler = [
+        finding(f"filler-{i}", severity="critical", score=99, source="ic3_sector_weights")
+        for i in range(20)
+    ]
+    hidden = finding("hidden-kev", severity="critical", score=85)
+    assert kev_finding_ids([Finding.model_validate(f) for f in [hidden, *filler]]) == []
+
+
+def test_kev_ids_rank_missing_scores_like_the_engine():
+    # The engine sorts a missing severity_score as _severity_score(severity, 0.5).
+    unscored = finding("unscored-crit", severity="critical", score=None)
+    scored = finding("scored-high", severity="high", score=75)
+    ids = kev_finding_ids([Finding.model_validate(f) for f in [scored, unscored]])
+    assert ids == ["unscored-crit", "scored-high"]
+
+
 def test_build_inputs_matches_production_shapes(tmp_path):
     findings = [
         finding("low", severity="low", score=25, source="assessment_readiness"),
