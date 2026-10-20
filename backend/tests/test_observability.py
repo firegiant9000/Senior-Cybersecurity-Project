@@ -16,6 +16,8 @@ def test_init_sentry_succeeds(monkeypatch):
     monkeypatch.setattr(settings, "SENTRY_DSN", "https://public@o0.ingest.sentry.io/0")
     try:
         assert init_sentry() is True
-        assert sentry_sdk.get_client().is_active()
+        assert "starlette" in sentry_sdk.get_client().integrations
     finally:
-        sentry_sdk.init()  # no DSN: disables the client for other tests
+        # An explicit empty DSN ignores SENTRY_DSN in the environment, so no
+        # later test can report to a real project.
+        sentry_sdk.init(dsn="")
