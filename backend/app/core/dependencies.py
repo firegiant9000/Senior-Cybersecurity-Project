@@ -29,8 +29,9 @@ _ROLE_LEVELS: dict[str, int] = {
 # and an agent token fed to a human route fails Firebase verification (401), so
 # the two credential types can never satisfy each other's routes.
 #
-# ``auto_error=False`` so a *missing* Authorization header returns 401 (the same
-# code as a bad token) instead of HTTPBearer's default 403 — the scanner client
+# ``auto_error=False`` so a *missing* Authorization header is handled here and
+# returns 401 with the same body as a bad token, rather than HTTPBearer's own
+# auto_error response (403 in FastAPI 0.104, 401 in 0.133). The scanner client
 # only treats 401 as "auth problem", and a missing vs. malformed header is the
 # same failure from its perspective.
 _agent_bearer_scheme = HTTPBearer(auto_error=False)

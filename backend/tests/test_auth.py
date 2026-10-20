@@ -20,9 +20,9 @@ from app.main import app
 
 @pytest.mark.asyncio
 async def test_me_unauthenticated(anon_client: AsyncClient):
-    """GET /api/v1/auth/me without token returns 401/403."""
+    """GET /api/v1/auth/me without token returns 401 (HTTPBearer returned 403 on FastAPI 0.104)."""
     resp = await anon_client.get("/api/v1/auth/me")
-    assert resp.status_code in (401, 403)
+    assert resp.status_code == 401
 
 
 @pytest.mark.asyncio
