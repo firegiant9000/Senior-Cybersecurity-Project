@@ -196,7 +196,8 @@ def test_reported_runs_need_three_repeats_and_room_for_every_call(
     # 4 cases x 3 repeats = 12 planned calls for --split all.
     code = main(_args(env, "F-20261101", split="all", repeats=repeats, max_calls=max_calls))
     assert code == 2
-    assert "B0, B1 and F" in capsys.readouterr().err
+    # Not "B0, B1 and F": the fixture refusal says that too.
+    assert "planned calls" in capsys.readouterr().err
     assert not env.runs.exists()
     assert fake_gemini == []
 
@@ -292,8 +293,17 @@ def test_sdk_name_detects_either_import_style():
     def old_style(prompt):
         import google.generativeai as genai  # noqa: F401
 
+    def migrated_with_stale_comment(prompt):
+        # migrated from google-generativeai to google-genai
+        from google import genai  # noqa: F401
+
+    def no_sdk(prompt):
+        return "mentions generativeai and genai only in a string"
+
     assert run_eval._sdk_name_of(new_style) == "google-genai"
     assert run_eval._sdk_name_of(old_style) == "google-generativeai"
+    assert run_eval._sdk_name_of(migrated_with_stale_comment) == "google-genai"
+    assert run_eval._sdk_name_of(no_sdk) == "unknown"
 
 
 def test_each_response_line_is_on_disk_with_its_cost(env, fake_gemini):

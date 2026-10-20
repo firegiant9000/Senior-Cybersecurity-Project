@@ -59,6 +59,16 @@ FIXTURE_VERSION = "fixture"
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 # Protocol §3: the held-out split runs only in B0, B1 and F.
 HELDOUT_RUN_RE = re.compile(r"^(B0|B1|F)(-|$)")
+# Import statements only, so comments and strings can't mislabel the SDK.
+_OLD_SDK_IMPORT = re.compile(
+    r"^\s*(import google\.generativeai\b|from google\.generativeai\b|"
+    r"from google import generativeai\b)",
+    re.MULTILINE,
+)
+_NEW_SDK_IMPORT = re.compile(
+    r"^\s*(import google\.genai\b|from google\.genai\b|from google import genai\b)",
+    re.MULTILINE,
+)
 # Protocol §3: every case runs 3 times in a reported run.
 REPORTED_REPEATS = 3
 # Conservative prompt-token estimate: ~4 chars/token for English, 3 leaves
@@ -196,11 +206,11 @@ def _installed(dist: str) -> str | None:
 def _sdk_name_of(obj: Any) -> str:
     """Which SDK the production code imports (lazily, so read the source)."""
     source = inspect.getsource(obj)
-    if "generativeai" in source:
-        return "google-generativeai"
-    if "genai" in source:
-        return "google-genai"
-    return "unknown"
+    old = _OLD_SDK_IMPORT.search(source) is not None
+    new = _NEW_SDK_IMPORT.search(source) is not None
+    if old == new:  # neither, or both: don't guess
+        return "unknown"
+    return "google-generativeai" if old else "google-genai"
 
 
 def prompt_template_sha256() -> str:
