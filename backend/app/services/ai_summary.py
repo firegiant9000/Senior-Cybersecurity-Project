@@ -312,9 +312,28 @@ def _call_gemini_raw(prompt: str) -> Any:
         )
 
 
+class GeminiEmptyResponseError(RuntimeError):
+    """Gemini answered without text (blocked or empty); the caller falls back."""
+
+
 def _call_gemini_sync(prompt: str) -> str:
     """Call Gemini (sync SDK) and return the text."""
-    return _call_gemini_raw(prompt).text
+    response = _call_gemini_raw(prompt)
+    text = response.text
+    if not text:
+        # google-genai returns None, not an exception, for a blocked or empty
+        # response. Name the reason so the persisted error_message says why.
+        feedback = getattr(response, "prompt_feedback", None)
+        block = getattr(feedback, "block_reason", None)
+        try:
+            finish = response.candidates[0].finish_reason
+        except (AttributeError, IndexError, TypeError):
+            finish = None
+        reason = block or finish
+        raise GeminiEmptyResponseError(
+            f"Gemini returned no text (reason: {getattr(reason, 'name', reason)})"
+        )
+    return text
 
 
 def _parse_structured_response(raw: str) -> StructuredSummary | None:

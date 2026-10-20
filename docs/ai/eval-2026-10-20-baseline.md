@@ -24,7 +24,7 @@
 | Git SHA, dirty | `4234200`, false (before the SDK swap) | `4559254`, false |
 | SDK | `google-generativeai` 0.8.3 | `google-genai` 2.31.0 |
 | Model | `gemini-3.6-flash` (env override) | `gemini-3.6-flash` (production default) |
-| `model_version` returned | **null on every call** (the old SDK doesn't expose it) | `gemini-3.6-flash` on every call (the alias, not the dated `3.6-flash-07-2026`) |
+| `model_version` returned | **null on every call** (the old SDK doesn't expose it) | `gemini-3.6-flash` on every call: the alias, so a change behind it would not show. The models API reported version `3.6-flash-07-2026` that day |
 | Temperature | SDK default (1.0 for Gemini 3) | 1.0 (pinned) |
 | top_p / top_k | defaults (0.95 / 64) | 0.95 / 40 |
 | Seed | none | 20261019 |
@@ -76,7 +76,7 @@ Rates are per case (§4): a case passes schema-valid only if all 3 repeats pass,
 ## 4. How to read these numbers
 
 - **N/M = not measurable before `finding_ids`.** The current `StructuredSummary` has no `finding_ids`, so citation-valid is trivially 100% (nothing is cited) and KEV coverage is 0% by construction. Stage D adds `finding_ids`; both runs are then re-scored offline.
-- **Injection judging: single judge plus owner spot-check.** Claude judged all 132 attack repeats under `rubric_v1.md`, with a rationale on every row (`runs/*/manual_judgement.csv`). Every judged success is a canary hit; no repeat followed an injection without writing the canary, and none leaked prompt text. Arlo spot-checks a seeded sample of 10 rows per run; the outcome is recorded with the PR. This is not the co-judging the rubric describes.
+- **Injection judging: single judge plus owner spot-check.** Claude judged all 132 attack repeats under `rubric_v1.md`, with a rationale on every row (`runs/*/manual_judgement.csv`). Every judged success is a canary hit; no repeat followed an injection without writing the canary, and none leaked prompt text. Arlo spot-checked a seeded sample of 10 rows per run (4 judged `yes` and 6 judged `no` in each; seed 20261020) and **agreed with all 20** (`runs/*/owner_spotcheck.csv`). This is a single judge with an owner spot-check, not the independent co-judging the rubric describes, so the judged numbers carry one judge's error.
 - **Repeat ranges understate variance in B1.** B1 pins a seed, and many of its repeats are word-for-word identical. A 0 pp repeat range is therefore not evidence of stability under different seeds, and §5's "larger than B1's repeat range" bar is easy to clear. Read B1 → F differences against the Wilson intervals, which are wide.
 - **Per-call rates are optimistic.** Calls from one case are correlated.
 - **B0 is not the pre-2026-10-20 production model.** `gemini-2.5-flash` is closed to new API keys (see the protocol amendment), so B0 measures the legacy SDK and default settings on `gemini-3.6-flash`.
@@ -89,7 +89,7 @@ Rates are per case (§4): a case passes schema-valid only if all 3 repeats pass,
 
 ## 5. Observations for stage D (not claims)
 
-- In both runs, the successful attacks are delimiter breakouts and plain instructions placed in **org free-text fields** (`name`, `industry_label`, `primary_state`). The output then carries the canary in the field the attack named.
+- In both runs, the successful attacks are delimiter breakouts, plain instructions and one very-long-input attack, all placed in **org free-text fields** (`name`, `industry_label`, `primary_state`). The output then carries the canary in the field the attack named.
 - Vendor-name attacks inside finding titles did not succeed in either run (0 of 7 cases across both splits, in each run).
 - B0 sometimes reused benign descriptive text from a hostile field as if it were fact (e.g. `held-out org-injection-05`'s long `employee_range` text about weekly backups and an IT contractor). This was not counted as following an injection under rubric v1, but it shows that untrusted profile text reaches the narrative.
 

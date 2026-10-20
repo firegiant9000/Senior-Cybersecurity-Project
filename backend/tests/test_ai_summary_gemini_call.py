@@ -28,6 +28,7 @@ class _RecordingClient:
 
     instances: list["_RecordingClient"] = []
     raises: BaseException | None = None
+    response: object | None = None
 
     def __init__(self, **kwargs):
         self.kwargs = kwargs
@@ -45,16 +46,32 @@ class _RecordingClient:
         self.calls.append(kwargs)
         if _RecordingClient.raises is not None:
             raise _RecordingClient.raises
-        return SimpleNamespace(text="{}")
+        return _RecordingClient.response or SimpleNamespace(text="{}")
 
 
 @pytest.fixture
 def recording_client(monkeypatch):
     _RecordingClient.instances = []
     _RecordingClient.raises = None
+    _RecordingClient.response = None
     monkeypatch.setattr("google.genai.Client", _RecordingClient)
     yield _RecordingClient
     _RecordingClient.raises = None
+    _RecordingClient.response = None
+
+
+def test_empty_response_raises_a_named_error(recording_client):
+    """google-genai returns text=None for a blocked or empty response; say why."""
+    recording_client.response = SimpleNamespace(
+        text=None,
+        candidates=[SimpleNamespace(finish_reason=SimpleNamespace(name="SAFETY"))],
+        prompt_feedback=None,
+    )
+    with patch("app.services.ai_summary.settings") as mock_settings:
+        mock_settings.GEMINI_API_KEY = "test-key"
+        mock_settings.GEMINI_MODEL = CFG.model
+        with pytest.raises(ai_summary.GeminiEmptyResponseError, match="SAFETY"):
+            ai_summary._call_gemini_sync("the prompt")
 
 
 def test_production_imports_the_eval_sdk():

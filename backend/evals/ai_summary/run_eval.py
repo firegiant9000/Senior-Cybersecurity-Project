@@ -305,7 +305,9 @@ def _text(response: Any) -> tuple[str | None, str | None]:
     """The response text, or the class of the error raised reading it."""
     try:
         return response.text, None
-    except Exception as exc:  # noqa: BLE001 - blocked/empty responses raise here
+    # google-generativeai raised here on a blocked/empty response; google-genai
+    # returns None instead, which _strict_parse then records as NoText.
+    except Exception as exc:  # noqa: BLE001
         return None, type(exc).__name__
 
 
