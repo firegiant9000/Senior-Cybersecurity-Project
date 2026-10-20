@@ -36,17 +36,20 @@ python -m evals.ai_summary.score --run-id DRY1 --dry-run
 - a dataset that no longer matches its manifest is refused by both scripts.
 
 **Spend** (exit code 3 on abort): before each call the runner estimates its
-cost (prompt characters / 3 as input tokens, plus `max_output_tokens` and
-`thinking_budget` as output) and stops if the running total plus that estimate
-would pass `--max-spend-usd`. It also stops after `--max-calls`. The total uses
-each call's real `usage_metadata` cost when the API reports it.
-- B0 runs without the config's output cap or thinking budget, so one call can
+cost (prompt characters / 3 as input tokens, plus `max_output_tokens` as
+output, which on Gemini 3.x caps thinking and response together) and stops if
+the running total plus that estimate would pass `--max-spend-usd`. It also
+stops after `--max-calls`. The total uses each call's real `usage_metadata`
+cost when the API reports it.
+- B0 runs without the config's output cap or thinking level, so one call can
   cost more than its estimate. The cap then holds to within one call.
+- A call that returns no usage (an API error) is tallied at its estimate, so
+  `spend_usd` overstates a run with errors. Failed calls aren't billed.
 - `google-generativeai` 0.8.3 reports neither `thoughts_token_count` nor
-  `model_version`. `gemini-2.5-flash` thinks by default and bills that as
-  output, so the runner derives thinking tokens as `total - prompt -
-  candidates`, logs them as `thoughts_tokens_derived`, and costs them.
-  `model_version` stays null on every B0 row; the report must say so.
+  `model_version`. Gemini 3.x always thinks and bills that as output, so the
+  runner derives thinking tokens as `total - prompt - candidates`, logs them
+  as `thoughts_tokens_derived`, and costs them. `model_version` stays null on
+  every B0 row; the report must say so.
 - A Ctrl-C or crash marks the run `interrupted`. The in-flight call is logged
   by error class and tallied at its estimate, because it may already be
   billed.

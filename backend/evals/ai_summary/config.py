@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
@@ -26,8 +27,10 @@ class EvalConfig(BaseModel):
     top_k: int = Field(ge=1)
     candidate_count: int = Field(ge=1, le=1)
     seed: int
+    # Caps response and thinking tokens together (Gemini 3.x docs).
     max_output_tokens: int = Field(ge=1)
-    thinking_budget: int = Field(ge=0)
+    # Gemini 3.x thinking can't be turned off; "minimal" is the lowest level.
+    thinking_level: Literal["minimal", "low", "medium", "high"]
     # Milliseconds: google-genai's HttpOptions.timeout unit. The floor catches a
     # value written in seconds.
     timeout_ms: int = Field(ge=1000)

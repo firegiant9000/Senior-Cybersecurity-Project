@@ -37,7 +37,7 @@ top_k: 40
 candidate_count: 1
 seed: 1
 max_output_tokens: 1000
-thinking_budget: 0
+thinking_level: minimal
 timeout_ms: 20000
 """
 
