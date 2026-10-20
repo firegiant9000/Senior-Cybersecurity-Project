@@ -70,6 +70,8 @@ _**Revision 2026-10-19: S5a evaluation made reproducible.** S5a's live evaluatio
 
 _S5a's acceptance and effort below are updated to match, with the earlier text struck through. The milestone order is the one set on 2026-10-18 above, unchanged._
 
+_**Note 2026-10-19: why S2 comes right after S5a.** S5a → S2 → S1: S2 follows S5a because both change `backend/requirements.txt` (S5a pins `google-genai` there; S2 upgrades dependencies and adds the lockfile)._
+
 ### R4. Milestones
 
 Each milestone lists its acceptance criterion, the artifact it produces, a resume bullet with placeholders that are not filled until the work is done, and the interview questions it prepares for. S0 is a prerequisite fix, not a milestone.
@@ -90,7 +92,7 @@ Work:
 3. **Grounding.**
    - Each `notable_risks` item carries `finding_ids` drawn from the input.
    - A post-validator drops any item that cites an id not in the input and logs a count (no content).
-   - Put the EPSS and KEV values in the input.
+   - ~~Put the EPSS and KEV values in the input.~~ _(2026-10-19: the summary input is the real aggregate `Finding`, not per-CVE data. Citations use `Finding.id`; a KEV finding is one with `source == "kev_vendor_match"` and severity `critical` or `high`, and the top-3 KEV findings are ranked by `severity_score`. EPSS and CVSS are not in the input and are out of S5a's scope. See `docs/ai/eval-protocol.md` §2 and §4.)_
    - Replace "never cite CVE ids" with "cite only ids present in the input".
 4. **Injection hardening.**
    - Move `org.name`, `industry_label`, `employee_range` _(added 2026-10-19: also interpolated raw, `ai_summary.py:107`)_ and `primary_state` into a JSON data block serialised with `json.dumps`.

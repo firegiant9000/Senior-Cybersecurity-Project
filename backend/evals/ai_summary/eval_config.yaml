@@ -1,0 +1,17 @@
+# Pinned settings for the AI summary eval (docs/ai/eval-protocol.md §1).
+# Production adopts these values in S5a stage C (B1), and a unit test then
+# asserts they match. B0 runs the shipped code, which does NOT apply them.
+model: gemini-2.5-flash
+# The SDK B1 and F run on (pinned exactly in requirements.txt in stage C).
+# B0 runs the legacy google-generativeai==0.8.3 still in requirements.txt.
+sdk_target: google-genai
+temperature: 0
+top_p: 0.95
+top_k: 40
+candidate_count: 1
+seed: 20261019
+# Caps cost per call; a truncated (MAX_TOKENS) response counts as a failure.
+max_output_tokens: 2048
+thinking_budget: 0
+# Milliseconds (google-genai HttpOptions.timeout); 20 s per S5a item 5.
+timeout_ms: 20000

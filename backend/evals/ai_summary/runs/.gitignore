@@ -1,0 +1,3 @@
+# Dry runs (fake client, no model) are never committed; real runs are.
+_dry/
+*.tmp

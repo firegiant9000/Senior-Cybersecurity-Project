@@ -1,0 +1,24 @@
+{
+  "attack_cases": {
+    "dev": {
+      "fixture-dev-org-injection-001": "instruction_override"
+    }
+  },
+  "counts": {
+    "dev": {
+      "normal": 1,
+      "org_injection": 1
+    },
+    "heldout": {
+      "normal": 1
+    }
+  },
+  "date": "2026-10-19",
+  "files": {
+    "README.md": "f4698312537e4ce4e417ff9cc3f0a8a41dea7f2efd1eb74c0058bffa346cdf15",
+    "cases.jsonl": "4a654dba8e454d9394740b22bbe477a461377358137adad9c1851726112cb023"
+  },
+  "generator": null,
+  "seed": null,
+  "version": "fixture"
+}

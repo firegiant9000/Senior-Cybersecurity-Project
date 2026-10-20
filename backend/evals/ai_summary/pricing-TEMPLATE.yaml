@@ -1,0 +1,14 @@
+# UNVERIFIED template. Valid for --dry-run only; run_eval refuses it for a real run.
+# Before the first paid run (S5a stage C), copy this to pricing-YYYY-MM-DD.yaml,
+# read Google's current paid-tier prices for the model on that day, fill in
+# checked_on and source_url, and set verified: true.
+# The figures below are the list prices quoted in docs/ai/eval-protocol.md §6
+# (checked 2026-10-19), kept only so a dry run produces a plausible estimate.
+model: gemini-2.5-flash
+currency: USD
+verified: false
+checked_on: null
+source_url: null
+input_per_1m_tokens: 0.30
+# Output price; thinking tokens bill at this rate too.
+output_per_1m_tokens: 2.50
