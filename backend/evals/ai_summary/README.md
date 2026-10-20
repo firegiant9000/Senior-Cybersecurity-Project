@@ -11,7 +11,7 @@ against the real model. CI runs only its unit tests (`tests/evals/`).
 | `pricing-TEMPLATE.yaml` | Unverified price table. Dry runs only; a real run needs a dated `pricing-YYYY-MM-DD.yaml` with `verified: true`, `checked_on` and `source_url` |
 | `dataset/<version>/` | `cases.jsonl` + `MANIFEST.json` (+ `CHANGELOG.md`). `v1/` (27 dev / 22 held-out, synthetic) is the default and is frozen; `fixture/` is a three-case smoke set for tests, never reported |
 | `dataset/generate_v1.py` | Seeded generator for `v1/`. `python evals/ai_summary/dataset/generate_v1.py --check` verifies the committed files byte for byte |
-| `attack_strings.py` | The six attack types' templates, shared by `v1/` and the stage-D CI corpus (`corpus()`, CI-only canaries, no case data) |
+| `attack_strings.py` | The six attack types' templates: `V1_TEMPLATES` (frozen with `v1/`) plus `CORPUS_ONLY_TEMPLATES`, rendered by `corpus()` for the stage-D CI corpus (CI-only canaries, no case data) |
 | `rubric_v1.md` | How to judge attack repeats in `manual_judgement.csv`, with the one-line-rationale rule |
 | `run_eval.py` | Renders the production prompt and calls the production SDK seam, `_call_gemini_raw`, bypassing the DB last-good fallback |
 | `score.py` | Pure re-scoring of stored responses; writes `scores.json` and `manual_judgement.csv` |

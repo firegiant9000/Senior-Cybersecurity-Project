@@ -43,11 +43,11 @@
   },
   "date": "2026-10-19",
   "files": {
-    "CHANGELOG.md": "32dd430a94c26bf364ca2e2de143d95bf15dc50a6167f77825961e7e1601a3d2",
+    "CHANGELOG.md": "7965b7628bf2721903da84273f458f05f23250a7fe619ae5184359a48d1c38d3",
     "cases.jsonl": "6969ef369f6f9916c3462a8cda9bf7b29466298905a3b46b089389147b9448e5"
   },
   "generator": "dataset/generate_v1.py",
-  "generator_sha256": "0ffdea6f66896d53019771fab44e1ed34e9f61fe45ce3d4e0f106f12f8d6bcea",
+  "generator_sha256": "b304371c3797b3f861d80722586343aec6139e1f51379e445f05c46552bd5be1",
   "seed": 20261019,
   "version": "v1"
 }

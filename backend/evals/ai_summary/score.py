@@ -140,7 +140,8 @@ def _case_metric(
     out = _rate(sum(per_case.values()), len(cases))
     out["per_case"] = per_case
     out["repeat_rates"] = rates
-    out["repeat_range_pp"] = (max(known) - min(known)) * 100 if known else None
+    # One answered repeat has no spread to measure.
+    out["repeat_range_pp"] = (max(known) - min(known)) * 100 if len(known) >= 2 else None
     return out
 
 

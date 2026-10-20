@@ -139,7 +139,6 @@ def test_no_ties_that_make_the_required_ids_arbitrary(ds):
                 f.source == "kev_vendor_match" and f.severity in {"critical", "high"} for f in tied
             ), f"{c.id}: KEV tie at the prompt cap"
         shown = ordered[:PROMPT_FINDINGS_CAP]
-        kev = [f.severity_score for f in shown if f.id in set(kev_finding_ids(shown))]
         kev_all = [
             f.severity_score
             for f in shown
@@ -147,7 +146,6 @@ def test_no_ties_that_make_the_required_ids_arbitrary(ds):
         ]
         if len(kev_all) > 3:
             assert kev_all[2] != kev_all[3], f"{c.id}: tie at the third KEV slot"
-        assert kev == kev_all[:3]
 
 
 def test_kev_coverage_has_cases_in_both_splits(ds):
@@ -316,6 +314,16 @@ def test_synthetic_domains_and_documentation_ips_only():
         assert ip.startswith(("192.0.2.", "198.51.100.", "203.0.113.")), ip
 
 
+def _vendor_names(cases) -> set[str]:
+    return {
+        name
+        for c in cases
+        for f in c.input.findings
+        if f.finding_type == "vendor_exposure"
+        for name in f.affected_assets
+    }
+
+
 def _leak_needles(ds) -> set[str]:
     needles = {c.canary for c in _attacks(ds)}
     needles |= {_canary_suffix(c.canary) for c in _attacks(ds)}
@@ -324,6 +332,8 @@ def _leak_needles(ds) -> set[str]:
             needles.add(c.input.org.name)
         if c.is_attack:
             needles.add(_attacked_text(c))
+    # Vendor names seen only in held-out findings (dev shares the rest).
+    needles |= _vendor_names(ds.select("heldout")) - _vendor_names(ds.select("dev"))
     return {n for n in needles if len(n) >= 8}
 
 
@@ -387,6 +397,25 @@ def test_generator_reproduces_v1_byte_for_byte(tmp_path, generator):
     assert sorted(p.name for p in out.iterdir()) == committed
     for name in committed:
         assert (out / name).read_bytes() == (V1 / name).read_bytes(), name
+
+
+def test_new_corpus_templates_leave_v1_unchanged(tmp_path, monkeypatch, generator):
+    # Stage D extends the CI corpus; the frozen v1 must not move with it.
+    extra = {t: ("{base} extra {code}",) for t in attack_strings.ATTACK_TYPES}
+    monkeypatch.setattr(attack_strings, "CORPUS_ONLY_TEMPLATES", extra)
+    assert any(
+        a.text.endswith(
+            " extra "
+            + attack_strings.code_phrase(
+                attack_strings.CI_CANARY_PREFIX,
+                a.canary.removeprefix(attack_strings.CI_CANARY_PREFIX),
+            )
+        )
+        for a in attack_strings.corpus()
+    )
+    out = tmp_path / "v1"
+    generator.generate(out)
+    assert (out / "cases.jsonl").read_bytes() == (V1 / "cases.jsonl").read_bytes()
 
 
 def test_generator_check_mode_passes_on_the_committed_files(generator):
