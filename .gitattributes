@@ -1,3 +1,8 @@
 # Go tooling (gofmt) requires LF line endings; enforce it so a Windows checkout
 # can't introduce CRLF that fails the CI `gofmt -l` check.
 *.go text eol=lf
+
+# The AI summary eval hashes its dataset, config, pricing and run files byte for
+# byte (MANIFEST.json, run_meta.json); CRLF on a Windows checkout would break
+# every hash.
+backend/evals/ai_summary/** text eol=lf

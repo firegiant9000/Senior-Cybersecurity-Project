@@ -264,8 +264,12 @@ def _build_fallback(org: Organization, report: FindingsReport, risk_score: float
 # ---------------------------------------------------------------------------
 
 
-def _call_gemini_sync(prompt: str) -> str:
-    """Call Gemini (sync SDK) and return the text."""
+def _call_gemini_raw(prompt: str) -> Any:
+    """Call Gemini (sync SDK) and return the SDK response object.
+
+    Split out for the offline eval harness (backend/evals/ai_summary), which
+    needs finish_reason, usage_metadata and model_version, not just the text.
+    """
     import google.generativeai as genai  # imported lazily to avoid hard dependency
 
     genai.configure(api_key=settings.GEMINI_API_KEY)
@@ -273,8 +277,12 @@ def _call_gemini_sync(prompt: str) -> str:
         settings.GEMINI_MODEL,
         generation_config={"response_mime_type": "application/json"},
     )
-    response = model.generate_content(prompt)
-    return response.text
+    return model.generate_content(prompt)
+
+
+def _call_gemini_sync(prompt: str) -> str:
+    """Call Gemini (sync SDK) and return the text."""
+    return _call_gemini_raw(prompt).text
 
 
 def _parse_structured_response(raw: str) -> StructuredSummary | None:
