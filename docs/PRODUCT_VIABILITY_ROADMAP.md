@@ -171,7 +171,19 @@ Work: tag `agent-v0.1.0` and let the existing workflow run once, as-is, to learn
 - What is in the SBOM, and how would a consumer use it after a new CVE drops?
 - How would you detect that someone tampered with the release asset after publication?
 
-#### S2. Dependency and supply-chain hardening
+#### S2. Dependency and supply-chain hardening — DONE 2026-10-21 (PRs #213–#218)
+
+Delivered:
+- Hash-locked backend requirements, with pytest and ruff removed from the production image.
+- Blocking gates for pip-audit, govulncheck, npm audit (high and above, production dependencies), Trivy on the backend image, and CodeQL (Python, JavaScript/TypeScript, Go, Actions; `security-extended`).
+- All 41 `uses:` references pinned to commit SHAs, with a CI grep that fails on an unpinned one.
+- `permissions: contents: read` at the top of every workflow.
+- Deploy secrets passed through `env:`.
+- `alembic check` is blocking, after the models were aligned with the migrations.
+
+Allowed exceptions, each with an expiry of at most 90 days, live in [`scan_exceptions.md`](security/scan_exceptions.md), and CI enforces the expiries. The list is empty at close-out.
+
+Semgrep was evaluated and not kept: CodeQL found 0 alerts, and all 10 Semgrep findings were non-actionable. Making the gates required checks on `main` is a repository setting, which the owner applies.
 
 Work: blocking CI gates for each language: **CodeQL** (Python, JavaScript/TypeScript, Go) on PR and weekly; **pip-audit** with a lockfile or hashes for the backend (introduce `requirements.lock` or `uv.lock`); **govulncheck** for the agent; **npm audit** at high severity for the frontend; **Trivy** on the backend image with CRITICAL and HIGH failing; **Semgrep** with a small curated ruleset if it catches something CodeQL does not (drop it if not). Pin every GitHub Action to a commit SHA; add a top-level `permissions: contents: read` to every workflow; move the Render deploy-hook secret out of shell interpolation. Upgrade the 2023-vintage backend pins (fastapi, starlette, pydantic, python-multipart, sqlalchemy) and Go to a supported version; fix what breaks. Remove pytest and ruff from the production requirements. Document allowed exceptions in `docs/security/scan_exceptions.md` with an expiry date for each. _(2026-10-18: S2 now runs right after S5a. Added:)_ make `alembic check` blocking by removing `continue-on-error`, or record in `scan_exceptions.md`, with an expiry date, why it can't be.
 
@@ -179,7 +191,7 @@ Work: blocking CI gates for each language: **CodeQL** (Python, JavaScript/TypeSc
 
 **Evidence produced.** The workflow files, one green run of each gate, the exceptions document.
 
-**Resume potential.** "Added blocking SAST, dependency-audit and container-scan gates (CodeQL, pip-audit, govulncheck, npm audit, Trivy) to a FastAPI, React and Go codebase, pinned every CI action to a commit SHA, and upgraded [N] out-of-date dependencies with published advisories."
+**Resume potential.** "Added blocking SAST, dependency-audit and container-scan gates (CodeQL, pip-audit, govulncheck, npm audit, Trivy) to a FastAPI, React and Go codebase, pinned every CI action to a commit SHA, and upgraded 6 out-of-date dependencies with published advisories."
 
 **Interview questions.**
 - Why pin Actions to SHAs rather than tags? What attack does it stop?
