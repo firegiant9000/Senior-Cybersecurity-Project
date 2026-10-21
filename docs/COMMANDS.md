@@ -31,10 +31,11 @@ make down
 ## Quick Start (Local, No Docker)
 
 ### Backend
+The hashed locks are Linux-only (compiled in `python:3.11-slim`). On Windows, use `make backend-test` / `make backend-lint` (compose dev container) or WSL instead of a native venv.
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+source venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
 cp ../.env.example .env
 alembic upgrade head

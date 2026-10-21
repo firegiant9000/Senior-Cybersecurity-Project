@@ -33,7 +33,7 @@ docker compose down
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+source venv/bin/activate        # Linux/WSL only: the hashed locks do not install on native Windows (use the dev container)
 pip install -r requirements.txt -r requirements-dev.txt
 pytest -v tests/
 ruff check app tests

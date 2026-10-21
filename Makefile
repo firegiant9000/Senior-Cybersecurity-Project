@@ -97,6 +97,7 @@ venv:
 	python -m venv backend/venv
 	@echo "Virtual environment created. Activate with: source backend/venv/bin/activate"
 
+# Linux/WSL only: the hashed requirements locks do not install on native Windows.
 install-local:
 	cd backend && pip install -r requirements.txt -r requirements-dev.txt
 	cd frontend && npm install
@@ -104,6 +105,7 @@ install-local:
 migrate-local:
 	cd backend && alembic -c app/db/alembic.ini upgrade head
 
+# Linux/WSL only (see install-local)
 test-local:
 	cd backend && pytest -v tests/
 
