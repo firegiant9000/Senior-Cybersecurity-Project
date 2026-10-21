@@ -41,7 +41,7 @@
     "vitest": "^4.0.18"
   },
   "overrides": {
-    "@grpc/grpc-js": "1.13.7",
-    "d3-color": "3.1.0"
+    "@grpc/grpc-js": "^1.13.7",
+    "d3-color": "^3.1.0"
   }
 }
