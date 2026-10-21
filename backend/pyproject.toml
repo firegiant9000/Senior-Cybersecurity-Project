@@ -6,6 +6,11 @@ asyncio_mode = "auto"
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# Frozen with dataset v1 (S5a provenance): the generator's bytes are hashed into MANIFEST.json.
+extend-exclude = [
+  "evals/ai_summary/dataset/generate_v1.py",
+  "evals/ai_summary/attack_strings.py",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "C90", "I", "N", "UP", "BLE", "FBT", "A", "C4"]

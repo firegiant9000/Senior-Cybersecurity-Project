@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from app.schemas.disclaimer import DisclaimerBlock
 
@@ -22,7 +22,7 @@ _TRANSPARENCY_NOTE = (
 # ── Context enum ──────────────────────────────────────────────────────────────
 
 
-class DisclaimerContext(str, Enum):
+class DisclaimerContext(StrEnum):
     EXECUTIVE_SUMMARY = "executive_summary"
     AI_SUMMARY = "ai_summary"
     FINDINGS = "findings"

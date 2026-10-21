@@ -151,7 +151,7 @@ async def check_dns(domain: str) -> DnsCheckResult:  # noqa: C901
                     result.spf_found = True
                     result.spf_record = txt
                     break
-        except (dns.exception.DNSException, Exception):
+        except Exception:  # noqa: BLE001 - best-effort DNS probe; any failure means "not found"
             pass
 
         # DMARC — TXT record at _dmarc.<domain>
@@ -168,7 +168,7 @@ async def check_dns(domain: str) -> DnsCheckResult:  # noqa: C901
                         if part.lower().startswith("p="):
                             result.dmarc_policy = part.split("=", 1)[1].strip().lower()
                     break
-        except (dns.exception.DNSException, Exception):
+        except Exception:  # noqa: BLE001 - best-effort DNS probe; any failure means "not found"
             pass
 
         # DKIM — check common selectors
@@ -177,7 +177,7 @@ async def check_dns(domain: str) -> DnsCheckResult:  # noqa: C901
                 await resolver.resolve(f"{selector}._domainkey.{domain}", "TXT")
                 result.dkim_selector_found = True
                 break
-            except (dns.exception.DNSException, Exception):
+            except Exception:  # noqa: BLE001 - best-effort DNS probe; any failure means "not found"
                 continue
 
     except ImportError:

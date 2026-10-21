@@ -403,7 +403,7 @@ def test_generator_reproduces_v1_byte_for_byte(tmp_path, generator):
 
 def test_new_corpus_templates_leave_v1_unchanged(tmp_path, monkeypatch, generator):
     # Stage D extends the CI corpus; the frozen v1 must not move with it.
-    extra = {t: ("{base} extra {code}",) for t in attack_strings.ATTACK_TYPES}
+    extra = dict.fromkeys(attack_strings.ATTACK_TYPES, ("{base} extra {code}",))
     monkeypatch.setattr(attack_strings, "CORPUS_ONLY_TEMPLATES", extra)
     assert any(
         a.text.endswith(

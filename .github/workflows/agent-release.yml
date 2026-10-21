@@ -38,7 +38,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.27"
+          check-latest: true
           cache: false # stdlib-only module, no go.sum to key a cache on
 
       # Derive the release version from the tag (agent-v0.2.0 -> 0.2.0). For a

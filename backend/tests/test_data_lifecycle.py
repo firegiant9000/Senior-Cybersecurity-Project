@@ -98,9 +98,9 @@ async def test_delete_org_purges_tenant_rows_and_audits(client: AsyncClient, adm
             remaining = await session.execute(
                 select(model).where(model.org_id == org.id)  # type: ignore[attr-defined]
             )
-            assert (
-                remaining.first() is None
-            ), f"{model.__tablename__} still has rows for org {org.id}"
+            assert remaining.first() is None, (
+                f"{model.__tablename__} still has rows for org {org.id}"
+            )
 
         org_row = await session.get(Organization, org.id)
         assert org_row is None

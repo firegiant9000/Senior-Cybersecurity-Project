@@ -16,10 +16,12 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 scheduler = AsyncIOScheduler()
 
-@scheduler.scheduled_job('interval', hours=1)
+
+@scheduler.scheduled_job("interval", hours=1)
 async def ingest_cisa_kev():
     # Fetch and store data
     pass
+
 
 # In app/main.py
 @app.on_event("startup")
@@ -43,6 +45,7 @@ celery_app = Celery(
     backend="redis://localhost:6379/1",
 )
 
+
 @celery_app.task
 async def ingest_cisa_kev():
     pass
@@ -52,6 +55,7 @@ async def ingest_cisa_kev():
 
 ```python
 from fastapi import BackgroundTasks
+
 
 @app.post("/api/v1/ingest/cisa-kev")
 async def trigger_cisa_kev(background_tasks: BackgroundTasks):
