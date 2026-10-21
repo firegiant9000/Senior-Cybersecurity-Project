@@ -143,7 +143,14 @@ flowchart LR
   replaced by a deterministic template, never served as raw text. This limits,
   but does not eliminate, prompt-injection risk: a model can still be steered
   inside a schema-valid answer. The evaluation method is in
-  [docs/ai/eval-protocol.md](docs/ai/eval-protocol.md).
+  [docs/ai/eval-protocol.md](docs/ai/eval-protocol.md). On 22 held-out
+  synthetic cases, measured before and after this hardening, injection attacks
+  succeeded in 2 of 10 attack cases before and 0 of 10 after (95% upper bound
+  ≈ 30%). That is too few cases for a statistical test, so it is reported as
+  directionally better, not proven. Cost per summary rose from $0.0037 to
+  $0.0045, p50 latency rose from 5.5 s to 6.3 s, and a new readability
+  regression is still open. Details are in the
+  [case study](docs/ai/case-study.md).
 - **Statistical anomaly detection** over IC3 trends and vendor KEV velocity
   ([`anomaly_detection.py`](backend/app/services/anomaly_detection.py)).
 
@@ -215,7 +222,7 @@ on `main` (395 of 560 commits are mine, across the identities listed in
   reorganization, assets and findings views, executive report page, Firebase
   auth UI
 - All four CI workflows; 47 of the 49 Alembic migration files; the majority of the
-  644 backend tests
+  backend tests
 
 ### Major contributions by me (originally built by a teammate)
 
@@ -272,15 +279,16 @@ An `NVD_API_KEY` raises the NVD rate limit; `GEMINI_API_KEY` enables AI
 summaries; `SHODAN_API_KEY`, `HIBP_API_KEY` and `OTX_API_KEY` enable optional
 Tier 2 findings. Everything degrades cleanly when unset.
 
-Manual ingestion: `POST /api/v1/ingest/{source}`; status at
-`GET /api/v1/ingest/status`. Agent: `make agent-build`, then
+Manual ingestion (global `admin` role):
+`POST /api/v1/ingest/trigger?source=<nvd|cisa_kev|ic3|economics|epss|all>`;
+freshness at `GET /api/v1/ingest/freshness`. Agent: `make agent-build`, then
 `hacker-tracker scan --print` to preview what a scan would upload.
 
 ## Tests
 
 | Suite | Count | Command |
 | --- | ---: | --- |
-| Backend (pytest) | 644 test functions in 64 files | `make backend-test` or `cd backend && pytest` |
+| Backend (pytest) | 809 test functions in 73 files | `make backend-test` or `cd backend && pytest` |
 | Matcher regression | known-good fixture set, gated at 95% pass / 2% high-confidence FP | `pytest tests/regression` |
 | Frontend (Vitest) | 466 `it`/`test` cases in 18 files | `cd frontend && npm test` |
 | Agent (Go) | 9 test functions in 3 files | `make agent-test` |
