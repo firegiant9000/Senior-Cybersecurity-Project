@@ -70,39 +70,29 @@ def _parse_date(value: str, label: str, row: str) -> date:
 
 def parse_exceptions(markdown: str) -> list[ScanException]:
     lines = markdown.splitlines()
-    in_fence = False
-    start = -1
-    count = 0
-    for i, raw in enumerate(lines):
-        if _is_fence(raw.strip()):
-            in_fence = not in_fence
-            continue
-        if not in_fence and raw.rstrip() == SECTION_HEADING:
-            count += 1
-            if start < 0:
-                start = i
-    if count != 1:
-        raise ValueError(f"expected exactly one {SECTION_HEADING!r} heading, found {count}")
+    starts = [i for i, raw in enumerate(lines) if raw.rstrip() == SECTION_HEADING]
+    if len(starts) != 1:
+        raise ValueError(f"expected exactly one {SECTION_HEADING!r} heading, found {len(starts)}")
+    start = starts[0]
 
-    # Before the table starts, prose and fenced blocks are skipped. Once the first "|" line is
-    # seen, every non-blank line up to EOF or the next "## " heading must be a table row, so
-    # nothing (an unclosed fence, "# x", a row missing its pipe) can hide later rows.
+    # The section runs to EOF or the next "## " heading. Code fences are banned inside it (so
+    # fence pairing can never matter). Before the table, other prose is skipped; once the first
+    # "|" line is seen, every non-blank line must be a table row, so nothing can hide later rows.
     table: list[str] = []
-    in_fence = False
     for raw in lines[start + 1 :]:
         line = raw.strip()
+        if line.startswith("## "):
+            break
+        if _is_fence(line):
+            raise ValueError(f"code fences are not allowed in the Exceptions section: {line!r}")
         if not table:
-            if _is_fence(line):
-                in_fence = not in_fence
-            elif not in_fence and line.startswith("#"):
+            if line.startswith("#"):
                 break
-            elif not in_fence and line.startswith("|"):
+            if line.startswith("|"):
                 table.append(line)
             continue
         if not line:
             continue
-        if line.startswith("## "):
-            break
         if not line.startswith("|"):
             raise ValueError(f"unexpected non-table line inside the Exceptions table: {line!r}")
         table.append(line)

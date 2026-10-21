@@ -16,6 +16,32 @@ HEADER = (
 )
 
 
+_COLS = "| ID | Scanner | Package / location | Reason | Compensating control | Added | Expires |\n"
+_SEP = "| --- | --- | --- | --- | --- | --- | --- |\n"
+
+FENCE_DOCS = {
+    # Review doc (a): a ``` block containing ~~~ used to desync the parser and hide an expired row.
+    "review a": (
+        "## Exceptions\n```\n~~~\n```\n\n"
+        + _COLS
+        + _SEP
+        + "| EX-1 | trivy | pkg | r | c | 2026-01-01 | 2026-02-01 |\n"
+        + "~~~\n\n"
+        + _COLS
+        + _SEP
+        + "| EX-2 | trivy | pkg | r | c | 2026-10-20 | 2026-12-01 |\n"
+    ),
+    # Review doc (b): unclosed ~~~ containing ``` used to make a table in a code block live.
+    "review b": (
+        "## Exceptions\n~~~\n```\n"
+        + _COLS
+        + _SEP
+        + "| EX-9 | pip-audit | pkg | r | c | 2026-10-20 | 2026-12-01 |\n"
+    ),
+    "fence before table": "## Exceptions\n\n```\nnote\n```\n\n" + _COLS + _SEP,
+}
+
+
 def row(id_="EX-1", scanner="trivy", added="2026-10-20", expires="2026-12-01"):
     return f"| {id_} | {scanner} | pkg | reason | control | {added} | {expires} |\n"
 
@@ -50,9 +76,11 @@ class ParseTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             se.parse_exceptions(HEADER + "\n## Exceptions\n")
 
-    def test_fenced_heading_does_not_end_section(self):
-        text = HEADER.replace("\n| ID", "\n```\n# example\n```\n\n| ID", 1) + row()
-        self.assertEqual(len(se.parse_exceptions(text)), 1)
+    def test_fences_inside_section_raise(self):
+        for name, text in FENCE_DOCS.items():
+            with self.subTest(name):
+                with self.assertRaisesRegex(ValueError, "fence"):
+                    se.parse_exceptions(text)
 
     def test_non_row_lines_inside_table_raise(self):
         cases = {
@@ -157,6 +185,7 @@ class CliTests(unittest.TestCase):
             "h3 heading": "### Exceptions\n" + table,
             "missing header row": "## Exceptions\n\n| --- | --- | --- | --- | --- | --- | --- |\n",
             "wrong header": "## Exceptions\n\n" + table.replace("Expires", "Expiry"),
+            **{f"fence doc {k}": v for k, v in FENCE_DOCS.items()},
             "unclosed fence hides row": HEADER + row("A") + "```\n" + row("B"),
             "tilde fence hides rows": HEADER + "~~~\n# x\n~~~\n" + row("A"),
             "row without leading pipe": HEADER + row("A") + row("B").lstrip("|"),
