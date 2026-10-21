@@ -54,6 +54,10 @@ def _is_separator(cells: list[str]) -> bool:
     return all(c and set(c) <= set("-: ") for c in cells)
 
 
+def _is_fence(line: str) -> bool:
+    return line.startswith("```") or line.startswith("~~~")
+
+
 def _parse_date(value: str, label: str, row: str) -> date:
     # Python 3.11 fromisoformat also accepts "20261020" and "2026-W43-3"; require the plain form.
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
@@ -70,7 +74,7 @@ def parse_exceptions(markdown: str) -> list[ScanException]:
     start = -1
     count = 0
     for i, raw in enumerate(lines):
-        if raw.strip().startswith("```"):
+        if _is_fence(raw.strip()):
             in_fence = not in_fence
             continue
         if not in_fence and raw.rstrip() == SECTION_HEADING:
@@ -80,20 +84,28 @@ def parse_exceptions(markdown: str) -> list[ScanException]:
     if count != 1:
         raise ValueError(f"expected exactly one {SECTION_HEADING!r} heading, found {count}")
 
-    # Table rows of the section: from the heading to the next heading outside a code fence.
+    # Before the table starts, prose and fenced blocks are skipped. Once the first "|" line is
+    # seen, every non-blank line up to EOF or the next "## " heading must be a table row, so
+    # nothing (an unclosed fence, "# x", a row missing its pipe) can hide later rows.
     table: list[str] = []
     in_fence = False
     for raw in lines[start + 1 :]:
         line = raw.strip()
-        if line.startswith("```"):
-            in_fence = not in_fence
+        if not table:
+            if _is_fence(line):
+                in_fence = not in_fence
+            elif not in_fence and line.startswith("#"):
+                break
+            elif not in_fence and line.startswith("|"):
+                table.append(line)
             continue
-        if in_fence:
+        if not line:
             continue
-        if line.startswith("#"):
+        if line.startswith("## "):
             break
-        if line.startswith("|"):
-            table.append(line)
+        if not line.startswith("|"):
+            raise ValueError(f"unexpected non-table line inside the Exceptions table: {line!r}")
+        table.append(line)
 
     if len(table) < 2:
         raise ValueError("Exceptions table is missing its header and separator rows")

@@ -54,6 +54,17 @@ class ParseTests(unittest.TestCase):
         text = HEADER.replace("\n| ID", "\n```\n# example\n```\n\n| ID", 1) + row()
         self.assertEqual(len(se.parse_exceptions(text)), 1)
 
+    def test_non_row_lines_inside_table_raise(self):
+        cases = {
+            "unclosed fence": HEADER + row("A") + "```\n" + row("B"),
+            "tilde fence with heading": HEADER + "~~~\n# x\n~~~\n" + row("A"),
+            "row without leading pipe": HEADER + row("A") + row("B").lstrip("|"),
+        }
+        for name, text in cases.items():
+            with self.subTest(name):
+                with self.assertRaises(ValueError):
+                    se.parse_exceptions(text)
+
     def test_unknown_scanner_raises(self):
         with self.assertRaisesRegex(ValueError, "EX-1"):
             se.parse_exceptions(HEADER + row(scanner="nope"))
@@ -146,6 +157,9 @@ class CliTests(unittest.TestCase):
             "h3 heading": "### Exceptions\n" + table,
             "missing header row": "## Exceptions\n\n| --- | --- | --- | --- | --- | --- | --- |\n",
             "wrong header": "## Exceptions\n\n" + table.replace("Expires", "Expiry"),
+            "unclosed fence hides row": HEADER + row("A") + "```\n" + row("B"),
+            "tilde fence hides rows": HEADER + "~~~\n# x\n~~~\n" + row("A"),
+            "row without leading pipe": HEADER + row("A") + row("B").lstrip("|"),
             "no separator": "## Exceptions\n\n" + table.splitlines()[1] + "\n",
         }
         for name, text in cases.items():
