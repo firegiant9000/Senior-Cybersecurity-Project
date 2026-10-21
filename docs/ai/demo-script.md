@@ -10,7 +10,7 @@ A screen capture of a local Hacker Tracker instance. It shows a synthetic organi
 4. **Synthetic organisation:** create it through the onboarding wizard.
    - Name `Bayou Bakery LLC (demo)`; industry Hospitality; size 11-50; state LA.
    - Vendors: three products that appear in the CISA KEV catalogue (for example a VPN appliance, a mail server and a remote-access tool), plus one that doesn't.
-   - A domain you control that has no DMARC record. Check it first with `nslookup -type=TXT _dmarc.<domain>`. Don't use `example.com`: IANA publishes SPF and DMARC records for it, so it would show no email finding. If no such domain is to hand, drop the email beat from the 8–20 s line.
+   - A domain you control that has no DMARC record. Check it first with `nslookup -type=TXT _dmarc.<domain>`. Don't use `example.com`: IANA publishes SPF and DMARC records for it, so it would show no email finding. If no such domain is to hand, drop the email beat from the 8–20 s line, and end that line's narration at "…known-exploited list."
    - Security controls: answer about half and leave the rest unknown, so the briefing has data gaps to mention.
 
    The AI summary needs the profile at **Enhanced** tier or above (`GET /api/v1/organizations/mine/intake`); the route returns 422 below that.
