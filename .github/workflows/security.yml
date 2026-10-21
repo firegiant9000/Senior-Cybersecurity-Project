@@ -113,7 +113,10 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ht-backend:ci
+          # Bumped by hand: Dependabot does not track this input. When bumping the
+          # action SHA, also check the trivy releases and move this version.
           version: v0.76.0
+          cache: false # no Actions-cache restore of the Trivy binary or vulnerability DB
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: 1
@@ -122,9 +125,15 @@ jobs:
       - name: Trivy (report only, all severities)
         if: always()
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        # Point the ignore file at /dev/null so the report also shows excepted IDs
+        # (Trivy would otherwise read ./.trivyignore; the action only overrides this
+        # env var when the trivyignores input is set).
+        env:
+          TRIVY_IGNOREFILE: /dev/null
         with:
           image-ref: ht-backend:ci
           skip-setup-trivy: true
+          cache: false
           format: table
           ignore-unfixed: false
           exit-code: 0

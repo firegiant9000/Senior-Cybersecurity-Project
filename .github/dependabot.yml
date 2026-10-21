@@ -1,4 +1,6 @@
-# Dependabot: one pull request a month covering every ecosystem in this repo.
+# Dependabot: one pull request a month covering pip, npm, gomod and GitHub Actions.
+# The backend base image (docker) is the exception: it is checked weekly, because the
+# Trivy gate needs base-digest bumps faster than monthly.
 #
 # - All minor and patch updates land together in a single "monthly-dependencies" PR.
 # - Major version bumps of libraries are ignored here; take those deliberately
@@ -35,10 +37,11 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+  # Not in the monthly group: the Trivy gate needs base-image digest bumps sooner.
   - package-ecosystem: "docker"
     directory: "/backend"
-    patterns: ["*"]
-    multi-ecosystem-group: "monthly-dependencies"
+    schedule:
+      interval: "weekly"
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
