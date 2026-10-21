@@ -34,8 +34,7 @@ def test_registry_keys_unique():
 def test_registry_statuses_are_valid():
     for item in list_data_status():
         assert item.status in _ALLOWED_STATUSES, (
-            f"{item.key} has invalid status {item.status!r}; "
-            f"expected one of {_ALLOWED_STATUSES}"
+            f"{item.key} has invalid status {item.status!r}; expected one of {_ALLOWED_STATUSES}"
         )
 
 

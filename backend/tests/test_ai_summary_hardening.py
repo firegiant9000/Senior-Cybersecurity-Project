@@ -110,7 +110,7 @@ def test_no_org_attribute_is_interpolated_into_prompt_text():
 def test_missing_org_values_are_unknown_in_the_block():
     org = _org(name=None, industry_label="", employee_range=None, primary_state=None)
     _, _, data = _data_block(_build_prompt(org, _report(), 50.0)[0])
-    assert data["organization"] == {f: "Unknown" for f in ORG_FIELDS}
+    assert data["organization"] == dict.fromkeys(ORG_FIELDS, "Unknown")
 
 
 def test_block_is_declared_data_not_instructions():

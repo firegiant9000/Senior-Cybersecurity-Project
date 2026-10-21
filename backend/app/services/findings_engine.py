@@ -523,7 +523,7 @@ def _data_gap_findings(readiness_data: dict) -> list[Finding]:
                 severity="low",
                 severity_score=_severity_score("low", 0.4),
                 title=f"Profile incomplete: '{label}' is not set",
-                description=(f"'{label}' is not provided. " f"Adding it enables {impact}."),
+                description=(f"'{label}' is not provided. Adding it enables {impact}."),
                 evidence={"key": key, "label": label, "required": False},
                 source="assessment_readiness",
                 affected_assets=[],

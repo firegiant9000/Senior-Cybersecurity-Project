@@ -699,8 +699,7 @@ def rec_complete_profile(n_required: int) -> dict:
         "recommended_action",
         "medium",
         0.5,
-        f"Add {n_required} missing detail(s) to your profile to get a more complete risk "
-        "picture",
+        f"Add {n_required} missing detail(s) to your profile to get a more complete risk picture",
         "Several required fields in your organization profile are empty. Completing them "
         "lets us check for threats specific to your industry, match vulnerabilities to your "
         "software, and give you more accurate loss estimates. Go to Settings → Company "

@@ -30,6 +30,7 @@ class CISAClient:
         """Fetch latest known exploited vulnerabilities."""
         pass
 
+
 # app/integrations/cisa_kev/parser.py
 class CISAParser:
     @staticmethod
@@ -45,6 +46,7 @@ Background workers in `app/workers/` will use these integrations:
 ```python
 # app/workers/ingest_jobs.py
 from app.integrations.cisa_kev import CISAClient
+
 
 async def ingest_cisa_kev():
     client = CISAClient()
