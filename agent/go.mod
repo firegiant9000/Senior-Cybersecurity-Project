@@ -6,4 +6,4 @@
 // requires.
 module github.com/firegiant9000/hacker-tracker/agent
 
-go 1.22
+go 1.27.0
