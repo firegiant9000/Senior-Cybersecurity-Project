@@ -148,7 +148,8 @@ flowchart LR
   succeeded in 2 of 10 attack cases before and 0 of 10 after (95% upper bound
   ≈ 30%). That is too few cases for a statistical test, so it is reported as
   directionally better, not proven. Cost per summary rose from $0.0037 to
-  $0.0045, and a new readability regression is still open. Details are in the
+  $0.0045, p50 latency rose from 5.5 s to 6.3 s, and a new readability
+  regression is still open. Details are in the
   [case study](docs/ai/case-study.md).
 - **Statistical anomaly detection** over IC3 trends and vendor KEV velocity
   ([`anomaly_detection.py`](backend/app/services/anomaly_detection.py)).
@@ -278,8 +279,9 @@ An `NVD_API_KEY` raises the NVD rate limit; `GEMINI_API_KEY` enables AI
 summaries; `SHODAN_API_KEY`, `HIBP_API_KEY` and `OTX_API_KEY` enable optional
 Tier 2 findings. Everything degrades cleanly when unset.
 
-Manual ingestion: `POST /api/v1/ingest/{source}`; status at
-`GET /api/v1/ingest/status`. Agent: `make agent-build`, then
+Manual ingestion (global `admin` role):
+`POST /api/v1/ingest/trigger?source=<nvd|cisa_kev|ic3|economics|epss|all>`;
+freshness at `GET /api/v1/ingest/freshness`. Agent: `make agent-build`, then
 `hacker-tracker scan --print` to preview what a scan would upload.
 
 ## Tests
