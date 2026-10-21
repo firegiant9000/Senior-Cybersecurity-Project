@@ -10,7 +10,11 @@ RUN apt-get update && apt-get install -y \
 
 # Production Python dependencies (hash-locked)
 COPY requirements.txt .
-RUN pip install --no-cache-dir --require-hashes -r requirements.txt
+RUN pip install --no-cache-dir --require-hashes -r requirements.txt \
+    && pip uninstall -y setuptools wheel
+# setuptools and wheel come from the base image, not requirements.txt, and nothing
+# at runtime uses them. setuptools vendors outdated copies of wheel and
+# jaraco.context (CVE-2026-24049, CVE-2026-23949), so remove rather than patch.
 
 # Dev stage: base plus test and lint tools (used by docker-compose, never deployed)
 FROM base AS dev
