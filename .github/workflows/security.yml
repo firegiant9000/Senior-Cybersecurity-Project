@@ -34,8 +34,24 @@ jobs:
 
       - name: Check every action is pinned to a commit SHA
         run: |
-          if grep -rnP '^\s*(-\s*)?uses:\s*(?!\./)[^@\s]+@(?![0-9a-f]{40}\b)' .github/workflows; then
+          # grep exit codes: 0 = match (unpinned ref), 1 = no match (pass), >=2 = error (fail).
+          rc=0
+          grep -rnP '^\s*(-\s*)?uses:\s*(?!\./)[^@\s]+@(?![0-9a-f]{40}\b)' .github/workflows || rc=$?
+          if [ "$rc" -eq 0 ]; then
             echo "::error::Unpinned action reference(s) above. Pin each 'uses:' to a 40-hex commit SHA."
+            exit 1
+          elif [ "$rc" -ne 1 ]; then
+            echo "::error::grep failed (exit $rc); cannot verify action pins."
+            exit 1
+          fi
+          # docker:// refs must be pinned by image digest.
+          rc=0
+          grep -rnP '^\s*(-\s*)?uses:\s*[\x22\x27]?docker://(?![^\s\x22\x27]*@sha256:[0-9a-f]{64})' .github/workflows || rc=$?
+          if [ "$rc" -eq 0 ]; then
+            echo "::error::docker:// reference(s) above are not pinned by @sha256 digest."
+            exit 1
+          elif [ "$rc" -ne 1 ]; then
+            echo "::error::grep failed (exit $rc); cannot verify docker pins."
             exit 1
           fi
 

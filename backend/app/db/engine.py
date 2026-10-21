@@ -176,6 +176,9 @@ async def init_db() -> None:
     """Initialize database: create missing tables and align known schema drifts."""
     _import_all_orm_models()
     async with engine.begin() as conn:
+        # Model GIN indexes (ix_kev_vendor_trgm, ix_org_vendor_name_trgm) use
+        # gin_trgm_ops, so the extension must exist before create_all.
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(_ensure_organization_profile_columns)
         await conn.run_sync(_ensure_ingest_run_columns)
