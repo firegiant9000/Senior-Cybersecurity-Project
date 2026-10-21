@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -39,3 +39,11 @@ class AISummaryGeneration(Base):
     )
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     output_format: Mapped[str] = mapped_column(String(10), nullable=False, server_default="prose")
+
+
+# Matches migration 018 (newest-first listing per org).
+Index(
+    "ix_ai_summary_generations_org_generated",
+    AISummaryGeneration.org_id,
+    AISummaryGeneration.generated_at.desc(),
+)

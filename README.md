@@ -294,8 +294,8 @@ freshness at `GET /api/v1/ingest/freshness`. Agent: `make agent-build`, then
 | Agent (Go) | 9 test functions in 3 files | `make agent-test` |
 
 CI ([`ci.yml`](.github/workflows/ci.yml)) runs ruff lint and format checks,
-`alembic upgrade head` plus a blocking single-head check and an advisory
-`alembic check` against a Postgres service, the
+`alembic upgrade head` plus a blocking single-head check and a blocking
+`alembic check` (model/migration drift) against a Postgres service, the
 backend suite, ESLint and `tsc --noEmit`, the frontend suite, `go vet`,
 `go test` and `go build`, then deploys previews and the production frontend.
 [`matcher-regression.yml`](.github/workflows/matcher-regression.yml) runs

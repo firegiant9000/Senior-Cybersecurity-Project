@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   scan-exceptions:
-    name: Scan exceptions (expiry)
+    name: Scan exceptions and workflow pins
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -31,6 +31,29 @@ jobs:
 
       - name: Check exception list (format and expiry)
         run: python .github/scripts/scan_exceptions.py check
+
+      - name: Check every action is pinned to a commit SHA
+        run: |
+          # grep exit codes: 0 = match (unpinned ref), 1 = no match (pass), >=2 = error (fail).
+          rc=0
+          grep -rnP '^\s*(-\s*)?uses:\s*(?![\x22\x27]?(\./|docker://))[^@\s]+@(?![0-9a-f]{40}\b)' .github/workflows || rc=$?
+          if [ "$rc" -eq 0 ]; then
+            echo "::error::Unpinned action reference(s) above. Pin each 'uses:' to a 40-hex commit SHA."
+            exit 1
+          elif [ "$rc" -ne 1 ]; then
+            echo "::error::grep failed (exit $rc); cannot verify action pins."
+            exit 1
+          fi
+          # docker:// refs must be pinned by image digest.
+          rc=0
+          grep -rnP '^\s*(-\s*)?uses:\s*[\x22\x27]?docker://(?![^\s\x22\x27]*@sha256:[0-9a-f]{64})' .github/workflows || rc=$?
+          if [ "$rc" -eq 0 ]; then
+            echo "::error::docker:// reference(s) above are not pinned by @sha256 digest."
+            exit 1
+          elif [ "$rc" -ne 1 ]; then
+            echo "::error::grep failed (exit $rc); cannot verify docker pins."
+            exit 1
+          fi
 
   pip-audit:
     name: pip-audit (backend)

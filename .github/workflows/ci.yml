@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   backend-lint:
     name: Backend Lint
@@ -14,10 +17,10 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
           cache: pip
@@ -55,10 +58,10 @@ jobs:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/cyber_threat_test_db
       APP_ENV: testing
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
           cache: pip
@@ -84,14 +87,9 @@ jobs:
           print(f"Single head OK: {heads[0]}")
           PY
 
-      # Advisory only until pre-existing model↔migration drift is resolved.
-      # First clean enable of this step exposed real drift on `main` that
-      # predates this branch (audit_log.payload JSON↔JSONB, the
-      # compliance_framework_status column orphaned by a model removal, trgm
-      # indexes that alembic can't introspect, etc.). Flip to a hard gate in
-      # the follow-up "schema drift cleanup" PR.
-      - name: Detect model/migration drift (alembic check, advisory)
-        continue-on-error: true
+      # Hard gate: fails when the ORM models and the migrated schema diverge.
+      # Indexes created by migrations must be declared on the model too.
+      - name: Detect model/migration drift (alembic check)
         run: alembic -c app/db/alembic.ini check
 
       - name: Run tests
@@ -104,10 +102,10 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "20"
           cache: npm
@@ -129,10 +127,10 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "20"
           cache: npm
@@ -151,10 +149,10 @@ jobs:
       run:
         working-directory: agent
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version: "1.27"
           check-latest: true
@@ -193,10 +191,10 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "20"
           cache: npm
@@ -218,7 +216,7 @@ jobs:
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
 
       - name: Deploy preview channel
-        uses: FirebaseExtended/action-hosting-deploy@v0
+        uses: FirebaseExtended/action-hosting-deploy@500ac625ca2dd40cbd15f7659af953801858032a # v0.11.0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -238,10 +236,10 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "20"
           cache: npm
@@ -267,8 +265,11 @@ jobs:
 
       - name: Check Sentry source-map config
         id: sentry-check
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
         run: |
-          if [ -n "${{ secrets.SENTRY_AUTH_TOKEN }}" ] && [ -n "${{ secrets.SENTRY_PROJECT }}" ]; then
+          if [ -n "$SENTRY_AUTH_TOKEN" ] && [ -n "$SENTRY_PROJECT" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
@@ -279,7 +280,7 @@ jobs:
         id: sentry-upload
         if: steps.sentry-check.outputs.enabled == 'true'
         continue-on-error: true
-        uses: getsentry/action-release@v1
+        uses: getsentry/action-release@a74facf8a080ecbdf1cb355f16743530d712abb7 # v1.11.0
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
@@ -296,7 +297,7 @@ jobs:
         run: find dist -name '*.map' -delete
 
       - name: Deploy to Firebase Hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
+        uses: FirebaseExtended/action-hosting-deploy@500ac625ca2dd40cbd15f7659af953801858032a # v0.11.0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -313,8 +314,10 @@ jobs:
       cancel-in-progress: true
     steps:
       - name: Trigger Render deploy
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
-          curl -sf "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" \
+          curl -sf "$RENDER_DEPLOY_HOOK_URL" \
             || (echo "Render deploy hook failed — is RENDER_DEPLOY_HOOK_URL set?" && exit 1)
 
   post-deploy-healthcheck:
@@ -335,9 +338,11 @@ jobs:
           exit 1
 
       - name: Check backend health
+        env:
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
         run: |
           for i in $(seq 1 20); do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.BACKEND_URL }}/health")
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BACKEND_URL/health")
             echo "Attempt $i: status=$STATUS"
             if [ "$STATUS" -eq 200 ]; then exit 0; fi
             sleep 15

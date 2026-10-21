@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, Index, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -12,7 +12,10 @@ from app.db.base import Base
 
 class Membership(Base):
     __tablename__ = "memberships"
-    __table_args__ = (UniqueConstraint("user_id", "org_id", name="uq_memberships_user_org"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "org_id", name="uq_memberships_user_org"),
+        Index("ix_memberships_org_status", "org_id", "status"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)  # noqa: A003
     user_id: Mapped[int] = mapped_column(

@@ -4,6 +4,7 @@ from collections.abc import AsyncGenerator
 
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Connection
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
@@ -176,6 +177,15 @@ async def init_db() -> None:
     """Initialize database: create missing tables and align known schema drifts."""
     _import_all_orm_models()
     async with engine.begin() as conn:
+        # Model GIN indexes (ix_kev_vendor_trgm, ix_org_vendor_name_trgm) use
+        # gin_trgm_ops, so the extension must exist before create_all. Fail soft
+        # (savepoint) when the role cannot create extensions: databases that
+        # already have their tables and migrations must still boot.
+        try:
+            async with conn.begin_nested():
+                await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+        except DBAPIError:
+            logger.warning("Could not enable pg_trgm; fuzzy vendor indexes may be unavailable")
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(_ensure_organization_profile_columns)
         await conn.run_sync(_ensure_ingest_run_columns)
