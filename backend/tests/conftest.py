@@ -1,6 +1,5 @@
 """Test configuration and fixtures."""
 
-import asyncio
 from collections.abc import AsyncGenerator
 from unittest.mock import patch
 from uuid import uuid4
@@ -16,14 +15,6 @@ FAKE_FIREBASE_TOKEN = {
     "email": "testuser@example.com",
     "firebase": {"sign_in_provider": "password"},
 }
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create a single event loop for all tests to share."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
 
 
 @pytest.fixture(autouse=True)
