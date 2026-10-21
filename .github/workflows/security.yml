@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   scan-exceptions:
-    name: Scan exceptions (expiry)
+    name: Scan exceptions and workflow pins
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -31,6 +31,13 @@ jobs:
 
       - name: Check exception list (format and expiry)
         run: python .github/scripts/scan_exceptions.py check
+
+      - name: Check every action is pinned to a commit SHA
+        run: |
+          if grep -rnP '^\s*(-\s*)?uses:\s*(?!\./)[^@\s]+@(?![0-9a-f]{40}\b)' .github/workflows; then
+            echo "::error::Unpinned action reference(s) above. Pin each 'uses:' to a 40-hex commit SHA."
+            exit 1
+          fi
 
   pip-audit:
     name: pip-audit (backend)
