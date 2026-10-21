@@ -87,6 +87,57 @@ jobs:
       - name: govulncheck
         run: govulncheck ./...
 
+  trivy:
+    name: Trivy (backend image)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.11"
+
+      - name: Build backend image
+        run: docker build --platform linux/amd64 -t ht-backend:ci backend
+
+      - name: Generate .trivyignore from scan_exceptions.md
+        run: python .github/scripts/scan_exceptions.py ids trivy > .trivyignore
+
+      # trivy-action v0.36.0 (immutable release, published after the March 2026
+      # tag-compromise incident, GHSA-69fq-xp46-6x23). The Trivy binary version
+      # is pinned explicitly; never v0.69.4, v0.69.5 or v0.69.6.
+      - name: Trivy (blocking, fixable HIGH and CRITICAL)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ht-backend:ci
+          # Bumped by hand: Dependabot does not track this input. When bumping the
+          # action SHA, also check the trivy releases and move this version.
+          version: v0.76.0
+          cache: false # no Actions-cache restore of the Trivy binary or vulnerability DB
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: 1
+          trivyignores: .trivyignore
+
+      - name: Trivy (report only, all severities)
+        if: always()
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        # Point the ignore file at /dev/null so the report also shows excepted IDs
+        # (Trivy would otherwise read ./.trivyignore; the action only overrides this
+        # env var when the trivyignores input is set).
+        env:
+          TRIVY_IGNOREFILE: /dev/null
+        with:
+          image-ref: ht-backend:ci
+          skip-setup-trivy: true
+          cache: false
+          format: table
+          ignore-unfixed: false
+          exit-code: 0
+
   npm-audit:
     name: npm audit (frontend, prod deps)
     runs-on: ubuntu-latest
