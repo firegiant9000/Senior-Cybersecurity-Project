@@ -39,6 +39,21 @@ class ParseTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "EX-1"):
             se.parse_exceptions(HEADER + row(expires="2026-13-45"))
 
+    def test_non_plain_iso_dates_raise(self):
+        for bad in ("20261201", "2026-W49-2"):
+            with self.assertRaisesRegex(ValueError, "EX-1"):
+                se.parse_exceptions(HEADER + row(expires=bad))
+
+    def test_structure_errors_raise(self):
+        with self.assertRaises(ValueError):
+            se.parse_exceptions(HEADER.replace("## Exceptions", "## exceptions"))
+        with self.assertRaises(ValueError):
+            se.parse_exceptions(HEADER + "\n## Exceptions\n")
+
+    def test_fenced_heading_does_not_end_section(self):
+        text = HEADER.replace("\n| ID", "\n```\n# example\n```\n\n| ID", 1) + row()
+        self.assertEqual(len(se.parse_exceptions(text)), 1)
+
     def test_unknown_scanner_raises(self):
         with self.assertRaisesRegex(ValueError, "EX-1"):
             se.parse_exceptions(HEADER + row(scanner="nope"))
@@ -68,10 +83,16 @@ class ValidateTests(unittest.TestCase):
         self.assertEqual(se.validate([ok], added), [])
 
     def test_expires_before_added_fails(self):
-        e = entry("EX-1", "trivy", date(2026, 10, 20), date(2026, 10, 10))
-        errors = se.validate([e], date(2026, 10, 1))
+        e = entry("EX-1", "trivy", date(2026, 10, 10), date(2026, 10, 5))
+        errors = se.validate([e], date(2026, 10, 10))
+        # Also expired (expires < today), so assert the specific error is present.
+        self.assertTrue(any("EX-1" in x and "before added" in x for x in errors), errors)
+
+    def test_future_added_fails(self):
+        e = entry("EX-1", "trivy", date(2026, 10, 25), date(2026, 11, 1))
+        errors = se.validate([e], date(2026, 10, 20))
         self.assertEqual(len(errors), 1)
-        self.assertIn("EX-1", errors[0])
+        self.assertIn("future", errors[0])
 
 
 class ActiveIdsTests(unittest.TestCase):
@@ -116,6 +137,21 @@ class CliTests(unittest.TestCase):
         r = self._run("check", "--file", expired)
         self.assertEqual(r.returncode, 1)
         self.assertIn("EX-1", r.stdout + r.stderr)
+
+    def test_cli_check_fails_closed_on_bad_structure(self):
+        table = HEADER.split("## Exceptions\n", 1)[1]
+        cases = {
+            "missing heading": "# Scan exceptions\n\nPolicy text.\n" + table,
+            "lowercase heading": "## exceptions\n" + table,
+            "h3 heading": "### Exceptions\n" + table,
+            "missing header row": "## Exceptions\n\n| --- | --- | --- | --- | --- | --- | --- |\n",
+            "wrong header": "## Exceptions\n\n" + table.replace("Expires", "Expiry"),
+            "no separator": "## Exceptions\n\n" + table.splitlines()[1] + "\n",
+        }
+        for name, text in cases.items():
+            with self.subTest(name):
+                r = self._run("check", "--file", self._file(text))
+                self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
 
     def test_cli_ids(self):
         today = datetime.now(timezone.utc).date()

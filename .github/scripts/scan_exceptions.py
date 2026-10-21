@@ -1,6 +1,7 @@
 """Parse and check the scanner exception list (docs/security/scan_exceptions.md)."""
 
 import argparse
+import re
 import sys
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -15,6 +16,16 @@ SCANNERS = (
     "alembic-check",
 )
 COLUMNS = 7
+SECTION_HEADING = "## Exceptions"
+HEADER_COLUMNS = (
+    "ID",
+    "Scanner",
+    "Package / location",
+    "Reason",
+    "Compensating control",
+    "Added",
+    "Expires",
+)
 MAX_WINDOW = timedelta(days=90)
 DEFAULT_FILE = "docs/security/scan_exceptions.md"
 
@@ -44,6 +55,9 @@ def _is_separator(cells: list[str]) -> bool:
 
 
 def _parse_date(value: str, label: str, row: str) -> date:
+    # Python 3.11 fromisoformat also accepts "20261020" and "2026-W43-3"; require the plain form.
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        raise ValueError(f"{row}: bad {label} date {value!r} (expected YYYY-MM-DD)")
     try:
         return date.fromisoformat(value)
     except ValueError:
@@ -51,21 +65,46 @@ def _parse_date(value: str, label: str, row: str) -> date:
 
 
 def parse_exceptions(markdown: str) -> list[ScanException]:
-    in_section = False
-    seen_header = False
-    entries: list[ScanException] = []
-    for raw in markdown.splitlines():
+    lines = markdown.splitlines()
+    in_fence = False
+    start = -1
+    count = 0
+    for i, raw in enumerate(lines):
+        if raw.strip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if not in_fence and raw.rstrip() == SECTION_HEADING:
+            count += 1
+            if start < 0:
+                start = i
+    if count != 1:
+        raise ValueError(f"expected exactly one {SECTION_HEADING!r} heading, found {count}")
+
+    # Table rows of the section: from the heading to the next heading outside a code fence.
+    table: list[str] = []
+    in_fence = False
+    for raw in lines[start + 1 :]:
         line = raw.strip()
+        if line.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
         if line.startswith("#"):
-            in_section = line.lstrip("#").strip() == "Exceptions" and line.startswith("## ")
-            seen_header = False
-            continue
-        if not in_section or not line.startswith("|"):
-            continue
+            break
+        if line.startswith("|"):
+            table.append(line)
+
+    if len(table) < 2:
+        raise ValueError("Exceptions table is missing its header and separator rows")
+    if _cells(table[0]) != list(HEADER_COLUMNS):
+        raise ValueError(f"Exceptions table header must be exactly: {' | '.join(HEADER_COLUMNS)}")
+    if not _is_separator(_cells(table[1])):
+        raise ValueError("Exceptions table header must be followed by a '| --- |' separator row")
+
+    entries: list[ScanException] = []
+    for line in table[2:]:
         cells = _cells(line)
-        if not seen_header:
-            seen_header = True  # header row
-            continue
         if _is_separator(cells):
             continue
         row = f"row {cells[0]!r}" if cells and cells[0] else f"row {line!r}"
@@ -91,6 +130,8 @@ def parse_exceptions(markdown: str) -> list[ScanException]:
 def validate(entries: list[ScanException], today: date) -> list[str]:
     errors = []
     for e in entries:
+        if e.added > today:
+            errors.append(f"{e.id}: added {e.added} is in the future (today {today})")
         if e.expires < e.added:
             errors.append(f"{e.id}: expires {e.expires} is before added {e.added}")
         elif e.expires - e.added > MAX_WINDOW:
