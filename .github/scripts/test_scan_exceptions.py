@@ -1,0 +1,212 @@
+import subprocess
+import sys
+import tempfile
+import unittest
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+
+import scan_exceptions as se
+
+SCRIPT = Path(__file__).with_name("scan_exceptions.py")
+
+HEADER = (
+    "# Scan exceptions\n\nPolicy text.\n\n## Exceptions\n\n"
+    "| ID | Scanner | Package / location | Reason | Compensating control | Added | Expires |\n"
+    "| --- | --- | --- | --- | --- | --- | --- |\n"
+)
+
+
+_COLS = "| ID | Scanner | Package / location | Reason | Compensating control | Added | Expires |\n"
+_SEP = "| --- | --- | --- | --- | --- | --- | --- |\n"
+
+FENCE_DOCS = {
+    # Review doc (a): a ``` block containing ~~~ used to desync the parser and hide an expired row.
+    "review a": (
+        "## Exceptions\n```\n~~~\n```\n\n"
+        + _COLS
+        + _SEP
+        + "| EX-1 | trivy | pkg | r | c | 2026-01-01 | 2026-02-01 |\n"
+        + "~~~\n\n"
+        + _COLS
+        + _SEP
+        + "| EX-2 | trivy | pkg | r | c | 2026-10-20 | 2026-12-01 |\n"
+    ),
+    # Review doc (b): unclosed ~~~ containing ``` used to make a table in a code block live.
+    "review b": (
+        "## Exceptions\n~~~\n```\n"
+        + _COLS
+        + _SEP
+        + "| EX-9 | pip-audit | pkg | r | c | 2026-10-20 | 2026-12-01 |\n"
+    ),
+    "fence before table": "## Exceptions\n\n```\nnote\n```\n\n" + _COLS + _SEP,
+}
+
+
+def row(id_="EX-1", scanner="trivy", added="2026-10-20", expires="2026-12-01"):
+    return f"| {id_} | {scanner} | pkg | reason | control | {added} | {expires} |\n"
+
+
+def entry(id_, scanner, added, expires):
+    return se.ScanException(id_, scanner, "pkg", "reason", "control", added, expires)
+
+
+class ParseTests(unittest.TestCase):
+    def test_empty_table_is_valid(self):
+        self.assertEqual(se.parse_exceptions(HEADER), [])
+        self.assertEqual(se.validate([], date(2026, 10, 20)), [])
+
+    def test_parses_row(self):
+        entries = se.parse_exceptions(HEADER + row())
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].id, "EX-1")
+        self.assertEqual(entries[0].expires, date(2026, 12, 1))
+
+    def test_bad_date_raises(self):
+        with self.assertRaisesRegex(ValueError, "EX-1"):
+            se.parse_exceptions(HEADER + row(expires="2026-13-45"))
+
+    def test_non_plain_iso_dates_raise(self):
+        for bad in ("20261201", "2026-W49-2"):
+            with self.assertRaisesRegex(ValueError, "EX-1"):
+                se.parse_exceptions(HEADER + row(expires=bad))
+
+    def test_structure_errors_raise(self):
+        with self.assertRaises(ValueError):
+            se.parse_exceptions(HEADER.replace("## Exceptions", "## exceptions"))
+        with self.assertRaises(ValueError):
+            se.parse_exceptions(HEADER + "\n## Exceptions\n")
+
+    def test_fences_inside_section_raise(self):
+        for name, text in FENCE_DOCS.items():
+            with self.subTest(name):
+                with self.assertRaisesRegex(ValueError, "fence"):
+                    se.parse_exceptions(text)
+
+    def test_non_row_lines_inside_table_raise(self):
+        cases = {
+            "unclosed fence": HEADER + row("A") + "```\n" + row("B"),
+            "tilde fence with heading": HEADER + "~~~\n# x\n~~~\n" + row("A"),
+            "row without leading pipe": HEADER + row("A") + row("B").lstrip("|"),
+        }
+        for name, text in cases.items():
+            with self.subTest(name):
+                with self.assertRaises(ValueError):
+                    se.parse_exceptions(text)
+
+    def test_unknown_scanner_raises(self):
+        with self.assertRaisesRegex(ValueError, "EX-1"):
+            se.parse_exceptions(HEADER + row(scanner="nope"))
+
+    def test_wrong_cell_count_raises(self):
+        with self.assertRaises(ValueError):
+            se.parse_exceptions(HEADER + "| EX-1 | trivy | pkg |\n")
+
+
+class ValidateTests(unittest.TestCase):
+    def test_expires_today_is_valid(self):
+        e = entry("EX-1", "trivy", date(2026, 10, 1), date(2026, 10, 20))
+        self.assertEqual(se.validate([e], date(2026, 10, 20)), [])
+
+    def test_expired_yesterday_fails(self):
+        e = entry("EX-1", "trivy", date(2026, 10, 1), date(2026, 10, 19))
+        errors = se.validate([e], date(2026, 10, 20))
+        self.assertEqual(len(errors), 1)
+        self.assertIn("EX-1", errors[0])
+
+    def test_window_over_90_days_fails(self):
+        added = date(2026, 10, 20)
+        over = entry("EX-1", "trivy", added, date(2027, 1, 19))
+        ok = entry("EX-2", "trivy", added, date(2027, 1, 18))
+        self.assertEqual(len(se.validate([over], added)), 1)
+        self.assertIn("EX-1", se.validate([over], added)[0])
+        self.assertEqual(se.validate([ok], added), [])
+
+    def test_expires_before_added_fails(self):
+        e = entry("EX-1", "trivy", date(2026, 10, 10), date(2026, 10, 5))
+        errors = se.validate([e], date(2026, 10, 10))
+        # Also expired (expires < today), so assert the specific error is present.
+        self.assertTrue(any("EX-1" in x and "before added" in x for x in errors), errors)
+
+    def test_future_added_fails(self):
+        e = entry("EX-1", "trivy", date(2026, 10, 25), date(2026, 11, 1))
+        errors = se.validate([e], date(2026, 10, 20))
+        self.assertEqual(len(errors), 1)
+        self.assertIn("future", errors[0])
+
+
+class ActiveIdsTests(unittest.TestCase):
+    def test_active_ids_filters_scanner_and_expiry(self):
+        today = date(2026, 10, 20)
+        entries = [
+            entry("T-OLD", "trivy", date(2026, 8, 1), date(2026, 10, 19)),
+            entry("T-NEW", "trivy", date(2026, 10, 1), date(2026, 11, 1)),
+            entry("P-1", "pip-audit", date(2026, 10, 1), date(2026, 11, 1)),
+        ]
+        self.assertEqual(se.active_ids(entries, "trivy", today), ["T-NEW"])
+
+
+class CliTests(unittest.TestCase):
+    def _run(self, *args):
+        return subprocess.run(
+            [sys.executable, str(SCRIPT), *args],
+            capture_output=True,
+            text=True,
+        )
+
+    def _file(self, text):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        p = Path(d.name) / "ex.md"
+        p.write_text(text, encoding="utf-8")
+        return str(p)
+
+    def test_cli_check_exit_codes(self):
+        today = datetime.now(timezone.utc).date()
+        valid = self._file(
+            HEADER + row(added=str(today), expires=str(today + timedelta(days=30)))
+        )
+        expired = self._file(
+            HEADER
+            + row(
+                added=str(today - timedelta(days=30)),
+                expires=str(today - timedelta(days=1)),
+            )
+        )
+        self.assertEqual(self._run("check", "--file", valid).returncode, 0)
+        r = self._run("check", "--file", expired)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("EX-1", r.stdout + r.stderr)
+
+    def test_cli_check_fails_closed_on_bad_structure(self):
+        table = HEADER.split("## Exceptions\n", 1)[1]
+        cases = {
+            "missing heading": "# Scan exceptions\n\nPolicy text.\n" + table,
+            "lowercase heading": "## exceptions\n" + table,
+            "h3 heading": "### Exceptions\n" + table,
+            "missing header row": "## Exceptions\n\n| --- | --- | --- | --- | --- | --- | --- |\n",
+            "wrong header": "## Exceptions\n\n" + table.replace("Expires", "Expiry"),
+            **{f"fence doc {k}": v for k, v in FENCE_DOCS.items()},
+            "unclosed fence hides row": HEADER + row("A") + "```\n" + row("B"),
+            "tilde fence hides rows": HEADER + "~~~\n# x\n~~~\n" + row("A"),
+            "row without leading pipe": HEADER + row("A") + row("B").lstrip("|"),
+            "no separator": "## Exceptions\n\n" + table.splitlines()[1] + "\n",
+        }
+        for name, text in cases.items():
+            with self.subTest(name):
+                r = self._run("check", "--file", self._file(text))
+                self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+
+    def test_cli_ids(self):
+        today = datetime.now(timezone.utc).date()
+        f = self._file(
+            HEADER
+            + row("A", "trivy", str(today), str(today + timedelta(days=5)))
+            + row("B", "pip-audit", str(today), str(today + timedelta(days=5)))
+        )
+        r = self._run("ids", "trivy", "--file", f)
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(r.stdout.split(), ["A"])
+
+
+if __name__ == "__main__":
+    unittest.main()
