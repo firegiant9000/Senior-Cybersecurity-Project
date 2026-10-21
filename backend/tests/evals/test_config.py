@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from evals.ai_summary.config import DEFAULT_CONFIG_PATH, EvalConfig, file_sha256, load_config
 
 _VALID = """\
-model: gemini-2.5-flash
+model: gemini-3.6-flash
 sdk_target: google-genai
 temperature: 0
 top_p: 0.95
@@ -16,7 +16,7 @@ top_k: 40
 candidate_count: 1
 seed: 1
 max_output_tokens: 2048
-thinking_budget: 0
+thinking_level: minimal
 timeout_ms: 20000
 """
 
@@ -29,11 +29,11 @@ def _write(tmp_path: Path, text: str) -> Path:
 
 def test_committed_config_has_protocol_values():
     cfg = load_config(DEFAULT_CONFIG_PATH)
-    assert cfg.model == "gemini-2.5-flash"
+    assert cfg.model == "gemini-3.6-flash"
     assert cfg.sdk_target == "google-genai"
-    assert cfg.temperature == 0
+    assert cfg.temperature == 1.0
     assert cfg.candidate_count == 1
-    assert cfg.thinking_budget == 0
+    assert cfg.thinking_level == "minimal"
     assert cfg.timeout_ms == 20000
 
 
@@ -54,12 +54,27 @@ def test_loads_valid_config(tmp_path):
         "candidate_count",
         "seed",
         "max_output_tokens",
-        "thinking_budget",
+        "thinking_level",
         "timeout_ms",
     ],
 )
 def test_rejects_missing_key(tmp_path, key):
     text = "\n".join(line for line in _VALID.splitlines() if not line.startswith(f"{key}:"))
+    with pytest.raises(ValidationError):
+        load_config(_write(tmp_path, text))
+
+
+@pytest.mark.parametrize("level", ["off", "none", "0", "MINIMAL"])
+def test_rejects_unknown_thinking_level(tmp_path, level):
+    # Gemini 3.x thinking can't be turned off; only the documented levels pass.
+    text = _VALID.replace("thinking_level: minimal", f"thinking_level: {level}")
+    with pytest.raises(ValidationError):
+        load_config(_write(tmp_path, text))
+
+
+def test_rejects_legacy_thinking_budget(tmp_path):
+    # 2026-10-20 amendment: thinking_budget pinned gemini-2.5-flash; 3.x uses levels.
+    text = _VALID.replace("thinking_level: minimal", "thinking_budget: 0")
     with pytest.raises(ValidationError):
         load_config(_write(tmp_path, text))
 

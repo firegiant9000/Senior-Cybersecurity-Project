@@ -264,25 +264,76 @@ def _build_fallback(org: Organization, report: FindingsReport, risk_score: float
 # ---------------------------------------------------------------------------
 
 
+# Pinned call settings (docs/ai/eval-protocol.md §1). The eval harness pins the
+# same values in backend/evals/ai_summary/eval_config.yaml, and
+# tests/test_ai_summary_gemini_call.py asserts that this call sends them.
+GEMINI_GENERATION_SETTINGS: dict[str, Any] = {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 40,
+    "candidate_count": 1,
+    "seed": 20261019,
+    # Caps response and thinking tokens together.
+    "max_output_tokens": 2048,
+    "thinking_level": "minimal",
+}
+GEMINI_TIMEOUT_MS = 20_000  # google-genai HttpOptions.timeout is milliseconds
+
+
 def _call_gemini_raw(prompt: str) -> Any:
     """Call Gemini (sync SDK) and return the SDK response object.
 
     Split out for the offline eval harness (backend/evals/ai_summary), which
     needs finish_reason, usage_metadata and model_version, not just the text.
     """
-    import google.generativeai as genai  # imported lazily to avoid hard dependency
+    from google import genai  # imported lazily to avoid hard dependency
+    from google.genai import types
 
-    genai.configure(api_key=settings.GEMINI_API_KEY)
-    model = genai.GenerativeModel(
-        settings.GEMINI_MODEL,
-        generation_config={"response_mime_type": "application/json"},
+    pinned = GEMINI_GENERATION_SETTINGS
+    http_options = types.HttpOptions(
+        timeout=GEMINI_TIMEOUT_MS,
+        # One attempt: a retry is billed again and would hide failures.
+        retry_options=types.HttpRetryOptions(attempts=1),
     )
-    return model.generate_content(prompt)
+    config = types.GenerateContentConfig(
+        temperature=pinned["temperature"],
+        top_p=pinned["top_p"],
+        top_k=pinned["top_k"],
+        candidate_count=pinned["candidate_count"],
+        seed=pinned["seed"],
+        max_output_tokens=pinned["max_output_tokens"],
+        thinking_config=types.ThinkingConfig(thinking_level=pinned["thinking_level"]),
+        response_mime_type="application/json",
+        response_schema=StructuredSummary,
+    )
+    with genai.Client(api_key=settings.GEMINI_API_KEY, http_options=http_options) as client:
+        return client.models.generate_content(
+            model=settings.GEMINI_MODEL, contents=prompt, config=config
+        )
+
+
+class GeminiEmptyResponseError(RuntimeError):
+    """Gemini answered without text (blocked or empty); the caller falls back."""
 
 
 def _call_gemini_sync(prompt: str) -> str:
     """Call Gemini (sync SDK) and return the text."""
-    return _call_gemini_raw(prompt).text
+    response = _call_gemini_raw(prompt)
+    text = response.text
+    if not text:
+        # google-genai returns None, not an exception, for a blocked or empty
+        # response. Name the reason so the persisted error_message says why.
+        feedback = getattr(response, "prompt_feedback", None)
+        block = getattr(feedback, "block_reason", None)
+        try:
+            finish = response.candidates[0].finish_reason
+        except (AttributeError, IndexError, TypeError):
+            finish = None
+        reason = block or finish
+        raise GeminiEmptyResponseError(
+            f"Gemini returned no text (reason: {getattr(reason, 'name', reason)})"
+        )
+    return text
 
 
 def _parse_structured_response(raw: str) -> StructuredSummary | None:

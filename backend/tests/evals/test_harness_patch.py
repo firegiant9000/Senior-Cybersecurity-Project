@@ -1,12 +1,17 @@
 """The harness patch: `_call_gemini_raw` split out of the sync Gemini call.
 
-Protocol §1: the patch must not change the SDK call. These tests swap in a
-fake `google.generativeai` module, so no network and no key are involved.
+Stage A's tests pinned the legacy `google.generativeai` call exactly, because
+the patch must not change the SDK call (protocol §1). Stage C replaced that
+call on purpose (google-genai with the §1 settings); the arguments it sends are
+pinned in tests/test_ai_summary_gemini_call.py. These tests keep the seam's
+contract: the raw call returns the SDK response object, and the sync call its
+text. A fake `google.genai.Client` means no network and no key.
 """
 
-import sys
-import types
+from types import SimpleNamespace
 from unittest.mock import patch
+
+import pytest
 
 from app.services import ai_summary
 
@@ -15,61 +20,32 @@ class _FakeResponse:
     text = '{"narrative": "n"}'
 
 
-def _fake_sdk(calls: list):
-    module = types.ModuleType("google.generativeai")
+class _FakeClient:
+    def __init__(self, **kwargs):
+        self.models = SimpleNamespace(generate_content=lambda **kw: _FakeResponse())
 
-    def configure(**kwargs):
-        calls.append(("configure", kwargs))
+    def __enter__(self):
+        return self
 
-    class GenerativeModel:
-        def __init__(self, *args, **kwargs):
-            calls.append(("model", args, kwargs))
-
-        def generate_content(self, *args, **kwargs):
-            calls.append(("generate", args, kwargs))
-            return _FakeResponse()
-
-    module.configure = configure
-    module.GenerativeModel = GenerativeModel
-    return module
+    def __exit__(self, *exc):
+        return False
 
 
-def _patched(calls):
-    google_pkg = types.ModuleType("google")
-    fake = _fake_sdk(calls)
-    google_pkg.generativeai = fake
-    return patch.dict(sys.modules, {"google": google_pkg, "google.generativeai": fake})
+@pytest.fixture
+def fake_client(monkeypatch):
+    monkeypatch.setattr("google.genai.Client", _FakeClient)
 
 
-def test_raw_call_returns_the_sdk_response_object():
-    calls: list = []
-    with _patched(calls), patch.object(ai_summary, "settings") as s:
+def test_raw_call_returns_the_sdk_response_object(fake_client):
+    with patch.object(ai_summary, "settings") as s:
         s.GEMINI_API_KEY = "k"
-        s.GEMINI_MODEL = "gemini-2.5-flash"
+        s.GEMINI_MODEL = "gemini-3.6-flash"
         response = ai_summary._call_gemini_raw("PROMPT")
     assert isinstance(response, _FakeResponse)
 
 
-def test_raw_call_keeps_todays_sdk_arguments_exactly():
-    calls: list = []
-    with _patched(calls), patch.object(ai_summary, "settings") as s:
+def test_sync_call_still_returns_text(fake_client):
+    with patch.object(ai_summary, "settings") as s:
         s.GEMINI_API_KEY = "k"
-        s.GEMINI_MODEL = "gemini-2.5-flash"
-        ai_summary._call_gemini_raw("PROMPT")
-    assert calls == [
-        ("configure", {"api_key": "k"}),
-        (
-            "model",
-            ("gemini-2.5-flash",),
-            {"generation_config": {"response_mime_type": "application/json"}},
-        ),
-        ("generate", ("PROMPT",), {}),
-    ]
-
-
-def test_sync_call_still_returns_text():
-    calls: list = []
-    with _patched(calls), patch.object(ai_summary, "settings") as s:
-        s.GEMINI_API_KEY = "k"
-        s.GEMINI_MODEL = "gemini-2.5-flash"
+        s.GEMINI_MODEL = "gemini-3.6-flash"
         assert ai_summary._call_gemini_sync("PROMPT") == _FakeResponse.text

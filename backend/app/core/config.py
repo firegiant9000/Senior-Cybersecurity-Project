@@ -107,7 +107,7 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
 
     # AI / LLM
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_MODEL: str = "gemini-3.6-flash"
     AI_SUMMARY_ENABLED: bool = True
     AI_SUMMARY_CACHE_TTL: int = 3600  # seconds (1 hour)
 

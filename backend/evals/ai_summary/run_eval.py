@@ -305,7 +305,9 @@ def _text(response: Any) -> tuple[str | None, str | None]:
     """The response text, or the class of the error raised reading it."""
     try:
         return response.text, None
-    except Exception as exc:  # noqa: BLE001 - blocked/empty responses raise here
+    # google-generativeai raised here on a blocked/empty response; google-genai
+    # returns None instead, which _strict_parse then records as NoText.
+    except Exception as exc:  # noqa: BLE001
         return None, type(exc).__name__
 
 
@@ -321,11 +323,18 @@ def _strict_parse(raw: str | None) -> tuple[bool, str | None]:
 
 
 def _estimate_cost(prompt: str, config: EvalConfig, pricing: Pricing) -> float:
+    """Worst case for a call with the pinned settings.
+
+    max_output_tokens caps response and thinking tokens together on Gemini
+    3.x, so it bounds the billed output. B0 runs production's uncapped call,
+    where this can undercount; the tally then switches to the actual cost, so
+    the cap is overshot by at most one call's excess.
+    """
     return call_cost_usd(
         pricing,
         prompt_tokens=math.ceil(len(prompt) / CHARS_PER_TOKEN_ESTIMATE),
         candidates_tokens=config.max_output_tokens,
-        thoughts_tokens=config.thinking_budget,
+        thoughts_tokens=0,
     )
 
 
@@ -333,7 +342,7 @@ def _derived_thoughts(usage: dict[str, int | None]) -> int | None:
     """Thinking tokens implied by the total when the SDK doesn't report them.
 
     google-generativeai 0.8.3's UsageMetadata has no thoughts_token_count, but
-    gemini-2.5-flash thinks by default and bills it as output. The total is
+    Gemini 3.x always thinks and bills it as output. The total is
     prompt + candidates + thoughts (prompt already includes cached tokens).
     """
     if usage["thoughts_token_count"] is not None:

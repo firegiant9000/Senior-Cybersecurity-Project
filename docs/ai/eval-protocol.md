@@ -10,20 +10,22 @@ Added 2026-10-19. This protocol defines how S5a's live evaluation is run and rep
 
 **Amended 2026-10-19 (S5a stage A), to match the real finding shape.** The summary's input is the aggregate `Finding` (`app/schemas/findings.py`), not per-CVE data, so §2 and §4 now use real `Finding` objects, cite `Finding.id`, and drop EPSS and CVSS (neither is in the summary input). §1 pins the SDK in `requirements.txt` only; the lockfile comes with S2. §3 states that B1 already includes `response_schema`. Earlier text is struck through, not deleted.
 
+**Amended 2026-10-20 (S5a stage C), because the model became unavailable.** On 2026-10-20 the API rejected every `gemini-2.5-flash` `generateContent` call from a new paid-tier key with `404 … no longer available to new users` (metadata calls still succeed). No key with earlier access is available, so the first B0 attempt (`B0-20261020`: 147 calls, all `NotFound`, nothing billed) produced no outputs; it stays in `runs/index.jsonl` and is disclosed in the baseline report. The pinned model is now `gemini-3.6-flash`, and production moves to it in stage C. On 2026-10-20 the models API reported its version as `3.6-flash-07-2026`, but `gemini-3.6-flash` is an alias and responses return only the alias as `model_version`, so a silent change behind the alias can't be seen from responses. Gemini 3.x thinking can't be turned off, so §1 pins `thinking_level: minimal` instead of a zero thinking budget; `max_output_tokens` caps thinking and response together. Prices rise (§6) and double from 2027-01-01. B0 is no longer the model production ran before this date; see §3.
+
 ## 1. Pinned settings
 
-The settings live in `backend/evals/ai_summary/eval_config.yaml`. **Production reads the same values** (model id, temperature, thinking budget, timeout), and a unit test asserts that they match.
+The settings live in `backend/evals/ai_summary/eval_config.yaml`. **Production reads the same values** (model id, temperature, ~~thinking budget~~ thinking level _(2026-10-20)_, timeout), and a unit test asserts that they match.
 
 | Setting | Value | Why |
 |---|---|---|
-| Model id | `gemini-2.5-flash` | The current production model. The id is not a dated snapshot, so record the response's `model_version` on every call and flag any change between the baseline and final runs |
-| SDK | `google-genai==<exact>`, pinned in ~~requirements and the lockfile~~ `backend/requirements.txt` _(2026-10-19: an exact pin in requirements only; the repo has no lockfile yet, and S2 adds it)_ | `google-generativeai` lost upstream support on 2025-11-30 |
-| `temperature` | 0 | Lowest variance |
+| Model id | ~~`gemini-2.5-flash`~~ `gemini-3.6-flash` _(2026-10-20: 2.5-flash is closed to new keys; see the amendment above)_ | ~~The current production model. The id is not a dated snapshot, so~~ The production model from stage C. It is an alias: responses return `model_version: gemini-3.6-flash`, not a dated snapshot. Record `model_version` on every call, and before F re-read the models API `version` field (`3.6-flash-07-2026` on 2026-10-20); if it changed, F must say so |
+| SDK | `google-genai==<exact>` _(2026-10-20: `2.31.0`, after the framework upgrade in PR #200)_, pinned in ~~requirements and the lockfile~~ `backend/requirements.txt` _(2026-10-19: an exact pin in requirements only; the repo has no lockfile yet, and S2 adds it)_ | `google-generativeai` lost upstream support on 2025-11-30 |
+| `temperature` | ~~0~~ `1.0` _(2026-10-20)_ | ~~Lowest variance~~ Google strongly advises keeping 1.0 for all Gemini 3 models: lower values "may lead to unexpected behavior, such as looping or degraded performance". The 3 repeats (§3) measure the variance, so B1's repeat range is wider and the bar for "improved" (§5) is higher |
 | `top_p`, `top_k` | Set explicitly | So vendor defaults can't drift between runs |
 | `candidate_count` | 1 | — |
 | `seed` | A fixed integer | Best effort only; the repeats (§3) measure the variance that's left |
 | `max_output_tokens` | A fixed value | Caps cost; truncation counts as a failure |
-| `thinking_config.thinking_budget` | Fixed. Proposed `0` unless the dev split shows it's needed | Thinking tokens bill as output and add variance |
+| ~~`thinking_config.thinking_budget`~~ `thinking_config.thinking_level` _(2026-10-20)_ | ~~Fixed. Proposed `0` unless the dev split shows it's needed~~ `minimal`, the lowest level. Gemini 3.x can't turn thinking off, and `minimal` doesn't guarantee zero thinking tokens | Thinking tokens bill as output and add variance. `max_output_tokens` caps thinking and response together, so heavy thinking shows up as truncation (a failure), not as unbounded cost |
 | `response_schema` | The pydantic summary model _(2026-10-19: in B1, the **current** `StructuredSummary`, which has no `finding_ids`; S5a item 3 adds them before F)_ | S5a item 2 |
 | Timeout | `HttpOptions(timeout=20000)` | **Milliseconds** in `google-genai`. 20 s, per S5a item 5 |
 | Prompt | Each run records the SHA-256 of the rendered prompt template | Any prompt change is visible |
@@ -63,7 +65,7 @@ Attack types: instruction override, delimiter breakout, JSON breakout, Unicode o
 
 | Run | When | Splits | Purpose |
 |---|---|---|---|
-| **B0: legacy baseline** | Before any code change except the harness patch (§1) | dev + held-out | The shipped behaviour. If the old SDK no longer runs, record the error and mark B0 unavailable |
+| **B0: legacy baseline** | Before any code change except the harness patch (§1) | dev + held-out | The shipped behaviour. If the old SDK no longer runs, record the error and mark B0 unavailable. _(2026-10-20: the shipped code with only `GEMINI_MODEL` overridden to the §1 model through the environment, no code change. It measures the old SDK and default settings on the new model, not the 2.5-flash behaviour that shipped before this date)_ |
 | **B1: migrated baseline** | After the SDK migration and the §1 settings only; prompt and validators unchanged. _(2026-10-19: "the §1 settings" means **every** §1 setting, including `response_schema` set to the current `StructuredSummary`, which has no `finding_ids`)_ | dev + held-out | Separates the SDK and settings effect from the hardening. **Improvement claims compare B1 to F** _(2026-10-19: every outside claim compares held-out B1 → F only, per §5)_ |
 | D1…Dn: development runs | While iterating | **dev only** | Tuning |
 | **F: final** | Once, on the frozen code for the PR | dev + held-out | The "after" |
@@ -130,6 +132,9 @@ The report lives in `docs/ai/eval-YYYY-MM-DD.md`.
 - Keep the key in `.env.local`. Never commit or log it.
 - Set a billing budget alert. The harness takes `--max-calls` and aborts when the estimated spend exceeds a set limit.
 - **Cost estimate:**
-  - Per call, with thinking off: about 2,000 input and 500 output tokens, roughly $0.002 at `gemini-2.5-flash` list prices ($0.30 per 1M input tokens and $2.50 per 1M output, checked 2026-10-19).
-  - The whole protocol: 49 cases × 3 repeats × about 8 runs, about $2–3.
+  - ~~Per call, with thinking off: about 2,000 input and 500 output tokens, roughly $0.002 at `gemini-2.5-flash` list prices ($0.30 per 1M input tokens and $2.50 per 1M output, checked 2026-10-19).~~
+  - ~~The whole protocol: 49 cases × 3 repeats × about 8 runs, about $2–3.~~
+  - _(2026-10-20)_ Per call with the §1 settings: about 1,700 input tokens and at most 2,048 output tokens (thinking included). At `gemini-3.6-flash` list prices ($0.75 per 1M input and $3.75 per 1M output through 2026-12-31, checked 2026-10-20), that is about $0.009 at worst, so about $1.30 for a 147-call run. B0 sets no output cap and thinks at the default level, so it can cost more (estimated $1.40–2.50).
+  - Approved caps for stage C: B0 $3.00, B1 $1.50. The whole protocol is now roughly $8–12; each run's cap is approved separately.
+  - Prices **double on 2027-01-01** ($1.50 / $7.50). A run from 2027 needs a new dated pricing file, and the report must not compare cost per summary across the price change without saying so.
   - Re-check prices on the day of the first run.

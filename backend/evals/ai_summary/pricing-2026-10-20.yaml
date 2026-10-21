@@ -1,0 +1,12 @@
+# Verified paid-tier prices for the S5a stage-C runs (B0, B1).
+# Read from the source URL on checked_on (page "Last updated 2026-10-19 UTC"):
+# Gemini 2.5 Flash, Standard (non-batch), paid tier, text input.
+# Unchanged from the figures in docs/ai/eval-protocol.md §6.
+model: gemini-2.5-flash
+currency: USD
+verified: true
+checked_on: 2026-10-20
+source_url: https://ai.google.dev/gemini-api/docs/pricing
+input_per_1m_tokens: 0.30
+# Output price, thinking tokens included.
+output_per_1m_tokens: 2.50
