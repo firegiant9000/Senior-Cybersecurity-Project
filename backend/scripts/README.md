@@ -7,19 +7,19 @@ Creates the database tables (`cves`, `kev_catalog`, etc.) and populates them fro
 **Prerequisites**
 
 - PostgreSQL running and `DATABASE_URL` set (e.g. in `backend/.env`; see `env.example`).
-- **Use Python 3.12** for this project. On macOS, if `python3` is 3.14, install 3.12: `brew install python@3.12`. Then use `python3.12` for the steps below.
+- **Use Python 3.11** for this project. On macOS, if `python3` is 3.14, install 3.11: `brew install python@3.11`. Then use `python3.11` for the steps below.
   - If you see: `role "postgres" does not exist`, set `DATABASE_URL` to use your macOS username (Homebrew’s default).
 
-**One-time setup: venv with Python 3.12**
+**One-time setup: venv with Python 3.11 (Linux/WSL only: the hashed locks do not install on native Windows)**
 
 From the repo root:
 
 ```bash
 cd backend
 rm -rf .venv
-python3.12 -m venv .venv
+python3.11 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt
 ```
 
 **Run init + ingest (from backend, with venv activated)**

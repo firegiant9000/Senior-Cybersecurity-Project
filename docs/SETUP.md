@@ -88,6 +88,8 @@ LOG_LEVEL=DEBUG
 
 ### 3. Setup Backend
 
+> **Note:** `requirements.txt` and `requirements-dev.txt` are hash-locked on Linux (compiled in `python:3.11-slim`). A native Windows venv cannot install them (no Windows `uvloop` wheel; Windows-only packages are not locked). On Windows, run backend tests and lint in the compose dev container (`make backend-test`, `make backend-lint`) or in WSL; the venv steps below are for macOS/Linux/WSL.
+
 ```bash
 cd backend
 
@@ -105,7 +107,7 @@ source venv/bin/activate
 
 # Install dependencies
 python -m pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt
 
 # Test installation
 pytest -v tests/
@@ -204,12 +206,12 @@ You should see Python 3.11 in the list.
 
 **Cause**: You're using Python 3.14+. The project needs Python 3.11 or 3.12.
 
-**Solution**: Create a venv with Python 3.11:
+**Solution**: Create a venv with Python 3.11 (macOS/Linux/WSL only; the hashed locks do not install on native Windows, so use `make backend-test` there):
 ```bash
 py -3.11 -m venv venv
 source venv/Scripts/activate  # or venv\Scripts\activate
 python -m pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt
 ```
 
 ### Git Bash venv activation syntax
@@ -231,10 +233,10 @@ venv\Scripts\activate
 
 ### "pip: command not found" or "site-packages is not writeable"
 
-Use `python -m pip` instead:
+Use `python -m pip` instead (Linux/WSL only for the hashed locks):
 ```bash
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+python -m pip install -r requirements.txt -r requirements-dev.txt
 ```
 
 ### Port 5173 or 8000 already in use

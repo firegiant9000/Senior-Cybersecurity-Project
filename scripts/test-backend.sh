@@ -5,5 +5,5 @@ set -e
 
 echo "Running backend tests..."
 cd backend
-pip install -r requirements.txt >/dev/null 2>&1 || true
+pip install -r requirements.txt -r requirements-dev.txt
 pytest -v tests/

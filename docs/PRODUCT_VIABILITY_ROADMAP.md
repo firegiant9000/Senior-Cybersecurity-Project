@@ -82,7 +82,7 @@ The email fallback now links a Firebase account to an existing user only when th
 
 Follow-ups recorded by that PR, carried into S3 as threat-model inputs: the new-user auto-create path stores the token's email even when it is unverified, which lets someone hold an address before its owner signs up; invite acceptance compares against that stored email (it still requires the invite token); and `check_revoked` adds a Firebase lookup per request, so an unreachable Firebase now yields 401.
 
-#### S5a. AI summary quality and injection hardening (added 2026-10-18; runs next, before S2)
+#### S5a. AI summary quality and injection hardening — DONE 2026-10-21 (PRs #197–#205)
 
 **Scope rule.** No new AI feature. This milestone hardens and measures the existing executive summary only (see R5).
 
@@ -145,7 +145,7 @@ gh repo view firegiant9000/Senior-Cybersecurity-Project --json description
 
 **Evidence produced.** The tests, the corpus, the versioned dataset, the B0/B1/F run records, the eval report, the failures doc, the corrected docs.
 
-**Resume potential.** "Hardened Hacker Tracker's LLM executive summaries with schema-enforced output, citation grounding to input finding ids (validator-checked) and a [N]-case prompt-injection corpus in CI; measured [S] % schema-valid and [C] % citation-valid output on a [K]-case eval set, with a deterministic fallback." _(2026-10-19: the placeholders are filled only from the committed held-out F record, compared with B1, and worded per `docs/ai/eval-protocol.md` §5. If a difference isn't significant, the bullet says so, or leaves it out.)_
+**Resume potential.** "Hardened a Gemini-powered security briefing against prompt injection (JSON data isolation, a citation-required response schema, a grounding validator) and measured it with a pre-registered held-out protocol: 0 of 10 held-out injection attacks succeeded after the change versus 2 of 10 before (95% upper bound ≈ 30%; too few cases for a significance test), at +23% cost per summary." _(2026-10-19: the placeholders are filled only from the committed held-out F record, compared with B1, and worded per `docs/ai/eval-protocol.md` §5. If a difference isn't significant, the bullet says so, or leaves it out.)_
 
 **Effort and cost.** ~~About 12–15 hours. A few dollars of API calls at most; pricing is not checked yet.~~ _(Revised 2026-10-19.)_ About 25–35 hours including the protocol. ~~About $2–3 of API calls at `gemini-2.5-flash` list prices checked 2026-10-19 (re-check on the day of the first run).~~ _(Revised 2026-10-20: `gemini-2.5-flash` is closed to new API keys, so S5a moved to `gemini-3.6-flash`; see `docs/ai/eval-protocol.md`.)_ About $8–12 of API calls across the protocol at 3.6-flash prices checked 2026-10-20, which double on 2027-01-01. The SDK migration also needed the framework part of S2 first (fastapi, starlette, pydantic, httpx), because `google-genai` requires newer versions.
 
