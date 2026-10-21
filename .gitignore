@@ -39,3 +39,6 @@ Thumbs.db
 .idea/
 .claude/
 CLAUDE.md
+
+# Session handoff prompts (local only)
+docs/superpowers/prompts/
