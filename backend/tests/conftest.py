@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 
 from app.main import app
 
@@ -51,14 +51,16 @@ def _mock_firebase_init():
 async def client() -> AsyncGenerator[AsyncClient, None]:
     """Create test client with a default auth header."""
     headers = {"Authorization": "Bearer fake-test-token"}
-    async with AsyncClient(app=app, base_url="http://test", headers=headers) as test_client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test", headers=headers
+    ) as test_client:
         yield test_client
 
 
 @pytest_asyncio.fixture
 async def anon_client() -> AsyncGenerator[AsyncClient, None]:
     """Create test client without auth headers (for testing 401/403)."""
-    async with AsyncClient(app=app, base_url="http://test") as test_client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as test_client:
         yield test_client
 
 
