@@ -23,9 +23,17 @@ from app.db.base import Base
 class Asset(Base):
     __tablename__ = "assets"
     __table_args__ = (
-        # NULL-safe uniqueness on (org_id, hostname, mac_address). Defined in the
-        # migration via COALESCE; this unique index lives at the DB level rather
-        # than as a SQLAlchemy UniqueConstraint because of the COALESCE.
+        # NULL-safe uniqueness on (org_id, hostname, mac_address), created by
+        # migration 034 via COALESCE. Declared here as a unique functional index
+        # (not a UniqueConstraint) so alembic check sees it as in sync.
+        Index(
+            "uq_assets_org_host_mac",
+            "org_id",
+            "hostname",
+            text("COALESCE(mac_address, '')"),
+            unique=True,
+        ),
+        Index("ix_assets_created_by_scan_run", "created_by_scan_run_id"),
         Index(
             "ix_assets_org_hostname",
             "org_id",

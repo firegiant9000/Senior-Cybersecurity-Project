@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -12,6 +12,7 @@ from app.db.base import Base
 
 class AISummaryFeedback(Base):
     __tablename__ = "ai_summary_feedback"
+    __table_args__ = (Index("ix_ai_summary_feedback_generation_id", "ai_summary_generation_id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)  # noqa: A003
     org_id: Mapped[int] = mapped_column(

@@ -13,6 +13,7 @@ from sqlalchemy import (  # type: ignore[import-not-found]  # pylint: disable=im
     Index,
     String,
     Text,
+    text,
 )
 from sqlalchemy.orm import (  # type: ignore[import-not-found]  # pylint: disable=import-error
     Mapped,
@@ -45,6 +46,17 @@ class KEV(Base):
     """CISA Known Exploited Vulnerabilities catalog entry."""
 
     __tablename__ = "kev_catalog"
+    # Created by migrations 006, 008 and 022; declared so alembic check is clean.
+    __table_args__ = (
+        Index("ix_kev_catalog_vendor", "vendor"),
+        Index("ix_kev_catalog_vendor_lower", text("lower(vendor)")),
+        Index(
+            "ix_kev_vendor_trgm",
+            "vendor",
+            postgresql_using="gin",
+            postgresql_ops={"vendor": "gin_trgm_ops"},
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)  # noqa: A003
     cve_id: Mapped[str] = mapped_column(ForeignKey("cves.cve_id"), unique=True)

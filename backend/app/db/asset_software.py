@@ -15,6 +15,7 @@ class AssetSoftware(Base):
     __table_args__ = (
         Index("ix_asset_software_org_vendor_product", "org_id", "vendor", "product"),
         Index("ix_asset_software_asset_id", "asset_id"),
+        Index("ix_asset_software_created_by_scan_run", "created_by_scan_run_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)  # noqa: A003

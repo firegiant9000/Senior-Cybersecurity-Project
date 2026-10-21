@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, func
+from sqlalchemy import DateTime, ForeignKey, Index, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -15,7 +15,12 @@ class OAuthState(Base):
     """One-time, short-lived state token binding an OAuth roundtrip."""
 
     __tablename__ = "oauth_states"
-    __table_args__ = (Index("ix_oauth_states_expires_at", "expires_at"),)
+    __table_args__ = (
+        Index("ix_oauth_states_expires_at", "expires_at"),
+        # Created by the original table migration (inline unique=True) in
+        # addition to the unique ix_oauth_states_state_token index.
+        UniqueConstraint("state_token", name="oauth_states_state_token_key"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)  # noqa: A003
     org_id: Mapped[int] = mapped_column(

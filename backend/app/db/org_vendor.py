@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, Index, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -14,6 +14,13 @@ class OrgVendor(Base):
     __tablename__ = "org_vendors"
     __table_args__ = (
         UniqueConstraint("org_id", "vendor_name", "product_name", name="uq_org_vendor_product"),
+        # Trigram index for fuzzy vendor matching (migration 022).
+        Index(
+            "ix_org_vendor_name_trgm",
+            "vendor_name",
+            postgresql_using="gin",
+            postgresql_ops={"vendor_name": "gin_trgm_ops"},
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)  # noqa: A003
