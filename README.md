@@ -90,7 +90,7 @@ flowchart LR
 | --- | --- | --- |
 | Backend | `backend/` | FastAPI, SQLAlchemy 2 async, Alembic (49 migration files; two carry the 021 prefix), pytest |
 | Frontend | `frontend/` | React 18, TypeScript, Vite, React Router, Recharts, Vitest |
-| Host agent | `agent/` | Go 1.22, standard library only, Linux (dpkg/rpm, systemd, optional `ss`) |
+| Host agent | `agent/` | Go 1.27, standard library only, Linux (dpkg/rpm, systemd, optional `ss`) |
 | Auth | Firebase Authentication | Backend verifies ID tokens with the Admin SDK |
 | Hosting | Render (API + Postgres), Firebase Hosting (web) | `render.yaml`, `firebase.json` |
 | Errors | Sentry | No-op when the DSN is unset; PII scrubber on both sides |
@@ -256,7 +256,7 @@ Louisiana at Lafayette, Spring 2026. GitHub handles and commit counts are in
 ## Development and local setup
 
 Prerequisites: Docker Desktop, or Python 3.11/3.12, Node 18+, PostgreSQL 14+
-and Go 1.22 for a bare-metal setup. Full detail, including Windows notes, is
+and Go 1.27 for a bare-metal setup. Full detail, including Windows notes, is
 in [docs/SETUP.md](docs/SETUP.md).
 
 ```bash

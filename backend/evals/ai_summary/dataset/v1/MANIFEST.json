@@ -47,7 +47,7 @@
     "cases.jsonl": "6969ef369f6f9916c3462a8cda9bf7b29466298905a3b46b089389147b9448e5"
   },
   "generator": "dataset/generate_v1.py",
-  "generator_sha256": "ed2d50c8b9125e8782cadfffbf83cd25ba15d0b09247c348769e24319272339c",
+  "generator_sha256": "b304371c3797b3f861d80722586343aec6139e1f51379e445f05c46552bd5be1",
   "seed": 20261019,
   "version": "v1"
 }
