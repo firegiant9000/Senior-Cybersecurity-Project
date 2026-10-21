@@ -98,7 +98,7 @@ venv:
 	@echo "Virtual environment created. Activate with: source backend/venv/bin/activate"
 
 install-local:
-	cd backend && pip install -r requirements.txt
+	cd backend && pip install -r requirements.txt -r requirements-dev.txt
 	cd frontend && npm install
 
 migrate-local:

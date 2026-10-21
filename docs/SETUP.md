@@ -105,7 +105,7 @@ source venv/bin/activate
 
 # Install dependencies
 python -m pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt
 
 # Test installation
 pytest -v tests/
@@ -209,7 +209,7 @@ You should see Python 3.11 in the list.
 py -3.11 -m venv venv
 source venv/Scripts/activate  # or venv\Scripts\activate
 python -m pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt
 ```
 
 ### Git Bash venv activation syntax
@@ -234,7 +234,7 @@ venv\Scripts\activate
 Use `python -m pip` instead:
 ```bash
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+python -m pip install -r requirements.txt -r requirements-dev.txt
 ```
 
 ### Port 5173 or 8000 already in use
