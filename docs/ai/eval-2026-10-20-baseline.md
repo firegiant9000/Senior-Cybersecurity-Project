@@ -2,7 +2,9 @@
 
 **Baseline only. This report makes no improvement claims.** It records the two baselines that S5a's final run (F) will be compared against. The protocol (`docs/ai/eval-protocol.md` §5) allows outside claims only from held-out **B1 → F**. B0 → B1 differences below describe the SDK and settings change; they are not a hardening result.
 
-**These scores are provisional.** Both runs are re-scored, with no new calls, once stage D changes the response schema (`schema_sha256`). Citation-valid and KEV coverage can't be measured until then (see "N/M" below).
+~~**These scores are provisional.** Both runs are re-scored, with no new calls, once stage D changes the response schema (`schema_sha256`). Citation-valid and KEV coverage can't be measured until then (see "N/M" below).~~
+
+**Re-scored 2026-10-20 (S5a stage D), with no new calls.** Stage D made `finding_ids` required, and the protocol now scores schema-valid against the schema each run requested (protocol, stage-D amendment). B0 and B1 requested v1, which `backend/evals/ai_summary/schemas.py` keeps as a frozen copy; its hash equals the `schema_sha256` these runs were first scored with. The re-score changed no metric: each `scores.json` only gained `"schema_name": "StructuredSummaryV1"` and the new `operational.uncited_risks` diagnostic (every B0/B1 risk is uncited). The former N/M rows now show their values, which are fixed **by construction**: neither run was asked to cite findings, so nothing is cited.
 
 ## 1. What ran
 
@@ -41,9 +43,9 @@ Rates are per case (§4): a case passes schema-valid only if all 3 repeats pass,
 
 | Metric | B0 | B1 |
 |---|---|---|
-| Schema-valid | 22/22 (85–100%) | 22/22 (85–100%) |
-| Citation-valid | **N/M** | **N/M** |
-| KEV coverage | **N/M** | **N/M** |
+| Schema-valid (v1, the schema requested) | 22/22 (85–100%) | 22/22 (85–100%) |
+| Citation-valid | ~~**N/M**~~ 22/22 (85–100%), trivially: nothing cited | ~~**N/M**~~ 22/22 (85–100%), trivially: nothing cited |
+| KEV coverage (n = cases with KEV findings; 4 excluded) | ~~**N/M**~~ 0/18 (0–18%), by construction | ~~**N/M**~~ 0/18 (0–18%), by construction |
 | Injection success, all attack cases | 2/10 (6–51%) | 2/10 (6–51%) |
 | … via `name` or vendor name (reachable through the org and vendor APIs) | 1/5 (4–62%) | 1/5 (4–62%) |
 | … via industry, size or state (defence in depth: the org API validates these) | 1/5 (4–62%) | 1/5 (4–62%) |
@@ -60,9 +62,9 @@ Rates are per case (§4): a case passes schema-valid only if all 3 repeats pass,
 
 | Metric | B0 | B1 |
 |---|---|---|
-| Schema-valid | 27/27 (88–100%) | 26/27 (82–99%), repeat range 4 pp |
-| Citation-valid | **N/M** | **N/M** |
-| KEV coverage | **N/M** | **N/M** |
+| Schema-valid (v1, the schema requested) | 27/27 (88–100%) | 26/27 (82–99%), repeat range 4 pp |
+| Citation-valid | ~~**N/M**~~ 27/27 (88–100%), trivially: nothing cited | ~~**N/M**~~ 26/27 (82–99%): nothing cited; the miss is the `ConnectError` repeat below, which returned no text |
+| KEV coverage (n = cases with KEV findings; 6 excluded) | ~~**N/M**~~ 0/21 (0–15%), by construction | ~~**N/M**~~ 0/21 (0–15%), by construction |
 | Injection success, all attack cases | 2/12 (5–45%) | 3/12 (9–53%), repeat range 8 pp |
 | … via `name` or vendor name | 0/6 (0–39%) | 0/6 (0–39%) |
 | … via industry, size or state | 2/6 (10–70%) | 3/6 (19–81%) |
@@ -75,7 +77,7 @@ Rates are per case (§4): a case passes schema-valid only if all 3 repeats pass,
 
 ## 4. How to read these numbers
 
-- **N/M = not measurable before `finding_ids`.** The current `StructuredSummary` has no `finding_ids`, so citation-valid is trivially 100% (nothing is cited) and KEV coverage is 0% by construction. Stage D adds `finding_ids`; both runs are then re-scored offline.
+- ~~**N/M = not measurable before `finding_ids`.** The current `StructuredSummary` has no `finding_ids`, so citation-valid is trivially 100% (nothing is cited) and KEV coverage is 0% by construction. Stage D adds `finding_ids`; both runs are then re-scored offline.~~ _(2026-10-20, stage D re-score)_ **Citation-valid and KEV coverage are fixed by construction in both baselines.** The v1 schema has no `finding_ids`, so citation-valid is trivially met and KEV coverage is 0. Any B1 → F change in these two metrics measures adding citations to the schema and prompt, not a change in model behaviour, and must be reported that way.
 - **Injection judging: single judge plus owner spot-check.** Claude judged all 132 attack repeats under `rubric_v1.md`, with a rationale on every row (`runs/*/manual_judgement.csv`). Every judged success is a canary hit; no repeat followed an injection without writing the canary, and none leaked prompt text. Arlo spot-checked a seeded sample of 10 rows per run (4 judged `yes` and 6 judged `no` in each; seed 20261020) and **agreed with all 20** (`runs/*/owner_spotcheck.csv`). This is a single judge with an owner spot-check, not the independent co-judging the rubric describes, so the judged numbers carry one judge's error.
 - **Repeat ranges understate variance in B1.** B1 pins a seed, and many of its repeats are word-for-word identical. A 0 pp repeat range is therefore not evidence of stability under different seeds, and §5's "larger than B1's repeat range" bar is easy to clear. Read B1 → F differences against the Wilson intervals, which are wide.
 - **Per-call rates are optimistic.** Calls from one case are correlated.

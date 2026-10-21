@@ -8,6 +8,7 @@ and error paths behave properly.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -858,7 +859,16 @@ class TestAISummaryPipeline:
             patch(
                 "app.services.ai_summary._call_gemini",
                 new_callable=AsyncMock,
-                return_value="AI-generated summary text here.",
+                # Stage D serves only schema-valid output, never raw prose.
+                return_value=json.dumps(
+                    {
+                        "narrative": "AI-generated summary text here.",
+                        "posture_statement": "p",
+                        "notable_risks": [],
+                        "data_gaps": [],
+                        "next_steps": [],
+                    }
+                ),
             ),
         ):
             mock_settings.GEMINI_API_KEY = "fake-key"

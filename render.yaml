@@ -38,6 +38,10 @@ services:
         sync: false          # set manually in dashboard; rotate at NIST
       - key: CENSUS_API_KEY
         sync: false          # set manually in dashboard; rotate at Census
+      - key: GEMINI_API_KEY
+        sync: false          # set manually in dashboard; AI summary (template fallback if blank)
+      # GEMINI_MODEL is deliberately not set: the code default (gemini-3.6-flash)
+      # is the model the eval measured. A dashboard override would bypass it.
       - key: SENTRY_DSN
         sync: false          # set manually in dashboard; backend error tracking (no-op if blank)
       - key: SENTRY_ENVIRONMENT

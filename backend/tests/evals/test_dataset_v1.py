@@ -296,7 +296,9 @@ def test_every_case_renders_a_production_prompt(ds):
     for c in ds.cases:
         org, report, risk = build_inputs(c)
         prompt, _ = _build_prompt(org, report, risk)
-        assert "STRUCTURED FINDINGS" in prompt
+        # Stage D: the findings render inside the data block.
+        assert "\nBEGIN DATA\n" in prompt
+        assert all(f'"id": {json.dumps(f.id)}' in prompt for f in report.findings[:20])
 
 
 # ── synthetic only, and no leakage ────────────────────────────────────────

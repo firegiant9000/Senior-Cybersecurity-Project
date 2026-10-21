@@ -586,6 +586,11 @@ async def get_ai_summary(
     Falls back to a template-based summary if Gemini is unavailable or disabled.
     Responses are cached per org for AI_SUMMARY_CACHE_TTL seconds (default 1 hour).
     Pass force_refresh=true to bypass the cache and regenerate immediately.
+
+    Rate limit: 5/minute per client address, counted in memory by each worker
+    process (slowapi with no shared storage), so N workers allow up to 5×N.
+    Each Gemini call has a 20 s timeout and one attempt; a timeout serves the
+    last good summary or the template.
     """
     if not settings.AI_SUMMARY_ENABLED:
         raise HTTPException(status_code=503, detail="AI summary is currently disabled.")

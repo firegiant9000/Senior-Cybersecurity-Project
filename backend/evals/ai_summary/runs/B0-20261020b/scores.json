@@ -5,6 +5,7 @@
   "missing_calls": 0,
   "repeats": 3,
   "run_id": "B0-20261020b",
+  "schema_name": "StructuredSummaryV1",
   "schema_sha256": "2f673fa76f875a89362b91c60b201ff072b64a4f043d3b6914f1b00083000aea",
   "splits": {
     "dev": {
@@ -289,6 +290,11 @@
             0.0,
             0.045278085432415204
           ]
+        },
+        "uncited_risks": {
+          "calls_with_uncited": 78,
+          "risks": 231,
+          "uncited": 231
         }
       },
       "schema_valid": {
@@ -590,6 +596,11 @@
             0.0,
             0.05500255701354129
           ]
+        },
+        "uncited_risks": {
+          "calls_with_uncited": 66,
+          "risks": 194,
+          "uncited": 194
         }
       },
       "schema_valid": {

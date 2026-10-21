@@ -149,7 +149,7 @@ async def test_service_persists_on_gemini_success():
             "app.services.ai_summary._get_feedback_meta", new_callable=AsyncMock, return_value=None
         ),
         patch(
-            "app.services.ai_summary._call_gemini", new_callable=AsyncMock, return_value="narrative"
+            "app.services.ai_summary._call_gemini", new_callable=AsyncMock, return_value=_VALID_JSON
         ),
         patch("app.services.ai_summary.settings") as mock_settings,
         patch("app.services.ai_summary.SqlAISummaryGenerationRepository") as mock_repo_cls,
@@ -294,7 +294,10 @@ async def test_service_continues_when_persistence_fails():
 _VALID_JSON = """{
     "narrative": "Overall risk is moderate.",
     "posture_statement": "The org is at moderate risk.",
-    "notable_risks": [{"title": "Ransomware exposure", "severity": "high", "context": "IC3 data"}],
+    "notable_risks": [
+        {"title": "Ransomware exposure", "severity": "high", "context": "IC3 data",
+         "finding_ids": ["f1"]}
+    ],
     "data_gaps": [{"gap_type": "missing_domains", "impact": "Incomplete domain analysis"}],
     "next_steps": [{"priority": 1, "action": "Patch vendors", "rationale": "KEV match found"}]
 }"""
