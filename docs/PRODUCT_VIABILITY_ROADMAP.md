@@ -231,7 +231,7 @@ Work: blocking CI gates for each language: **CodeQL** (Python, JavaScript/TypeSc
 - What is the difference between what CodeQL finds and what pip-audit finds?
 - Why should test tooling not be in the production image?
 
-#### S3. STRIDE threat model — DONE 2026-10-22 (PR pending)
+#### S3. STRIDE threat model — DONE 2026-10-22 (#225)
 
 Delivered: [`threat_model.md`](security/threat_model.md) holds 110 threats: 41 CONTROL, 21 TEST, 18 ACCEPTED and 30 OPEN (plus 1 withdrawn). `.github/scripts/check_threat_model.py` runs in the `security.yml` workflow and checks the classifications and evidence. Writing it surfaced 10 findings (see the document's Findings). One, an SSRF in the domain checks, was fixed in #224 before publication; none of the other nine was severe, and none of them was fixed in S3. The OPEN rows are scheduled for S4, S5 or owner action.
 
