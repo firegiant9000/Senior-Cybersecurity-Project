@@ -155,7 +155,17 @@ gh repo view firegiant9000/Senior-Cybersecurity-Project --json description
 - How did you judge whether an injection succeeded?
 - What is the blast radius if one succeeds, and why does that shape how much you invest?
 
-#### S1. A real agent release: `agent-v0.1.0` with SBOM and provenance
+#### S1. A real agent release: `agent-v0.1.0` with SBOM and provenance — DONE 2026-10-22 (PRs #222, #223)
+
+Delivered:
+- [Release `agent-v0.1.0`](https://github.com/firegiant9000/Senior-Cybersecurity-Project/releases/tag/agent-v0.1.0): linux/amd64 and arm64 binaries, one CycloneDX SBOM per binary, and `SHA256SUMS`.
+- Keyless provenance and SBOM attestations through `actions/attest` (Sigstore, logged in Rekor). The GPG step and its secret are gone, and the workflow reads no secrets.
+- `govulncheck` in binary mode on the built binaries blocks the release.
+- The release is created as a draft, and the `verify` job checks the files a consumer downloads: checksums, `gh attestation verify` pinned to the workflow, the tag and GitHub-hosted runners, plus a tamper self-test that must fail. Only then does the release go public. The [verify job log](https://github.com/firegiant9000/Senior-Cybersecurity-Project/actions/runs/39733108283/job/119673019614) of the tag run shows each check.
+- A `rehearse` dispatch runs the whole flow against a throwaway draft and deletes it afterwards.
+- The consumer commands are in [`agent_release_verification.md`](security/agent_release_verification.md). The owner ran the quick-verify steps from a workstation against the published release, and they passed.
+
+One change from the plan below: the as-is tag was replaced by a dispatch dry run on `main`, so no broken `agent-v0.1.0` was ever published. cosign was dropped, because `gh attestation verify` already checks the same Sigstore bundle.
 
 Work: tag `agent-v0.1.0` and let the existing workflow run once, as-is, to learn what breaks. Then replace the secret-dependent GPG step with **GitHub artifact attestations** (`actions/attest-build-provenance`, keyless, Sigstore-backed, no stored key) and optionally cosign keyless signing of the binaries; generate a **CycloneDX SBOM** for the agent (`cyclonedx-gomod` or syft) and attach it to the release, attested as well (`actions/attest-sbom`). Add a `verify` job that downloads the release asset and runs `gh attestation verify` against it. Fix the workflow's broken documentation path. Write `docs/security/agent_release_verification.md` with the exact commands a consumer runs.
 

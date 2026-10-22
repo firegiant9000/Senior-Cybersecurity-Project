@@ -130,8 +130,10 @@ flowchart LR
   (SLSA build provenance and the SBOM). It publishes a draft release, verifies it
   with `gh attestation verify`, and only then makes it public; no signing key or
   secret is involved
-  ([`agent-release.yml`](.github/workflows/agent-release.yml)). See
-  [how to verify a release](docs/security/agent_release_verification.md).
+  ([`agent-release.yml`](.github/workflows/agent-release.yml)). The first
+  release is
+  [`agent-v0.1.0`](https://github.com/firegiant9000/Senior-Cybersecurity-Project/releases/tag/agent-v0.1.0).
+  See [how to verify a release](docs/security/agent_release_verification.md).
 - **AI summaries with guarded input.** The executive summary prompt
   ([`ai_summary.py`](backend/app/services/ai_summary.py)) puts every
   organization field (name, industry, size, state) and every finding into one
@@ -206,8 +208,8 @@ on `main` (395 of 560 commits are mine, across the identities listed in
   Postgres advisory-lock concurrency protection
 - EPSS ingestion and enrichment
 - Go host inventory agent (all of `agent/`), agent token issue / verify /
-  rotate / revoke, nonce-based replay protection, and the agent release
-  workflow (not yet exercised: no release has been published)
+  rotate / revoke, nonce-based replay protection, and the attested agent
+  release workflow (first release `agent-v0.1.0`)
 - Gemini executive summaries: the JSON data block for organization and
   finding data, the cited response schema and its grounding validator, the
   template fallback, cache versioning, and the offline evaluation harness

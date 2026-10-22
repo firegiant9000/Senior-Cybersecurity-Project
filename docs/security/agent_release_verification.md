@@ -36,7 +36,9 @@ gh attestation verify hacker-tracker-X.Y.Z-linux-amd64 \
   --deny-self-hosted-runners
 ```
 
-Example: `X.Y.Z` = `0.1.0`. A pass prints the verified attestation and exits 0. Any
+Example: `X.Y.Z` = `0.1.0`. A pass exits 0. In a terminal it also prints the
+verified attestation; in a script or CI log it prints nothing, so add
+`--format json` (optionally with `--jq`) if you want a record. Any
 failure (exit non-zero) means do not run the binary. `sha256sum -c` only catches
 corruption; the attestation check is the one that ties the file to this workflow.
 
