@@ -24,7 +24,7 @@ from pathlib import Path
 
 HEADER_COLUMNS = ("ID", "STRIDE", "Threat", "Class", "Evidence", "Notes")
 HEADER_TEXT = "ID | STRIDE | Threat | Class | Evidence | Notes"
-ID_RE = re.compile(r"^T-(ENR|UPL|TOK|RPL|AUTH|TEN|ING|AI|REL|CI|PLAT)-\d{2}$")
+ID_RE = re.compile(r"^T-(ENR|UPL|TOK|RPL|AUTH|TEN|ING|DOM|AI|REL|CI|PLAT)-\d{2}$")
 STRIDE = ("S", "T", "R", "I", "D", "E")
 CLASSES = ("CONTROL", "TEST", "ACCEPTED", "OPEN")
 MAX_REVIEW_WINDOW = timedelta(days=365)

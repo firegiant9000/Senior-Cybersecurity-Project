@@ -1,6 +1,6 @@
 # Hacker Tracker threat model (STRIDE)
 
-Written 2026-10-22 against commit `5fb462a` (stacked on #223, not yet merged). Updated at the rebase onto `main`. Owner: Arlo Kharod. Roadmap milestone S3.
+Written 2026-10-22 against commit `53f657f` on `main` (after #223 and the egress fix #224 merged). Owner: Arlo Kharod. Roadmap milestone S3.
 
 This document lists the threats to Hacker Tracker by component. Each threat is classified as exactly one of the following:
 
@@ -27,6 +27,7 @@ Area codes:
 | `AUTH` | human authentication |
 | `TEN` | tenancy |
 | `ING` | ingestion |
+| `DOM` | domain checks (outbound probes) |
 | `AI` | AI summary |
 | `REL` | release supply chain |
 | `CI` | CI and deploy |
@@ -59,6 +60,10 @@ flowchart LR
     FA["Firebase Auth"]
     FEEDS["NVD / CISA KEV / FIRST EPSS"]
     GEM["Gemini API"]
+    OSINT["HIBP / Shodan / OTX / crt.sh"]
+  end
+  subgraph EXT["Org-named domains (untrusted hosts)"]
+    TGT["An org's own web server"]
   end
   subgraph TB5["TB5: GitHub (Actions, Releases, Sigstore)"]
     GHA["Workflows and secrets"]
@@ -73,6 +78,8 @@ flowchart LR
   SCH --> API
   API -->|"HTTPS fetch"| FEEDS
   API -->|"org data in a JSON data block"| GEM
+  API -->|"domain name or its address, API key"| OSINT
+  API -->|"DNS, HTTP and TLS probes, public addresses only"| TGT
   GHA -->|"deploy key / deploy hook"| FE
   GHA -->|"deploy hook"| API
   GHA -->|"build, attest, publish"| REL
@@ -84,7 +91,7 @@ flowchart LR
 
 1. **TB1 → TB2: client to backend.** Every request is untrusted until authenticated, either with a Firebase ID token (humans) or an agent bearer token (agents).
 2. **TB2 → TB3: backend to Postgres.** Tenancy is enforced in the backend, by each handler and repository. The database has no row-level security.
-3. **TB2 → TB4: backend to third parties.** Feed content and model output are untrusted input to the backend. Org data sent to Gemini leaves our control.
+3. **TB2 → TB4: backend to third parties.** Feed content, model output and lookup results (HIBP, Shodan, OTX, crt.sh) are untrusted input to the backend. Org data sent to Gemini, and org domains sent to the lookup services, leave our control. The domain checks also probe a host the org names, so where the backend connects is itself attacker-influenced (DOM).
 4. **TB5 → TB1/TB2: CI to production and to consumers.** Workflows hold deploy credentials and mint release attestations.
 5. **Organization to organization, inside TB2/TB3.** This is a logical boundary: one org's members must not reach another org's data. Global admins cross it by design (T-TEN-08).
 
@@ -94,7 +101,8 @@ flowchart LR
 - **Agent tokens:** the raw token on the agent host, and its hash in the database.
 - **Identities:** Firebase identities and the user↔org memberships and roles.
 - **Release artifacts:** the agent binaries and the trust in their provenance.
-- **Credentials:** the deploy credentials (Firebase service account, Render deploy hook) and the API keys (NVD, Gemini).
+- **Credentials:** the deploy credentials (Firebase service account, Render deploy hook) and the API keys (NVD, Gemini, HIBP, Shodan, OTX).
+- **The backend's network position:** whatever the Render service can reach that the internet can't. The domain checks must not lend it out (DOM).
 - **M365 integration secrets:** the stored Microsoft 365 OAuth tokens (encrypted at rest) and the `M365_FERNET_KEY` that encrypts them. The integration is disabled in production (T-PLAT-16).
 - **Personal data:** the PII listed in [pii_inventory.md](pii_inventory.md), mainly email addresses and IP addresses in logs.
 
@@ -180,7 +188,7 @@ flowchart LR
 
 | ID | STRIDE | Threat | Class | Evidence | Notes |
 |----|--------|--------|-------|----------|-------|
-| T-ING-01 | T | A network attacker alters feed responses in transit. | CONTROL | `backend/app/ingestors/nvd.py::ingest_nvd` (L369) | HTTPS endpoints with httpx's default TLS verification; no `verify=False` in the feed ingestors. The domain probe skips certificate checks on purpose, because it reports on the certificate; its CodeQL alert was dismissed as won't-fix on 2026-10-22. |
+| T-ING-01 | T | A network attacker alters feed responses in transit. | CONTROL | `backend/app/ingestors/nvd.py::ingest_nvd` (L369) | HTTPS endpoints with httpx's default TLS verification; no `verify=False` in the feed ingestors. The domain probe skips certificate checks on purpose, because it reports on the certificate (T-DOM-06). |
 | T-ING-02 | T | A compromised or poisoned upstream feed publishes false CVE, KEV or EPSS data. | ACCEPTED | reason: NIST, CISA and FIRST are the authoritative sources and publish no signed feeds; records are shape-validated but their content is trusted as published; owner: Arlo; review: 2027-04-22 | NVD updates overwrite the stored description and score on every pass. |
 | T-ING-03 | T | Malformed feed records are stored. | TEST | `backend/tests/test_validators.py::TestNvdCveValidationSchema::test_invalid_cve_id`, `backend/tests/test_validators.py::TestCisaKevValidationSchema::test_invalid_cve_id`, `backend/tests/test_epss_ingest.py::test_ingest_epss_skips_malformed_scores` | CVSS is clamped to [0, 10]; severity is checked against an allow-list. |
 | T-ING-04 | T | EPSS values outside [0, 1], or for CVEs that weren't requested, are stored. | OPEN | milestone: S5; item: manual AppSec findings (input validation on ingestion) | |
@@ -191,6 +199,21 @@ flowchart LR
 | T-ING-09 | D | Concurrent runs of the same source corrupt data or double the load. | TEST | `backend/tests/test_ingest_run_behaviors.py::test_run_ingestion_skips_when_lock_held`, `backend/tests/test_ingest_lock.py::test_acquire_lock_contention` | A Postgres advisory lock per source. |
 | T-ING-10 | I | The NVD API key is sent in a URL query string on two enrichment paths and can end up in error logs. | OPEN | milestone: S5; item: manual AppSec findings (send the NVD key as a header on every path) | The main ingestors already send it as a header. Exposure is limited to people who can read the operator's logs. Shodan's API requires its key as a query parameter, so the same logging care applies there. Found while writing the model. |
 | T-ING-11 | I | The public `/api/v1/ingest/health` endpoint reveals per-source staleness and failure counts. | ACCEPTED | reason: intended for external uptime monitors; it shows no tenant data; owner: Arlo; review: 2027-04-22 | |
+
+## Domain checks: outbound probes (DOM)
+
+The external checks probe a domain the org itself names (its primary domain, or a domain on its list), and query lookup services about it. Any org member can trigger them (`check_org_access` on the domain route), and the findings engine runs them on the org's primary domain. So the destination of these requests is attacker-influenced. #224 added the guards below before this model was published.
+
+| ID | STRIDE | Threat | Class | Evidence | Notes |
+|----|--------|--------|-------|----------|-------|
+| T-DOM-01 | E | A domain that resolves to a private, loopback, link-local or other non-public address makes the backend's HTTP, TLS or fingerprint probe reach a service only the backend can reach (SSRF). | TEST | `backend/tests/test_domain_checks_egress.py::test_http_check_makes_no_request_to_an_internal_host`, `backend/tests/test_domain_checks_egress.py::test_ssl_check_opens_no_socket_to_an_internal_host`, `backend/tests/test_domain_checks_egress.py::test_tech_fingerprint_makes_no_request_to_an_internal_host` | `domain_checks.py::resolve_public_ip` refuses unless every resolved address is globally routable (IPv4-mapped and translation ranges included); `::normalize_hostname` rejects IP literals and non-hostnames. The tests fake only DNS and the transport, not the guard. Found while writing the model; fixed in #224. |
+| T-DOM-02 | E | A public host redirects the probe to an internal host, an IP literal or a non-default port. | TEST | `backend/tests/test_domain_checks_egress.py::test_http_check_does_not_follow_a_redirect_to_an_internal_host`, `backend/tests/test_domain_checks_egress.py::test_http_check_does_not_follow_a_redirect_to_an_ip_literal`, `backend/tests/test_domain_checks_egress.py::test_http_check_stops_after_the_redirect_limit` | `domain_checks.py::_fetch_public_hops` follows redirects itself (the client never does) and re-checks every hop, up to 5. |
+| T-DOM-03 | E | DNS rebinding: the name resolves to a public address for the check and to an internal one for the connection. | TEST | `backend/tests/test_domain_checks_egress.py::test_http_check_connects_to_the_checked_address`, `backend/tests/test_domain_checks_egress.py::test_ssl_check_connects_to_the_checked_address`, `backend/tests/test_domain_checks_egress.py::test_each_redirect_hop_uses_a_fresh_connection` | The probe connects to the address that was checked and sends the hostname as `Host` and SNI, so there is no second lookup. |
+| T-DOM-04 | D | A slow or very large response from the probed host ties up a worker or exhausts memory. | TEST | `backend/tests/test_domain_checks_egress.py::test_fetched_body_is_capped`, `backend/tests/test_domain_checks_egress.py::test_slow_host_is_cut_off_by_the_deadline`, `backend/tests/test_domain_checks_egress.py::test_compressed_body_is_not_read` | Body capped at 256 KB of uncompressed bytes, plus an overall fetch deadline. |
+| T-DOM-05 | I | A lookup service (Shodan) is queried about, and reports on, an internal address the domain resolves to. | TEST | `backend/tests/test_domain_checks_egress.py::test_shodan_does_not_report_or_query_an_internal_address` | |
+| T-DOM-06 | T | The HTTP and fingerprint probes skip TLS certificate verification, so an on-path attacker could alter what they report. | ACCEPTED | reason: the checks report on the target's own headers and certificate, including invalid ones, so verification would hide the very thing being measured; results are informational and are not used for any security decision; owner: Arlo; review: 2027-04-22 | The CodeQL alert for this call (`py/request-without-cert-validation`) was dismissed as won't-fix on 2026-10-22. The feed ingestors do verify (T-ING-01). |
+| T-DOM-07 | I | Org domains, and the addresses they resolve to, are sent to third-party lookup services (HIBP, Shodan, OTX, crt.sh). | ACCEPTED | reason: these lookups are the feature; only the domain name or its public address is sent, with no user identifiers; each keyed source is skipped when its key isn't configured; owner: Arlo; review: 2027-04-22 | Like T-AI-10, the data leaves our control once sent. |
+| T-DOM-08 | D | Gaps left after #224: only the first resolved address is tried, `primary_domain` isn't validated when it is written, a server that ignores the identity encoding gets a header-only fingerprint, and the header check reads a body it doesn't use. | OPEN | milestone: S5; item: manual AppSec findings (domain-check follow-ups from #224) | Robustness and defence in depth; none of these reopens T-DOM-01 to T-DOM-03. |
 
 ## AI summary inputs and output (AI)
 
@@ -259,28 +282,29 @@ This section builds on the S5a case study, [docs/ai/case-study.md](../ai/case-st
 
 ## Findings
 
-These are what writing the model surfaced that wasn't already known or documented. None of them was judged severe: none is an exploitable cross-tenant read, an authentication bypass or a leaked credential. None is fixed in S3; each is scheduled.
+These are what writing the model surfaced that wasn't already known or documented. One was serious and was fixed before publication (finding 1). None of the others was judged severe: none is an exploitable cross-tenant read, an authentication bypass or a leaked credential. Apart from finding 1, none is fixed in S3; each is scheduled.
 
-1. **Several destructive org-scoped routes check only membership**, not an org role: T-TEN-05.
-2. **First sign-in and invite acceptance don't yet require a verified email**: T-AUTH-04. S0 closed the account-takeover path; this is the remaining gap.
-3. **Revocation doesn't follow a rotation** (T-TOK-08), and **rotation can extend or restore an older token's validity** (T-ENR-04).
-4. **The NVD API key travels in a URL query string** on two paths: T-ING-10.
-5. **The analytics event route doesn't bind events to the caller's org**: T-TEN-10. Write-only.
-6. **Docs and code disagreed** in several places, and the docs are corrected in this PR:
+1. **The domain checks could be pointed at internal addresses (SSRF).** Found while writing the model, and fixed in #224 before publication: T-DOM-01 to T-DOM-05. Follow-ups are T-DOM-08.
+2. **Several destructive org-scoped routes check only membership**, not an org role: T-TEN-05.
+3. **First sign-in and invite acceptance don't yet require a verified email**: T-AUTH-04. S0 closed the account-takeover path; this is the remaining gap.
+4. **Revocation doesn't follow a rotation** (T-TOK-08), and **rotation can extend or restore an older token's validity** (T-ENR-04).
+5. **The NVD API key travels in a URL query string** on two paths: T-ING-10.
+6. **The analytics event route doesn't bind events to the caller's org**: T-TEN-10. Write-only.
+7. **Docs and code disagreed** in several places, and the docs are corrected in this PR:
    - the README's upload-size, rate-limit and global-admin claims;
    - `pii_inventory.md` (an email is logged; there's no stdout scrubber; the retention rules);
    - `privacy.md` (the request logs, the hosting region, who can export or delete);
    - `agent_enrollment.md` ("HTTPS only", the scan-history cap).
-7. **Agent scopes are stored but not enforced** (T-ENR-06), and a tenancy helper, `require_org_or_admin`, is dead code. Neither is credited as a control.
-8. **Rate-limit storage and client identity need hardening**: T-PLAT-05.
-9. **The Microsoft 365 integration isn't modelled**, because it is disabled in production: T-PLAT-16.
+8. **Agent scopes are stored but not enforced** (T-ENR-06), and a tenancy helper, `require_org_or_admin`, is dead code. Neither is credited as a control.
+9. **Rate-limit storage and client identity need hardening**: T-PLAT-05.
+10. **The Microsoft 365 integration isn't modelled**, because it is disabled in production: T-PLAT-16.
 
 ## OPEN RISK index
 
 | Milestone | Rows |
 |-----------|------|
 | S4 (authorization assurance) | T-PLAT-06, T-ENR-04, T-UPL-09, T-TOK-07, T-TOK-08, T-AUTH-04, T-AUTH-07, T-TEN-05, T-TEN-07, T-TEN-10, T-TEN-12, T-PLAT-01, T-PLAT-09 |
-| S5 (DAST and manual AppSec) | T-ING-04, T-ING-06, T-ING-07, T-ING-10, T-AI-09, T-PLAT-03, T-PLAT-05, T-PLAT-07, T-PLAT-10, T-PLAT-13 |
+| S5 (DAST and manual AppSec) | T-ING-04, T-ING-06, T-ING-07, T-ING-10, T-DOM-08, T-AI-09, T-PLAT-03, T-PLAT-05, T-PLAT-07, T-PLAT-10, T-PLAT-13 |
 | OWNER (repo hardening, Arlo) | T-REL-02, T-REL-03, T-CI-02, T-CI-04, T-CI-05 |
 
 ## ACCEPTED RISK register
@@ -290,6 +314,7 @@ Every accepted risk is owned by Arlo and is due for review on **2027-04-22**. CI
 - T-RPL-02, T-RPL-03;
 - T-AUTH-05, T-TEN-08;
 - T-ING-02, T-ING-11;
+- T-DOM-06, T-DOM-07;
 - T-AI-06, T-AI-10;
 - T-REL-05, T-REL-08;
 - T-PLAT-08, T-PLAT-11, T-PLAT-16.
@@ -300,7 +325,7 @@ The reasons are in each row.
 
 The following are out of scope:
 - the developer's workstation;
-- the internal security of GitHub, Google (Firebase and Gemini), Render, and the NVD, CISA and FIRST services;
+- the internal security of GitHub, Google (Firebase and Gemini), Render, the NVD, CISA and FIRST services, and the HIBP, Shodan, OTX and crt.sh lookup services;
 - physical access;
 - the Go agent's local collectors, which are read-only and open no listener (roadmap R6).
 

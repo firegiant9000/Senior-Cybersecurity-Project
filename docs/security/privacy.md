@@ -63,6 +63,7 @@ disclosure and the enrollment/revocation flow live in
 | Firebase Hosting  | Static frontend assets                     | Google global         |
 | Sentry            | Error reports (scrubbed)                   | US                    |
 | Google Gemini API | AI summary (org-level fields and findings only, no user identifiers) | Google global |
+| HIBP, Shodan, AlienVault OTX, crt.sh | External domain checks (the org's domain name or its public address only) | Each provider's own |
 
 We do not transfer data outside the United States except where the provider
 operates a global CDN for static assets only.

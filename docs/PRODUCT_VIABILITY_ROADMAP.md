@@ -233,15 +233,15 @@ Work: blocking CI gates for each language: **CodeQL** (Python, JavaScript/TypeSc
 
 #### S3. STRIDE threat model — DONE 2026-10-22 (PR pending)
 
-Delivered: [`threat_model.md`](security/threat_model.md) holds 101 threats: 39 CONTROL, 18 TEST, 16 ACCEPTED and 28 OPEN (plus 1 withdrawn). `.github/scripts/check_threat_model.py` runs in the `security.yml` workflow and checks the classifications and evidence. Writing it surfaced 9 findings (see the document's Findings); none was severe and none was fixed in S3. The OPEN rows are scheduled for S4, S5 or owner action.
+Delivered: [`threat_model.md`](security/threat_model.md) holds 109 threats: 39 CONTROL, 23 TEST, 18 ACCEPTED and 29 OPEN (plus 1 withdrawn). `.github/scripts/check_threat_model.py` runs in the `security.yml` workflow and checks the classifications and evidence. Writing it surfaced 10 findings (see the document's Findings). One, an SSRF in the domain checks, was fixed in #224 before publication; none of the other nine was severe, and none of them was fixed in S3. The OPEN rows are scheduled for S4, S5 or owner action.
 
-Work: `docs/security/threat_model.md` covering agent enrollment, agent upload, token lifecycle and rotation, replay, human authentication (including the email-link fallback), organization tenancy, the global-admin boundary, the ingestion pipeline (NVD, KEV, EPSS) and the AI summary inputs. For every threat, one of: **CONTROL** (with the file and line), **TEST** (with the test name), **ACCEPTED RISK** (with the reason and owner), or **OPEN RISK** (with the milestone that closes it). The threat model drives S4 and S5: every OPEN RISK must map to a later item or be explicitly accepted.
+Work: `docs/security/threat_model.md` covering agent enrollment, agent upload, token lifecycle and rotation, replay, human authentication (including the email-link fallback), organization tenancy, the global-admin boundary, the ingestion pipeline (NVD, KEV, EPSS), the outbound domain checks and the AI summary inputs. For every threat, one of: **CONTROL** (with the file and line), **TEST** (with the test name), **ACCEPTED RISK** (with the reason and owner), or **OPEN RISK** (with the milestone that closes it). The threat model drives S4 and S5: every OPEN RISK must map to a later item or be explicitly accepted.
 
 **Acceptance.** Every threat row has exactly one classification; every TEST row names a test that exists; every OPEN RISK names a milestone; the document is linked from the README security section.
 
 **Evidence produced.** The threat model document.
 
-**Resume potential.** "Wrote a STRIDE threat model for Hacker Tracker's agent enrollment, upload, token lifecycle, tenancy and AI-input paths (101 threats), mapping each to a control, a test or an accepted risk, and used it to drive the authorization suite."
+**Resume potential.** "Wrote a STRIDE threat model for Hacker Tracker's agent enrollment, upload, token lifecycle, tenancy and AI-input paths (109 threats), mapping each to a control, a test or an accepted risk, and used it to drive the authorization suite."
 
 **Interview questions.**
 - Walk me through the spoofing and tampering threats on the agent upload path and how each is controlled.
