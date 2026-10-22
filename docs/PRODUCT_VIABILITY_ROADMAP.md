@@ -165,7 +165,10 @@ Delivered:
 - A `rehearse` dispatch runs build, draft and verify against a throwaway `0.0.0-dev` draft and deletes it afterwards. Only a real tag push undrafts.
 - The consumer commands are in [`agent_release_verification.md`](security/agent_release_verification.md). The owner ran the quick-verify steps from a workstation against the published release, and they passed.
 
-One change from the plan below: the as-is tag was replaced by a dispatch dry run on `main`, so no broken `agent-v0.1.0` was ever published. The optional cosign signing was not added, because `gh attestation verify` already checks the same Sigstore bundle.
+Changes from the plan below:
+- The as-is tag was replaced by a dispatch dry run on `main`, so no broken `agent-v0.1.0` was ever published.
+- `actions/attest` is used directly; `attest-build-provenance` and `attest-sbom` are now wrappers over it.
+- The optional cosign signing was not added, because `gh attestation verify` already checks the same Sigstore bundle.
 
 Work: tag `agent-v0.1.0` and let the existing workflow run once, as-is, to learn what breaks. Then replace the secret-dependent GPG step with **GitHub artifact attestations** (`actions/attest-build-provenance`, keyless, Sigstore-backed, no stored key) and optionally cosign keyless signing of the binaries; generate a **CycloneDX SBOM** for the agent (`cyclonedx-gomod` or syft) and attach it to the release, attested as well (`actions/attest-sbom`). Add a `verify` job that downloads the release asset and runs `gh attestation verify` against it. Fix the workflow's broken documentation path. Write `docs/security/agent_release_verification.md` with the exact commands a consumer runs.
 
