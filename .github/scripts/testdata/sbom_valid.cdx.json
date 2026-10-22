@@ -1,0 +1,140 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:392d3aa5-f9c4-4edd-baac-113f7a8f0e47",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-10-22T04:49:03Z",
+    "tools": [
+      {
+        "vendor": "CycloneDX",
+        "name": "cyclonedx-gomod",
+        "version": "v1.12.0",
+        "hashes": [
+          {
+            "alg": "MD5",
+            "content": "99ae9abe63746d19aeaac0a7c50a9e6b"
+          },
+          {
+            "alg": "SHA-1",
+            "content": "5121ecb618f4697f2b5f129e6fa085886be30682"
+          },
+          {
+            "alg": "SHA-256",
+            "content": "c85cb7e5ed9c98467b7afe9ff6051abea1bd4c8718438a83e053b079031f1e4b"
+          },
+          {
+            "alg": "SHA-384",
+            "content": "50939fdd25f62250453d52272d2e764ca2371983a14821ace816dda97b04b387e0f4adf571b3b7864c612db7c57ef89f"
+          },
+          {
+            "alg": "SHA-512",
+            "content": "0e4f85770cc75c28fc347a54e318e92fc6c7a12b68be1cd76f889bf20b3c70bb8055042765efba1a38580e6350296e00a24d8a33c98db9ae3e7a51b9a86fdd43"
+          }
+        ],
+        "externalReferences": [
+          {
+            "url": "https://github.com/CycloneDX/cyclonedx-gomod",
+            "type": "vcs"
+          },
+          {
+            "url": "https://cyclonedx.org",
+            "type": "website"
+          }
+        ]
+      }
+    ],
+    "component": {
+      "bom-ref": "pkg:golang/github.com/firegiant9000/hacker-tracker/agent@v0.0.0-dev?type=module#cmd/hacker-tracker",
+      "type": "application",
+      "name": "github.com/firegiant9000/hacker-tracker/agent",
+      "version": "v0.0.0-dev",
+      "purl": "pkg:golang/github.com/firegiant9000/hacker-tracker/agent@v0.0.0-dev?goarch=amd64\u0026goos=linux\u0026type=module#cmd/hacker-tracker",
+      "externalReferences": [
+        {
+          "url": "https://github.com/firegiant9000/hacker-tracker/agent",
+          "type": "vcs"
+        }
+      ]
+    },
+    "properties": [
+      {
+        "name": "cdx:gomod:binary:hash:MD5",
+        "value": "1d1bc6fc11fbdf83f739617863a2b8fd"
+      },
+      {
+        "name": "cdx:gomod:binary:hash:SHA-1",
+        "value": "9c2cedf210a858ac16e68fe0ce79457db2942d1c"
+      },
+      {
+        "name": "cdx:gomod:binary:hash:SHA-256",
+        "value": "3caa4867846107416561f0019d3318d1d01e48e706e96fe69ad8490bc2365ea6"
+      },
+      {
+        "name": "cdx:gomod:binary:hash:SHA-384",
+        "value": "853ea3e19b1c914c884788d258644b2e2d2525d7b99567873a97561b220ad2e8f524250af637250ae0a6f90d2fd28d5c"
+      },
+      {
+        "name": "cdx:gomod:binary:hash:SHA-512",
+        "value": "36940c2378e6f522d32692de94f497a7718cac51d2c58ffa55dad23a6e670c562a1f48a33aac66a6d76a4106f30920aed8eaeb6d6f892e64a29e383260c8e89c"
+      },
+      {
+        "name": "cdx:gomod:binary:name",
+        "value": "hacker-tracker-0.0.0-dev-linux-amd64"
+      },
+      {
+        "name": "cdx:gomod:build:compiler",
+        "value": "gc"
+      },
+      {
+        "name": "cdx:gomod:build:env:CGO_ENABLED",
+        "value": "0"
+      },
+      {
+        "name": "cdx:gomod:build:env:GOARCH",
+        "value": "amd64"
+      },
+      {
+        "name": "cdx:gomod:build:env:GOOS",
+        "value": "linux"
+      },
+      {
+        "name": "cdx:gomod:build:env:GOVERSION",
+        "value": "go1.27.3"
+      }
+    ]
+  },
+  "components": [
+    {
+      "bom-ref": "pkg:golang/std@go1.27.3?type=module",
+      "type": "library",
+      "name": "std",
+      "version": "go1.27.3",
+      "scope": "required",
+      "purl": "pkg:golang/std@go1.27.3?goarch=amd64\u0026goos=linux\u0026type=module"
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "pkg:golang/github.com/firegiant9000/hacker-tracker/agent@v0.0.0-dev?type=module#cmd/hacker-tracker"
+    },
+    {
+      "ref": "pkg:golang/std@go1.27.3?type=module"
+    }
+  ],
+  "compositions": [
+    {
+      "aggregate": "complete",
+      "dependencies": [
+        "pkg:golang/github.com/firegiant9000/hacker-tracker/agent@v0.0.0-dev?type=module#cmd/hacker-tracker"
+      ]
+    },
+    {
+      "aggregate": "unknown",
+      "dependencies": [
+        "pkg:golang/std@go1.27.3?type=module"
+      ]
+    }
+  ]
+}

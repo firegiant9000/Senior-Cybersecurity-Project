@@ -171,6 +171,25 @@ Work: tag `agent-v0.1.0` and let the existing workflow run once, as-is, to learn
 - What is in the SBOM, and how would a consumer use it after a new CVE drops?
 - How would you detect that someone tampered with the release asset after publication?
 
+**Follow-ups found during S1 (Firebase, outside S1's scope).** These came up on PR #222 on 2026-10-22:
+
+- **What happened.**
+  - The PR's preview deploy failed with a 403 on `serviceusage.services.get`.
+  - The CI secret `FIREBASE_SERVICE_ACCOUNT` held a key for the `firebase-adminsdk` service account, which had lost (or never had) its Hosting permission. It passed the day before.
+  - The fix was a dedicated `github-hosting-deploy` service account (Firebase Hosting Admin, API Keys Viewer, Service Usage Consumer) with a new key in that secret.
+
+The follow-ups:
+
+1. **Retire the old CI key.** The `firebase-adminsdk` key previously stored in `FIREBASE_SERVICE_ACCOUNT` is still active in Google Cloud.
+   - First confirm which key ID the Render backend uses, so the production key isn't disabled.
+   - Then delete the CI key.
+   - Do this together with the Firebase Admin SDK key rotation already pending from the career audit (one key was exposed in pre-scrub history).
+2. **Explain the permission change.** The Hosting deploy permission disappeared between 2026-10-21 21:46 UTC and 2026-10-22 05:04 UTC.
+   - Check Cloud Audit Logs (`protoPayload.methodName="SetIamPolicy"`) for who changed the project's IAM policy, and when.
+   - If nobody recognises the change, treat it as a security incident.
+   - While there, act on the console's "excess permissions" recommendation for the four Editor accounts.
+3. **Optional: remove the key altogether.** Replace the deploy key with Workload Identity Federation, so GitHub authenticates to Google with a short-lived OIDC token (the same trust model as S1), and no long-lived key lives in repo secrets.
+
 #### S2. Dependency and supply-chain hardening — DONE 2026-10-21 (PRs #213–#218)
 
 Delivered:

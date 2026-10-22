@@ -39,9 +39,9 @@ API equivalent: `POST /api/v1/agents/enroll` (returns the raw token once).
 
 ## 2. Install on the host
 
-1. Download the signed Linux binary (see
-   [agent_release_signing.md](agent_release_signing.md) for verifying the
-   signature).
+1. Download the attested Linux binary (see
+   [agent_release_verification.md](agent_release_verification.md) for verifying the
+   attestation).
 2. Review what will be sent, then upload:
 
    ```sh

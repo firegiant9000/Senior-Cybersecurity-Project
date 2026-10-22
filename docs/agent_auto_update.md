@@ -1,6 +1,6 @@
 # Agent Auto-Update — Design (Month 4 Phase 6)
 
-> **Status 2026-09-29: DEFERRED.** Not scheduled for Month 5 or 6 any more. Revisit after S1 has produced two attested releases; at that point the manifest trust model below should be rebased on artifact attestations rather than a GPG-signed manifest. See [PRODUCT_VIABILITY_ROADMAP.md](PRODUCT_VIABILITY_ROADMAP.md).
+> **Status 2026-09-29: DEFERRED.** Not scheduled for Month 5 or 6 any more. Revisit after S1 has produced two attested releases; at that point the manifest trust model below should be rebased on artifact attestations rather than a GPG-signed manifest. See [PRODUCT_VIABILITY_ROADMAP.md](PRODUCT_VIABILITY_ROADMAP.md). The GPG manifest model below must be replaced by artifact attestations (see security/agent_release_verification.md) before this is revisited.
 
 > Phase 6 of [month_4_execution_plan.md](month_4_execution_plan.md). **Design only —
 > no implementation in Month 4.** Auto-update ships in Month 5/6; this document
