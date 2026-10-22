@@ -44,14 +44,16 @@ _DNS_TIMEOUT = 5.0
 _shodan_cache: TTLCache = TTLCache(maxsize=500, ttl=86400)
 
 _MAX_REDIRECTS = 5
+_MAX_BODY_BYTES = 256_000
+_FETCH_DEADLINE = 20.0  # seconds, for one scheme including redirects
 _INVALID_HOSTNAME = "Not a valid public hostname"
 
 # ---------------------------------------------------------------------------
 # Destination rules (see module docstring)
 # ---------------------------------------------------------------------------
 
-_HOST_LABEL_RE = re.compile(r"^(?!-)[a-z0-9-]{1,63}(?<!-)$")
-_TLD_RE = re.compile(r"^(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$")
+_HOST_LABEL_RE = re.compile(r"(?!-)[a-z0-9-]{1,63}(?<!-)")
+_TLD_RE = re.compile(r"[a-z]{2,63}|xn--[a-z0-9-]{1,59}")
 
 
 class UnsafeDestinationError(Exception):
@@ -72,21 +74,35 @@ def normalize_hostname(domain: str) -> str | None:
     except ValueError:
         pass
     labels = host.split(".")
-    if len(labels) < 2 or not all(_HOST_LABEL_RE.match(label) for label in labels):
+    if len(labels) < 2 or not all(_HOST_LABEL_RE.fullmatch(label) for label in labels):
         return None
-    if not _TLD_RE.match(labels[-1]):
+    if not _TLD_RE.fullmatch(labels[-1]):
         return None
     return host
 
 
+# IPv6 ranges that embed or translate to an IPv4 address (NAT64, 6to4, Teredo).
+_IPV6_TRANSLATION_NETS = tuple(
+    ipaddress.ip_network(n) for n in ("64:ff9b::/96", "64:ff9b:1::/48", "2002::/16", "2001::/32")
+)
+_IPV6_GLOBAL_UNICAST = ipaddress.ip_network("2000::/3")
+
+
 def is_public_ip(ip: str) -> bool:
-    """True only for globally routable unicast addresses (IPv4-mapped IPv6 unwrapped)."""
+    """True only for globally routable unicast addresses.
+
+    IPv4-mapped IPv6 is unwrapped; other IPv6 must be global unicast (2000::/3)
+    and outside the translation ranges that can reach IPv4 space.
+    """
     try:
         addr = ipaddress.ip_address(ip)
     except ValueError:
         return False
-    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
-        addr = addr.ipv4_mapped
+    if isinstance(addr, ipaddress.IPv6Address):
+        if addr.ipv4_mapped is not None:
+            addr = addr.ipv4_mapped
+        elif addr not in _IPV6_GLOBAL_UNICAST or any(addr in net for net in _IPV6_TRANSLATION_NETS):
+            return False
     return addr.is_global and not addr.is_multicast
 
 
@@ -114,25 +130,52 @@ def _http_client() -> httpx.AsyncClient:
     )
 
 
-async def _fetch_public(domain: str, scheme: str) -> httpx.Response:
-    """GET ``scheme://domain/``, following redirects only to public hosts on default ports."""
+@dataclass
+class _Fetched:
+    status_code: int
+    headers: httpx.Headers
+    cookies: httpx.Cookies
+    text: str  # at most _MAX_BODY_BYTES of the body, decoded
+
+
+async def _fetch_public(domain: str, scheme: str) -> _Fetched:
+    """GET ``scheme://domain/`` within ``_FETCH_DEADLINE`` (see ``_fetch_public_hops``)."""
+    return await asyncio.wait_for(_fetch_public_hops(domain, scheme), _FETCH_DEADLINE)
+
+
+async def _fetch_public_hops(domain: str, scheme: str) -> _Fetched:
+    """Follow redirects only to public hosts on default ports; read a capped body."""
     url = httpx.URL(f"{scheme}://{domain}/")
-    async with _http_client() as client:
-        for _ in range(_MAX_REDIRECTS + 1):
-            host = normalize_hostname(url.host)
-            if host is None or url.scheme not in ("http", "https") or url.port is not None:
-                raise UnsafeDestinationError("redirect to a non-public destination")
-            port = 443 if url.scheme == "https" else 80
-            ip = await asyncio.to_thread(resolve_public_ip, host, port)
-            resp = await client.get(
+    for _ in range(_MAX_REDIRECTS + 1):
+        # raw_host keeps IDNs in their ASCII (xn--) form.
+        host = normalize_hostname(url.raw_host.decode("ascii"))
+        if host is None or url.scheme not in ("http", "https") or url.port is not None:
+            raise UnsafeDestinationError("redirect to a non-public destination")
+        port = 443 if url.scheme == "https" else 80
+        ip = await asyncio.to_thread(resolve_public_ip, host, port)
+        # A fresh client per hop: a pooled connection would carry the previous SNI.
+        async with (
+            _http_client() as client,
+            client.stream(
+                "GET",
                 url.copy_with(host=ip),
                 headers={"Host": host},
                 extensions={"sni_hostname": host},
-            )
+            ) as resp,
+        ):
             location = resp.headers.get("location")
-            if not resp.is_redirect or not location:
-                return resp
-            url = url.join(location)
+            if resp.is_redirect and location:
+                url = url.join(location)
+                continue
+            body = bytearray()
+            async for chunk in resp.aiter_bytes():
+                body.extend(chunk)
+                if len(body) >= _MAX_BODY_BYTES:
+                    break
+            text = bytes(body[:_MAX_BODY_BYTES]).decode(
+                resp.charset_encoding or "utf-8", errors="replace"
+            )
+            return _Fetched(resp.status_code, resp.headers, resp.cookies, text)
     raise UnsafeDestinationError("too many redirects")
 
 
@@ -746,10 +789,13 @@ async def check_shodan(domain: str, api_key: str | None) -> ShodanHostResult:  #
         resolver.timeout = _DNS_TIMEOUT
         answers = await resolver.resolve(domain, "A")
         ip = str(answers[0])
-        result.ip = ip
     except Exception:  # noqa: BLE001
         result.error = "Could not resolve domain to IP"
         return result
+    if not is_public_ip(ip):
+        result.error = "Could not resolve domain to a public IP"
+        return result
+    result.ip = ip
 
     # Check in-memory cache first
     cached = _shodan_cache.get(ip)

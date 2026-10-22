@@ -6,6 +6,7 @@ every resolved address public, the connection pinned to the checked address,
 and each redirect re-checked.
 """
 
+import asyncio
 import socket
 
 import httpx
@@ -101,6 +102,7 @@ def test_normalize_hostname_accepts_public_style_names(raw, expected):
         "example.123",
         ("a" * 64) + ".example.com",
         ("abc." * 70) + "com",
+        "x\n.example.com",
     ],
 )
 def test_normalize_hostname_rejects_non_hostnames(raw):
@@ -114,7 +116,7 @@ def test_normalize_hostname_rejects_non_hostnames(raw):
         "10.1.2.3",
         "172.16.0.1",
         "192.168.1.1",
-        "169.254.169.254",
+        "169.254.1.1",
         "100.64.0.1",
         "0.0.0.0",
         "224.0.0.1",
@@ -123,6 +125,12 @@ def test_normalize_hostname_rejects_non_hostnames(raw):
         "fe80::1",
         "::ffff:127.0.0.1",
         "::ffff:10.0.0.1",
+        "64:ff9b::a00:1",
+        "64:ff9b:1::a00:1",
+        "::a00:1",
+        "::ffff:0:a00:1",
+        "2002:a00:1::1",
+        "2001:0:a00:1::1",
     ],
 )
 def test_is_public_ip_rejects_internal_addresses(ip):
@@ -180,10 +188,10 @@ async def test_http_check_connects_to_the_checked_address(resolve, http):
 
 async def test_http_check_does_not_follow_a_redirect_to_an_internal_host(resolve, http):
     resolve["ok.example.com"] = [PUBLIC_V4]
-    resolve["internal.example.com"] = ["169.254.169.254"]
+    resolve["internal.example.com"] = ["10.0.0.7"]
 
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(302, headers={"location": "http://internal.example.com/latest"})
+        return httpx.Response(302, headers={"location": "http://internal.example.com/"})
 
     http["handler"] = handler
 
@@ -194,9 +202,7 @@ async def test_http_check_does_not_follow_a_redirect_to_an_internal_host(resolve
 
 async def test_http_check_does_not_follow_a_redirect_to_an_ip_literal(resolve, http):
     resolve["ok.example.com"] = [PUBLIC_V4]
-    http["handler"] = lambda request: httpx.Response(
-        301, headers={"location": "http://127.0.0.1:8080/"}
-    )
+    http["handler"] = lambda request: httpx.Response(301, headers={"location": "http://10.0.0.8/"})
 
     await dc.check_http_headers("ok.example.com")
 
@@ -230,6 +236,95 @@ async def test_http_check_stops_after_the_redirect_limit(resolve, http):
 
     # https start plus redirects, then the http fallback plus redirects
     assert len(http["requests"]) <= 2 * (dc._MAX_REDIRECTS + 1)
+
+
+async def test_http_check_works_for_an_idn_domain(resolve, http):
+    resolve["xn--bcher-kva.example"] = [PUBLIC_V4]
+    http["handler"] = lambda request: httpx.Response(200)
+
+    result = await dc.check_http_headers("xn--bcher-kva.example")
+
+    assert result.reachable is True
+    assert http["requests"][0].headers["host"] == "xn--bcher-kva.example"
+
+
+async def test_http_check_pins_an_ipv6_address(resolve, http):
+    resolve["v6.example.com"] = ["2606:4700:4700::1111"]
+    http["handler"] = lambda request: httpx.Response(200)
+
+    await dc.check_http_headers("v6.example.com")
+
+    request = http["requests"][0]
+    assert request.url.host == "2606:4700:4700::1111"
+    assert "[2606:4700:4700::1111]" in str(request.url)
+
+
+async def test_each_redirect_hop_uses_a_fresh_connection(resolve, monkeypatch):
+    resolve["ok.example.com"] = [PUBLIC_V4]
+    resolve["www.example.com"] = [PUBLIC_V4]
+    clients: list = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.headers["host"] == "ok.example.com":
+            return httpx.Response(301, headers={"location": "https://www.example.com/"})
+        return httpx.Response(200)
+
+    def factory() -> httpx.AsyncClient:
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr(dc, "_http_client", factory)
+
+    await dc.check_http_headers("ok.example.com")
+
+    assert len(clients) == 2
+
+
+async def test_fetched_body_is_capped(resolve, http):
+    resolve["big.example.com"] = [PUBLIC_V4]
+    http["handler"] = lambda request: httpx.Response(200, content=b"a" * (dc._MAX_BODY_BYTES * 4))
+
+    fetched = await dc._fetch_public("big.example.com", "https")
+
+    assert len(fetched.text) <= dc._MAX_BODY_BYTES
+
+
+async def test_slow_host_is_cut_off_by_the_deadline(resolve, http, monkeypatch):
+    resolve["slow.example.com"] = [PUBLIC_V4]
+    monkeypatch.setattr(dc, "_FETCH_DEADLINE", 0.05)
+
+    async def slow(request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(1)
+        return httpx.Response(200)
+
+    http["handler"] = slow
+
+    result = await asyncio.wait_for(dc.check_http_headers("slow.example.com"), timeout=0.8)
+
+    assert result.reachable is False
+
+
+async def test_shodan_does_not_report_or_query_an_internal_address(monkeypatch):
+    class FakeResolver:
+        timeout = None
+
+        async def resolve(self, name, rdtype):
+            return ["10.0.0.9"]
+
+    import dns.asyncresolver
+
+    monkeypatch.setattr(dns.asyncresolver, "Resolver", FakeResolver)
+
+    def no_client(*args, **kwargs):
+        raise AssertionError("no Shodan request expected")
+
+    monkeypatch.setattr(dc.httpx, "AsyncClient", no_client)
+
+    result = await dc.check_shodan("internal-name.example.com", "k")
+
+    assert result.ip is None
+    assert result.error
 
 
 async def test_tech_fingerprint_makes_no_request_to_an_internal_host(resolve, http):
@@ -279,7 +374,7 @@ async def test_tier1_with_an_invalid_hostname_touches_nothing(resolve, http, no_
 async def test_tier2_with_an_invalid_hostname_touches_nothing(http):
     http["handler"] = lambda request: httpx.Response(200)
 
-    results = await dc.run_tier2_checks("evil.example.com/../x", "k", "k", "k")
+    results = await dc.run_tier2_checks("a.example.com/x", "k", "k", "k")
 
     assert http["requests"] == []
     assert all(r.error for r in results)
