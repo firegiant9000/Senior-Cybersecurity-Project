@@ -12,7 +12,7 @@ This document lists the threats to Hacker Tracker by component. Each threat is c
 | **OPEN** | A known gap, scheduled for a later milestone. | The milestone and the roadmap item that closes it. |
 
 **Rules used throughout**
-- **Tests that run under the auth mock don't count as TEST.** `backend/tests/conftest.py` replaces Firebase token verification with a mock in every test, so an authentication or tenancy test proves the handler logic, not the boundary. Those rows are CONTROL, plus a shared OPEN row against S4's real-verification suite. Agent-token, AI and pure-function tests do not depend on the mock and can be TEST.
+- **Tests that run under the auth mock don't count as TEST.** `backend/tests/conftest.py` replaces Firebase token verification with a mock in every test, so an authentication or tenancy test proves the handler logic, not the boundary. Those rows are CONTROL, plus a shared OPEN row against S4's real-verification suite. Agent-token, AI and pure-function tests do not depend on the mock and can be TEST. Tests under `backend/tests/authz/` disable the mock and verify real, locally signed tokens through `firebase_admin.auth.verify_id_token(check_revoked=True)`, so they can be TEST.
 - **Weaknesses are described at the level needed to plan the fix.** The repository is public.
 - **CI enforces the format.** `.github/scripts/check_threat_model.py` checks every table on each PR (blocking once T-CI-05 is applied). See [Maintenance](#maintenance).
 
@@ -164,7 +164,7 @@ flowchart LR
 | T-AUTH-04 | S | First sign-in and invite acceptance don't yet require a verified email. | OPEN | milestone: S4; item: real token verification (require `email_verified` for auto-create and for invite acceptance) | Accepting an invite also requires the invite token. Found while writing the model. |
 | T-AUTH-05 | D | A Firebase outage makes every authenticated request fail. | ACCEPTED | reason: fail-closed is the intended behaviour for a revocation check; owner: Arlo; review: 2027-04-22 | |
 | T-AUTH-06 | R | Failed sign-ins leave no trace. | CONTROL | `backend/app/api/routes/v1/auth.py::get_current_user` (L45) | Logs a warning (`test_auth.py::test_me_invalid_token_logs_warning`). The account-link refusal logs the user id, not the email. |
-| T-AUTH-07 | S | Every AUTH control above has only been tested with a mocked token verifier. | OPEN | milestone: S4; item: real token verification (Firebase emulator or a locally signed test key through the real verification code path) | The autouse mock is in `backend/tests/conftest.py`. |
+| T-AUTH-07 | S | Every AUTH control above has only been tested with a mocked token verifier. | TEST | `backend/tests/authz/test_token_verification.py::test_forged_signature_rejected` | real-verification: locally signed RS256 key served at the SDK's cert URL; check_revoked=True against a fake Identity Toolkit at the HTTP layer; the guard test fails if the mock returns. Guard: `test_harness.py::test_verify_id_token_is_real`. Other key tests in `test_token_verification.py`: expired, wrong audience, wrong issuer, HS256, alg none, revoked, disabled, unknown account, and an agent token on a Firebase route and a Firebase token on the agent routes, each rejected with 401. The autouse mock stays in `backend/tests/conftest.py` for all other tests; the other AUTH and TEN rows move in later stages. |
 
 ## Organization tenancy and the global-admin boundary (TEN)
 
@@ -304,7 +304,7 @@ These are what writing the model surfaced that wasn't already known or documente
 
 | Milestone | Rows |
 |-----------|------|
-| S4 (authorization assurance) | T-PLAT-06, T-ENR-04, T-UPL-09, T-TOK-07, T-TOK-08, T-AUTH-04, T-AUTH-07, T-TEN-05, T-TEN-07, T-TEN-10, T-TEN-12, T-DOM-09, T-PLAT-01, T-PLAT-09 |
+| S4 (authorization assurance) | T-PLAT-06, T-ENR-04, T-UPL-09, T-TOK-07, T-TOK-08, T-AUTH-04, T-TEN-05, T-TEN-07, T-TEN-10, T-TEN-12, T-DOM-09, T-PLAT-01, T-PLAT-09 |
 | S5 (DAST and manual AppSec) | T-ING-04, T-ING-06, T-ING-07, T-ING-10, T-DOM-08, T-AI-09, T-PLAT-03, T-PLAT-05, T-PLAT-07, T-PLAT-10, T-PLAT-13 |
 | OWNER (repo hardening, Arlo) | T-REL-02, T-REL-03, T-CI-02, T-CI-04, T-CI-05 |
 
