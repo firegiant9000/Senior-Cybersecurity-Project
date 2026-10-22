@@ -103,6 +103,25 @@ def _reset_limiter():
     limiter.reset()
 
 
+def pytest_terminal_summary(terminalreporter) -> None:
+    """Print the route-table counts so the PR body can quote them."""
+    from collections import Counter
+
+    from tests.authz.route_table import ROUTES
+
+    counts = Counter(spec.cls for spec in ROUTES.values())
+    flagged = sum(1 for spec in ROUTES.values() if spec.flag)
+    terminalreporter.write_line(
+        f"authz route table: {len(ROUTES)} routes — "
+        f"public {counts['public']}, "
+        f"authenticated-global {counts['authenticated-global']}, "
+        f"organization-scoped {counts['organization-scoped']}, "
+        f"agent {counts['agent']}, "
+        f"administrator {counts['administrator']} "
+        f"(flagged {flagged})"
+    )
+
+
 @pytest_asyncio.fixture
 async def authz_client() -> AsyncGenerator[Callable[[str | None], Awaitable[AsyncClient]], None]:
     """Factory for clients that send a real (or no) bearer token."""
