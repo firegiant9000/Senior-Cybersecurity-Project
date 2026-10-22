@@ -159,7 +159,7 @@ flowchart LR
 ## Security design
 
 - **Threat model.** [docs/security/threat_model.md](docs/security/threat_model.md)
-  is a STRIDE model of 101 threats (38 controlled, 19 tested, 15 accepted, 29
+  is a STRIDE model of 101 threats (39 controlled, 18 tested, 16 accepted, 28
   open and scheduled for S4/S5 or owner action). CI checks that every row has
   one classification and that its evidence exists.
 - **Authentication.** Users sign in through Firebase Authentication. The API
@@ -192,7 +192,7 @@ flowchart LR
 - **Input boundaries.** General file uploads are capped at 10 MB, checked
   after reading, and filename-sanitized. Inventory CSV imports are capped by row
   count. The agent payload is capped per list but has no request-size limit yet
-  (T-UPL-06, roadmap S4); it is a versioned schema validated with
+  (T-PLAT-06, roadmap S4); it is a versioned schema validated with
   Pydantic; AI prompts receive organization and finding data only inside a
   JSON data block (above), and a deterministic CI corpus of injection strings
   checks that structure

@@ -14,7 +14,7 @@ this doc says the same thing in plain language and is mirrored on the in-app
 - **Organization profile:** the company name, domains, and tech stack you
   enter during onboarding. We use this to match threat intelligence to your
   actual environment.
-- **Activity:** request logs (which include IP addresses) and audit entries —
+- **Activity:** request logs (which include client or proxy IPs (unverified)) and audit entries —
   which API your account called, when, and whether it succeeded. Audit entries
   are kept for 12 months.
 - **Host inventory (optional agent):** if *you* choose to install and enroll
@@ -62,6 +62,7 @@ disclosure and the enrollment/revocation flow live in
 | Render            | Backend + managed PostgreSQL               | US West (Oregon)      |
 | Firebase Hosting  | Static frontend assets                     | Google global         |
 | Sentry            | Error reports (scrubbed)                   | US                    |
+| Google Gemini API | AI summary (org-level fields and findings only, no user identifiers) | Google global |
 
 We do not transfer data outside the United States except where the provider
 operates a global CDN for static assets only.

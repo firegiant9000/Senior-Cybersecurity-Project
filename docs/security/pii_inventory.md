@@ -13,7 +13,7 @@ First-pass inventory of personally identifying or sensitive data the platform ha
 | Asset hostnames | future `assets.hostname` | Confidential — internal naming often leaks org structure. |
 | IP addresses | request logs, future asset records | Excluded from Sentry (`send_default_pii=False`). |
 | Vendor / product names supplied by user | onboarding inputs, vendor watchlists | Confidential but low sensitivity. |
-| API keys (NVD, HIBP, Shodan, OTX, Gemini, Firebase) | env vars only | Never persisted to DB; never logged. |
+| API keys (NVD, HIBP, Shodan, OTX, Gemini, Firebase) | env vars only | Never persisted to DB; the NVD key can appear in error logs on two paths (T-ING-10). |
 | Firebase Bearer tokens | `Authorization` request header | Scrubbed from Sentry. Stdout/JSON logs have no scrubber, but the application doesn't log tokens. |
 
 ## Scrubbing rules — Sentry (`backend/app/core/observability.py`)

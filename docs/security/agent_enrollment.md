@@ -29,7 +29,7 @@ not collect is summarized on the in-app `/privacy` page and in
 
 ## 1. Enroll a new agent
 
-Admins only (`require_role("admin")`).
+Org admins and owners only (`require_org_role("admin")`).
 
 1. In the dashboard go to **Settings → Agents**.
 2. Click **Enroll new agent**, give it a recognizable name (e.g. the hostname).

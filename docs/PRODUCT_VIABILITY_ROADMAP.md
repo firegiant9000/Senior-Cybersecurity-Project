@@ -80,7 +80,7 @@ Each milestone lists its acceptance criterion, the artifact it produces, a resum
 
 The email fallback now links a Firebase account to an existing user only when the token's `email_verified` is true **and** the existing row has no `firebase_uid`; any other email match returns 403 and logs no email or token. `verify_id_token` runs with `check_revoked=True`, so revoked or disabled accounts get 401. Seven tests cover it, and the reproducing test failed before the fix. Deployed to the pilot on merge.
 
-Follow-ups recorded by that PR, carried into S3 as threat-model inputs: the new-user auto-create path stores the token's email even when it is unverified, which lets someone hold an address before its owner signs up; invite acceptance compares against that stored email (it still requires the invite token); and `check_revoked` adds a Firebase lookup per request, so an unreachable Firebase now yields 401.
+Follow-ups recorded by that PR, carried into S3 as threat-model inputs: the new-user auto-create path stores the token's email even when it is unverified (first sign-in and invite acceptance don't yet require a verified email); invite acceptance compares against that stored email (it still requires the invite token); and `check_revoked` adds a Firebase lookup per request, so an unreachable Firebase now yields 401.
 
 #### S5a. AI summary quality and injection hardening — DONE 2026-10-21 (PRs #197–#205)
 
@@ -233,7 +233,7 @@ Work: blocking CI gates for each language: **CodeQL** (Python, JavaScript/TypeSc
 
 #### S3. STRIDE threat model — DONE 2026-10-22 (PR pending)
 
-Delivered: [`threat_model.md`](security/threat_model.md) holds 101 threats: 38 CONTROL, 19 TEST, 15 ACCEPTED and 29 OPEN. `.github/scripts/check_threat_model.py` runs in the `security.yml` workflow and checks the classifications and evidence. Writing it surfaced 8 findings (see the document's Findings); none was severe and none was fixed in S3. The OPEN rows are scheduled for S4, S5 or owner action.
+Delivered: [`threat_model.md`](security/threat_model.md) holds 101 threats: 39 CONTROL, 18 TEST, 16 ACCEPTED and 28 OPEN (plus 1 withdrawn). `.github/scripts/check_threat_model.py` runs in the `security.yml` workflow and checks the classifications and evidence. Writing it surfaced 9 findings (see the document's Findings); none was severe and none was fixed in S3. The OPEN rows are scheduled for S4, S5 or owner action.
 
 Work: `docs/security/threat_model.md` covering agent enrollment, agent upload, token lifecycle and rotation, replay, human authentication (including the email-link fallback), organization tenancy, the global-admin boundary, the ingestion pipeline (NVD, KEV, EPSS) and the AI summary inputs. For every threat, one of: **CONTROL** (with the file and line), **TEST** (with the test name), **ACCEPTED RISK** (with the reason and owner), or **OPEN RISK** (with the milestone that closes it). The threat model drives S4 and S5: every OPEN RISK must map to a later item or be explicitly accepted.
 
@@ -262,12 +262,13 @@ Settings the owner applies; none is a code change. Rows from the S3 threat model
 
 Work: a **route-enumerating authorization suite**. A test walks the FastAPI router, requires every route to appear in a classification table (`public`, `authenticated-global`, `organization-scoped`, `agent`, `administrator`), and fails CI on any unclassified route. For organization-scoped routes it issues requests as a member of org B against org A's resources and expects 403 or 404 (never 200, never 500). It also tests member vs admin on admin-only routes, a revoked agent token, an expired rotated token past its grace, a replayed upload, and the public endpoint boundary. These tests use **real token verification**: Firebase emulator or a locally signed test key with the real verification code path, not the autouse mock. Add security headers middleware (and a `headers` block in `firebase.json`), a body-size limit on the agent upload route, and a `/health` that checks the database.
 
-Threat-model rows: T-ENR-04, T-UPL-06, T-UPL-09, T-TOK-07, T-TOK-08, T-AUTH-04, T-AUTH-07, T-TEN-05, T-TEN-07, T-TEN-10, T-TEN-12, T-PLAT-01, T-PLAT-06, T-PLAT-09. The suite, headers, body limit and `/health` above cover T-AUTH-07, T-TEN-12, T-TOK-07, T-UPL-06, T-PLAT-01, T-PLAT-06 and T-PLAT-09. The rest need their own fixes:
-- Rotation refuses revoked or expired enrollments (T-ENR-04), and revoking an agent covers its rotation chain (T-TOK-08).
+Threat-model rows: T-PLAT-06, T-ENR-04, T-UPL-09, T-TOK-07, T-TOK-08, T-AUTH-04, T-AUTH-07, T-TEN-05, T-TEN-07, T-TEN-10, T-TEN-12, T-PLAT-01, T-PLAT-09. The suite, headers and `/health` above cover T-AUTH-07, T-TEN-12, T-TOK-07, T-PLAT-01 and T-PLAT-09. The rest need their own fixes:
+- A body-size limit on the agent upload route, applied app-wide with a pre-read check on file uploads (T-PLAT-06).
+- Revoked agent token: rotate only active rows; never move `revoked_at` later (T-ENR-04), and revoking an agent covers its rotation chain (T-TOK-08).
 - Require `email_verified` on account auto-create and on invite acceptance (T-AUTH-04).
 - Org-role checks on the destructive routes that only check membership (T-TEN-05).
 - Decide and enforce owner-only admin grants (T-TEN-07).
-- Compare the `org_id` on `POST /analytics/events` with the caller's organization (T-TEN-10).
+- Close the gap where the analytics event route doesn't bind events to the caller's org (T-TEN-10).
 - HTTPS-only check on the agent's `--server` URL, with HSTS from the headers work (T-UPL-09).
 
 **Acceptance.** Unclassified routes: 0. Cross-tenant leaks: 0. Routes returning 500 on a denied request: 0. The suite runs with the autouse auth mock disabled. The classification table is committed and counted.
@@ -295,7 +296,7 @@ Threat-model fixes (from the OPEN rows in [`threat_model.md`](security/threat_mo
 - Send the NVD key as a header on every path (T-ING-10).
 - Per-user or per-org quota on AI summary `force_refresh` (T-AI-09).
 - Fail closed when `APP_ENV` is unset, and reject wildcard, IP and `http://` origins in production (T-PLAT-03).
-- Proxy-aware client IP, a shared limiter store, and limits on the data-lifecycle routes (T-PLAT-05).
+- Rate-limit storage and client identity need hardening (shared store, trusted client identity, limits on data-lifecycle routes) (T-PLAT-05).
 - An error-message policy and a global exception handler (T-PLAT-07).
 - Log scrubbing and an access-log policy (T-PLAT-10).
 - Validate the characters of the request id (T-PLAT-13).
