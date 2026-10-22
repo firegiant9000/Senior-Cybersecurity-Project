@@ -304,6 +304,37 @@ async def test_unknown_charset_still_reads_the_body(resolve, http):
     assert any(t["name"] == "WordPress" for t in result.detected)
 
 
+@pytest.mark.parametrize("charset", ["idna", "undefined"])
+async def test_charset_that_cannot_replace_still_reads_the_body(resolve, http, charset):
+    resolve["odd.example.com"] = [PUBLIC_V4]
+    http["handler"] = lambda request: httpx.Response(
+        200,
+        headers={"content-type": f"text/html; charset={charset}"},
+        content=b"<html>/wp-content/</html>",
+    )
+
+    result = await dc.check_tech_fingerprint("odd.example.com")
+
+    assert result.error is None
+    assert any(t["name"] == "WordPress" for t in result.detected)
+
+
+async def test_compressed_body_is_not_read(resolve, http):
+    import gzip
+
+    resolve["gz.example.com"] = [PUBLIC_V4]
+    http["handler"] = lambda request: httpx.Response(
+        200,
+        headers={"content-encoding": "gzip", "server": "nginx"},
+        content=gzip.compress(b"a" * (dc._MAX_BODY_BYTES * 4)),
+    )
+
+    fetched = await dc._fetch_public("gz.example.com", "https")
+
+    assert fetched.text == ""
+    assert fetched.headers["server"] == "nginx"
+
+
 async def test_fetch_asks_for_an_uncompressed_body(resolve, http):
     resolve["ok.example.com"] = [PUBLIC_V4]
     http["handler"] = lambda request: httpx.Response(200)

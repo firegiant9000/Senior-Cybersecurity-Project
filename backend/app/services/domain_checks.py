@@ -168,6 +168,10 @@ async def _fetch_public_hops(domain: str, scheme: str) -> _Fetched:
             if resp.is_redirect and location:
                 url = url.join(location)
                 continue
+            if resp.headers.get("content-encoding", "identity").lower() != "identity":
+                # We asked for identity; a compressed body could expand past the cap
+                # before it is checked, so skip it and keep the headers.
+                return _Fetched(resp.status_code, resp.headers, resp.cookies, "")
             body = bytearray()
             async for chunk in resp.aiter_bytes():
                 body.extend(chunk)
@@ -176,7 +180,7 @@ async def _fetch_public_hops(domain: str, scheme: str) -> _Fetched:
             raw = bytes(body[:_MAX_BODY_BYTES])
             try:
                 text = raw.decode(resp.charset_encoding or "utf-8", errors="replace")
-            except LookupError:  # unknown charset name from the server
+            except (LookupError, UnicodeError):  # unknown or unusable charset from the server
                 text = raw.decode("utf-8", errors="replace")
             return _Fetched(resp.status_code, resp.headers, resp.cookies, text)
     raise UnsafeDestinationError("too many redirects")
