@@ -73,13 +73,13 @@ class CheckThreatModelTests(unittest.TestCase):
         self.assertEqual(len(self.check(doc(row(cls="MAYBE")))), 1)
 
     def test_control_missing_path_or_symbol(self):
-        self.assertEqual(len(self.check(doc(row(evidence="`src/nope.py::f`")))), 1)
+        self.assertEqual(len(self.check(doc(row(evidence="`src/nope.py::f` (L1)")))), 1)
         self.assertEqual(
-            len(self.check(doc(row(evidence="`src/app.py::Guard.missing`")))), 1
+            len(self.check(doc(row(evidence="`src/app.py::Guard.missing` (L1)")))), 1
         )
 
     def test_path_outside_repo_rejected(self):
-        for ev in ("`../etc/passwd::x`", "`/etc/passwd::x`", "`C:/x.py::y`"):
+        for ev in ("`../etc/passwd::x` (L1)", "`/etc/passwd::x` (L1)", "`C:/x.py::y` (L1)"):
             with self.subTest(ev=ev):
                 problems = self.check(doc(row(evidence=ev)))
                 self.assertEqual(len(problems), 1, problems)
@@ -172,6 +172,119 @@ class CheckThreatModelTests(unittest.TestCase):
         with redirect_stdout(out):
             self.assertEqual(ctm.main([str(bad), "--repo-root", str(self.root)]), 1)
         self.assertIn("::error::", out.getvalue())
+
+    def accepted(self, ev):
+        return self.check(doc(row(cls="ACCEPTED", evidence=ev)))
+
+    def test_near_miss_header_is_reported(self):
+        text = "| ID | Stride | Threat | Class | Evidence | Notes |\n|---|---|---|---|---|---|\n" + row()
+        problems = self.check(text)
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("header must be exactly", problems[0])
+        self.assertTrue(problems[0].startswith("line 1:"), problems)
+
+    def test_control_requires_line_hint(self):
+        problems = self.check(doc(row(evidence="`src/app.py::Guard.enforce`")))
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("(L", problems[0])
+
+    def test_symbol_matches_whole_identifier(self):
+        problems = self.check(doc(row(evidence="`src/app.py::Guard.enfor` (L2)")))
+        self.assertEqual(len(problems), 1, problems)
+        problems = self.check(doc(row(evidence="`src/app.py::Gua.enforce` (L2)")))
+        self.assertEqual(len(problems), 1, problems)
+
+    def test_test_def_must_be_inside_class(self):
+        problems = self.check(
+            doc(row(cls="TEST", evidence="`tests/test_app.py::TestGuard::test_foobar`"))
+        )
+        self.assertEqual(len(problems), 1, problems)
+
+    def test_test_path_must_be_test_file(self):
+        problems = self.check(doc(row(cls="TEST", evidence="`src/app.py::enforce`")))
+        self.assertTrue(any("not a test file" in p for p in problems), problems)
+
+    def test_empty_evidence_for_control_and_test(self):
+        p = self.check(doc(row(evidence="")))
+        self.assertEqual(len(p), 1, p)
+        self.assertIn("CONTROL needs evidence", p[0])
+        p = self.check(doc(row(cls="TEST", evidence="see tests")))
+        self.assertEqual(len(p), 1, p)
+        self.assertIn("TEST needs evidence", p[0])
+
+    def test_degenerate_symbols_do_not_crash(self):
+        for cls in ("TEST", "CONTROL"):
+            p = self.check(doc(row(cls=cls, evidence="`tests/test_app.py::::`")))
+            self.assertTrue(p, p)
+
+    def test_mock_guard_marker_is_token_and_auth_id(self):
+        p = self.check(doc(row("T-AUTH-01", cls="TEST", evidence=TEST_EV)))
+        self.assertEqual(len(p), 1, p)
+        p = self.check(
+            doc(row("T-AUTH-01", cls="TEST", evidence=TEST_EV, notes="no real-verification"))
+        )
+        self.assertEqual(len(p), 1, p)
+        ok = self.check(
+            doc(row("T-AUTH-01", cls="TEST", evidence=TEST_EV, notes="x; real-verification: db"))
+        )
+        self.assertEqual(ok, [])
+
+    def test_fenced_blocks_are_skipped(self):
+        text = self.valid_doc() + "\n```\n" + HEADER + "| bad |\n```\n"
+        self.assertEqual(self.check(text), [])
+
+    def test_review_too_far_out(self):
+        p = self.accepted("reason: r; owner: A; review: 2027-10-24")
+        self.assertEqual(len(p), 1, p)
+        self.assertIn("more than 365 days", p[0])
+        self.assertEqual(self.accepted("reason: r; owner: A; review: 2027-10-22"), [])
+
+    def test_review_date_boundary_and_invalid(self):
+        self.assertEqual(len(self.accepted("reason: r; owner: A; review: 2027-04-221")), 1)
+        p = self.accepted("reason: r; owner: A; review: 2026-02-30")
+        self.assertEqual(len(p), 1, p)
+        self.assertIn("2026-02-30", p[0])
+
+    def test_accepted_missing_reason_and_review(self):
+        p = self.accepted("owner: A; review: 2027-04-22")
+        self.assertEqual(len(p), 1, p)
+        self.assertIn("reason", p[0])
+        p = self.accepted("reason: r; owner: A")
+        self.assertEqual(len(p), 1, p)
+        self.assertIn("review", p[0])
+
+    def test_keys_need_left_word_boundary(self):
+        self.assertEqual(len(self.accepted("xreason: r; owner: A; review: 2027-04-22")), 1)
+        p = self.check(doc(row(cls="OPEN", evidence="milestone: S4; subitem: x")))
+        self.assertEqual(len(p), 1, p)
+        self.assertIn("item", p[0])
+
+    def test_open_missing_item(self):
+        p = self.check(doc(row(cls="OPEN", evidence="milestone: S4")))
+        self.assertEqual(len(p), 1, p)
+
+    def test_withdrawn_still_checks_id(self):
+        p = self.check(doc(row("T-BAD-01", notes="withdrawn: dup")))
+        self.assertEqual(len(p), 1, p)
+        self.assertIn("T-BAD-01", p[0])
+
+    def test_withdrawn_needs_reason(self):
+        p = self.check(doc(row(evidence="", notes="withdrawn:")))
+        self.assertEqual(len(p), 1, p)
+
+    def test_empty_id_uses_line_label(self):
+        p = self.check(doc(row("")))
+        self.assertTrue(p and all(x.startswith("line ") for x in p), p)
+
+    def test_ok_line_reports_withdrawn_separately(self):
+        text = self.valid_doc() + row("T-UPL-05", evidence="", notes="withdrawn: dup")
+        path = self.root / "w.md"
+        path.write_text(text, encoding="utf-8")
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(ctm.main([str(path), "--repo-root", str(self.root)]), 0)
+        self.assertIn("4 threats", out.getvalue())
+        self.assertIn("1 withdrawn", out.getvalue())
 
     @unittest.skipUnless(REAL.exists(), "docs/security/threat_model.md not written yet")
     def test_real_threat_model(self):
