@@ -159,7 +159,8 @@ async def _fetch_public_hops(domain: str, scheme: str) -> _Fetched:
             client.stream(
                 "GET",
                 url.copy_with(host=ip),
-                headers={"Host": host},
+                # identity: the body cap must bound bytes in memory, not compressed bytes.
+                headers={"Host": host, "Accept-Encoding": "identity"},
                 extensions={"sni_hostname": host},
             ) as resp,
         ):
@@ -172,9 +173,11 @@ async def _fetch_public_hops(domain: str, scheme: str) -> _Fetched:
                 body.extend(chunk)
                 if len(body) >= _MAX_BODY_BYTES:
                     break
-            text = bytes(body[:_MAX_BODY_BYTES]).decode(
-                resp.charset_encoding or "utf-8", errors="replace"
-            )
+            raw = bytes(body[:_MAX_BODY_BYTES])
+            try:
+                text = raw.decode(resp.charset_encoding or "utf-8", errors="replace")
+            except LookupError:  # unknown charset name from the server
+                text = raw.decode("utf-8", errors="replace")
             return _Fetched(resp.status_code, resp.headers, resp.cookies, text)
     raise UnsafeDestinationError("too many redirects")
 

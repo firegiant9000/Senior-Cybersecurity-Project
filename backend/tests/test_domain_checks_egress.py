@@ -290,6 +290,29 @@ async def test_fetched_body_is_capped(resolve, http):
     assert len(fetched.text) <= dc._MAX_BODY_BYTES
 
 
+async def test_unknown_charset_still_reads_the_body(resolve, http):
+    resolve["odd.example.com"] = [PUBLIC_V4]
+    http["handler"] = lambda request: httpx.Response(
+        200,
+        headers={"content-type": "text/html; charset=bogus-charset"},
+        content=b"<html>/wp-content/</html>",
+    )
+
+    result = await dc.check_tech_fingerprint("odd.example.com")
+
+    assert result.error is None
+    assert any(t["name"] == "WordPress" for t in result.detected)
+
+
+async def test_fetch_asks_for_an_uncompressed_body(resolve, http):
+    resolve["ok.example.com"] = [PUBLIC_V4]
+    http["handler"] = lambda request: httpx.Response(200)
+
+    await dc._fetch_public("ok.example.com", "https")
+
+    assert http["requests"][0].headers["accept-encoding"] == "identity"
+
+
 async def test_slow_host_is_cut_off_by_the_deadline(resolve, http, monkeypatch):
     resolve["slow.example.com"] = [PUBLIC_V4]
     monkeypatch.setattr(dc, "_FETCH_DEADLINE", 0.05)
