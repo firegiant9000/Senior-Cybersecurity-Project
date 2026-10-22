@@ -58,9 +58,10 @@ gh attestation verify hacker-tracker-X.Y.Z-linux-amd64 \
   --predicate-type https://cyclonedx.org/bom
 ```
 
-This proves the SBOM was attested for that exact binary digest. The `.cdx.json` you
-downloaded is the same document; compare it with the verified predicate (add
-`--format json`) if you need to confirm the file itself.
+This proves an SBOM was attested for that exact binary digest. The downloaded
+`.cdx.json` and `SHA256SUMS` files are not themselves attested; only the SBOM
+predicate inside the attestation is. Compare the downloaded `.cdx.json` with the
+verified predicate (add `--format json`) if you need to confirm the file itself.
 
 ## Offline / air-gapped
 
@@ -74,11 +75,13 @@ gh attestation verify hacker-tracker-X.Y.Z-linux-amd64 \
   --custom-trusted-root trusted_root.jsonl \
   --repo firegiant9000/Senior-Cybersecurity-Project \
   --signer-workflow firegiant9000/Senior-Cybersecurity-Project/.github/workflows/agent-release.yml \
-  --source-ref refs/tags/agent-vX.Y.Z
+  --source-ref refs/tags/agent-vX.Y.Z \
+  --deny-self-hosted-runners
 ```
 
-`gh attestation download` writes `sha256:<digest>.jsonl` in the current directory;
-pass that as `<bundle-file>.jsonl`. The trusted root rotates, so refresh it before
+`gh attestation download` writes a bundle named after the binary's digest,
+`sha256:<digest>.jsonl` (`sha256-<digest>.jsonl` on Windows) in the current
+directory; pass whichever file it wrote as `<bundle-file>.jsonl`. The trusted root rotates, so refresh it before
 each offline verification session.
 
 ## What provenance proves, and what it doesn't
