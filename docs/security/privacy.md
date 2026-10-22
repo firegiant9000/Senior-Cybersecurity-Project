@@ -2,8 +2,10 @@
 
 This is the user-facing summary of how Hacker Tracker handles your data. The
 authoritative technical inventory lives in [pii_inventory.md](pii_inventory.md);
-this doc says the same thing in plain language and is mirrored on the in-app
-`/privacy` page.
+this doc says the same thing in plain language. The in-app `/privacy` page is
+meant to mirror it but currently lags behind: it doesn't yet list the AI and
+lookup providers below, and shows an older hosting region. This doc is the
+current one.
 
 ---
 
@@ -65,8 +67,11 @@ disclosure and the enrollment/revocation flow live in
 | Google Gemini API | AI summary (org-level fields and findings only, no user identifiers) | Google global |
 | HIBP, Shodan, AlienVault OTX, crt.sh | External domain checks (the org's domain name or its public address only) | Each provider's own |
 
-We do not transfer data outside the United States except where the provider
-operates a global CDN for static assets only.
+Your account and organization data is stored in the United States. Some
+providers above process data globally: the CDN for static assets, Firebase
+Auth for sign-in, Google Gemini for the AI summary, and the domain-lookup
+services, which receive only your organization's domain name or its public
+address.
 
 ## Your rights
 

@@ -159,7 +159,7 @@ flowchart LR
 ## Security design
 
 - **Threat model.** [docs/security/threat_model.md](docs/security/threat_model.md)
-  is a STRIDE model of 109 threats (39 controlled, 23 tested, 18 accepted, 29
+  is a STRIDE model of 109 threats (40 controlled, 22 tested, 18 accepted, 29
   open and scheduled for S4/S5 or owner action). CI checks that every row has
   one classification and that its evidence exists.
 - **Authentication.** Users sign in through Firebase Authentication. The API

@@ -80,7 +80,7 @@ Each milestone lists its acceptance criterion, the artifact it produces, a resum
 
 The email fallback now links a Firebase account to an existing user only when the token's `email_verified` is true **and** the existing row has no `firebase_uid`; any other email match returns 403 and logs no email or token. `verify_id_token` runs with `check_revoked=True`, so revoked or disabled accounts get 401. Seven tests cover it, and the reproducing test failed before the fix. Deployed to the pilot on merge.
 
-Follow-ups recorded by that PR, carried into S3 as threat-model inputs: the new-user auto-create path stores the token's email even when it is unverified (first sign-in and invite acceptance don't yet require a verified email); invite acceptance compares against that stored email (it still requires the invite token); and `check_revoked` adds a Firebase lookup per request, so an unreachable Firebase now yields 401.
+Follow-ups recorded by that PR, carried into S3 as threat-model inputs: first sign-in and invite acceptance don't yet require a verified email (T-AUTH-04; invite acceptance still requires the invite token); and `check_revoked` adds a Firebase lookup per request, so an unreachable Firebase now yields 401.
 
 #### S5a. AI summary quality and injection hardening — DONE 2026-10-21 (PRs #197–#205)
 
@@ -233,7 +233,7 @@ Work: blocking CI gates for each language: **CodeQL** (Python, JavaScript/TypeSc
 
 #### S3. STRIDE threat model — DONE 2026-10-22 (PR pending)
 
-Delivered: [`threat_model.md`](security/threat_model.md) holds 109 threats: 39 CONTROL, 23 TEST, 18 ACCEPTED and 29 OPEN (plus 1 withdrawn). `.github/scripts/check_threat_model.py` runs in the `security.yml` workflow and checks the classifications and evidence. Writing it surfaced 10 findings (see the document's Findings). One, an SSRF in the domain checks, was fixed in #224 before publication; none of the other nine was severe, and none of them was fixed in S3. The OPEN rows are scheduled for S4, S5 or owner action.
+Delivered: [`threat_model.md`](security/threat_model.md) holds 109 threats: 40 CONTROL, 22 TEST, 18 ACCEPTED and 29 OPEN (plus 1 withdrawn). `.github/scripts/check_threat_model.py` runs in the `security.yml` workflow and checks the classifications and evidence. Writing it surfaced 10 findings (see the document's Findings). One, an SSRF in the domain checks, was fixed in #224 before publication; none of the other nine was severe, and none of them was fixed in S3. The OPEN rows are scheduled for S4, S5 or owner action.
 
 Work: `docs/security/threat_model.md` covering agent enrollment, agent upload, token lifecycle and rotation, replay, human authentication (including the email-link fallback), organization tenancy, the global-admin boundary, the ingestion pipeline (NVD, KEV, EPSS), the outbound domain checks and the AI summary inputs. For every threat, one of: **CONTROL** (with the file and line), **TEST** (with the test name), **ACCEPTED RISK** (with the reason and owner), or **OPEN RISK** (with the milestone that closes it). The threat model drives S4 and S5: every OPEN RISK must map to a later item or be explicitly accepted.
 
@@ -287,13 +287,14 @@ Threat-model rows: T-PLAT-06, T-ENR-04, T-UPL-09, T-TOK-07, T-TOK-08, T-AUTH-04,
 
 Work: **OWASP ZAP baseline** against the docker-compose stack in CI, failing at medium and above once the header work in S4 lands. ~~Harden the AI summary prompt: delimit and escape org-supplied fields, add a prompt-injection test corpus, validate output against the schema.~~ _(Moved to S5a on 2026-10-18.)_ If pursuing BSCP, perform a **manual Burp assessment** of the API and record each finding as: finding, risk, exploit path, fix, regression test.
 
-Threat-model rows: T-ING-04, T-ING-06, T-ING-07, T-ING-10, T-AI-09, T-PLAT-03, T-PLAT-05, T-PLAT-07, T-PLAT-10, T-PLAT-13.
+Threat-model rows: T-ING-04, T-ING-06, T-ING-07, T-ING-10, T-DOM-08, T-AI-09, T-PLAT-03, T-PLAT-05, T-PLAT-07, T-PLAT-10, T-PLAT-13.
 
 Threat-model fixes (from the OPEN rows in [`threat_model.md`](security/threat_model.md)):
 - Validate ingested EPSS values (within [0, 1], only for requested CVEs) (T-ING-04).
 - Explicit timeouts and response-size caps on feed fetches (T-ING-06).
 - Mark a run partial when EPSS batches fail or NVD returns 429 (T-ING-07).
 - Send the NVD key as a header on every path (T-ING-10).
+- Domain-check follow-ups from #224: try every resolved address, validate `primary_domain` on write, and add tests that pin the redirect, port and body-read guards (T-DOM-08).
 - Per-user or per-org quota on AI summary `force_refresh` (T-AI-09).
 - Fail closed when `APP_ENV` is unset, and reject wildcard, IP and `http://` origins in production (T-PLAT-03).
 - Rate-limit storage and client identity need hardening (shared store, trusted client identity, limits on data-lifecycle routes) (T-PLAT-05).
