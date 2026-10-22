@@ -13,11 +13,18 @@ Tier 2 (requires API key):
   - Have I Been Pwned domain breach search (HIBP_API_KEY)
   - Shodan host lookup (SHODAN_API_KEY)
   - AlienVault OTX threat intel (OTX_API_KEY)
+
+Destination rules: the domain is tenant-supplied, so every probe that connects
+to it goes through ``normalize_hostname`` and ``resolve_public_ip``. Only a
+syntactically valid public hostname is probed, every address it resolves to
+must be public, the connection is made to the address that was checked (so a
+second DNS answer can't swap it), and each HTTP redirect is checked again.
 """
 
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import logging
 import re
 import socket
@@ -35,6 +42,149 @@ _DNS_TIMEOUT = 5.0
 
 # Shodan cache: keyed by IP, 24-hour TTL, max 500 entries
 _shodan_cache: TTLCache = TTLCache(maxsize=500, ttl=86400)
+
+_MAX_REDIRECTS = 5
+_MAX_BODY_BYTES = 256_000
+_FETCH_DEADLINE = 20.0  # seconds, for one scheme including redirects
+_INVALID_HOSTNAME = "Not a valid public hostname"
+
+# ---------------------------------------------------------------------------
+# Destination rules (see module docstring)
+# ---------------------------------------------------------------------------
+
+_HOST_LABEL_RE = re.compile(r"(?!-)[a-z0-9-]{1,63}(?<!-)")
+_TLD_RE = re.compile(r"[a-z]{2,63}|xn--[a-z0-9-]{1,59}")
+
+
+class UnsafeDestinationError(Exception):
+    """The destination is not a public internet host."""
+
+
+def normalize_hostname(domain: str) -> str | None:
+    """Return the lower-cased hostname, or None if it isn't a public-style DNS name.
+
+    IP literals, single-label names, ports, paths, schemes and userinfo are refused.
+    """
+    host = domain.strip().lower().rstrip(".")
+    if not host or len(host) > 253:
+        return None
+    try:
+        ipaddress.ip_address(host.strip("[]"))
+        return None
+    except ValueError:
+        pass
+    labels = host.split(".")
+    if len(labels) < 2 or not all(_HOST_LABEL_RE.fullmatch(label) for label in labels):
+        return None
+    if not _TLD_RE.fullmatch(labels[-1]):
+        return None
+    return host
+
+
+# IPv6 ranges that embed or translate to an IPv4 address (NAT64, 6to4, Teredo).
+_IPV6_TRANSLATION_NETS = tuple(
+    ipaddress.ip_network(n) for n in ("64:ff9b::/96", "64:ff9b:1::/48", "2002::/16", "2001::/32")
+)
+_IPV6_GLOBAL_UNICAST = ipaddress.ip_network("2000::/3")
+
+
+def is_public_ip(ip: str) -> bool:
+    """True only for globally routable unicast addresses.
+
+    IPv4-mapped IPv6 is unwrapped; other IPv6 must be global unicast (2000::/3)
+    and outside the translation ranges that can reach IPv4 space.
+    """
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    if isinstance(addr, ipaddress.IPv6Address):
+        if addr.ipv4_mapped is not None:
+            addr = addr.ipv4_mapped
+        elif addr not in _IPV6_GLOBAL_UNICAST or any(addr in net for net in _IPV6_TRANSLATION_NETS):
+            return False
+    return addr.is_global and not addr.is_multicast
+
+
+def resolve_public_ip(host: str, port: int) -> str:
+    """Resolve ``host`` and return an address to connect to.
+
+    Raises UnsafeDestinationError unless the host resolves and every address is public.
+    """
+    try:
+        infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except (OSError, UnicodeError) as exc:
+        raise UnsafeDestinationError(f"{host} does not resolve") from exc
+    ips = [info[4][0] for info in infos]
+    if not ips or not all(is_public_ip(ip) for ip in ips):
+        raise UnsafeDestinationError(f"{host} does not resolve to a public address")
+    return ips[0]
+
+
+def _http_client() -> httpx.AsyncClient:
+    # Redirects are followed by _fetch_public so each hop is checked.
+    return httpx.AsyncClient(
+        timeout=_HTTP_TIMEOUT,
+        follow_redirects=False,
+        verify=False,  # noqa: S501 — intentionally skip cert for header/tech checks
+    )
+
+
+@dataclass
+class _Fetched:
+    status_code: int
+    headers: httpx.Headers
+    cookies: httpx.Cookies
+    text: str  # at most _MAX_BODY_BYTES of the body, decoded
+
+
+async def _fetch_public(domain: str, scheme: str) -> _Fetched:
+    """GET ``scheme://domain/`` within ``_FETCH_DEADLINE`` (see ``_fetch_public_hops``)."""
+    return await asyncio.wait_for(_fetch_public_hops(domain, scheme), _FETCH_DEADLINE)
+
+
+async def _fetch_public_hops(domain: str, scheme: str) -> _Fetched:
+    """Follow redirects only to public hosts on default ports; read a capped body."""
+    url = httpx.URL(f"{scheme}://{domain}/")
+    for _ in range(_MAX_REDIRECTS + 1):
+        # raw_host keeps IDNs in their ASCII (xn--) form.
+        host = normalize_hostname(url.raw_host.decode("ascii"))
+        if host is None or url.scheme not in ("http", "https") or url.port is not None:
+            raise UnsafeDestinationError("redirect to a non-public destination")
+        port = 443 if url.scheme == "https" else 80
+        ip = await asyncio.to_thread(resolve_public_ip, host, port)
+        # A fresh client per hop: a pooled connection would carry the previous SNI.
+        async with (
+            _http_client() as client,
+            client.stream(
+                "GET",
+                url.copy_with(host=ip),
+                # identity: the body cap must bound bytes in memory, not compressed bytes.
+                headers={"Host": host, "Accept-Encoding": "identity"},
+                extensions={"sni_hostname": host},
+            ) as resp,
+        ):
+            location = resp.headers.get("location")
+            if resp.is_redirect and location:
+                url = url.join(location)
+                continue
+            if resp.headers.get("content-encoding", "identity").lower() != "identity":
+                # We asked for identity; a compressed body could expand past the cap
+                # before it is checked, so skip it and keep the headers.
+                return _Fetched(resp.status_code, resp.headers, resp.cookies, "")
+            body = bytearray()
+            async for chunk in resp.aiter_bytes():
+                body.extend(chunk)
+                if len(body) >= _MAX_BODY_BYTES:
+                    break
+            raw = bytes(body[:_MAX_BODY_BYTES])
+            try:
+                text = raw.decode(resp.charset_encoding or "utf-8", errors="replace")
+            except (LookupError, UnicodeError):  # unknown or unusable charset from the server
+                text = raw.decode("utf-8", errors="replace")
+            return _Fetched(resp.status_code, resp.headers, resp.cookies, text)
+    raise UnsafeDestinationError("too many redirects")
+
 
 # ---------------------------------------------------------------------------
 # Result dataclasses
@@ -207,14 +357,8 @@ async def check_http_headers(domain: str) -> HttpHeaderResult:
 
     # Try HTTPS first, fall back to HTTP
     for scheme in ("https", "http"):
-        url = f"{scheme}://{domain}"
         try:
-            async with httpx.AsyncClient(
-                timeout=_HTTP_TIMEOUT,
-                follow_redirects=True,
-                verify=False,  # noqa: S501 — intentionally skip cert for header check
-            ) as client:
-                resp = await client.get(url)
+            resp = await _fetch_public(domain, scheme)
 
             result.reachable = True
             result.status_code = resp.status_code
@@ -224,6 +368,9 @@ async def check_http_headers(domain: str) -> HttpHeaderResult:
                 if header_name in headers_lower:
                     setattr(result, attr, True)
 
+            return result
+        except UnsafeDestinationError as exc:
+            result.error = str(exc)
             return result
         except httpx.RequestError:
             continue
@@ -248,7 +395,12 @@ async def check_ssl(domain: str) -> SslCheckResult:
     def _sync_check() -> SslCheckResult:
         ctx = ssl.create_default_context()
         try:
-            with socket.create_connection((domain, 443), timeout=_HTTP_TIMEOUT) as sock:
+            ip = resolve_public_ip(domain, 443)
+        except UnsafeDestinationError as exc:
+            result.error = str(exc)
+            return result
+        try:
+            with socket.create_connection((ip, 443), timeout=_HTTP_TIMEOUT) as sock:
                 with ctx.wrap_socket(sock, server_hostname=domain) as ssock:
                     result.reachable = True
                     result.tls_version = ssock.version()
@@ -275,7 +427,7 @@ async def check_ssl(domain: str) -> SslCheckResult:
             noverify_ctx.check_hostname = False
             noverify_ctx.verify_mode = ssl.CERT_NONE
             try:
-                with socket.create_connection((domain, 443), timeout=_HTTP_TIMEOUT) as sock:
+                with socket.create_connection((ip, 443), timeout=_HTTP_TIMEOUT) as sock:
                     with noverify_ctx.wrap_socket(sock, server_hostname=domain) as ssock:
                         result.reachable = True
                         result.tls_version = ssock.version()
@@ -433,14 +585,8 @@ async def check_tech_fingerprint(domain: str) -> TechFingerprintResult:  # noqa:
     result = TechFingerprintResult(domain=domain)
 
     for scheme in ("https", "http"):
-        url = f"{scheme}://{domain}"
         try:
-            async with httpx.AsyncClient(
-                timeout=_HTTP_TIMEOUT,
-                follow_redirects=True,
-                verify=False,  # noqa: S501
-            ) as client:
-                resp = await client.get(url)
+            resp = await _fetch_public(domain, scheme)
 
             headers_lower = {k.lower(): v for k, v in resp.headers.items()}
             body = resp.text[:200_000]  # cap body scan at 200KB
@@ -503,6 +649,9 @@ async def check_tech_fingerprint(domain: str) -> TechFingerprintResult:  # noqa:
                         entry["version"] = version
                     result.detected.append(entry)
 
+            return result
+        except UnsafeDestinationError as exc:
+            result.error = str(exc)
             return result
         except httpx.RequestError:
             continue
@@ -612,11 +761,19 @@ async def run_tier1_checks(
     domain: str,
 ) -> tuple[DnsCheckResult, HttpHeaderResult, SslCheckResult, TechFingerprintResult]:
     """Run DNS, HTTP header, SSL, and tech fingerprint checks concurrently."""
+    host = normalize_hostname(domain)
+    if host is None:
+        return (
+            DnsCheckResult(domain=domain, error=_INVALID_HOSTNAME),
+            HttpHeaderResult(domain=domain, error=_INVALID_HOSTNAME),
+            SslCheckResult(domain=domain, error=_INVALID_HOSTNAME),
+            TechFingerprintResult(domain=domain, error=_INVALID_HOSTNAME),
+        )
     return await asyncio.gather(
-        check_dns(domain),
-        check_http_headers(domain),
-        check_ssl(domain),
-        check_tech_fingerprint(domain),
+        check_dns(host),
+        check_http_headers(host),
+        check_ssl(host),
+        check_tech_fingerprint(host),
     )
 
 
@@ -639,10 +796,13 @@ async def check_shodan(domain: str, api_key: str | None) -> ShodanHostResult:  #
         resolver.timeout = _DNS_TIMEOUT
         answers = await resolver.resolve(domain, "A")
         ip = str(answers[0])
-        result.ip = ip
     except Exception:  # noqa: BLE001
         result.error = "Could not resolve domain to IP"
         return result
+    if not is_public_ip(ip):
+        result.error = "Could not resolve domain to a public IP"
+        return result
+    result.ip = ip
 
     # Check in-memory cache first
     cached = _shodan_cache.get(ip)
@@ -750,9 +910,17 @@ async def run_tier2_checks(
     otx_api_key: str | None = None,
 ) -> tuple[CrtShResult, HibpResult, ShodanHostResult, OtxResult]:
     """Run crt.sh, HIBP, Shodan, and OTX checks concurrently."""
+    host = normalize_hostname(domain)
+    if host is None:
+        return (
+            CrtShResult(domain=domain, error=_INVALID_HOSTNAME),
+            HibpResult(domain=domain, error=_INVALID_HOSTNAME),
+            ShodanHostResult(domain=domain, error=_INVALID_HOSTNAME),
+            OtxResult(domain=domain, error=_INVALID_HOSTNAME),
+        )
     return await asyncio.gather(
-        check_crtsh(domain),
-        check_hibp(domain, hibp_api_key),
-        check_shodan(domain, shodan_api_key),
-        check_otx(domain, otx_api_key),
+        check_crtsh(host),
+        check_hibp(host, hibp_api_key),
+        check_shodan(host, shodan_api_key),
+        check_otx(host, otx_api_key),
     )
