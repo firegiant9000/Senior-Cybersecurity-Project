@@ -66,10 +66,11 @@ supply-chain / code-signing surface (Phase 5) minimal.
 
 `make agent-build-all` (from the repo root) mirrors the CI release build:
 version-stamped, stripped, cross-compiled `linux/amd64`+`arm64` with a
-`SHA256SUMS` manifest. Tagged releases (`agent-vX.Y.Z`) are built, GPG-signed, and
+`SHA256SUMS` manifest. Tagged releases (`agent-vX.Y.Z`) are built, covered by
+GitHub artifact attestations (SLSA provenance plus a CycloneDX SBOM per binary), and
 published to GitHub Releases by `.github/workflows/agent-release.yml`; see
-[../docs/agent_release_signing.md](../docs/security/agent_release_signing.md) for the
-signing and verification flow.
+[../docs/security/agent_release_verification.md](../docs/security/agent_release_verification.md)
+for how to verify a release.
 
 ## Test
 

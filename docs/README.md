@@ -18,7 +18,8 @@ Architecture:
 Security and privacy:
 
 - [security/agent_enrollment.md](security/agent_enrollment.md) — per-host tokens, rotation, revocation, replay window
-- [security/agent_release_signing.md](security/agent_release_signing.md) — GPG-signed release manifest (never exercised; superseded by milestone S1, keyless artifact attestations plus a CycloneDX SBOM)
+- [security/agent_release_verification.md](security/agent_release_verification.md) — verifying agent releases: artifact attestations, CycloneDX SBOM, offline verification
+- [security/agent_release_signing.md](security/agent_release_signing.md) — superseded stub (the GPG flow never ran and was removed)
 - Threat model and authorization classification: planned as `security/threat_model.md` (S3) and the route-classification table (S4); neither exists yet
 - [security/privacy.md](security/privacy.md) and [security/pii_inventory.md](security/pii_inventory.md)
 

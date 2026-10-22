@@ -124,14 +124,14 @@ flowchart LR
   the same transaction as the import
   ([`inventory.py`](backend/app/api/routes/v1/inventory.py),
   [`agent_token.py`](backend/app/services/agent_token.py)).
-- **Agent release pipeline (not yet exercised).** Tagging `agent-vX.Y.Z` builds
-  linux/amd64 and arm64, writes `SHA256SUMS`, GPG-signs the manifest if a key
-  is configured and publishes a GitHub Release. No tag has been pushed and no
-  release exists yet; the first release (with GitHub artifact attestations and
-  a CycloneDX SBOM replacing the GPG step) is roadmap milestone S1. Without a
-  signing key the release is marked as an unsigned prerelease rather than
-  silently shipping
-  ([`agent-release.yml`](.github/workflows/agent-release.yml)).
+- **Attested agent releases.** Tagging `agent-vX.Y.Z` makes the release workflow
+  build linux/amd64 and arm64, scan the binaries with `govulncheck`, and produce
+  a CycloneDX SBOM per binary, `SHA256SUMS`, and GitHub artifact attestations
+  (SLSA build provenance and the SBOM). It publishes a draft release, verifies it
+  with `gh attestation verify`, and only then makes it public; no signing key or
+  secret is involved
+  ([`agent-release.yml`](.github/workflows/agent-release.yml)). See
+  [how to verify a release](docs/security/agent_release_verification.md).
 - **AI summaries with guarded input.** The executive summary prompt
   ([`ai_summary.py`](backend/app/services/ai_summary.py)) puts every
   organization field (name, industry, size, state) and every finding into one
