@@ -11,7 +11,10 @@ from tests.authz._issuer import mint_id_token
 def test_verify_id_token_is_real():
     verify = firebase_admin.auth.verify_id_token
     assert not isinstance(verify, unittest.mock.NonCallableMock)
+    assert not hasattr(verify, "mock")
     assert verify.__module__ == "firebase_admin.auth"
+    # An autospec'd mock keeps __module__ but not the real function's code object.
+    assert verify.__code__.co_filename.replace("\\", "/").endswith("firebase_admin/auth.py")
 
 
 async def test_valid_token_accepted(authz_client, new_user, signing_key):

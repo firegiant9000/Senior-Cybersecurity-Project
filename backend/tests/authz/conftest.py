@@ -63,17 +63,29 @@ def firebase_test_app(
     fb_app = firebase_admin.initialize_app(
         credential=_StaticCredential(), options={"projectId": PROJECT_ID}
     )
-    cert_adapter = CertAdapter({KID: signing_key.cert_pem})
-    accounts = FakeAccounts()
-    toolkit_adapter = IdentityToolkitAdapter(accounts)
-    client = firebase_auth._get_client(fb_app)
-    client._token_verifier.request.session.mount(CERT_URL, cert_adapter)
-    client._user_manager.http_client.session.mount(IDENTITY_TOOLKIT_PREFIX, toolkit_adapter)
     try:
+        cert_adapter = CertAdapter({KID: signing_key.cert_pem})
+        accounts = FakeAccounts()
+        toolkit_adapter = IdentityToolkitAdapter(accounts)
+        client = firebase_auth._get_client(fb_app)
+        client._token_verifier.request.session.mount(CERT_URL, cert_adapter)
+        client._user_manager.http_client.session.mount(IDENTITY_TOOLKIT_PREFIX, toolkit_adapter)
         yield cert_adapter, toolkit_adapter, accounts
     finally:
         firebase_admin.delete_app(fb_app)
         assert firebase_admin._apps == {}
+
+
+@pytest.fixture(autouse=True)
+def _isolate_fakes(firebase_test_app):
+    """Clear the fake user registry and restore the served certs around every test."""
+    cert, _toolkit, registry = firebase_test_app
+    registry.clear()
+    certs_before = dict(cert.cert_pem_by_kid)
+    yield
+    cert.cert_pem_by_kid.clear()
+    cert.cert_pem_by_kid.update(certs_before)
+    registry.clear()
 
 
 @pytest.fixture
@@ -83,9 +95,7 @@ def cert_adapter(firebase_test_app) -> CertAdapter:
 
 @pytest.fixture
 def accounts(firebase_test_app) -> FakeAccounts:
-    registry = firebase_test_app[2]
-    registry.clear()
-    return registry
+    return firebase_test_app[2]
 
 
 @pytest.fixture(autouse=True)
