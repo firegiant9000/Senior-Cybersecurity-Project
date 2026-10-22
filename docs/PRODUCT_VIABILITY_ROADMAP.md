@@ -80,7 +80,7 @@ Each milestone lists its acceptance criterion, the artifact it produces, a resum
 
 The email fallback now links a Firebase account to an existing user only when the token's `email_verified` is true **and** the existing row has no `firebase_uid`; any other email match returns 403 and logs no email or token. `verify_id_token` runs with `check_revoked=True`, so revoked or disabled accounts get 401. Seven tests cover it, and the reproducing test failed before the fix. Deployed to the pilot on merge.
 
-Follow-ups recorded by that PR, carried into S3 as threat-model inputs: the new-user auto-create path stores the token's email even when it is unverified, which lets someone hold an address before its owner signs up; invite acceptance compares against that stored email (it still requires the invite token); and `check_revoked` adds a Firebase lookup per request, so an unreachable Firebase now yields 401.
+Follow-ups recorded by that PR, carried into S3 as threat-model inputs: first sign-in and invite acceptance don't yet require a verified email (T-AUTH-04; invite acceptance still requires the invite token); and `check_revoked` adds a Firebase lookup per request, so an unreachable Firebase now yields 401.
 
 #### S5a. AI summary quality and injection hardening — DONE 2026-10-21 (PRs #197–#205)
 
@@ -231,15 +231,19 @@ Work: blocking CI gates for each language: **CodeQL** (Python, JavaScript/TypeSc
 - What is the difference between what CodeQL finds and what pip-audit finds?
 - Why should test tooling not be in the production image?
 
-#### S3. STRIDE threat model
+#### S3. STRIDE threat model — DONE 2026-10-22 (#225)
 
-Work: `docs/security/threat_model.md` covering agent enrollment, agent upload, token lifecycle and rotation, replay, human authentication (including the email-link fallback), organization tenancy, the global-admin boundary, the ingestion pipeline (NVD, KEV, EPSS) and the AI summary inputs. For every threat, one of: **CONTROL** (with the file and line), **TEST** (with the test name), **ACCEPTED RISK** (with the reason and owner), or **OPEN RISK** (with the milestone that closes it). The threat model drives S4 and S5: every OPEN RISK must map to a later item or be explicitly accepted.
+Delivered: [`threat_model.md`](security/threat_model.md) holds 110 threats: 41 CONTROL, 21 TEST, 18 ACCEPTED and 30 OPEN (plus 1 withdrawn). `.github/scripts/check_threat_model.py` runs in the `security.yml` workflow and checks the classifications and evidence. Writing it surfaced 10 findings (see the document's Findings). One, an SSRF in the domain checks, was fixed in #224 before publication; none of the other nine was severe, and none of them was fixed in S3. The OPEN rows are scheduled for S4, S5 or owner action.
+
+<a id="s3-privacy-page-follow-up"></a>Follow-up (2026-10-22): bring the in-app `/privacy` page (`frontend/src/pages/PrivacyPage.tsx`) in line with [`privacy.md`](security/privacy.md): the hosting region, and the Gemini and domain-lookup providers. Confirm the Render database region, then pin it in `render.yaml`.
+
+Work: `docs/security/threat_model.md` covering agent enrollment, agent upload, token lifecycle and rotation, replay, human authentication (including the email-link fallback), organization tenancy, the global-admin boundary, the ingestion pipeline (NVD, KEV, EPSS), the outbound domain checks and the AI summary inputs. For every threat, one of: **CONTROL** (with the file and line), **TEST** (with the test name), **ACCEPTED RISK** (with the reason and owner), or **OPEN RISK** (with the milestone that closes it). The threat model drives S4 and S5: every OPEN RISK must map to a later item or be explicitly accepted.
 
 **Acceptance.** Every threat row has exactly one classification; every TEST row names a test that exists; every OPEN RISK names a milestone; the document is linked from the README security section.
 
 **Evidence produced.** The threat model document.
 
-**Resume potential.** "Wrote a STRIDE threat model for Hacker Tracker's agent enrollment, upload, token lifecycle, tenancy and AI-input paths ([N] threats), mapping each to a control, a test or an accepted risk, and used it to drive the authorization suite."
+**Resume potential.** "Wrote a STRIDE threat model for Hacker Tracker's agent enrollment, upload, token lifecycle, tenancy and AI-input paths (110 threats), mapping each to a control, a test or an accepted risk, and used it to drive the authorization suite."
 
 **Interview questions.**
 - Walk me through the spoofing and tampering threats on the agent upload path and how each is controlled.
@@ -247,9 +251,30 @@ Work: `docs/security/threat_model.md` covering agent enrollment, agent upload, t
 - What is the global-admin boundary and why is cross-tenant access "by design" there?
 - What threat did writing the model surface that you had not considered?
 
+#### Owner actions: repo hardening
+
+Settings the owner applies; none is a code change. Rows from the S3 threat model:
+- T-REL-02: a tag ruleset protecting `agent-v*`.
+- T-REL-03: immutable releases.
+- T-CI-02: Environment-gated deploy secrets, or a keyless deploy.
+- T-CI-04: `persist-credentials: false` on the remaining checkouts.
+- T-CI-05: required Security, CodeQL and Secret-scan checks, required approvals, and Dependabot security updates.
+
 #### S4. Authorization assurance
 
 Work: a **route-enumerating authorization suite**. A test walks the FastAPI router, requires every route to appear in a classification table (`public`, `authenticated-global`, `organization-scoped`, `agent`, `administrator`), and fails CI on any unclassified route. For organization-scoped routes it issues requests as a member of org B against org A's resources and expects 403 or 404 (never 200, never 500). It also tests member vs admin on admin-only routes, a revoked agent token, an expired rotated token past its grace, a replayed upload, and the public endpoint boundary. These tests use **real token verification**: Firebase emulator or a locally signed test key with the real verification code path, not the autouse mock. Add security headers middleware (and a `headers` block in `firebase.json`), a body-size limit on the agent upload route, and a `/health` that checks the database.
+
+Threat-model rows: T-PLAT-06, T-ENR-04, T-UPL-09, T-TOK-07, T-TOK-08, T-AUTH-04, T-AUTH-07, T-TEN-05, T-TEN-07, T-TEN-10, T-TEN-12, T-DOM-09, T-PLAT-01, T-PLAT-09. The suite, headers and `/health` above cover T-AUTH-07, T-TEN-12, T-TOK-07, T-PLAT-01 and T-PLAT-09. The rest need their own fixes:
+- A body-size limit on the agent upload route, applied app-wide with a pre-read check on file uploads (T-PLAT-06).
+- Revoked agent token: rotate only active rows; never move `revoked_at` later (T-ENR-04), and revoking an agent covers its rotation chain (T-TOK-08).
+- Require `email_verified` on account auto-create and on invite acceptance (T-AUTH-04).
+- Org-role checks on the destructive routes that only check membership (T-TEN-05).
+- Decide and enforce owner-only admin grants (T-TEN-07).
+- Close the gap where the analytics event route doesn't bind events to the caller's org (T-TEN-10).
+- HTTPS-only check on the agent's `--server` URL, with HSTS from the headers work (T-UPL-09).
+- Egress guard regression tests: pin the real HTTP client's `follow_redirects=False`, and test a redirect to a non-default port (T-DOM-09).
+
+**Progress.** Stage A (harness, real verification, route table: 128 routes: public 11, authenticated-global 29, organization-scoped 76, agent 2, administrator 10; 5 behind the M365 flag) — PR #226. S4 is not done.
 
 **Acceptance.** Unclassified routes: 0. Cross-tenant leaks: 0. Routes returning 500 on a denied request: 0. The suite runs with the autouse auth mock disabled. The classification table is committed and counted.
 
@@ -266,6 +291,21 @@ Work: a **route-enumerating authorization suite**. A test walks the FastAPI rout
 #### S5. DAST and manual AppSec
 
 Work: **OWASP ZAP baseline** against the docker-compose stack in CI, failing at medium and above once the header work in S4 lands. ~~Harden the AI summary prompt: delimit and escape org-supplied fields, add a prompt-injection test corpus, validate output against the schema.~~ _(Moved to S5a on 2026-10-18.)_ If pursuing BSCP, perform a **manual Burp assessment** of the API and record each finding as: finding, risk, exploit path, fix, regression test.
+
+Threat-model rows: T-ING-04, T-ING-06, T-ING-07, T-ING-10, T-DOM-08, T-AI-09, T-PLAT-03, T-PLAT-05, T-PLAT-07, T-PLAT-10, T-PLAT-13.
+
+Threat-model fixes (from the OPEN rows in [`threat_model.md`](security/threat_model.md)):
+- Validate ingested EPSS values (within [0, 1], only for requested CVEs) (T-ING-04).
+- Explicit timeouts and response-size caps on feed fetches (T-ING-06).
+- Mark a run partial when EPSS batches fail or NVD returns 429 (T-ING-07).
+- Send the NVD key as a header on every path (T-ING-10).
+- Domain-check follow-ups from #224: try every resolved address, validate `primary_domain` on write, and test that the body read stops at the cap (T-DOM-08).
+- Per-user or per-org quota on AI summary `force_refresh` (T-AI-09).
+- Fail closed when `APP_ENV` is unset, and reject wildcard, IP and `http://` origins in production (T-PLAT-03).
+- Rate-limit storage and client identity need hardening (shared store, trusted client identity, limits on data-lifecycle routes) (T-PLAT-05).
+- An error-message policy and a global exception handler (T-PLAT-07).
+- Log scrubbing and an access-log policy (T-PLAT-10).
+- Validate the characters of the request id (T-PLAT-13).
 
 **Acceptance.** ZAP baseline green at medium and above on every PR; ~~the injection corpus runs in CI~~ (moved to S5a, 2026-10-18); if the Burp assessment is done, `docs/security/assessment-YYYY-MM.md` exists with every finding closed by a regression test or accepted.
 
