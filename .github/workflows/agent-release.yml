@@ -171,6 +171,215 @@ jobs:
           path: ${{ runner.temp }}/dist/*
           if-no-files-found: error
 
+  # Creates the release as a DRAFT. Nothing is public until `verify` passes.
+  # Needs contents: write and nothing else (no id-token), so the job that can
+  # write releases can never mint attestations.
+  publish:
+    name: Create draft release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/agent-v') || inputs.rehearse
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: agent-linux-${{ needs.build.outputs.version }}
+          path: dist
+
+      - name: Write release notes
+        run: |
+          set -euo pipefail
+          GO_VERSION="$(jq -r '.components[] | select(.name == "std") | .version' "dist/hacker-tracker-${VERSION}-linux-amd64.cdx.json")"
+          test -n "${GO_VERSION}"
+          cat > body.md <<EOF
+          Read-only Linux host scanner ${VERSION}, built with ${GO_VERSION}.
+
+          Artifacts: \`linux/amd64\` and \`linux/arm64\` binaries, a CycloneDX SBOM for each (\`.cdx.json\`), and \`SHA256SUMS\`.
+
+          Verify before you run it:
+
+          \`\`\`
+          gh release download ${GITHUB_REF_NAME} --repo firegiant9000/Senior-Cybersecurity-Project
+          gh attestation verify hacker-tracker-${VERSION}-linux-amd64 --repo firegiant9000/Senior-Cybersecurity-Project
+          \`\`\`
+
+          Full instructions: https://github.com/firegiant9000/Senior-Cybersecurity-Project/blob/main/docs/security/agent_release_verification.md
+          EOF
+          cat body.md
+
+      - name: Create draft release
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/agent-v* ]]; then
+            gh release create "${GITHUB_REF_NAME}" dist/* \
+              --repo "${GITHUB_REPOSITORY}" --draft --verify-tag \
+              --title "Hacker Tracker agent v${VERSION}" --notes-file body.md
+          else
+            # Rehearsal: a draft has no tag until it is published, and it is
+            # never published, so no tag is ever created.
+            gh release create "rehearsal-agent-${GITHUB_RUN_ID}" dist/* \
+              --repo "${GITHUB_REPOSITORY}" --draft --target "${GITHUB_SHA}" \
+              --title "Rehearsal agent ${VERSION} (run ${GITHUB_RUN_ID})" --notes-file body.md
+          fi
+
+  # Re-checks the draft exactly as a consumer would, then (tag runs only)
+  # undrafts it. Runs for plain dispatches too (against the run artifact).
+  verify:
+    name: Verify attestations and publish
+    needs: [build, publish]
+    if: always() && needs.build.result == 'success' && (needs.publish.result == 'success' || needs.publish.result == 'skipped')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # read the draft release and, on tag runs, undraft it
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      # An old runner gh that lacks a flag must fail loudly, never skip a check.
+      - name: Check gh supports the verification flags
+        run: |
+          set -euo pipefail
+          gh --version
+          HELP="$(gh attestation verify --help)"
+          for flag in --signer-workflow --source-ref --predicate-type; do
+            grep -q -- "${flag}" <<< "${HELP}" || { echo "::error::gh lacks ${flag}"; exit 1; }
+          done
+          if grep -q -- "--source-digest" <<< "${HELP}"; then
+            echo "SOURCE_DIGEST=1" >> "$GITHUB_ENV"
+          fi
+
+      - name: Download plain-dispatch artifact
+        if: ${{ !startsWith(github.ref, 'refs/tags/agent-v') && !inputs.rehearse }}
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: agent-linux-${{ needs.build.outputs.version }}
+          path: dl
+
+      - name: Download draft release assets
+        if: ${{ startsWith(github.ref, 'refs/tags/agent-v') || inputs.rehearse }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/agent-v* ]]; then
+            NAME="${GITHUB_REF_NAME}"
+          else
+            NAME="rehearsal-agent-${GITHUB_RUN_ID}"
+          fi
+          mkdir -p dl
+          if gh release download "${NAME}" --repo "${GITHUB_REPOSITORY}" --dir dl; then
+            echo "Downloaded with: gh release download"
+          else
+            echo "gh release download could not see the draft; falling back to the releases API."
+            rm -rf dl
+            mkdir -p dl
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/releases" \
+              | jq -r --arg n "${NAME}" '.[] | select(.tag_name == $n) | .assets[] | "\(.id) \(.name)"' > assets.txt
+            test -s assets.txt || { echo "::error::no draft release assets found for ${NAME}"; exit 1; }
+            while read -r id name; do
+              gh api -H "Accept: application/octet-stream" "repos/${GITHUB_REPOSITORY}/releases/assets/${id}" > "dl/${name}"
+            done < assets.txt
+            echo "Downloaded with: releases API fallback"
+          fi
+
+      - name: Assert file set and checksums
+        working-directory: dl
+        run: |
+          set -euo pipefail
+          ls -l
+          EXPECTED="$(printf '%s\n' \
+            "hacker-tracker-${VERSION}-linux-amd64" \
+            "hacker-tracker-${VERSION}-linux-amd64.cdx.json" \
+            "hacker-tracker-${VERSION}-linux-arm64" \
+            "hacker-tracker-${VERSION}-linux-arm64.cdx.json" \
+            SHA256SUMS | LC_ALL=C sort)"
+          ACTUAL="$(find . -mindepth 1 -printf '%f\n' | LC_ALL=C sort)"
+          if [ "${ACTUAL}" != "${EXPECTED}" ]; then
+            echo "::error::unexpected file set"
+            diff <(echo "${EXPECTED}") <(echo "${ACTUAL}") || true
+            exit 1
+          fi
+          sha256sum -c SHA256SUMS
+
+      - name: Verify provenance and SBOM attestations
+        working-directory: dl
+        run: |
+          set -euo pipefail
+          FLAGS=(--repo firegiant9000/Senior-Cybersecurity-Project
+            --signer-workflow firegiant9000/Senior-Cybersecurity-Project/.github/workflows/agent-release.yml
+            --source-ref "${GITHUB_REF}"
+            --deny-self-hosted-runners)
+          if [ "${SOURCE_DIGEST:-}" = "1" ]; then
+            FLAGS+=(--source-digest "${GITHUB_SHA}")
+          fi
+          for b in "hacker-tracker-${VERSION}-linux-amd64" "hacker-tracker-${VERSION}-linux-arm64"; do
+            echo "==> provenance: ${b}"
+            gh attestation verify "${b}" "${FLAGS[@]}"
+            echo "==> SBOM: ${b}"
+            gh attestation verify "${b}" "${FLAGS[@]}" --predicate-type https://cyclonedx.org/bom
+          done
+
+          # Tamper self-test: a modified copy must NOT verify, which proves the
+          # checks above are not vacuous.
+          cp "hacker-tracker-${VERSION}-linux-amd64" tampered
+          printf 'x' >> tampered
+          if gh attestation verify tampered "${FLAGS[@]}"; then
+            echo "::error::tampered binary verified"
+            exit 1
+          fi
+          echo "Tampered binary correctly failed verification."
+
+      # Last step: only reached when everything above passed.
+      - name: Publish release (undraft)
+        if: startsWith(github.ref, 'refs/tags/agent-v')
+        run: |
+          gh release edit "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --draft=false --latest
+
+  # A rehearsal must never leave a draft or a tag behind, even when publish or
+  # verify failed (or was cancelled).
+  cleanup-rehearsal:
+    name: Delete rehearsal release
+    needs: [publish, verify]
+    if: always() && inputs.rehearse
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Delete rehearsal release and tag
+        run: |
+          set -uo pipefail
+          NAME="rehearsal-agent-${GITHUB_RUN_ID}"
+          if OUT="$(gh release delete "${NAME}" --repo "${GITHUB_REPOSITORY}" --yes --cleanup-tag 2>&1)"; then
+            echo "Deleted ${NAME}."
+          elif grep -qi "not found" <<< "${OUT}"; then
+            # gh could not see it by tag. Fall back to the API by release id, so
+            # a draft that exists is never left behind by a lookup quirk.
+            echo "gh: ${OUT}"
+            IDS="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases" | jq -r --arg n "${NAME}" '.[] | select(.tag_name == $n) | .id')" || exit 1
+            for id in ${IDS}; do
+              gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/${id}" || exit 1
+              echo "Deleted draft release id ${id} via API."
+            done
+          else
+            echo "::error::gh release delete failed: ${OUT}"
+            exit 1
+          fi
+
+      - name: Assert no rehearsal tag remains
+        run: |
+          set -euo pipefail
+          N="$(gh api "repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/rehearsal-agent-${GITHUB_RUN_ID}" --jq length)"
+          if [ "${N}" != "0" ]; then
+            echo "::error::${N} rehearsal tag(s) left behind"
+            exit 1
+          fi
+          echo "No rehearsal tag remains."
+
   # ── macOS notarization (DEFERRED — Month 6 macOS path) ─────────────────────
   # Stub only. When the macOS collectors land and the Apple Developer ID cert is
   # provisioned, add a `macos` job here that:
