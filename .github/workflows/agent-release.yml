@@ -348,11 +348,12 @@ jobs:
           if [ "${SOURCE_DIGEST:-}" = "1" ]; then
             FLAGS+=(--source-digest "${GITHUB_SHA}")
           fi
+          SUMMARY_JQ='.[] | {predicateType: .verificationResult.statement.predicateType, subjects: [.verificationResult.statement.subject[] | "\(.name) sha256:\(.digest.sha256)"], signerWorkflow: .verificationResult.signature.certificate.buildSignerURI, sourceRef: .verificationResult.signature.certificate.sourceRepositoryRef, sourceDigest: .verificationResult.signature.certificate.sourceRepositoryDigest, runner: .verificationResult.signature.certificate.runnerEnvironment, timestamps: .verificationResult.verifiedTimestamps}'
           for b in "hacker-tracker-${VERSION}-linux-amd64" "hacker-tracker-${VERSION}-linux-arm64"; do
             echo "==> provenance: ${b}"
-            gh attestation verify "${b}" "${FLAGS[@]}"
+            gh attestation verify "${b}" "${FLAGS[@]}" --format json --jq "${SUMMARY_JQ}"
             echo "==> SBOM: ${b}"
-            gh attestation verify "${b}" "${FLAGS[@]}" --predicate-type https://cyclonedx.org/bom
+            gh attestation verify "${b}" "${FLAGS[@]}" --predicate-type https://cyclonedx.org/bom --format json --jq "${SUMMARY_JQ}"
           done
 
           # Tamper self-test: a modified copy must NOT verify, which proves the
