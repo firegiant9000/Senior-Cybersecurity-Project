@@ -5,7 +5,8 @@ authoritative technical inventory lives in [pii_inventory.md](pii_inventory.md);
 this doc says the same thing in plain language. The in-app `/privacy` page is
 meant to mirror it but currently lags behind: it doesn't yet list the AI and
 lookup providers below, and shows an older hosting region. This doc is the
-current one.
+current one; the fix is tracked in the
+[roadmap](../PRODUCT_VIABILITY_ROADMAP.md#s3-privacy-page-follow-up).
 
 ---
 
@@ -61,15 +62,16 @@ disclosure and the enrollment/revocation flow live in
 | Provider          | Role                                       | Region                |
 |-------------------|--------------------------------------------|-----------------------|
 | Firebase Auth     | Authentication                             | Google global         |
-| Render            | Backend + managed PostgreSQL               | US West (Oregon)      |
+| Render            | Backend + managed PostgreSQL               | US (backend in Oregon) |
 | Firebase Hosting  | Static frontend assets                     | Google global         |
 | Sentry            | Error reports (scrubbed)                   | US                    |
 | Google Gemini API | AI summary (org-level fields and findings only, no user identifiers) | Google global |
 | HIBP, Shodan, AlienVault OTX, crt.sh | External domain checks (the org's domain name or its public address only) | Each provider's own |
 
-Your account and organization data is stored in the United States. Some
-providers above process data globally: the CDN for static assets, Firebase
-Auth for sign-in, Google Gemini for the AI summary, and the domain-lookup
+Organization and application data is stored in our PostgreSQL database in the
+United States. Sign-in identities are held by Firebase Auth, which operates
+globally. Some other providers above also process data globally: the CDN for
+static assets, Google Gemini for the AI summary, and the domain-lookup
 services, which receive only your organization's domain name or its public
 address.
 
