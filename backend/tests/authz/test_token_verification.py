@@ -84,6 +84,7 @@ async def test_token_after_revocation_accepted(authz_client, new_user, signing_k
     client = await authz_client(token)
     response = await client.get(ME)
     assert response.status_code == 200
+    assert await _user_exists(uid)
 
 
 async def test_disabled_user_rejected(authz_client, new_user, signing_key, accounts):
