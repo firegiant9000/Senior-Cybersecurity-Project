@@ -26,11 +26,14 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Test the exception checker
+      - name: Test the security scripts
         run: python -m unittest discover -s .github/scripts
 
       - name: Check exception list (format and expiry)
         run: python .github/scripts/scan_exceptions.py check
+
+      - name: Check threat model (classifications and evidence)
+        run: python .github/scripts/check_threat_model.py docs/security/threat_model.md
 
       - name: Check every action is pinned to a commit SHA
         run: |

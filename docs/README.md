@@ -20,7 +20,8 @@ Security and privacy:
 - [security/agent_enrollment.md](security/agent_enrollment.md) — per-host tokens, rotation, revocation, replay window
 - [security/agent_release_verification.md](security/agent_release_verification.md) — verifying agent releases: artifact attestations, CycloneDX SBOM, offline verification
 - [security/agent_release_signing.md](security/agent_release_signing.md) — superseded stub (the GPG flow never ran and was removed)
-- Threat model and authorization classification: planned as `security/threat_model.md` (S3) and the route-classification table (S4); neither exists yet
+- [security/threat_model.md](security/threat_model.md) — STRIDE threat model: 101 threats, each controlled, tested, accepted or open, checked in CI
+- Authorization classification: the route-classification table is planned (S4) and does not exist yet
 - [security/privacy.md](security/privacy.md) and [security/pii_inventory.md](security/pii_inventory.md)
 
 Project history (capstone planning and execution records, kept as-is):

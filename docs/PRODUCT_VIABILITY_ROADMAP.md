@@ -231,7 +231,9 @@ Work: blocking CI gates for each language: **CodeQL** (Python, JavaScript/TypeSc
 - What is the difference between what CodeQL finds and what pip-audit finds?
 - Why should test tooling not be in the production image?
 
-#### S3. STRIDE threat model
+#### S3. STRIDE threat model — DONE 2026-10-22 (PR pending)
+
+Delivered: [`threat_model.md`](security/threat_model.md) holds 101 threats: 38 CONTROL, 19 TEST, 15 ACCEPTED and 29 OPEN. `.github/scripts/check_threat_model.py` runs in the `security.yml` workflow and checks the classifications and evidence. Writing it surfaced 8 findings (see the document's Findings); none was severe and none was fixed in S3. The OPEN rows are scheduled for S4, S5 or owner action.
 
 Work: `docs/security/threat_model.md` covering agent enrollment, agent upload, token lifecycle and rotation, replay, human authentication (including the email-link fallback), organization tenancy, the global-admin boundary, the ingestion pipeline (NVD, KEV, EPSS) and the AI summary inputs. For every threat, one of: **CONTROL** (with the file and line), **TEST** (with the test name), **ACCEPTED RISK** (with the reason and owner), or **OPEN RISK** (with the milestone that closes it). The threat model drives S4 and S5: every OPEN RISK must map to a later item or be explicitly accepted.
 
@@ -239,7 +241,7 @@ Work: `docs/security/threat_model.md` covering agent enrollment, agent upload, t
 
 **Evidence produced.** The threat model document.
 
-**Resume potential.** "Wrote a STRIDE threat model for Hacker Tracker's agent enrollment, upload, token lifecycle, tenancy and AI-input paths ([N] threats), mapping each to a control, a test or an accepted risk, and used it to drive the authorization suite."
+**Resume potential.** "Wrote a STRIDE threat model for Hacker Tracker's agent enrollment, upload, token lifecycle, tenancy and AI-input paths (101 threats), mapping each to a control, a test or an accepted risk, and used it to drive the authorization suite."
 
 **Interview questions.**
 - Walk me through the spoofing and tampering threats on the agent upload path and how each is controlled.
@@ -247,9 +249,26 @@ Work: `docs/security/threat_model.md` covering agent enrollment, agent upload, t
 - What is the global-admin boundary and why is cross-tenant access "by design" there?
 - What threat did writing the model surface that you had not considered?
 
+#### Owner actions: repo hardening
+
+Settings the owner applies; none is a code change. Rows from the S3 threat model:
+- T-REL-02: a tag ruleset protecting `agent-v*`.
+- T-REL-03: immutable releases.
+- T-CI-02: Environment-gated deploy secrets, or a keyless deploy.
+- T-CI-04: `persist-credentials: false` on the remaining checkouts.
+- T-CI-05: required Security, CodeQL and Secret-scan checks, required approvals, and Dependabot security updates.
+
 #### S4. Authorization assurance
 
 Work: a **route-enumerating authorization suite**. A test walks the FastAPI router, requires every route to appear in a classification table (`public`, `authenticated-global`, `organization-scoped`, `agent`, `administrator`), and fails CI on any unclassified route. For organization-scoped routes it issues requests as a member of org B against org A's resources and expects 403 or 404 (never 200, never 500). It also tests member vs admin on admin-only routes, a revoked agent token, an expired rotated token past its grace, a replayed upload, and the public endpoint boundary. These tests use **real token verification**: Firebase emulator or a locally signed test key with the real verification code path, not the autouse mock. Add security headers middleware (and a `headers` block in `firebase.json`), a body-size limit on the agent upload route, and a `/health` that checks the database.
+
+Threat-model rows: T-ENR-04, T-UPL-06, T-UPL-09, T-TOK-07, T-TOK-08, T-AUTH-04, T-AUTH-07, T-TEN-05, T-TEN-07, T-TEN-10, T-TEN-12, T-PLAT-01, T-PLAT-06, T-PLAT-09. The suite, headers, body limit and `/health` above cover T-AUTH-07, T-TEN-12, T-TOK-07, T-UPL-06, T-PLAT-01, T-PLAT-06 and T-PLAT-09. The rest need their own fixes:
+- Rotation refuses revoked or expired enrollments (T-ENR-04), and revoking an agent covers its rotation chain (T-TOK-08).
+- Require `email_verified` on account auto-create and on invite acceptance (T-AUTH-04).
+- Org-role checks on the destructive routes that only check membership (T-TEN-05).
+- Decide and enforce owner-only admin grants (T-TEN-07).
+- Compare the `org_id` on `POST /analytics/events` with the caller's organization (T-TEN-10).
+- HTTPS-only check on the agent's `--server` URL, with HSTS from the headers work (T-UPL-09).
 
 **Acceptance.** Unclassified routes: 0. Cross-tenant leaks: 0. Routes returning 500 on a denied request: 0. The suite runs with the autouse auth mock disabled. The classification table is committed and counted.
 
@@ -266,6 +285,20 @@ Work: a **route-enumerating authorization suite**. A test walks the FastAPI rout
 #### S5. DAST and manual AppSec
 
 Work: **OWASP ZAP baseline** against the docker-compose stack in CI, failing at medium and above once the header work in S4 lands. ~~Harden the AI summary prompt: delimit and escape org-supplied fields, add a prompt-injection test corpus, validate output against the schema.~~ _(Moved to S5a on 2026-10-18.)_ If pursuing BSCP, perform a **manual Burp assessment** of the API and record each finding as: finding, risk, exploit path, fix, regression test.
+
+Threat-model rows: T-ING-04, T-ING-06, T-ING-07, T-ING-10, T-AI-09, T-PLAT-03, T-PLAT-05, T-PLAT-07, T-PLAT-10, T-PLAT-13.
+
+Threat-model fixes (from the OPEN rows in [`threat_model.md`](security/threat_model.md)):
+- Validate ingested EPSS values (within [0, 1], only for requested CVEs) (T-ING-04).
+- Explicit timeouts and response-size caps on feed fetches (T-ING-06).
+- Mark a run partial when EPSS batches fail or NVD returns 429 (T-ING-07).
+- Send the NVD key as a header on every path (T-ING-10).
+- Per-user or per-org quota on AI summary `force_refresh` (T-AI-09).
+- Fail closed when `APP_ENV` is unset, and reject wildcard, IP and `http://` origins in production (T-PLAT-03).
+- Proxy-aware client IP, a shared limiter store, and limits on the data-lifecycle routes (T-PLAT-05).
+- An error-message policy and a global exception handler (T-PLAT-07).
+- Log scrubbing and an access-log policy (T-PLAT-10).
+- Validate the characters of the request id (T-PLAT-13).
 
 **Acceptance.** ZAP baseline green at medium and above on every PR; ~~the injection corpus runs in CI~~ (moved to S5a, 2026-10-18); if the Burp assessment is done, `docs/security/assessment-YYYY-MM.md` exists with every finding closed by a regression test or accepted.
 

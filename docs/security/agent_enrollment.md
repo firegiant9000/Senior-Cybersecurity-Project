@@ -3,7 +3,7 @@
 User-facing guide for installing, enrolling, rotating, and revoking the
 read-only host scanner (the Month 4 Linux agent). The technical reference for
 the binary itself — flags, collected fields, distro support, schema contract —
-lives in [../agent/README.md](../../agent/README.md). What the agent does and does
+lives in [agent/README.md](../../agent/README.md). What the agent does and does
 not collect is summarized on the in-app `/privacy` page and in
 [privacy.md](privacy.md).
 
@@ -19,7 +19,8 @@ not collect is summarized on the in-app `/privacy` page and in
   affecting the others.
 - The token is shown **once** at enrollment and stored **hashed** server-side —
   there is no "show it again". Treat it like an SSH private key.
-- Transport is `Authorization: Bearer ht_<prefix>_<secret>` over **HTTPS only**.
+- Transport is `Authorization: Bearer ht_<prefix>_<secret>` over HTTPS. HTTPS is expected and Render terminates TLS, but neither the agent
+  nor the API enforces it yet (T-UPL-09, roadmap S4).
 - Each upload carries a fresh `scan_id` + `nonce`; a replayed payload is rejected
   for 24h.
 - Default token lifetime is 365 days. Rotation keeps the old token valid for a
@@ -87,6 +88,6 @@ Every enroll / rotate / revoke is recorded in the audit log (`agent.enroll`,
 
 ## Data retention
 
-Scan history is pruned to the latest 12 runs per organization and audit entries
-age out after 365 days, via the nightly retention sweep
+Scan history is kept for 400 days (with a ceiling of 2000 runs per organization)
+and audit entries age out after 365 days, via the nightly retention sweep
 (`RETENTION_SWEEP_SCHEDULE`). See [retention](../../backend/app/services/retention.py).

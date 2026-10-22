@@ -14,8 +14,9 @@ this doc says the same thing in plain language and is mirrored on the in-app
 - **Organization profile:** the company name, domains, and tech stack you
   enter during onboarding. We use this to match threat intelligence to your
   actual environment.
-- **Activity:** anonymized request logs and audit entries — which API your
-  account called, when, and whether it succeeded. Kept for 12 months.
+- **Activity:** request logs (which include IP addresses) and audit entries —
+  which API your account called, when, and whether it succeeded. Audit entries
+  are kept for 12 months.
 - **Host inventory (optional agent):** if *you* choose to install and enroll
   the read-only host scanner (see below), it sends installed-package
   names/versions, running service names, OS/hostname/arch, and — only when you
@@ -42,7 +43,7 @@ You can review exactly what would be sent with `scan --print` **before** any
 upload. Per-host enrollment tokens are stored hashed (never recoverable) and can
 be rotated or revoked from the dashboard at any time. Full field-by-field
 disclosure and the enrollment/revocation flow live in
-[agent_enrollment.md](agent_enrollment.md) and [../agent/README.md](../../agent/README.md).
+[agent_enrollment.md](agent_enrollment.md) and [agent/README.md](../../agent/README.md).
 
 ## What we do *not* collect
 
@@ -58,7 +59,7 @@ disclosure and the enrollment/revocation flow live in
 | Provider          | Role                                       | Region                |
 |-------------------|--------------------------------------------|-----------------------|
 | Firebase Auth     | Authentication                             | Google global         |
-| Render            | Backend + managed PostgreSQL               | US East (Ohio)        |
+| Render            | Backend + managed PostgreSQL               | US West (Oregon)      |
 | Firebase Hosting  | Static frontend assets                     | Google global         |
 | Sentry            | Error reports (scrubbed)                   | US                    |
 
@@ -67,11 +68,11 @@ operates a global CDN for static assets only.
 
 ## Your rights
 
-- **Export.** An admin in your organization can call
+- **Export.** Ask the operator. A platform administrator can call
   `GET /api/v1/organizations/{id}/export` to retrieve a JSON dump of every
-  row we hold about your org.
-- **Delete.** An admin can call `DELETE /api/v1/organizations/{id}` to purge
-  the organization. The deletion iterates every table explicitly — no orphan
+  row we hold about your org; organization admins and owners can't call it.
+- **Delete.** Ask the operator. A platform administrator can call
+  `DELETE /api/v1/organizations/{id}` to purge the organization. The deletion iterates every table explicitly — no orphan
   rows. The deletion event itself is logged for audit, then ages out after 12
   months.
 - **Correct.** Edit your org profile from the in-app settings page.
