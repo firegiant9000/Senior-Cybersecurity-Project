@@ -41,7 +41,8 @@ async def test_split_user_reach(key, fresh_world, as_user):
         elif resp.status_code in {403, 404}:
             reached[target] = False
         else:
-            pytest.fail(f"unexpected status for {detail}")
+            prefix = "split user reached org C: severe-finding stop; " if target == "C" else ""
+            pytest.fail(f"{prefix}unexpected status for {detail}")
 
         if target == "C":
             assert not reached["C"], "split user reached org C: severe-finding stop"
