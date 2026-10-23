@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
+const NOT_CONFIRMED =
+  "We couldn't confirm your address yet. Open the link in the email, then try again.";
 const buttonStyle = { padding: "0.5rem 1rem", cursor: "pointer" } as const;
 
 /**
@@ -28,16 +30,15 @@ export default function VerifyEmailPanel({ onVerified }: { onVerified?: () => Pr
     setBusy(true);
     setMessage("");
     try {
-      await confirmVerification();
-      if (user && !user.emailVerified) {
-        setMessage(
-          "We couldn't confirm your address yet. Open the link in the email, then try again.",
-        );
+      // Still unverified if Firebase says so, or if the server refused/failed the profile load.
+      const profileLoaded = await confirmVerification();
+      if (!profileLoaded || (user && !user.emailVerified)) {
+        setMessage(NOT_CONFIRMED);
         return;
       }
       await onVerified?.();
     } catch {
-      setMessage("We couldn't confirm your address yet. Open the link in the email, then try again.");
+      setMessage(NOT_CONFIRMED);
     } finally {
       setBusy(false);
     }

@@ -117,7 +117,7 @@ describe('AcceptInvitePage', () => {
     mockGetInvite.mockResolvedValue(mockInviteData)
     mockAcceptInvite.mockResolvedValue(undefined)
     mockRefreshProfile.mockResolvedValue(undefined)
-    mockConfirmVerification.mockResolvedValue(undefined)
+    mockConfirmVerification.mockResolvedValue(true)
     mockResendVerification.mockResolvedValue('sent')
   })
 

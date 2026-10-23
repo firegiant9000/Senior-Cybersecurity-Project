@@ -29,7 +29,7 @@ interface AuthContextType {
   /** Sends a verification email; resolves to a message to show the user. */
   resendVerification: () => Promise<string>;
   /** Reloads the Firebase user, force-refreshes the token, then re-fetches the profile. */
-  confirmVerification: () => Promise<void>;
+  confirmVerification: () => Promise<boolean>;
 }
 
 const EMAIL_NOT_VERIFIED_DETAIL = "Email address not verified";
@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setOrgRole(data.org_role?.toLowerCase() ?? null);
           setEmailUnverified(false);
           setOrgLoading(false);
-          return;
+          return true;
         }
         if (resp.status === 403) {
           const body = await resp.json().catch(() => ({}));
@@ -74,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // route guard stays on "Loading..." forever.
             setEmailUnverified(true);
             setOrgLoading(false);
-            return;
+            return false;
           }
         }
         if (attempt < maxRetries) {
@@ -91,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
     setOrgLoading(false);
+    return false;
   }, []);
 
   useEffect(() => {
@@ -150,11 +151,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const confirmVerification = async () => {
-    if (!user) return;
+    if (!user) return false;
     await user.reload();
     // Force a new token so it carries the updated email_verified claim.
     await user.getIdToken(true);
-    await fetchProfile(user);
+    // True only when the server accepted the profile load with the new token.
+    return fetchProfile(user);
   };
 
   return (

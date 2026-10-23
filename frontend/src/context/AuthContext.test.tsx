@@ -1,4 +1,5 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { useState } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const { fakeUser, mockFetch } = vi.hoisted(() => {
@@ -35,12 +36,14 @@ import { AuthProvider, useAuth } from "./AuthContext";
 
 function Probe() {
   const { orgLoading, emailUnverified, profileError, confirmVerification } = useAuth();
+  const [result, setResult] = useState("");
   return (
     <div>
       <span data-testid="orgLoading">{String(orgLoading)}</span>
       <span data-testid="emailUnverified">{String(emailUnverified)}</span>
       <span data-testid="profileError">{String(profileError)}</span>
-      <button onClick={() => confirmVerification()}>confirm</button>
+      <span data-testid="confirmResult">{result}</span>
+      <button onClick={async () => setResult(String(await confirmVerification()))}>confirm</button>
     </div>
   );
 }
@@ -113,6 +116,29 @@ describe("AuthContext profile fetch", () => {
       { timeout: 4000 },
     );
     expect(screen.getByTestId("emailUnverified")).toHaveTextContent("false");
+  });
+
+  it("confirmVerification resolves false while the server still refuses, true once it accepts", async () => {
+    mockFetch
+      .mockResolvedValueOnce(response(403, { detail: "Email address not verified" }))
+      .mockResolvedValueOnce(response(403, { detail: "Email address not verified" }))
+      .mockResolvedValueOnce(response(200, PROFILE));
+
+    renderProvider();
+    await waitFor(() => {
+      expect(screen.getByTestId("emailUnverified")).toHaveTextContent("true");
+    });
+
+    fireEvent.click(screen.getByText("confirm"));
+    await waitFor(() => {
+      expect(screen.getByTestId("confirmResult")).toHaveTextContent("false");
+    });
+    expect(screen.getByTestId("emailUnverified")).toHaveTextContent("true");
+
+    fireEvent.click(screen.getByText("confirm"));
+    await waitFor(() => {
+      expect(screen.getByTestId("confirmResult")).toHaveTextContent("true");
+    });
   });
 
   it("confirmVerification reloads and force-refreshes the token", async () => {

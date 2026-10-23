@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi } from "vitest";
 
@@ -49,6 +49,21 @@ describe("ProtectedRoute", () => {
     expect(screen.getByText(/Verify your email address to continue/i)).toBeInTheDocument();
     expect(screen.getByText(/new@example\.com/)).toBeInTheDocument();
     expect(screen.queryByText("protected content")).not.toBeInTheDocument();
+  });
+
+  it("verified in Firebase but server still refuses shows the message", async () => {
+    const confirmVerification = vi.fn().mockResolvedValue(false);
+    setAuth({
+      emailUnverified: true,
+      user: { email: "new@example.com", emailVerified: true },
+      confirmVerification,
+    });
+
+    renderRoute();
+    fireEvent.click(screen.getByRole("button", { name: /I've verified my email/i }));
+
+    expect(await screen.findByText(/We couldn't confirm your address yet/i)).toBeInTheDocument();
+    expect(confirmVerification).toHaveBeenCalledTimes(1);
   });
 
   it("profileError screen unchanged when emailUnverified is false", () => {
