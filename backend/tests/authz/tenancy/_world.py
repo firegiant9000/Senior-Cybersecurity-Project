@@ -84,7 +84,7 @@ class World:
     upload_dir: Path
     # Marker of the cross-cutting users (global admin, no-org, split, removed): they belong to no
     # single org, so none of an org's markers may appear in their emails.
-    shared_marker: str = ""
+    shared_marker: str
 
     def org(self, name: str) -> OrgWorld:
         return {"A": self.a, "B": self.b, "C": self.c}[name]
@@ -477,6 +477,8 @@ async def _purge(markers: list[str], org_ids: list[int], user_ids: list[int]) ->
     The marker sweep also catches rows a test created later (e.g. a user auto-created by
     accepting an invite) and anything left by a half-finished build.
     """
+    if not markers or any(not m or not m.strip() for m in markers):
+        raise ValueError("refusing to purge with an empty marker (LIKE '%%' matches every user)")
     async with AsyncSessionLocal() as session:
         await session.rollback()
         org_ids = [
