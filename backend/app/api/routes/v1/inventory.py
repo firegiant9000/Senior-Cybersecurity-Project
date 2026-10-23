@@ -342,6 +342,8 @@ async def import_inventory_csv(
             },
         ),
     )
+    # Build the response before the audit write: a rollback there expires the ORM objects.
+    result = ScanRunRead.model_validate(final or scan_run, from_attributes=True)
     # Audit trail — separate transaction is fine; the import already
     # committed and an audit failure should not roll the data back.
     try:
@@ -371,7 +373,7 @@ async def import_inventory_csv(
 
     trigger_matcher_async(org_id, trigger="csv_import")
 
-    return final or scan_run
+    return result
 
 
 # ---- Scan runs ----------------------------------------------------------
@@ -556,6 +558,8 @@ async def upload_agent_scan(
             metadata={**base_meta, "asset_count": asset_count, "software_count": software_count},
         ),
     )
+    # Read before the audit write: a rollback there expires the ORM objects.
+    final_status = (final or scan_run).status
 
     try:
         await _audit_agent(
@@ -582,7 +586,7 @@ async def upload_agent_scan(
 
     return ScanUploadAccepted(
         scan_run_id=scan_run_id,
-        status=(final or scan_run).status,
+        status=final_status,
         asset_count=asset_count,
         software_count=software_count,
     )
