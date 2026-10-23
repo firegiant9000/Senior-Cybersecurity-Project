@@ -437,7 +437,25 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
         # --- agent enrollment management (org admin) ---------------------------------
         ("POST", f"{_V1}/agents/enroll", _ORG_ADMIN_CALLER),
         ("GET", f"{_V1}/agents", _ORG_ADMIN_CALLER),
-        ("POST", f"{_V1}/agents/{{agent_id}}/rotate", _ORG_ADMIN_CALLER),
-        ("DELETE", f"{_V1}/agents/{{agent_id}}", _ORG_ADMIN_CALLER),
+        (
+            "POST",
+            f"{_V1}/agents/{{agent_id}}/rotate",
+            RouteSpec(
+                "organization-scoped",
+                min_role="org:admin",
+                org_from="caller",
+                note="rotates active agents only (T-ENR-04)",
+            ),
+        ),
+        (
+            "DELETE",
+            f"{_V1}/agents/{{agent_id}}",
+            RouteSpec(
+                "organization-scoped",
+                min_role="org:admin",
+                org_from="caller",
+                note="revokes the whole rotation chain (T-TOK-08)",
+            ),
+        ),
     ]
 )

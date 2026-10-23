@@ -48,6 +48,10 @@ class IssuedToken:
     raw_token: str
 
 
+class AgentNotActiveError(Exception):
+    """Rotation was refused: the enrollment is revoked, expired or already in its grace window."""
+
+
 def _utcnow() -> datetime:
     """The module's only clock; tests patch this to move time for issue/verify/rotate/revoke."""
     return datetime.now(UTC)
@@ -191,10 +195,22 @@ async def rotate(
     agent's name and scopes. The old row's ``revoked_at`` is set to
     ``now + grace`` so its token keeps working for the configured window — a
     live host can pick up the new token before the old one dies.
+
+    Only an active row can be rotated: a revoked, expired or in-grace row raises
+    ``AgentNotActiveError`` before anything is written. The pre-check is a cheap early
+    refusal; the conditional claim in the repository is what holds under concurrency.
     """
     now = now or _utcnow()
+    if not _is_active(enrollment, now):
+        raise AgentNotActiveError("Only an active agent can be rotated")
     grace_until = now + timedelta(hours=settings.AGENT_TOKEN_ROTATION_GRACE_HOURS)
 
+    if not await repo.claim_for_rotation(enrollment, grace_until=grace_until, now=now):
+        raise AgentNotActiveError("Only an active agent can be rotated")
+
+    # The claim must commit in the same transaction as the successor's INSERT (``create()``
+    # commits both), so nothing may roll back between here and that commit: a rollback would
+    # discard the claim and leave the successor with a still-active predecessor.
     issued = await issue(
         repo,
         org_id=enrollment.org_id,
@@ -204,7 +220,6 @@ async def rotate(
         now=now,
         chain_root_id=chain_root(enrollment),
     )
-    await repo.set_revoked_at(enrollment, grace_until)
     return issued
 
 
@@ -220,6 +235,17 @@ async def revoke(
     """
     now = now or _utcnow()
     return await repo.revoke_chain(enrollment, when=now)
+
+
+def _is_active(enrollment: AgentEnrollment, now: datetime) -> bool:
+    """Active = not revoked (a grace window sets ``revoked_at``) and not expired.
+
+    Keyed on ``revoked_at``/``expires_at``, not the derived status, so an idle ("stale")
+    agent is still active.
+    """
+    if enrollment.revoked_at is not None:
+        return False
+    return enrollment.expires_at is None or _as_aware(enrollment.expires_at) > now
 
 
 def _as_aware(value: datetime) -> datetime:

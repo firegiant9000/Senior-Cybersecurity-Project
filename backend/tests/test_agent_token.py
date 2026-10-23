@@ -58,9 +58,15 @@ class FakeAgentEnrollmentRepo:
     async def touch_last_used(self, enrollment: AgentEnrollment, when: datetime) -> None:
         enrollment.last_used_at = when
 
-    async def set_revoked_at(self, enrollment: AgentEnrollment, when: datetime) -> AgentEnrollment:
-        enrollment.revoked_at = when
-        return enrollment
+    async def claim_for_rotation(
+        self, enrollment: AgentEnrollment, *, grace_until: datetime, now: datetime
+    ) -> bool:
+        if enrollment.revoked_at is not None:
+            return False
+        if enrollment.expires_at is not None and enrollment.expires_at <= now:
+            return False
+        enrollment.revoked_at = grace_until
+        return True
 
     async def revoke_chain(self, enrollment: AgentEnrollment, *, when: datetime) -> list[int]:
         root = enrollment.chain_root_id or enrollment.id
@@ -264,6 +270,75 @@ async def test_rotate_issues_new_token_and_grace_keeps_old_valid(repo):
     after_grace = now + timedelta(hours=25)
     assert await agent_token.verify(repo, original.raw_token, now=after_grace) is None
     assert await agent_token.verify(repo, rotated.raw_token, now=after_grace) is not None
+
+
+@pytest.mark.asyncio
+async def test_rotate_refuses_revoked(repo):
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    x = await agent_token.issue(
+        repo, org_id=5, name="a", scopes=None, created_by_user_id=1, now=now
+    )
+    await agent_token.revoke(repo, x.enrollment, now=now)
+
+    with pytest.raises(agent_token.AgentNotActiveError):
+        await agent_token.rotate(repo, x.enrollment, created_by_user_id=1, now=now)
+
+    assert len(repo._rows) == 1
+    assert x.enrollment.revoked_at == now
+
+
+@pytest.mark.asyncio
+async def test_rotate_refuses_expired(repo):
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    x = await agent_token.issue(
+        repo,
+        org_id=5,
+        name="a",
+        scopes=None,
+        created_by_user_id=1,
+        expires_at=now,
+        now=now - timedelta(days=1),
+    )
+
+    with pytest.raises(agent_token.AgentNotActiveError):
+        await agent_token.rotate(repo, x.enrollment, created_by_user_id=1, now=now)
+
+    assert len(repo._rows) == 1
+    assert x.enrollment.revoked_at is None
+
+
+@pytest.mark.asyncio
+async def test_rotate_refuses_in_grace(repo):
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    x = await agent_token.issue(
+        repo, org_id=5, name="a", scopes=None, created_by_user_id=1, now=now
+    )
+    await agent_token.rotate(repo, x.enrollment, created_by_user_id=1, now=now)
+    grace_until = x.enrollment.revoked_at
+
+    with pytest.raises(agent_token.AgentNotActiveError):
+        await agent_token.rotate(repo, x.enrollment, created_by_user_id=1, now=now)
+
+    assert len(repo._rows) == 2
+    assert x.enrollment.revoked_at == grace_until
+
+
+@pytest.mark.asyncio
+async def test_rotate_refuses_when_claim_lost(repo, monkeypatch):
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    x = await agent_token.issue(
+        repo, org_id=5, name="a", scopes=None, created_by_user_id=1, now=now
+    )
+
+    async def _lost(*_args, **_kwargs) -> bool:
+        return False
+
+    monkeypatch.setattr(repo, "claim_for_rotation", _lost)
+
+    with pytest.raises(agent_token.AgentNotActiveError):
+        await agent_token.rotate(repo, x.enrollment, created_by_user_id=1, now=now)
+
+    assert len(repo._rows) == 1
 
 
 # --- revoke -------------------------------------------------------------------

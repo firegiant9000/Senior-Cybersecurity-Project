@@ -8,6 +8,7 @@ from datetime import datetime
 from fastapi import Depends
 from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.db.agent_enrollment import AgentEnrollment
 from app.db.engine import get_session
@@ -83,12 +84,6 @@ class SqlAgentEnrollmentRepository:
         enrollment.last_used_at = when
         await self._session.commit()
 
-    async def set_revoked_at(self, enrollment: AgentEnrollment, when: datetime) -> AgentEnrollment:
-        enrollment.revoked_at = when
-        await self._session.commit()
-        await self._session.refresh(enrollment)
-        return enrollment
-
     async def _lock_chain_root(self, root_id: int) -> None:
         """Lock the chain's root row so chain writers serialize.
 
@@ -101,6 +96,34 @@ class SqlAgentEnrollmentRepository:
             .where(AgentEnrollment.id == root_id)
             .with_for_update(key_share=True)
         )
+
+    async def claim_for_rotation(
+        self, enrollment: AgentEnrollment, *, grace_until: datetime, now: datetime
+    ) -> bool:
+        """Start the predecessor's grace window, only if the row is still active in the database.
+
+        One conditional UPDATE after the chain-root lock: a concurrent rotation or revoke that
+        got there first leaves 0 rows matched, so a stale in-memory object can't win. Does NOT
+        commit: the caller's successor INSERT commits the claim and the new row together.
+        Returns whether the claim matched a row.
+        """
+        await self._lock_chain_root(enrollment.chain_root_id or enrollment.id)
+        result = await self._session.execute(
+            update(AgentEnrollment)
+            .where(
+                AgentEnrollment.id == enrollment.id,
+                AgentEnrollment.revoked_at.is_(None),
+                or_(AgentEnrollment.expires_at.is_(None), AgentEnrollment.expires_at > now),
+            )
+            .values(revoked_at=grace_until)
+            .returning(AgentEnrollment.id)
+            .execution_options(synchronize_session=False)
+        )
+        if result.scalar_one_or_none() is None:
+            return False
+        # Mirror the UPDATE in memory without marking the attribute dirty (no second write).
+        set_committed_value(enrollment, "revoked_at", grace_until)
+        return True
 
     async def revoke_chain(self, enrollment: AgentEnrollment, *, when: datetime) -> list[int]:
         """Revoke every row of the enrollment's chain at ``when``; never moves a time later.
