@@ -207,7 +207,11 @@ CASES: dict[tuple[str, str], Case] = {
         lambda _w, _t: Req("POST", f"{_MINE}/intake/complete"), 200, shows_marker=True
     ),
     ("GET", f"{_MINE}/validation"): _caller(
-        lambda _w, _t: Req("GET", f"{_MINE}/validation"), 200, shows_marker=True
+        lambda _w, _t: Req("GET", f"{_MINE}/validation"),
+        200,
+        org_free=True,
+        note="messages quote seeded names only for duplicates (A has two vendors, B one), so "
+        "B's body carries no marker; the A-snapshot check is the isolation proof",
     ),
     ("GET", f"{_MINE}/risk"): _caller(
         lambda _w, _t: Req("GET", f"{_MINE}/risk"),
