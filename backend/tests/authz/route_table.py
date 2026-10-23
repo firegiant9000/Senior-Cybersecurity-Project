@@ -59,16 +59,16 @@ _ORG_MEMBER_PATH = RouteSpec("organization-scoped", min_role="org:member", org_f
 _ORG_ADMIN_PATH = RouteSpec("organization-scoped", min_role="org:admin", org_from="path")
 _ORG_MEMBER_CALLER = RouteSpec("organization-scoped", min_role="org:member", org_from="caller")
 _ORG_ADMIN_CALLER = RouteSpec("organization-scoped", min_role="org:admin", org_from="caller")
-_T_TEN_05 = "T-TEN-05: intent org:admin"
+_T_TEN_05 = "T-TEN-05: destructive, org admin"
 _DESTRUCTIVE_PATH = RouteSpec(
-    "organization-scoped", min_role="org:member", org_from="path", note=_T_TEN_05
+    "organization-scoped", min_role="org:admin", org_from="path", note=_T_TEN_05
 )
 
 
 def _m365(note: str = "", *, destructive: bool = False) -> RouteSpec:
     return RouteSpec(
         "organization-scoped",
-        min_role="org:member",
+        min_role="org:admin" if destructive else "org:member",
         org_from="path",
         flag=_M365,
         note=_T_TEN_05 if destructive else note,
@@ -230,7 +230,7 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
             f"{_V1}/assessments/{{assessment_id}}",
             RouteSpec(
                 "organization-scoped",
-                min_role="org:member",
+                min_role="org:admin",
                 org_from="resource",
                 note=f"{_T_TEN_05}; T-TEN-11",
             ),
@@ -280,7 +280,7 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
         ),
         # --- M365 integration (feature flagged; org id is a query parameter) ----------
         ("GET", f"{_V1}/integrations/m365", _m365("flag off returns a static disabled response")),
-        ("POST", f"{_V1}/integrations/m365/consent", _m365()),
+        ("POST", f"{_V1}/integrations/m365/consent", _m365(destructive=True)),
         (
             "GET",
             f"{_V1}/integrations/m365/callback",

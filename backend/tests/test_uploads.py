@@ -67,6 +67,10 @@ async def test_delete_upload(client: AsyncClient):
             new=AsyncMock(return_value=None),
         ),
         patch(
+            "app.api.routes.v1.uploads.check_org_role",
+            new=MagicMock(return_value=None),
+        ),
+        patch(
             "app.repositories.org_upload.SqlOrgUploadRepository.get_by_id",
             new=AsyncMock(return_value=fake_upload),
         ),
