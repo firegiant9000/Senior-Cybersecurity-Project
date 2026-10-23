@@ -6,8 +6,12 @@ import {
   acceptInvite,
   type InviteTokenInfo,
 } from "../api/members";
+import { ForbiddenError } from "../api/fetchWithAuth";
+import VerifyEmailPanel from "../components/VerifyEmailPanel";
 import "../Dashboard.css";
 import "./SettingsPage.css";
+
+const EMAIL_NOT_VERIFIED_DETAIL = "Email address not verified";
 
 export default function AcceptInvitePage() {
   const { token } = useParams<{ token: string }>();
@@ -19,6 +23,7 @@ export default function AcceptInvitePage() {
   const [error, setError] = useState("");
   const [accepting, setAccepting] = useState(false);
   const [accepted, setAccepted] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
   const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -54,13 +59,19 @@ export default function AcceptInvitePage() {
     if (!token) return;
     setAccepting(true);
     setError("");
+    setNeedsVerification(false);
     try {
       await acceptInvite(token);
       setAccepted(true);
       await refreshProfile();
       redirectTimer.current = setTimeout(() => navigate("/"), 1500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to accept invite");
+      if (err instanceof ForbiddenError && err.message === EMAIL_NOT_VERIFIED_DETAIL) {
+        // Verify, then retry the accept (a mismatch 403 keeps the plain-text error below).
+        setNeedsVerification(true);
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to accept invite");
+      }
     } finally {
       setAccepting(false);
     }
@@ -79,8 +90,9 @@ export default function AcceptInvitePage() {
         >
           {loading && <p className="settings-loading">Loading invite...</p>}
           {error && <div className="settings-error">{error}</div>}
+          {needsVerification && <VerifyEmailPanel onVerified={handleAccept} />}
 
-          {!loading && !error && invite && !accepted && (
+          {!loading && !error && !needsVerification && invite && !accepted && (
             <div className="settings-sections">
               <section className="settings-section">
                 <h2>You&apos;ve been invited</h2>

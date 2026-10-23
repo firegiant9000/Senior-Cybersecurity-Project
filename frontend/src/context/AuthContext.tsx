@@ -4,6 +4,7 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendEmailVerification,
   signOut,
 } from "firebase/auth";
 import { auth } from "../firebase";
@@ -16,6 +17,8 @@ interface AuthContextType {
   orgIsDemo: boolean;
   orgLoading: boolean;
   profileError: boolean;
+  /** The API refused the profile because the account's email is not verified yet. */
+  emailUnverified: boolean;
   role: string | null;
   orgRole: string | null;
   login: (email: string, password: string) => Promise<void>;
@@ -23,7 +26,13 @@ interface AuthContextType {
   logout: () => Promise<void>;
   getIdToken: () => Promise<string | null>;
   refreshProfile: () => Promise<void>;
+  /** Sends a verification email; resolves to a message to show the user. */
+  resendVerification: () => Promise<string>;
+  /** Reloads the Firebase user, force-refreshes the token, then re-fetches the profile. */
+  confirmVerification: () => Promise<void>;
 }
+
+const EMAIL_NOT_VERIFIED_DETAIL = "Email address not verified";
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -37,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [orgRole, setOrgRole] = useState<string | null>(null);
 
   const [profileError, setProfileError] = useState(false);
+  const [emailUnverified, setEmailUnverified] = useState(false);
 
   const fetchProfile = useCallback(async (firebaseUser: User, maxRetries = 1) => {
     setProfileError(false);
@@ -53,8 +63,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setOrgIsDemo(Boolean(data.org_is_demo));
           setRole(data.role?.toLowerCase() ?? null);
           setOrgRole(data.org_role?.toLowerCase() ?? null);
+          setEmailUnverified(false);
           setOrgLoading(false);
           return;
+        }
+        if (resp.status === 403) {
+          const body = await resp.json().catch(() => ({}));
+          if ((body as { detail?: string }).detail === EMAIL_NOT_VERIFIED_DETAIL) {
+            // Not an outage: show the verify screen. Clear orgLoading or the
+            // route guard stays on "Loading..." forever.
+            setEmailUnverified(true);
+            setOrgLoading(false);
+            return;
+          }
         }
         if (attempt < maxRetries) {
           await new Promise((r) => setTimeout(r, 1000));
@@ -84,6 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setOrgIsDemo(false);
         setRole(null);
         setOrgRole(null);
+        setEmailUnverified(false);
         setOrgLoading(false);
       }
     });
@@ -114,8 +136,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user, fetchProfile]);
 
+  const resendVerification = async () => {
+    if (!user) return "Sign in to resend the verification email.";
+    try {
+      await sendEmailVerification(user);
+      return "Verification email sent. Check your inbox.";
+    } catch (err) {
+      if ((err as { code?: string }).code === "auth/too-many-requests") {
+        return "A verification email was sent recently. Check your inbox or try again in a few minutes.";
+      }
+      return "We couldn't send the verification email. Please try again later.";
+    }
+  };
+
+  const confirmVerification = async () => {
+    if (!user) return;
+    await user.reload();
+    // Force a new token so it carries the updated email_verified claim.
+    await user.getIdToken(true);
+    await fetchProfile(user);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, orgId, orgIsDemo, orgLoading, profileError, role, orgRole, login, signup, logout, getIdToken, refreshProfile }}>
+    <AuthContext.Provider value={{ user, loading, orgId, orgIsDemo, orgLoading, profileError, emailUnverified, role, orgRole, login, signup, logout, getIdToken, refreshProfile, resendVerification, confirmVerification }}>
       {children}
     </AuthContext.Provider>
   );
