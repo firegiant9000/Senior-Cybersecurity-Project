@@ -44,6 +44,10 @@ from app.services import agent_token
 # A str, because the app calls `.encode()` on settings.M365_FERNET_KEY.
 _TEST_FERNET_KEY: str = Fernet.generate_key().decode()
 
+# Distinct per org so responses that carry no seeded string (e.g. loss projection) still show
+# whose profile they were built from.
+ORG_STATES: dict[str, str] = {"A": "TX", "B": "CA", "C": "NY"}
+
 _CSV_BYTES = b"hostname,vendor,product,version\nhost-1,Acme,Widget,1.0\n"
 
 
@@ -230,13 +234,14 @@ async def _build(markers: dict[str, str], upload_dir: Path) -> World:
                 name=f"{marker} Org",
                 industry_label="Technology",
                 ic3_sector="Information Technology",
-                primary_state="TX",
+                primary_state=ORG_STATES[name],
                 employee_range="11-50",
                 revenue_range="1M-10M",
                 primary_domain=f"{marker}.example.com",
                 security_controls={"mfa": "yes", "backups": "yes", "edr": "unsure"},
                 compliance_frameworks=["SOC2"],
                 data_types=["customer"],
+                intake_skipped_steps=[f"{marker}-skipped"],
             )
             session.add(org)
             orgs[name] = org
@@ -284,8 +289,8 @@ async def _build(markers: dict[str, str], upload_dir: Path) -> World:
             )
             scan_run = ScanRun(
                 org_id=org_id,
-                source="csv",
-                status="completed",
+                source="csv_upload",
+                status="succeeded",
                 finished_at=now,
                 asset_count=1,
                 software_count=1,
@@ -295,15 +300,15 @@ async def _build(markers: dict[str, str], upload_dir: Path) -> World:
             snapshot = FindingsSnapshot(
                 org_id=org_id,
                 generated_at=now,
-                findings={"marker": marker, "items": []},
-                summary={"marker": marker},
+                findings=[{"marker": marker, "title": f"{marker} finding"}],
+                summary={"total": 1, "by_type": {marker: 1}, "by_severity": {"medium": 1}},
                 assessment_tier="enhanced",
                 data_sources_used=["seed"],
             )
             status_row = FindingStatus(
                 org_id=org_id,
                 stable_key=f"{marker}-key",
-                status="open",
+                status="done",
                 title=f"{marker} finding",
                 severity="medium",
             )
@@ -344,7 +349,7 @@ async def _build(markers: dict[str, str], upload_dir: Path) -> World:
                 Asset(
                     org_id=org_id,
                     hostname=f"{marker}-h1",
-                    discovered_via="csv",
+                    discovered_via="csv_upload",
                     tags=[marker],
                     created_by_scan_run_id=scan_run.id,
                 )
@@ -354,7 +359,7 @@ async def _build(markers: dict[str, str], upload_dir: Path) -> World:
                     Asset(
                         org_id=org_id,
                         hostname=f"{marker}-h1b",
-                        discovered_via="csv",
+                        discovered_via="csv_upload",
                         tags=[marker],
                         created_by_scan_run_id=scan_run.id,
                     )
@@ -368,7 +373,7 @@ async def _build(markers: dict[str, str], upload_dir: Path) -> World:
                 vendor=f"{marker}-vendor",
                 product=f"{marker}-product",
                 version="1.0",
-                source="csv",
+                source="csv_upload",
                 created_by_scan_run_id=scan_run.id,
             )
             session.add(software)
