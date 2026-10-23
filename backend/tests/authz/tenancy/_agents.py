@@ -3,12 +3,14 @@
 Agents are issued through the real service against the real DB, so the real verifier decides.
 """
 
+import asyncio
 import json
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
+from sqlalchemy import text
 
 from app.core.config import settings
 from app.db.agent_enrollment import AgentEnrollment
@@ -78,6 +80,33 @@ async def load_agent(agent_id: int) -> AgentEnrollment:
         row = await session.get(AgentEnrollment, agent_id)
         assert row is not None
         return row
+
+
+async def wait_until_blocked(pid: int, *, blocker: int, timeout: float = 5.0) -> None:
+    """Poll until backend `pid` is waiting on a lock held by backend `blocker`.
+
+    Each poll uses a fresh session (its own transaction) because `pg_stat_activity` is
+    snapshotted per transaction. Scoped to the two pids so another backend can't satisfy it.
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while True:
+        async with AsyncSessionLocal() as session:
+            row = (
+                await session.execute(
+                    text(
+                        "SELECT 1 FROM pg_stat_activity WHERE pid = :pid "
+                        "AND wait_event_type = 'Lock' "
+                        "AND :blocker = ANY(pg_blocking_pids(:pid))"
+                    ),
+                    {"pid": pid, "blocker": blocker},
+                )
+            ).first()
+        if row is not None:
+            return
+        if loop.time() >= deadline:
+            raise AssertionError("revoke did not wait for the chain lock")
+        await asyncio.sleep(0.05)
 
 
 async def send(client, req: Req) -> httpx.Response:

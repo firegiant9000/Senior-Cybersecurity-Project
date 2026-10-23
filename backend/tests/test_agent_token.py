@@ -34,9 +34,11 @@ class FakeAgentEnrollmentRepo:
         scopes: list[str] | None,
         created_by_user_id: int | None,
         expires_at: datetime | None,
+        chain_root_id: int | None = None,
     ) -> AgentEnrollment:
         enrollment = AgentEnrollment(
             id=self._next_id,
+            chain_root_id=chain_root_id,
             org_id=org_id,
             name=name,
             token_hash=token_hash,
@@ -59,6 +61,17 @@ class FakeAgentEnrollmentRepo:
     async def set_revoked_at(self, enrollment: AgentEnrollment, when: datetime) -> AgentEnrollment:
         enrollment.revoked_at = when
         return enrollment
+
+    async def revoke_chain(self, enrollment: AgentEnrollment, *, when: datetime) -> list[int]:
+        root = enrollment.chain_root_id or enrollment.id
+        changed = []
+        for row in self._rows:
+            if row.org_id != enrollment.org_id or root not in (row.id, row.chain_root_id):
+                continue
+            if row.revoked_at is None or row.revoked_at > when:
+                row.revoked_at = when
+                changed.append(row.id)
+        return sorted(changed)
 
 
 @pytest.fixture
@@ -240,6 +253,7 @@ async def test_rotate_issues_new_token_and_grace_keeps_old_valid(repo):
     assert rotated.enrollment.id != original.enrollment.id
     assert rotated.enrollment.name == "web-01"
     assert rotated.enrollment.scopes == ["inventory:write"]
+    assert rotated.enrollment.chain_root_id == original.enrollment.id
 
     # Within the grace window, BOTH tokens verify.
     within_grace = now + timedelta(hours=1)
@@ -259,8 +273,37 @@ async def test_rotate_issues_new_token_and_grace_keeps_old_valid(repo):
 async def test_revoke_sets_revoked_at_to_now(repo):
     now = datetime(2026, 1, 1, tzinfo=UTC)
     issued = await agent_token.issue(repo, org_id=1, name="a", scopes=None, created_by_user_id=None)
-    enrollment = await agent_token.revoke(repo, issued.enrollment, now=now)
-    assert enrollment.revoked_at == now
+    changed = await agent_token.revoke(repo, issued.enrollment, now=now)
+    assert issued.enrollment.revoked_at == now
+    assert changed == [issued.enrollment.id]
+
+
+@pytest.mark.asyncio
+async def test_rotate_links_successor_to_chain_root(repo):
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    x = await agent_token.issue(
+        repo, org_id=5, name="a", scopes=None, created_by_user_id=1, now=now
+    )
+    s1 = await agent_token.rotate(repo, x.enrollment, created_by_user_id=1, now=now)
+    s2 = await agent_token.rotate(repo, s1.enrollment, created_by_user_id=1, now=now)
+
+    assert s1.enrollment.chain_root_id == x.enrollment.id
+    assert s2.enrollment.chain_root_id == x.enrollment.id
+
+
+@pytest.mark.asyncio
+async def test_revoke_returns_changed_ids(repo):
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    x = await agent_token.issue(
+        repo, org_id=5, name="a", scopes=None, created_by_user_id=1, now=now
+    )
+    s = await agent_token.rotate(repo, x.enrollment, created_by_user_id=1, now=now)
+
+    first = await agent_token.revoke(repo, x.enrollment, now=now)
+    again = await agent_token.revoke(repo, x.enrollment, now=now)
+
+    assert first == sorted([x.enrollment.id, s.enrollment.id])
+    assert again == []
 
 
 # --- status derivation --------------------------------------------------------

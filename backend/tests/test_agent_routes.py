@@ -142,7 +142,7 @@ async def test_rotate_issues_new_token(client: AsyncClient, monkeypatch):
 async def test_revoke_returns_204(client: AsyncClient, monkeypatch):
     repo = MagicMock()
     repo.get_by_id = AsyncMock(return_value=_enrollment())
-    revoke_mock = AsyncMock(return_value=_enrollment(revoked_at=datetime.now(UTC)))
+    revoke_mock = AsyncMock(return_value=[1])
     monkeypatch.setattr(agent_token, "revoke", revoke_mock)
 
     _override_admin(repo)

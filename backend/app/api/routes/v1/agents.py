@@ -130,17 +130,17 @@ async def revoke_agent(
     repo: SqlAgentEnrollmentRepository = Depends(get_agent_enrollment_repo),
     session: AsyncSession = Depends(get_session),
 ):
-    """Revoke an agent immediately (``revoked_at = now``, no grace)."""
+    """Revoke an agent and its whole rotation chain immediately (no grace); repeating is a no-op."""
     enrollment = await repo.get_by_id(agent_id, org.id)
     if enrollment is None:
         raise HTTPException(status_code=404, detail="Agent not found")
-    await agent_token.revoke(repo, enrollment)
+    revoked_ids = await agent_token.revoke(repo, enrollment)
     await _audit_safe(
         session,
         actor=current_user,
         org_id=org.id,
         action="agent.revoke",
-        payload={"agent_id": agent_id},
+        payload={"agent_id": agent_id, "revoked_ids": revoked_ids},
     )
     return None
 

@@ -84,6 +84,11 @@ def _default_expiry(now: datetime) -> datetime:
     return now + timedelta(days=settings.AGENT_TOKEN_DEFAULT_EXPIRY_DAYS)
 
 
+def chain_root(enrollment: AgentEnrollment) -> int:
+    """The id of the original row of the enrollment's rotation chain."""
+    return enrollment.chain_root_id or enrollment.id
+
+
 async def issue(
     repo: SqlAgentEnrollmentRepository,
     *,
@@ -93,8 +98,11 @@ async def issue(
     created_by_user_id: int | None,
     expires_at: datetime | None = None,
     now: datetime | None = None,
+    chain_root_id: int | None = None,
 ) -> IssuedToken:
     """Mint a new per-agent credential and persist hash-only.
+
+    ``chain_root_id`` links a rotation's successor to its chain's original row.
 
     Retries on the (vanishingly unlikely) prefix collision rather than failing
     the caller.
@@ -116,6 +124,7 @@ async def issue(
                 scopes=scopes,
                 created_by_user_id=created_by_user_id,
                 expires_at=expires_at,
+                chain_root_id=chain_root_id,
             )
         except IntegrityError as exc:  # pragma: no cover - race on the unique index
             last_error = exc
@@ -193,6 +202,7 @@ async def rotate(
         scopes=enrollment.scopes,
         created_by_user_id=created_by_user_id,
         now=now,
+        chain_root_id=chain_root(enrollment),
     )
     await repo.set_revoked_at(enrollment, grace_until)
     return issued
@@ -203,10 +213,13 @@ async def revoke(
     enrollment: AgentEnrollment,
     *,
     now: datetime | None = None,
-) -> AgentEnrollment:
-    """Revoke immediately by setting ``revoked_at = now`` (no grace)."""
+) -> list[int]:
+    """Revoke the whole rotation chain immediately; never moves an earlier ``revoked_at`` later.
+
+    Returns the ids whose ``revoked_at`` changed (empty on a repeat).
+    """
     now = now or _utcnow()
-    return await repo.set_revoked_at(enrollment, now)
+    return await repo.revoke_chain(enrollment, when=now)
 
 
 def _as_aware(value: datetime) -> datetime:

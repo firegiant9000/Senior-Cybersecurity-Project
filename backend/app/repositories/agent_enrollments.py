@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 
 from fastapi import Depends
-from sqlalchemy import select
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.agent_enrollment import AgentEnrollment
@@ -37,8 +37,10 @@ class SqlAgentEnrollmentRepository:
         scopes: list[str] | None,
         created_by_user_id: int | None,
         expires_at: datetime | None,
+        chain_root_id: int | None = None,
     ) -> AgentEnrollment:
         enrollment = AgentEnrollment(
+            chain_root_id=chain_root_id,
             org_id=org_id,
             name=name,
             token_hash=token_hash,
@@ -86,6 +88,43 @@ class SqlAgentEnrollmentRepository:
         await self._session.commit()
         await self._session.refresh(enrollment)
         return enrollment
+
+    async def _lock_chain_root(self, root_id: int) -> None:
+        """Lock the chain's root row so chain writers serialize.
+
+        ``FOR NO KEY UPDATE`` (not ``FOR UPDATE``): it doesn't conflict with the ``KEY SHARE``
+        lock an in-flight agent upload holds on its enrollment row, but still conflicts with
+        itself, so rotate/revoke and revoke/revoke wait for each other. Held until commit.
+        """
+        await self._session.execute(
+            select(AgentEnrollment.id)
+            .where(AgentEnrollment.id == root_id)
+            .with_for_update(key_share=True)
+        )
+
+    async def revoke_chain(self, enrollment: AgentEnrollment, *, when: datetime) -> list[int]:
+        """Revoke every row of the enrollment's chain at ``when``; never moves a time later.
+
+        Locks the root first, so a rotation still inserting its successor commits before the
+        UPDATE starts (and its snapshot includes the successor). Returns the ids changed.
+        """
+        root = enrollment.chain_root_id or enrollment.id
+        await self._lock_chain_root(root)
+        result = await self._session.execute(
+            update(AgentEnrollment)
+            .where(
+                AgentEnrollment.org_id == enrollment.org_id,
+                or_(AgentEnrollment.id == root, AgentEnrollment.chain_root_id == root),
+                or_(AgentEnrollment.revoked_at.is_(None), AgentEnrollment.revoked_at > when),
+            )
+            .values(revoked_at=when)
+            .returning(AgentEnrollment.id)
+            .execution_options(synchronize_session=False)
+        )
+        changed = sorted(result.scalars().all())
+        await self._session.commit()
+        await self._session.refresh(enrollment)
+        return changed
 
 
 def get_agent_enrollment_repo(
