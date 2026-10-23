@@ -62,6 +62,7 @@ MATRIX: list[tuple[str, str, int, str | None]] = [
     ("revoke_admin_invite", "admin", 204, None),
     ("revoke_admin_invite", "member", 403, ROLE_DENIED),
     ("admin_on_last_owner", "admin", 403, OWNER_REQUIRED),
+    ("admin_remove_last_owner", "admin", 403, OWNER_REQUIRED),
 ]
 
 
@@ -179,6 +180,7 @@ async def test_member_role_matrix(
         "admin_self_remove": ("DELETE", f"{members}/{a.admin.user_id}", None),
         "revoke_admin_invite": ("DELETE", f"{base}/invites/{admin_invite}", None),
         "admin_on_last_owner": ("PATCH", f"{members}/{a.owner.user_id}", {"org_role": "admin"}),
+        "admin_remove_last_owner": ("DELETE", f"{members}/{a.owner.user_id}", None),
     }
     method, url, body = requests[action]
     client = await as_user(getattr(a, actor))
@@ -264,8 +266,9 @@ async def test_nonstandard_target_role_is_owner_only(fresh_world, as_user, extra
     assert await snapshot_org(a.org_id, fresh_world.upload_dir) == before
 
 
-async def test_owner_rule_on_alias_routes(fresh_world, as_user):
+async def test_owner_rule_on_alias_routes(fresh_world, as_user, extra_member):
     a = fresh_world.a
+    extra_admin = await extra_member("admin")
     client = await as_user(a.admin)
     before = await snapshot_org(a.org_id, fresh_world.upload_dir)
 
@@ -277,7 +280,9 @@ async def test_owner_rule_on_alias_routes(fresh_world, as_user):
         json={"email": f"alias-{a.marker}@example.com", "org_role": "admin"},
     )
 
-    for resp in (put, invite):
+    delete = await client.delete(f"/api/v1/orgs/{a.org_id}/members/{extra_admin}")
+
+    for resp in (put, invite, delete):
         assert resp.status_code == 403, f"{resp.status_code}: {resp.text}"
         assert resp.json()["detail"] == OWNER_REQUIRED
     assert await snapshot_org(a.org_id, fresh_world.upload_dir) == before
