@@ -1040,6 +1040,44 @@ describe('SettingsPage - Member Management', () => {
     })
   })
 
+  describe('Scanner Agents - Rotate', () => {
+    const agentWithStatus = (status: string) => ({
+      id: 31,
+      org_id: 1,
+      name: 'web-01',
+      token_prefix: 'deadbeef',
+      scopes: null,
+      created_by_user_id: 1,
+      created_at: '2024-01-15T00:00:00Z',
+      last_used_at: null,
+      revoked_at: null,
+      expires_at: null,
+      status,
+    })
+
+    it('hides Rotate for an agent in grace', async () => {
+      mockListAgents.mockResolvedValue({ items: [agentWithStatus('grace')], total: 1 })
+
+      renderPage()
+
+      await waitFor(() => {
+        expect(screen.getByTitle('Revoke agent')).toBeInTheDocument()
+      })
+      expect(screen.queryByTitle('Rotate token')).not.toBeInTheDocument()
+    })
+
+    it('shows Rotate for an active agent', async () => {
+      mockListAgents.mockResolvedValue({ items: [agentWithStatus('active')], total: 1 })
+
+      renderPage()
+
+      await waitFor(() => {
+        expect(screen.getByTitle('Rotate token')).toBeInTheDocument()
+      })
+      expect(screen.getByTitle('Revoke agent')).toBeInTheDocument()
+    })
+  })
+
   describe('Edge Cases', () => {
     it('handles organization with no members except current user', async () => {
       mockListMembers.mockResolvedValue({
