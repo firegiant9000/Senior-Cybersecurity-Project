@@ -81,8 +81,8 @@ async def test_caller_route_sees_only_own_org(key, caller, fresh_world, as_user)
     assert resp.status_code == expected, f"{resp.status_code}: {resp.text}"
 
     body = resp.text.lower()
+    assert world.a.marker not in body
     if 200 <= resp.status_code < 300 and caller.startswith("b_"):
-        assert world.a.marker not in body
         if case.shows_marker:
             assert world.b.marker in body
         if case.belongs_to is not None:
@@ -108,5 +108,10 @@ async def test_agent_token_scoped_to_its_org(world, authz_client):
     resp = await client.get(f"/api/v1/inventory/scans/{world.a.ids['scan_run_id']}")
 
     assert resp.status_code == 404, resp.text
+    assert resp.json()["detail"] == "Scan run not found"
     assert world.a.marker not in resp.text.lower()
     assert await snapshot_org(world.a.org_id, world.upload_dir) == before
+
+    # Positive control: the same token reads its own org's scan run, so the 404 is not a bad path.
+    own = await client.get(f"/api/v1/inventory/scans/{world.b.ids['scan_run_id']}")
+    assert own.status_code == 200, own.text

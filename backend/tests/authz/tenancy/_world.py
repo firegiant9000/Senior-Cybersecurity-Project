@@ -268,11 +268,16 @@ async def _build(markers: dict[str, str], upload_dir: Path) -> World:
             vendors = [
                 OrgVendor(org_id=org_id, vendor_name=f"{marker}-v1", product_name=f"{marker}-p")
             ]
+            # Every org gets a near-duplicate vendor pair, so the validation report quotes its own
+            # marker; A has one more vendor (and domain) than B and C.
+            vendors.append(
+                OrgVendor(org_id=org_id, vendor_name=f"{marker}-v1b", product_name=f"{marker}-p")
+            )
             if name == "A":
                 domains.append(OrgDomain(org_id=org_id, domain_name=f"d2.{marker}.example.com"))
                 vendors.append(
                     OrgVendor(
-                        org_id=org_id, vendor_name=f"{marker}-v1b", product_name=f"{marker}-p"
+                        org_id=org_id, vendor_name=f"{marker}-v1c", product_name=f"{marker}-p"
                     )
                 )
             session.add_all([*domains, *vendors])

@@ -117,9 +117,9 @@ async def test_each_org_owns_every_kind(world):
             assert stored.is_file()
             assert set(org.ids) >= {k for k, _, _ in checks} | {"stable_key"}
     assert (world.a.counts, world.b.counts, world.c.counts) == (
-        {"domains": 2, "vendors": 2, "assets": 2},
-        {"domains": 1, "vendors": 1, "assets": 1},
-        {"domains": 1, "vendors": 1, "assets": 1},
+        {"domains": 2, "vendors": 3, "assets": 2},
+        {"domains": 1, "vendors": 2, "assets": 1},
+        {"domains": 1, "vendors": 2, "assets": 1},
     )
     assert world.a.ids["domain_id"] == world.a.ids_all["domains"][0]
 
@@ -199,6 +199,14 @@ async def test_snapshot_detects_row_and_file_changes(fresh_world):
     extra.write_bytes(b"x")
     after_file = await snapshot_org(world.a.org_id, world.upload_dir)
     assert after_file["files"] != after_row["files"]
+
+
+@pytest.mark.parametrize("bad", ["", "   "])
+async def test_purge_refuses_an_empty_marker(bad):
+    from tests.authz.tenancy._world import _purge
+
+    with pytest.raises(ValueError, match="empty marker"):
+        await _purge(["htreal0000", bad], [], [])
 
 
 async def _marker_user_count() -> int:
