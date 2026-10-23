@@ -57,6 +57,7 @@ _ADMIN = RouteSpec("administrator", min_role="admin")
 _AGENT = RouteSpec("agent")
 _ORG_MEMBER_PATH = RouteSpec("organization-scoped", min_role="org:member", org_from="path")
 _ORG_ADMIN_PATH = RouteSpec("organization-scoped", min_role="org:admin", org_from="path")
+_T_TEN_07_NOTE = "T-TEN-07: admins manage members; admins and owners are owner-only"
 _ORG_MEMBER_CALLER = RouteSpec("organization-scoped", min_role="org:member", org_from="caller")
 _ORG_ADMIN_CALLER = RouteSpec("organization-scoped", min_role="org:admin", org_from="caller")
 _T_TEN_05 = "T-TEN-05: destructive, org admin"
@@ -313,14 +314,20 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
             "POST",
             f"{_ORGS}/{{org_id}}/invites",
             RouteSpec(
-                "organization-scoped", min_role="org:admin", org_from="path", note="T-TEN-07"
+                "organization-scoped",
+                min_role="org:admin",
+                org_from="path",
+                note=_T_TEN_07_NOTE,
             ),
         ),
         (
             "POST",
             f"{_V1}/orgs/{{org_id}}/invites",
             RouteSpec(
-                "organization-scoped", min_role="org:admin", org_from="path", note="T-TEN-07"
+                "organization-scoped",
+                min_role="org:admin",
+                org_from="path",
+                note=_T_TEN_07_NOTE,
             ),
         ),
         ("GET", f"{_ORGS}/{{org_id}}/invites", _ORG_ADMIN_PATH),
@@ -349,7 +356,7 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
                 "organization-scoped",
                 min_role="org:admin",
                 org_from="path",
-                note="T-TEN-06, T-TEN-07",
+                note=f"T-TEN-06; {_T_TEN_07_NOTE}",
             ),
         ),
         (
@@ -359,7 +366,7 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
                 "organization-scoped",
                 min_role="org:admin",
                 org_from="path",
-                note="T-TEN-06, T-TEN-07",
+                note=f"T-TEN-06; {_T_TEN_07_NOTE}",
             ),
         ),
         (
@@ -369,7 +376,7 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
                 "organization-scoped",
                 min_role="org:admin",
                 org_from="path",
-                note="T-TEN-06, T-TEN-07",
+                note=f"T-TEN-06; {_T_TEN_07_NOTE}",
             ),
         ),
         (
@@ -379,11 +386,29 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
                 "organization-scoped",
                 min_role="org:admin",
                 org_from="path",
-                note="T-TEN-06, T-TEN-07",
+                note=f"T-TEN-06; {_T_TEN_07_NOTE}",
             ),
         ),
-        ("DELETE", f"{_ORGS}/{{org_id}}/members/{{user_id}}", _ORG_ADMIN_PATH),
-        ("DELETE", f"{_V1}/orgs/{{org_id}}/members/{{user_id}}", _ORG_ADMIN_PATH),
+        (
+            "DELETE",
+            f"{_ORGS}/{{org_id}}/members/{{user_id}}",
+            RouteSpec(
+                "organization-scoped",
+                min_role="org:admin",
+                org_from="path",
+                note=_T_TEN_07_NOTE,
+            ),
+        ),
+        (
+            "DELETE",
+            f"{_V1}/orgs/{{org_id}}/members/{{user_id}}",
+            RouteSpec(
+                "organization-scoped",
+                min_role="org:admin",
+                org_from="path",
+                note=_T_TEN_07_NOTE,
+            ),
+        ),
         # --- ingest ------------------------------------------------------------------
         (
             "GET",

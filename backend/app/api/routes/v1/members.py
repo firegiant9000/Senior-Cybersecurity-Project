@@ -1,4 +1,8 @@
-"""Organization member and invite routes — v1."""
+"""Organization member and invite routes — v1.
+
+Admins manage plain members; granting, changing or removing the admin and owner roles is
+owner-only.
+"""
 
 import logging
 from datetime import UTC, datetime
@@ -36,6 +40,14 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+_OWNER_REQUIRED = "Owner role required"
+
+
+def _require_owner(membership: Membership) -> None:
+    """Refuse unless the caller is exactly an owner (a non-standard role fails closed)."""
+    if membership.role != OrgRole.OWNER:
+        raise HTTPException(status_code=403, detail=_OWNER_REQUIRED)
+
 
 # ── Invite endpoints ──────────────────────────────────────────────────────────
 
@@ -48,16 +60,18 @@ async def create_invite(
     org_id: int,
     body: InviteCreate,
     current_user: User = Depends(get_current_user),
-    _membership: Membership = Depends(require_membership_role("admin")),
+    current_membership: Membership = Depends(require_membership_role("admin")),
     repo: SqlOrgInviteRepository = Depends(get_invite_repo),
     session: AsyncSession = Depends(get_session),
 ):
     """Create a pending invite for the given email.
 
-    Requires org admin/owner role. Owner role needed to invite as admin.
+    Requires org admin; inviting as admin requires owner.
     """
     if body.role == OrgRole.OWNER:
         raise HTTPException(status_code=400, detail="Cannot invite as owner")
+    if body.role == OrgRole.ADMIN:
+        _require_owner(current_membership)
 
     await repo.expire_stale()
     existing = await repo.get_active_membership_by_email(org_id=org_id, email=str(body.email))
@@ -128,7 +142,7 @@ async def revoke_invite(
     repo: SqlOrgInviteRepository = Depends(get_invite_repo),
     session: AsyncSession = Depends(get_session),  # noqa: ARG001
 ):
-    """Revoke a pending invite. Requires org admin/owner."""
+    """Revoke a pending invite. Requires org admin; admins may revoke any pending invite."""
     revoked = await repo.revoke(invite_id, org_id)
     if not revoked:
         raise HTTPException(status_code=404, detail="Invite not found or already used")
@@ -273,7 +287,11 @@ async def update_member_role(
     repo: SqlOrgInviteRepository = Depends(get_invite_repo),
     session: AsyncSession = Depends(get_session),  # noqa: ARG001
 ):
-    """Update a member's org role. Requires admin/owner role."""
+    """Update a member's org role.
+
+    Requires org admin for plain members; admins and owners can only be changed by an owner.
+    Last-owner protections apply.
+    """
 
     if body.role == OrgRole.OWNER:
         raise HTTPException(
@@ -282,6 +300,10 @@ async def update_member_role(
     member = await repo.get_member(user_id, org_id)
     if member is None:
         raise HTTPException(status_code=404, detail="Member not found")
+    # Allowlist: only a plain member staying a plain member is admin-level. Anything else,
+    # including a non-standard stored role, needs an owner.
+    if not (member.role == OrgRole.MEMBER and body.role == OrgRole.MEMBER):
+        _require_owner(current_membership)
     if member.role == OrgRole.OWNER and body.role != OrgRole.OWNER:
         owners = await repo.count_active_owners(org_id)
         if owners <= 1:
@@ -325,14 +347,20 @@ async def remove_member(
     org_id: int,
     user_id: int,
     current_user: User = Depends(get_current_user),
-    _membership: Membership = Depends(require_membership_role("admin")),
+    current_membership: Membership = Depends(require_membership_role("admin")),
     repo: SqlOrgInviteRepository = Depends(get_invite_repo),
     session: AsyncSession = Depends(get_session),  # noqa: ARG001
 ):
-    """Remove a member from the organization. Requires admin/owner."""
+    """Remove a member from the organization.
+
+    Requires org admin for plain members; admins and owners can only be removed by an owner.
+    Last-owner protections apply.
+    """
     member = await repo.get_member(user_id, org_id)
     if member is None:
         raise HTTPException(status_code=404, detail="Member not found")
+    if member.role != OrgRole.MEMBER:
+        _require_owner(current_membership)
     if member.role == OrgRole.OWNER:
         owners = await repo.count_active_owners(org_id)
         if owners <= 1:
