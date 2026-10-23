@@ -10,6 +10,8 @@ Classes:
 - organization-scoped: reads or writes rows owned by one org. `org_from` says where the org
   comes from: the request path/query ("path"), the caller's own org ("caller"), or a looked-up
   resource ("resource"). `min_role` is the org role enforced today ("org:member" = membership only).
+  The org check and `min_role` behaviour of these routes is proven by `tests/authz/tenancy/`,
+  not by `check_table`.
 - agent: authenticated by agent bearer token only.
 - administrator: requires the global admin role.
 """
@@ -297,11 +299,8 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
             RouteSpec(
                 "organization-scoped",
                 min_role="org:member",
-                org_from="path",
-                note=(
-                    "T-TEN-10: org id in the body is not bound to the caller; write-only"
-                    "; org id from the request body"
-                ),
+                org_from="caller",
+                note="T-TEN-10 fixed: org bound to the caller; a differing body org is refused",
             ),
         ),
         # --- domains -----------------------------------------------------------------
