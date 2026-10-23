@@ -216,7 +216,11 @@ async def test_accept_invite_refused_when_claim_not_boolean(
         {"omit": ("email_verified",)} if claim is None else {"extra": {"email_verified": claim}}
     )
     token = mint_id_token(signing_key, uid=invitee.uid, email=invitee.email, **kwargs)
+    before = await snapshot_org(fresh_world.a.org_id, fresh_world.upload_dir)
     resp = await (await authz_client(token)).post(_accept_path(invitee))
     assert resp.status_code == 403, resp.text
     assert resp.json()["detail"] == NOT_VERIFIED
+    assert "WWW-Authenticate" not in resp.headers
+    assert await _invite_status(fresh_world) == "pending"
     assert await _memberships(invitee.user_id) == []
+    assert await snapshot_org(fresh_world.a.org_id, fresh_world.upload_dir) == before

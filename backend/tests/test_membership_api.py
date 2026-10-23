@@ -95,6 +95,7 @@ async def test_accept_invite_token_email_mismatch_forbidden(client: AsyncClient)
     assert resp.status_code == 403
     assert resp.json()["detail"] == "Signed-in email does not match this account"
     assert "WWW-Authenticate" not in resp.headers
+    repo.get_by_token_for_update.assert_not_awaited()
     repo.create_membership.assert_not_awaited()
 
 
