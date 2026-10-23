@@ -73,7 +73,7 @@
     - **Why `NO KEY UPDATE`, not `FOR UPDATE`.** An in-flight agent upload holds a `KEY SHARE` lock on its enrollment row through the `agent_scan_nonces.agent_enrollment_id` FK until it commits. `FOR UPDATE` conflicts with that lock. A busy (or hostile) root token could then delay its own chain's revocation, and a rotation would stall uploads. `NO KEY UPDATE` doesn't conflict with `KEY SHARE`, but it still conflicts with itself, so claim/revoke and revoke/revoke still serialize.
     - Both paths lock the root first and then the target rows, so the lock order is the same and they can't deadlock. Other writers (`touch_last_used`, uploads) hold at most one row lock and wait on nothing else.
   - **The claim must commit atomically with the successor's `INSERT`.** If a later change adds a `session.rollback()` to `issue`'s collision retry, it would silently discard the claim and mint a successor without one: two active credentials. A comment in `rotate` says so, and the follow-up todo carries the rule.
-  - **Residual: rotations done before migration 051 aren't linked**, and neither are rotations the old release serves during the deploy window (Render runs 051 as `preDeployCommand` while the old instances still serve traffic). Their successors have `chain_root_id = NULL`. There is no reliable way to rebuild the link: names aren't unique, and the grace setting can change. The PR's **"After deploy"** checklist lists the agents whose name occurs more than once in an org that still has a live row, so the owner can review them. The fix is to revoke each live row by its own id.
+  - **Residual: rotations done before migration 051 aren't linked**, and neither are rotations the old release serves during the deploy window (Render runs 051 as `preDeployCommand` while the old instances still serve traffic). Their successors have `chain_root_id = NULL`. There is no reliable way to rebuild the link: names aren't unique, and the grace setting can change. The PR's **"After deploy"** checklist lists the agent names that occur more than once in an org and still have a live row, so the owner can review them. The fix is to revoke each live row by its own id.
 - **Replay.** The control already exists (`inventory.py::upload_agent_scan`, L469–475 fast path, L517–531 unique-constraint backstop, table `agent_scan_nonces`). Stage B's world seeds no nonce rows, and none is needed. A replay gets 409 `"Duplicate scan submission (replay detected)"`. The fast path writes nothing. The backstop path leaves one `scan_runs` row with `status = "failed"` and `error_message = "duplicate scan submission"` and nothing else; that's by design and pinned. The replay window isn't reset by a rotation, because the nonce table is global.
 - **T-TOK-06 becomes TEST**, as well as the three scheduled rows. Its Notes say the inside of the grace window is the only part tested; Task 1 tests both sides of the boundary end to end, and Task 3 removes "grace is extended by re-rotating". Expected counts: 110 = **40 CONTROL / 31 TEST / 18 ACCEPTED / 21 OPEN** (plus the withdrawn T-UPL-06). Verify by counting.
 - **The frontend hides Rotate for agents in grace** (`SettingsPage.tsx` L791). It already hides Rotate for revoked and expired agents; otherwise an admin clicking Rotate on a grace row now gets the 409 message.
@@ -188,9 +188,17 @@
     3. `await wait_until_blocked(p2, blocker=p1)` (helper below). On timeout it fails with "revoke did not wait for the chain lock".
     4. In session 1, run `agent_token.issue(repo1, org_id=a, …, chain_root_id=X.id)`, which commits and releases the lock.
     5. `ids = await asyncio.wait_for(task, 10)`. `ids` includes the new successor's id, and the successor's token → 401.
-    6. The whole body is in `try/finally`. The `finally` cancels the task if it's still pending, then rolls back and closes sessions 1 and 2, so a failure can't leave a row lock that hangs `drop_world`'s org delete.
+    6. The whole body is in `try/finally`, so a failure can't leave a row lock that hangs `drop_world`'s org delete. The `finally`, in this order:
+       1. `task.cancel()`, then `await asyncio.gather(task, return_exceptions=True)`, so session 2 has no statement in flight;
+       2. roll back and close session 2;
+       3. roll back and close session 1.
+       
+       Each of the last two steps is in its own `try/finally`, so one failing can't skip the other.
 
-  Add to `_agents.py`: `async def wait_until_blocked(pid: int, *, blocker: int, timeout: float = 5.0) -> None`. It polls from its own session, at 50 ms intervals, `SELECT 1 FROM pg_stat_activity WHERE pid = :pid AND wait_event_type = 'Lock' AND :blocker = ANY(pg_blocking_pids(:pid))`, and raises `AssertionError` at the deadline. Scoping the poll to the two pids keeps another backend on the shared DB from satisfying it.
+  Add to `_agents.py`: `async def wait_until_blocked(pid: int, *, blocker: int, timeout: float = 5.0) -> None`.
+  - At 50 ms intervals it polls `SELECT 1 FROM pg_stat_activity WHERE pid = :pid AND wait_event_type = 'Lock' AND :blocker = ANY(pg_blocking_pids(:pid))`. At the deadline it raises `AssertionError`.
+  - **Each poll runs in a fresh `AsyncSessionLocal()` session (its own transaction).** `pg_stat_activity` is snapshotted per transaction, so a loop inside one transaction would never see the wait appear.
+  - Scoping the poll to the two pids keeps another backend on the shared DB from satisfying it.
 - [ ] **Step 1b: Unit tests** in `tests/test_agent_token.py`, with the fake repo extended per Task 5:
   - `test_rotate_links_successor_to_chain_root`: S1 and S2 both have `chain_root_id == X.id`.
   - `test_revoke_returns_changed_ids`: `[X.id, S.id]`, then `[]` on a repeat.
@@ -334,7 +342,7 @@
 
     Wording stays at planning level (public repo).
 - [ ] **Step 8: Record follow-ups.** The controller writes them to Obsidian `todos.md` under "S4 stage D". Candidates:
-  - **`issue`'s prefix-collision retry** catches `IntegrityError` without a rollback, so a real collision would surface as a 500 on the next attempt. That fails safe, and it's pre-existing and vanishingly unlikely with a 32-bit prefix and a pre-check. **A fix must not add a plain `session.rollback()`:** that would discard the rotation claim and mint an unclaimed successor (two active credentials). Wrap only the `INSERT` in `session.begin_nested()`, or re-run `claim_for_rotation` before retrying.
+  - **`issue`'s prefix-collision retry** catches `IntegrityError` without a rollback, so a real collision would surface as a 500 on the next attempt. That fails safe, and it's pre-existing and vanishingly unlikely with a 32-bit prefix and a pre-check. **A fix must not add a plain `session.rollback()`:** that would discard the rotation claim and mint an unclaimed successor (two active credentials). Wrap only the `INSERT` in `session.begin_nested()`, so the claim stays. Or, after a full rollback, re-run `claim_for_rotation` in the new transaction. Never re-claim in the same transaction: the claim already set `revoked_at`, so it would match 0 rows and refuse the rotation.
   - **The successor's expiry** restarts at 365 days on every rotation, so a chain can live indefinitely through rotations. That's intended (rotation is renewal), but it isn't documented.
   - **Agent `scopes`** are still unenforced (T-ENR-06 stays ACCEPTED).
 
