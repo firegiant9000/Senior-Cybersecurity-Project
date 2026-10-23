@@ -6,15 +6,15 @@ First-pass inventory of personally identifying or sensitive data the platform ha
 
 | Category | Where it lives | Notes |
 |---|---|---|
-| User email | `users.email`, Firebase ID-token claims, audit log actor field | Required for auth; never logged in plaintext. |
+| User email | `users.email`, Firebase ID-token claims, audit log actor field | Required for auth; not logged by application code except one member-management route that logs an invited email (T-PLAT-10). The fix is scheduled (S5). |
 | User UID | Firebase `uid`, attached to `users` and `organization_members` | Opaque — safe to log as `user_id`. |
 | Org name | `organizations.name` | Customer-supplied; treat as confidential. |
 | Org domains | `org_domains.domain` | Treat as confidential — knowing a customer's domain reveals identity. |
 | Asset hostnames | future `assets.hostname` | Confidential — internal naming often leaks org structure. |
 | IP addresses | request logs, future asset records | Excluded from Sentry (`send_default_pii=False`). |
 | Vendor / product names supplied by user | onboarding inputs, vendor watchlists | Confidential but low sensitivity. |
-| API keys (NVD, HIBP, Shodan, OTX, Gemini, Firebase) | env vars only | Never persisted to DB; never logged. |
-| Firebase Bearer tokens | `Authorization` request header | Scrubbed from Sentry and JSON logs. |
+| API keys (NVD, HIBP, Shodan, OTX, Gemini, Firebase) | env vars only | Never persisted to DB; the NVD key can appear in error logs on two paths (T-ING-10). |
+| Firebase Bearer tokens | `Authorization` request header | Scrubbed from Sentry. Stdout/JSON logs have no scrubber, but the application doesn't log tokens. |
 
 ## Scrubbing rules — Sentry (`backend/app/core/observability.py`)
 
@@ -66,12 +66,15 @@ What leaves our infrastructure, where it goes, and why.
   table that references the org and removes rows explicitly — we do not rely
   on FK cascade so future tables cannot silently leak data. The deletion is
   recorded in `audit_log` and the audit row itself ages out under the
-  12-month retention policy planned for Month 4.
+  365-day retention policy below.
 
-## Retention (planned — Month 4)
+## Retention
 
-- `audit_log`: 12 months rolling.
-- `scan_runs`: 12 most recent runs per asset (rolling window).
+A nightly sweep (`backend/app/services/retention.py`, 05:00 UTC by default) enforces:
+
+- `audit_log`: 365 days from creation.
+- `scan_runs`: 400 days, with a ceiling of 2000 runs per organization (the oldest are dropped first). Scan runs are scoped to the organization, not the asset.
+- Agent replay nonces: purged once older than the replay window.
 - `uploads`: deleted on org purge; otherwise retained until the org admin
   removes them.
 

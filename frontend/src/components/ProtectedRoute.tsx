@@ -2,6 +2,7 @@ import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import VerifyEmailPanel from "./VerifyEmailPanel";
 
 /**
  * Aligns with backend ``PUT /organizations/{org_id}``: global ``role === "admin"``
@@ -17,7 +18,7 @@ export function canEditOrganizationProfile(
 }
 
 export default function ProtectedRoute({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
-  const { user, loading, orgId, orgLoading, profileError, refreshProfile, logout } = useAuth();
+  const { user, loading, orgId, orgLoading, profileError, emailUnverified, refreshProfile, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -31,6 +32,11 @@ export default function ProtectedRoute({ children, requireOrg = true }: { childr
 
   if (!user) {
     return <Navigate to="/" replace />;
+  }
+
+  // A new account whose email isn't verified yet gets the verify screen, not a profile error
+  if (emailUnverified) {
+    return <VerifyEmailPanel />;
   }
 
   // If profile fetch failed, show error instead of wrongly redirecting
