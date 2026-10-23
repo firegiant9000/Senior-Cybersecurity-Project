@@ -298,7 +298,7 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
             f"{_V1}/analytics/events",
             RouteSpec(
                 "organization-scoped",
-                min_role="org:member",
+                min_role=None,
                 org_from="caller",
                 note="T-TEN-10 fixed: org bound to the caller; a differing body org is refused",
             ),

@@ -71,9 +71,11 @@ async def test_no_org_user_event_has_no_org(fresh_world, as_user):
 
 async def test_global_admin_cannot_stamp_other_org(fresh_world, as_user):
     w = fresh_world
+    before = await snapshot_org(w.a.org_id, w.upload_dir)
     client = await as_user(w.global_admin)
 
     resp = await client.post(_URL, json=_body(org_id=w.a.org_id))
 
     assert resp.status_code == 403, resp.text
+    assert await snapshot_org(w.a.org_id, w.upload_dir) == before
     assert await _events(org_id=w.a.org_id) == []
