@@ -302,11 +302,13 @@ async def import_inventory_csv(
             },
         ),
     )
+    # Read the id now: a rollback expires the ORM object, and an async lazy refresh then fails.
+    scan_run_id = scan_run.id
 
     try:
-        await scan_repo.update(scan_run.id, org_id, ScanRunUpdate(status="running"))
+        await scan_repo.update(scan_run_id, org_id, ScanRunUpdate(status="running"))
         asset_count, software_count = await commit_inventory(
-            session, org_id=org_id, rows=parsed.rows, scan_run_id=scan_run.id
+            session, org_id=org_id, rows=parsed.rows, scan_run_id=scan_run_id
         )
         kev_matches = await count_kev_matches(session, org_id)
         await session.commit()
@@ -314,7 +316,7 @@ async def import_inventory_csv(
         await session.rollback()
         logger.exception("inventory import failed for org %s", org_id)
         await scan_repo.update(
-            scan_run.id,
+            scan_run_id,
             org_id,
             ScanRunUpdate(
                 status="failed",
@@ -325,7 +327,7 @@ async def import_inventory_csv(
         raise HTTPException(status_code=500, detail="Failed to import inventory") from exc
 
     final = await scan_repo.update(
-        scan_run.id,
+        scan_run_id,
         org_id,
         ScanRunUpdate(
             status="succeeded",
@@ -349,7 +351,7 @@ async def import_inventory_csv(
             org_id=org_id,
             action="inventory.csv_import",
             payload={
-                "scan_run_id": scan_run.id,
+                "scan_run_id": scan_run_id,
                 "asset_count": asset_count,
                 "software_count": software_count,
                 "kev_matches": kev_matches,
@@ -359,7 +361,7 @@ async def import_inventory_csv(
         await session.commit()
     except SQLAlchemyError:
         await session.rollback()
-        logger.exception("audit log failed for scan_run %s", scan_run.id)
+        logger.exception("audit log failed for scan_run %s", scan_run_id)
 
     # Month 3 Phase 4: kick off version-aware matching off the request path so
     # the new inventory auto-populates asset_findings without a manual refresh.
@@ -488,9 +490,11 @@ async def upload_agent_scan(
         org_id,
         ScanRunCreate(source="agent", triggered_by_user_id=None, metadata=base_meta),
     )
+    # Read the id now: a rollback expires the ORM object, and an async lazy refresh then fails.
+    scan_run_id = scan_run.id
 
     try:
-        await scan_repo.update(scan_run.id, org_id, ScanRunUpdate(status="running"))
+        await scan_repo.update(scan_run_id, org_id, ScanRunUpdate(status="running"))
         # Record the replay marker in the same transaction as the import so a
         # failed import frees the (scan_id, nonce) for a legit retry.
         await nonce_repo.record(
@@ -500,7 +504,7 @@ async def upload_agent_scan(
             nonce=payload.nonce,
         )
         asset_count, software_count = await commit_inventory(
-            session, org_id=org_id, rows=rows, scan_run_id=scan_run.id, source="agent"
+            session, org_id=org_id, rows=rows, scan_run_id=scan_run_id, source="agent"
         )
         # Persist the host's services/ports snapshot onto its asset. The agent
         # reports exactly one host per payload, so resolve that single asset and
@@ -518,7 +522,7 @@ async def upload_agent_scan(
         # Lost the race to the unique (scan_id, nonce) constraint → replay.
         await session.rollback()
         await scan_repo.update(
-            scan_run.id,
+            scan_run_id,
             org_id,
             ScanRunUpdate(
                 status="failed",
@@ -533,7 +537,7 @@ async def upload_agent_scan(
         await session.rollback()
         logger.exception("agent scan import failed for org %s", org_id)
         await scan_repo.update(
-            scan_run.id,
+            scan_run_id,
             org_id,
             ScanRunUpdate(
                 status="failed", error_message=str(exc)[:1900], finished_at=datetime.now(UTC)
@@ -542,7 +546,7 @@ async def upload_agent_scan(
         raise HTTPException(status_code=500, detail="Failed to import scan") from exc
 
     final = await scan_repo.update(
-        scan_run.id,
+        scan_run_id,
         org_id,
         ScanRunUpdate(
             status="succeeded",
@@ -559,7 +563,7 @@ async def upload_agent_scan(
             org_id=org_id,
             action="inventory.agent_scan",
             payload={
-                "scan_run_id": scan_run.id,
+                "scan_run_id": scan_run_id,
                 "agent_enrollment_id": enrollment.id,
                 "asset_count": asset_count,
                 "software_count": software_count,
@@ -569,7 +573,7 @@ async def upload_agent_scan(
         await session.commit()
     except SQLAlchemyError:
         await session.rollback()
-        logger.exception("audit log failed for agent scan_run %s", scan_run.id)
+        logger.exception("audit log failed for agent scan_run %s", scan_run_id)
 
     # Reuse the Month 3 matcher off the request path, same as CSV import.
     from app.workers.matcher_job import trigger_matcher_async
@@ -577,7 +581,7 @@ async def upload_agent_scan(
     trigger_matcher_async(org_id, trigger="agent_scan")
 
     return ScanUploadAccepted(
-        scan_run_id=scan_run.id,
+        scan_run_id=scan_run_id,
         status=(final or scan_run).status,
         asset_count=asset_count,
         software_count=software_count,
@@ -854,6 +858,8 @@ async def patch_asset_finding_status(
     )
     if updated is None:
         raise HTTPException(status_code=404, detail="Finding not found")
+    # Read before any rollback below: a rollback expires the ORM object.
+    updated_status = updated.status
 
     try:
         await _audit(
@@ -872,7 +878,7 @@ async def patch_asset_finding_status(
         await session.rollback()
         logger.exception("audit log failed for asset_finding.status_updated %s", finding_id)
 
-    return FindingStatusResponse(finding_id=finding_id, status=updated.status)
+    return FindingStatusResponse(finding_id=finding_id, status=updated_status)
 
 
 @router.get(
@@ -993,6 +999,8 @@ async def set_asset_tags(
     updated = await asset_repo.set_tags(asset_id, org_id, body.tags)
     if updated is None:
         raise HTTPException(status_code=404, detail="Asset not found")
+    # Build the response before any rollback below: a rollback expires the ORM object.
+    result = AssetRead.model_validate(updated, from_attributes=True)
     try:
         await _audit(
             session,
@@ -1005,7 +1013,7 @@ async def set_asset_tags(
     except SQLAlchemyError:
         await session.rollback()
         logger.exception("audit log failed for asset.tags_updated %s", asset_id)
-    return AssetRead.model_validate(updated, from_attributes=True)
+    return result
 
 
 # ---- N3: Inventory diff between scan_runs -------------------------------
