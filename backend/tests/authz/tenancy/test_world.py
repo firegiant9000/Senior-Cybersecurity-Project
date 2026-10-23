@@ -2,6 +2,7 @@
 
 import importlib
 
+import pytest
 from sqlalchemy import select, text
 
 from app.db.agent_enrollment import AgentEnrollment
@@ -179,3 +180,51 @@ def test_no_egress_stubs_installed(egress_sites):
     for module_name, attr in egress_sites:
         target = getattr(importlib.import_module(module_name), attr)
         assert getattr(target, "_egress_stub", False), f"{module_name}.{attr} is not stubbed"
+
+
+async def test_snapshot_detects_row_and_file_changes(fresh_world):
+    world = fresh_world
+    before = await snapshot_org(world.a.org_id, world.upload_dir)
+
+    async with AsyncSessionLocal() as session:
+        domain = (
+            await session.execute(select(OrgDomain).where(OrgDomain.id == world.a.ids["domain_id"]))
+        ).scalar_one()
+        domain.is_verified = True
+        await session.commit()
+    after_row = await snapshot_org(world.a.org_id, world.upload_dir)
+    assert after_row["org_domains"] != before["org_domains"]
+
+    extra = world.upload_dir / str(world.a.org_id) / "extra.bin"
+    extra.write_bytes(b"x")
+    after_file = await snapshot_org(world.a.org_id, world.upload_dir)
+    assert after_file["files"] != after_row["files"]
+
+
+async def _marker_user_count() -> int:
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            text(r"SELECT count(*) FROM users WHERE email LIKE 'a\_owner-hta%'")
+        )
+        return result.scalar_one()
+
+
+async def test_failed_build_leaves_no_rows(monkeypatch, tmp_path):
+    from app.services import agent_token
+    from tests.authz.tenancy._world import build_world
+
+    real_issue = agent_token.issue
+    calls = 0
+
+    async def flaky_issue(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("boom")
+        return await real_issue(*args, **kwargs)
+
+    monkeypatch.setattr(agent_token, "issue", flaky_issue)
+    before = await _marker_user_count()
+    with pytest.raises(RuntimeError, match="boom"):
+        await build_world(tmp_path)
+    assert await _marker_user_count() == before

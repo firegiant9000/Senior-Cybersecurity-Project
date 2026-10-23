@@ -31,6 +31,7 @@ EGRESS_SITES: list[tuple[str, str]] = [
     ("app.services.findings_engine", "run_tier2_checks"),
     ("app.services.ai_summary", "_call_gemini"),
     ("app.integrations.m365", "refresh_access_token"),
+    ("app.integrations.m365", "exchange_code_for_token"),
     ("app.integrations.m365", "list_managed_devices"),
     ("app.workers.matcher_job", "trigger_matcher_async"),
     ("app.api.routes.v1.domains", "fire_and_forget_normalization_log"),
@@ -91,6 +92,7 @@ _STUBS = {
     "run_tier2_checks": _stub_tier2,
     "_call_gemini": _stub_gemini,
     "refresh_access_token": _stub_refresh_access_token,
+    "exchange_code_for_token": _stub_refresh_access_token,
     "list_managed_devices": _stub_list_managed_devices,
     "trigger_matcher_async": _stub_noop,
     "fire_and_forget_normalization_log": _stub_noop,
@@ -123,30 +125,32 @@ def _no_egress(monkeypatch):
 
 @pytest_asyncio.fixture(scope="module")
 async def world(tmp_path_factory) -> AsyncGenerator[World, None]:
-    previous = settings.UPLOAD_DIR
-    upload_dir = tmp_path_factory.mktemp("uploads")
-    settings.UPLOAD_DIR = str(upload_dir)
-    built = await build_world(upload_dir)
-    try:
+    async for built in _world_lifecycle(tmp_path_factory):
         yield built
-    finally:
-        try:
-            await drop_world(built)
-        finally:
-            settings.UPLOAD_DIR = previous
 
 
 @pytest_asyncio.fixture
 async def fresh_world(tmp_path_factory) -> AsyncGenerator[World, None]:
+    async for built in _world_lifecycle(tmp_path_factory):
+        yield built
+
+
+async def _world_lifecycle(tmp_path_factory) -> AsyncGenerator[World, None]:
+    """Point UPLOAD_DIR at the world's dir, build, and always restore and drop.
+
+    `build_world` purges its own partial state if it raises, so drop only runs on success.
+    """
     previous = settings.UPLOAD_DIR
-    upload_dir = tmp_path_factory.mktemp("uploads")
-    settings.UPLOAD_DIR = str(upload_dir)
-    built = await build_world(upload_dir)
+    built = None
     try:
+        upload_dir = tmp_path_factory.mktemp("uploads")
+        settings.UPLOAD_DIR = str(upload_dir)
+        built = await build_world(upload_dir)
         yield built
     finally:
         try:
-            await drop_world(built)
+            if built is not None:
+                await drop_world(built)
         finally:
             settings.UPLOAD_DIR = previous
 

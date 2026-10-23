@@ -207,8 +207,20 @@ async def _seed_people(
 
 
 async def build_world(upload_dir: Path) -> World:
+    """Seed the world. On any failure, purge whatever was already committed, then re-raise.
+
+    The purge matters because `agent_token.issue` commits mid-build.
+    """
     hex8 = uuid.uuid4().hex[:8]
     markers = {n: f"ht{n.lower()}{hex8}" for n in ("A", "B", "C")}
+    try:
+        return await _build(markers, upload_dir)
+    except BaseException:
+        await _purge(list(markers.values()), [], [])
+        raise
+
+
+async def _build(markers: dict[str, str], upload_dir: Path) -> World:
     now = datetime.now(UTC)
 
     async with AsyncSessionLocal() as session:
@@ -244,24 +256,29 @@ async def build_world(upload_dir: Path) -> World:
             owner_id = owner.user_id if owner else None
 
             domains = [OrgDomain(org_id=org_id, domain_name=f"{marker}.example.com")]
-            vendors = [OrgVendor(org_id=org_id, vendor_name=f"{marker}-v1", product_name="prod")]
+            vendors = [
+                OrgVendor(org_id=org_id, vendor_name=f"{marker}-v1", product_name=f"{marker}-p")
+            ]
             if name == "A":
                 domains.append(OrgDomain(org_id=org_id, domain_name=f"d2.{marker}.example.com"))
                 vendors.append(
-                    OrgVendor(org_id=org_id, vendor_name=f"{marker}-v1b", product_name="prod")
+                    OrgVendor(
+                        org_id=org_id, vendor_name=f"{marker}-v1b", product_name=f"{marker}-p"
+                    )
                 )
             session.add_all([*domains, *vendors])
 
             stored = f"{marker}.csv"
             org_dir = upload_dir / str(org_id)
             org_dir.mkdir(parents=True, exist_ok=True)
-            (org_dir / stored).write_bytes(_CSV_BYTES)
+            csv_bytes = _CSV_BYTES + f"{marker}-host,Acme,Widget,1.0\n".encode()
+            (org_dir / stored).write_bytes(csv_bytes)
             upload = OrgUpload(
                 org_id=org_id,
                 uploaded_by=owner_id,
                 original_filename=f"{marker}-inventory.csv",
                 stored_filename=stored,
-                file_size_bytes=len(_CSV_BYTES),
+                file_size_bytes=len(csv_bytes),
                 content_type="text/csv",
                 upload_purpose="inventory",
             )
@@ -371,7 +388,7 @@ async def build_world(upload_dir: Path) -> World:
             )
             generation = AISummaryGeneration(
                 org_id=org_id,
-                model_name="seed-model",
+                model_name=f"{marker}-model",
                 source="fallback",
                 status="success",
                 prompt_inputs={"marker": marker},
@@ -440,7 +457,32 @@ async def drop_world(world: World) -> None:
     org_ids = [world.a.org_id, world.b.org_id, world.c.org_id]
     user_ids = [u.user_id for u in world.users()]
     user_ids.append(int(world.c.ids["member_user_id"]))
+    await _purge([o.marker for o in (world.a, world.b, world.c)], org_ids, user_ids)
+
+
+async def _purge(markers: list[str], org_ids: list[int], user_ids: list[int]) -> None:
+    """Delete everything a world created, found by id and by marker (name / email).
+
+    The marker sweep also catches rows a test created later (e.g. a user auto-created by
+    accepting an invite) and anything left by a half-finished build.
+    """
     async with AsyncSessionLocal() as session:
+        await session.rollback()
+        org_ids = [
+            *org_ids,
+            *(
+                await session.execute(
+                    select(Organization.id).where(
+                        Organization.name.in_([f"{m} Org" for m in markers])
+                    )
+                )
+            ).scalars(),
+        ]
+        marker_match = or_(*(User.email.like(f"%{m}%") for m in markers))
+        user_ids = [
+            *user_ids,
+            *(await session.execute(select(User.id).where(marker_match))).scalars(),
+        ]
         await session.execute(
             delete(AuditLog).where(
                 or_(AuditLog.org_id.in_(org_ids), AuditLog.actor_user_id.in_(user_ids))
@@ -456,13 +498,7 @@ async def drop_world(world: World) -> None:
         await session.commit()
 
         leftovers = (
-            await session.execute(
-                select(func.count())
-                .select_from(User)
-                .where(
-                    or_(*(User.email.like(f"%{o.marker}%") for o in (world.a, world.b, world.c)))
-                )
-            )
+            await session.execute(select(func.count()).select_from(User).where(marker_match))
         ).scalar_one()
         assert leftovers == 0, "world users survived drop_world"
 
