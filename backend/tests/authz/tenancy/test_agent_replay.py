@@ -74,7 +74,9 @@ async def test_replay_backstop_unique_constraint(world, authz_client, monkeypatc
     after = await snapshot_org(world.a.org_id, world.upload_dir)
     changed = {t for t in after if after[t] != before[t]}
     assert changed == {"scan_runs"}
+    # Rows are ordered by primary key, so the new run is last and the older ones are untouched.
     assert len(after["scan_runs"]) == len(before["scan_runs"]) + 1
+    assert after["scan_runs"][:-1] == before["scan_runs"]
     async with AsyncSessionLocal() as session:
         nonces = (
             await session.execute(
@@ -83,11 +85,11 @@ async def test_replay_backstop_unique_constraint(world, authz_client, monkeypatc
                 .where(AgentScanNonce.scan_id == p["scan_id"], AgentScanNonce.nonce == p["nonce"])
             )
         ).scalar_one()
-        failed = (
+        newest = (
             (
                 await session.execute(
                     select(ScanRun)
-                    .where(ScanRun.org_id == world.a.org_id, ScanRun.status == "failed")
+                    .where(ScanRun.org_id == world.a.org_id)
                     .order_by(ScanRun.id.desc())
                 )
             )
@@ -95,5 +97,6 @@ async def test_replay_backstop_unique_constraint(world, authz_client, monkeypatc
             .first()
         )
     assert nonces == 1
-    assert failed is not None
-    assert failed.error_message == "duplicate scan submission"
+    assert newest is not None
+    assert newest.status == "failed"
+    assert newest.error_message == "duplicate scan submission"
