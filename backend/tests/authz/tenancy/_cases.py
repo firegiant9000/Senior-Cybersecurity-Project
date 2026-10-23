@@ -9,8 +9,12 @@ Pins mean:
 - `denial`: status for another org's owner targeting `t` (None: a caller route with nothing to
   target, because the org comes from the session).
 - `admin_bypass`: a global admin with no org of their own reaches `t`.
-- `split_reaches`: orgs the split user (legacy org A, membership in B) reaches.
+- `split_reaches`: orgs the split user (legacy org A, membership in B) reaches. For a case with
+  `denial is None` it means whose data the split user sees on a single call, checked with
+  `shows_marker` / `belongs_to`, not which target gets `allowed`: the builder ignores `t`, so
+  split -> B is the same request as split -> A and returns A's data with the same status.
 - `shows_marker` / `belongs_to`: an allowed response carries the target's data, so a leak shows.
+  A `belongs_to` on a write route also catches a row that lands in the wrong org.
 """
 
 import uuid
@@ -37,8 +41,11 @@ class Case:
     allowed: int  # status for the target org's owner (positive control)
     denial: Literal[403, 404] | None  # status for B's owner targeting A; None = nothing to target
     admin_bypass: bool  # global admin (no org) gets `allowed` on target A
-    split_reaches: frozenset[str]  # subset of {"A", "B"} the split user gets `allowed` on
+    # Subset of {"A", "B"} the split user gets `allowed` on. When `denial is None` it instead means
+    # whose data the split user sees on one call (builder ignores `t`; see module docstring).
+    split_reaches: frozenset[str]
     denial_detail: str | None = None  # the B owner's exact `detail`
+    allowed_detail: str | None = None  # the owner's exact `detail` for a non-2xx `allowed`
     shows_marker: bool = False  # an allowed body contains the target org's marker
     belongs_to: Callable[[dict, OrgWorld], bool] | None = None  # an allowed body is t's data
     org_free: bool = False  # response carries no org data; needs a note
@@ -80,6 +87,15 @@ def _inventory_csv(t: OrgWorld) -> dict[str, tuple[str, bytes, str]]:
 
 def _owns_org_id(body: dict, t: OrgWorld) -> bool:
     return body["org_id"] == t.org_id
+
+
+def _owns_id(body: dict, t: OrgWorld) -> bool:
+    """The body is the organization itself (`OrganizationRead.id`)."""
+    return body["id"] == t.org_id
+
+
+def _owns_organization_id(body: dict, t: OrgWorld) -> bool:
+    return body["organization_id"] == t.org_id
 
 
 # --- case factories ---------------------------------------------------------------------------
@@ -261,12 +277,14 @@ CASES: dict[tuple[str, str], Case] = {
         admin_bypass=True,
         split_reaches=_AB,
         shows_marker=True,
+        belongs_to=_owns_id,
         note="legacy org id or an active membership; the split user reaches both orgs",
     ),
     ("PUT", f"{_ORGS}/{{org_id}}"): _check_access(
         lambda _w, t: Req("PUT", _org(t), json={"name": f"{t.marker} Org"}),
         200,
         shows_marker=True,
+        belongs_to=_owns_id,
         note="legacy org id and legacy org role only; memberships are ignored",
     ),
     # --- assessments ------------------------------------------------------------------------
@@ -281,13 +299,20 @@ CASES: dict[tuple[str, str], Case] = {
             },
         ),
         409,
+        allowed_detail="Current assessment already exists for organization",
         note="the world seeds a current submission; the 409 is raised after the org check",
     ),
     ("GET", f"{_V1}/assessments/{{org_id}}"): _check_access(
-        _get(lambda t: f"{_V1}/assessments/{t.org_id}"), 200, shows_marker=True
+        _get(lambda t: f"{_V1}/assessments/{t.org_id}"),
+        200,
+        shows_marker=True,
+        belongs_to=_owns_organization_id,
     ),
     ("GET", f"{_V1}/assessments/{{org_id}}/history"): _check_access(
-        _get(lambda t: f"{_V1}/assessments/{t.org_id}/history"), 200, shows_marker=True
+        _get(lambda t: f"{_V1}/assessments/{t.org_id}/history"),
+        200,
+        shows_marker=True,
+        belongs_to=_owns_organization_id,
     ),
     ("PUT", f"{_V1}/assessments/{{assessment_id}}"): _check_access(
         lambda _w, t: Req(
@@ -296,6 +321,7 @@ CASES: dict[tuple[str, str], Case] = {
             json={"status": "Draft", "data": _assessment_data(t.marker)},
         ),
         500,
+        allowed_detail="Failed to update assessment",
         note=(
             "the route loads the submission, then checks its org; the write that follows "
             "fails with a session-transaction error on a real database, so an owner gets 500"
@@ -304,6 +330,7 @@ CASES: dict[tuple[str, str], Case] = {
     ("DELETE", f"{_V1}/assessments/{{assessment_id}}"): _check_access(
         _simple("DELETE", lambda t: f"{_V1}/assessments/{t.ids['assessment_id']}"),
         500,
+        allowed_detail="Failed to delete assessment",
         note=(
             f"{_T_TEN_05}; the route loads the submission, then checks its org; the write that "
             "follows fails with a session-transaction error on a real database, so an owner "
@@ -322,6 +349,7 @@ CASES: dict[tuple[str, str], Case] = {
         ),
         201,
         shows_marker=True,
+        belongs_to=_owns_org_id,
     ),
     ("PUT", f"{_ORGS}/{{org_id}}/vendors/{{vendor_id}}"): _check_access(
         lambda _w, t: Req(
@@ -331,6 +359,7 @@ CASES: dict[tuple[str, str], Case] = {
         ),
         200,
         shows_marker=True,
+        belongs_to=_owns_org_id,
     ),
     ("DELETE", f"{_ORGS}/{{org_id}}/vendors/{{vendor_id}}"): _check_access(
         _simple("DELETE", lambda t: _org(t, f"/vendors/{t.ids['vendor_id']}")),
@@ -348,6 +377,7 @@ CASES: dict[tuple[str, str], Case] = {
         lambda _w, t: Req("POST", _org(t, "/uploads"), files=_upload_body(t)),
         201,
         shows_marker=True,
+        belongs_to=_owns_org_id,
     ),
     ("GET", f"{_ORGS}/{{org_id}}/uploads"): _check_access(
         _get(lambda t: _org(t, "/uploads")), 200, shows_marker=True
@@ -377,12 +407,16 @@ CASES: dict[tuple[str, str], Case] = {
             files=_inventory_csv(t),
         ),
         200,
+        belongs_to=_owns_org_id,
     ),
     ("GET", f"{_ORGS}/{{org_id}}/scan-runs"): _check_access(
-        _get(lambda t: _org(t, "/scan-runs")), 200
+        _get(lambda t: _org(t, "/scan-runs")), 200, shows_marker=True
     ),
     ("GET", f"{_ORGS}/{{org_id}}/scan-runs/{{scan_run_id}}"): _check_access(
-        _get(lambda t: _org(t, f"/scan-runs/{t.ids['scan_run_id']}")), 200
+        _get(lambda t: _org(t, f"/scan-runs/{t.ids['scan_run_id']}")),
+        200,
+        shows_marker=True,
+        belongs_to=_owns_org_id,
     ),
     ("GET", f"{_ORGS}/{{org_id}}/assets"): _check_access(
         _get(lambda t: _org(t, "/assets")), 200, shows_marker=True
@@ -413,6 +447,7 @@ CASES: dict[tuple[str, str], Case] = {
         ),
         200,
         shows_marker=True,
+        belongs_to=_owns_org_id,
     ),
     ("GET", f"{_ORGS}/{{org_id}}/scan-runs/{{scan_run_id}}/diff"): _check_access(
         _get(lambda t: _org(t, f"/scan-runs/{t.ids['scan_run_id']}/diff")), 200
@@ -470,6 +505,7 @@ CASES: dict[tuple[str, str], Case] = {
         ),
         201,
         shows_marker=True,
+        belongs_to=_owns_org_id,
     ),
     ("GET", f"{_ORGS}/{{org_id}}/domains"): _check_access(
         _get(lambda t: _org(t, "/domains")), 200, shows_marker=True
@@ -487,11 +523,15 @@ CASES: dict[tuple[str, str], Case] = {
     ),
     # --- invites and members (both /organizations and /orgs aliases) ------------------------
     ("POST", f"{_ORGS}/{{org_id}}/invites"): _membership(
-        lambda w, t: _new_invite(w, t, _org(t, "/invites")), 201, note=f"T-TEN-07; {_T_TEN_12}"
+        lambda w, t: _new_invite(w, t, _org(t, "/invites")),
+        201,
+        belongs_to=_owns_org_id,
+        note=f"T-TEN-07; {_T_TEN_12}",
     ),
     ("POST", f"{_V1}/orgs/{{org_id}}/invites"): _membership(
         lambda w, t: _new_invite(w, t, _org_alias(t, "/invites")),
         201,
+        belongs_to=_owns_org_id,
         note=f"T-TEN-07; {_T_TEN_12}",
     ),
     ("GET", f"{_ORGS}/{{org_id}}/invites"): _membership(

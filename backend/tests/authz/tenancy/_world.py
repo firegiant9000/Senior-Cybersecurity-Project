@@ -82,6 +82,9 @@ class World:
     split: WorldUser
     a_removed: WorldUser
     upload_dir: Path
+    # Marker of the cross-cutting users (global admin, no-org, split, removed): they belong to no
+    # single org, so none of an org's markers may appear in their emails.
+    shared_marker: str = ""
 
     def org(self, name: str) -> OrgWorld:
         return {"A": self.a, "B": self.b, "C": self.c}[name]
@@ -175,16 +178,15 @@ async def _seed_people(
     pending["c_member"] = _new_user(
         "c_member", markers["C"], role="member", org_id=orgs["C"].id, org_role="member"
     )
+    shared = markers["X"]
     pending["global_admin"] = _new_user(
-        "global_admin", markers["A"], role="admin", org_id=None, org_role=None
+        "global_admin", shared, role="admin", org_id=None, org_role=None
     )
-    pending["no_org"] = _new_user("no_org", markers["A"], role="member", org_id=None, org_role=None)
+    pending["no_org"] = _new_user("no_org", shared, role="member", org_id=None, org_role=None)
     pending["split"] = _new_user(
-        "split", markers["A"], role="member", org_id=orgs["A"].id, org_role="admin"
+        "split", shared, role="member", org_id=orgs["A"].id, org_role="admin"
     )
-    pending["a_removed"] = _new_user(
-        "a_removed", markers["A"], role="member", org_id=None, org_role=None
-    )
+    pending["a_removed"] = _new_user("a_removed", shared, role="member", org_id=None, org_role=None)
     for user, _uid, _email in pending.values():
         session.add(user)
     await session.flush()
@@ -216,7 +218,8 @@ async def build_world(upload_dir: Path) -> World:
     The purge matters because `agent_token.issue` commits mid-build.
     """
     hex8 = uuid.uuid4().hex[:8]
-    markers = {n: f"ht{n.lower()}{hex8}" for n in ("A", "B", "C")}
+    # A, B, C name the orgs; X names the cross-cutting users and belongs to no org.
+    markers = {n: f"ht{n.lower()}{hex8}" for n in ("A", "B", "C", "X")}
     try:
         return await _build(markers, upload_dir)
     except BaseException:
@@ -229,7 +232,8 @@ async def _build(markers: dict[str, str], upload_dir: Path) -> World:
 
     async with AsyncSessionLocal() as session:
         orgs: dict[str, Organization] = {}
-        for name, marker in markers.items():
+        for name in ("A", "B", "C"):
+            marker = markers[name]
             org = Organization(
                 name=f"{marker} Org",
                 industry_label="Technology",
@@ -455,6 +459,7 @@ async def _build(markers: dict[str, str], upload_dir: Path) -> World:
             split=wu("split"),
             a_removed=wu("a_removed"),
             upload_dir=upload_dir,
+            shared_marker=markers["X"],
         )
 
 
@@ -462,7 +467,8 @@ async def drop_world(world: World) -> None:
     org_ids = [world.a.org_id, world.b.org_id, world.c.org_id]
     user_ids = [u.user_id for u in world.users()]
     user_ids.append(int(world.c.ids["member_user_id"]))
-    await _purge([o.marker for o in (world.a, world.b, world.c)], org_ids, user_ids)
+    markers = [o.marker for o in (world.a, world.b, world.c)]
+    await _purge([*markers, world.shared_marker], org_ids, user_ids)
 
 
 async def _purge(markers: list[str], org_ids: list[int], user_ids: list[int]) -> None:

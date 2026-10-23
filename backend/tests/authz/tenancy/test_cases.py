@@ -30,6 +30,8 @@ def test_case_table_is_consistent():
             problems.append(f"{label}: denial_detail must be set iff denial is set")
         if case.denial is None and not (case.shows_marker or case.belongs_to or case.org_free):
             problems.append(f"{label}: denial=None needs shows_marker, belongs_to or org_free")
+        if not 200 <= case.allowed < 300 and not case.note:
+            problems.append(f"{label}: a non-2xx allowed ({case.allowed}) needs a note")
         if case.org_free and not case.note:
             problems.append(f"{label}: org_free needs a note")
     assert not problems, "\n".join(problems)
@@ -47,6 +49,8 @@ async def test_target_owner_allowed(key, fresh_world, as_user):
     )
 
     assert resp.status_code == case.allowed, resp.text
+    if case.allowed_detail is not None:
+        assert resp.json()["detail"] == case.allowed_detail
     body = resp.text.lower()
     if case.shows_marker:
         assert world.a.marker in body
