@@ -48,6 +48,11 @@ class IssuedToken:
     raw_token: str
 
 
+def _utcnow() -> datetime:
+    """The module's only clock; tests patch this to move time for issue/verify/rotate/revoke."""
+    return datetime.now(UTC)
+
+
 def _hash_secret(secret: str) -> str:
     return hashlib.sha256(secret.encode("utf-8")).hexdigest()
 
@@ -94,7 +99,7 @@ async def issue(
     Retries on the (vanishingly unlikely) prefix collision rather than failing
     the caller.
     """
-    now = now or datetime.now(UTC)
+    now = now or _utcnow()
     expires_at = expires_at or _default_expiry(now)
 
     last_error: Exception | None = None
@@ -134,7 +139,7 @@ async def verify(
     ``None``. Rejects revoked (``revoked_at <= now``) and expired tokens; accepts
     a token still inside its rotation grace window (``revoked_at > now``).
     """
-    now = now or datetime.now(UTC)
+    now = now or _utcnow()
 
     parsed = _parse_token(raw_token)
     if parsed is None:
@@ -178,7 +183,7 @@ async def rotate(
     ``now + grace`` so its token keeps working for the configured window — a
     live host can pick up the new token before the old one dies.
     """
-    now = now or datetime.now(UTC)
+    now = now or _utcnow()
     grace_until = now + timedelta(hours=settings.AGENT_TOKEN_ROTATION_GRACE_HOURS)
 
     issued = await issue(
@@ -200,7 +205,7 @@ async def revoke(
     now: datetime | None = None,
 ) -> AgentEnrollment:
     """Revoke immediately by setting ``revoked_at = now`` (no grace)."""
-    now = now or datetime.now(UTC)
+    now = now or _utcnow()
     return await repo.set_revoked_at(enrollment, now)
 
 

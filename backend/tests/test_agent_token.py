@@ -129,6 +129,15 @@ async def test_issue_defaults_expiry_to_365_days(repo):
     assert issued.enrollment.expires_at == now + timedelta(days=365)
 
 
+@pytest.mark.asyncio
+async def test_default_clock_is_utcnow_hook(repo, monkeypatch):
+    """Pins the hook name the end-to-end tests patch."""
+    fixed = datetime(2026, 3, 1, 12, tzinfo=UTC)
+    monkeypatch.setattr(agent_token, "_utcnow", lambda: fixed)
+    issued = await agent_token.issue(repo, org_id=1, name="a", scopes=None, created_by_user_id=None)
+    assert issued.enrollment.expires_at == fixed + timedelta(days=365)
+
+
 # --- verify -------------------------------------------------------------------
 
 
