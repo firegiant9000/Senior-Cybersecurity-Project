@@ -10,7 +10,7 @@ import pytest_asyncio
 from firebase_admin import auth as firebase_auth
 from firebase_admin.exceptions import FirebaseError
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.api.routes.v1.auth import _TOKEN_CLOCK_SKEW_SECONDS
 from app.db.engine import AsyncSessionLocal
@@ -89,6 +89,36 @@ async def test_me_valid_token_creates_user(client: AsyncClient):
     else:
         # DB not available in CI without PostgreSQL service
         assert resp.status_code in (500, 503)
+
+
+@pytest.mark.asyncio
+async def test_me_unverified_token_does_not_create_user(anon_client: AsyncClient):
+    """An unverified email cannot create an account: 403, no row, no WWW-Authenticate."""
+    uid = f"unverified-{uuid4().hex}"
+    email = f"unverified-{uuid4().hex}@example.com"
+    token = {
+        "uid": uid,
+        "email": email,
+        "email_verified": False,
+        "firebase": {"sign_in_provider": "password"},
+    }
+    try:
+        with patch("firebase_admin.auth.verify_id_token", return_value=token):
+            resp = await anon_client.get(
+                "/api/v1/auth/me", headers={"Authorization": "Bearer fake-test-token"}
+            )
+        assert resp.status_code == 403
+        assert resp.json()["detail"] == "Email address not verified"
+        assert "WWW-Authenticate" not in resp.headers
+        async with AsyncSessionLocal() as session:
+            rows = await session.execute(
+                select(User).where((User.firebase_uid == uid) | (User.email == email))
+            )
+            assert rows.scalars().all() == []
+    finally:
+        async with AsyncSessionLocal() as session:
+            await session.execute(delete(User).where(User.firebase_uid == uid))
+            await session.commit()
 
 
 @pytest.mark.asyncio

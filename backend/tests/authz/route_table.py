@@ -87,7 +87,11 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
         ("GET", "/redoc", RouteSpec("public", note="T-PLAT-08 accepted")),
         ("GET", "/openapi.json", RouteSpec("public", note="T-PLAT-08 accepted")),
         # --- auth / public data -----------------------------------------------------
-        ("GET", f"{_V1}/auth/me", RouteSpec("authenticated-global", note="creates the User row")),
+        (
+            "GET",
+            f"{_V1}/auth/me",
+            RouteSpec("authenticated-global", note="creates the User row (verified email only)"),
+        ),
         ("GET", f"{_V1}/public/stats", RouteSpec("public", note="aggregate counts, rate limited")),
         ("GET", f"{_V1}/data-status", RouteSpec("public", note="static source registry")),
         # --- global feeds behind require_role("viewer") (router-level) ---------------
@@ -345,7 +349,10 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
         (
             "POST",
             f"{_V1}/invites/{{token}}/accept",
-            RouteSpec("authenticated-global", note="invite token plus email match; T-AUTH-04"),
+            RouteSpec(
+                "authenticated-global",
+                note="invite token plus email match; verified email required (T-AUTH-04)",
+            ),
         ),
         ("GET", f"{_ORGS}/{{org_id}}/members", _ORG_MEMBER_PATH),
         ("GET", f"{_V1}/orgs/{{org_id}}/members", _ORG_MEMBER_PATH),

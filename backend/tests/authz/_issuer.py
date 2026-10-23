@@ -55,6 +55,7 @@ def mint_id_token(
     alg: str = "RS256",
     hs_secret: str = "authz-hs-secret",  # noqa: S107 - test-only HS256 confusion secret
     extra: dict | None = None,
+    omit: tuple[str, ...] = (),
 ) -> str:
     """Mint a Firebase-shaped ID token. `alg` HS256/none build forged variants."""
     issued_at = int(time.time()) - 5 if iat is None else iat
@@ -71,6 +72,8 @@ def mint_id_token(
     }
     if extra:
         claims.update(extra)
+    for name in omit:
+        claims.pop(name, None)
     headers = {"kid": kid}
     if alg == "none":
         return jwt.encode(claims, key=None, algorithm="none", headers=headers)

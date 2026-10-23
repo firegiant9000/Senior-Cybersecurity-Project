@@ -13,6 +13,7 @@ from app.main import app
 FAKE_FIREBASE_TOKEN = {
     "uid": "test-firebase-uid-global",
     "email": "testuser@example.com",
+    "email_verified": True,
     "firebase": {"sign_in_provider": "password"},
 }
 

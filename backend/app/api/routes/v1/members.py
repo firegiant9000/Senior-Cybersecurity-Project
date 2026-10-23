@@ -13,7 +13,12 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.routes.v1.auth import get_current_user
+from app.api.routes.v1.auth import (
+    EMAIL_MISMATCH,
+    EMAIL_NOT_VERIFIED,
+    get_current_user,
+    get_token_claims,
+)
 from app.core.config import settings
 from app.core.dependencies import (
     require_membership_role,
@@ -185,13 +190,24 @@ async def accept_invite(
     request: Request,  # noqa: ARG001
     token: str,
     current_user: User = Depends(get_current_user),
+    claims: dict = Depends(get_token_claims),
     repo: SqlOrgInviteRepository = Depends(get_invite_repo),
     session: AsyncSession = Depends(get_session),
 ):
     """Accept a pending invite and join the organization.
 
-    The authenticated user's email must match the invite and be pending.
+    The token's email must be verified and equal the account's email, and the
+    account's email must match the invite, which must be pending.
     """
+    if claims.get("email_verified") is not True:
+        raise HTTPException(status_code=403, detail=EMAIL_NOT_VERIFIED)
+    token_email = claims.get("email") or ""
+    account_email = current_user.email or ""
+    if not token_email or token_email.lower() != account_email.lower():
+        raise HTTPException(status_code=403, detail=EMAIL_MISMATCH)
+    # get_current_user's lookups already began a transaction on this session; end it so the
+    # explicit begin() below can open the one that holds the invite row lock.
+    await session.commit()
     async with session.begin():
         invite = await repo.get_by_token_for_update(token)
         if invite is None or invite.status != "pending":
