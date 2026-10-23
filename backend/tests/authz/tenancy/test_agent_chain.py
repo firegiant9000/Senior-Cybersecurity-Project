@@ -15,37 +15,18 @@ from app.db.engine import AsyncSessionLocal
 from app.repositories.agent_enrollments import SqlAgentEnrollmentRepository
 from app.services import agent_token
 from tests.authz.tenancy._agents import (
-    ACCEPTED,
-    AGENT_DENIED,
     AGENT_ROUTES,
     GRACE,
     STATUS,
-    agent_request,
+    assert_accepted,
+    assert_refused,
     frozen_now,
     issue_agent,
     load_agent,
-    send,
     wait_until_blocked,
 )
-from tests.authz.tenancy._world import snapshot_org
 
 ROUTE_PARAMS = [pytest.param(r, id=f"{r[0]} {r[1]}") for r in AGENT_ROUTES]
-
-
-async def _assert_refused(client, route, world):
-    req = agent_request(route, world.a)
-    before = await snapshot_org(world.a.org_id, world.upload_dir)
-
-    resp = await send(client, req)
-
-    assert resp.status_code == 401, resp.text
-    assert resp.json()["detail"] == AGENT_DENIED
-    assert await snapshot_org(world.a.org_id, world.upload_dir) == before
-
-
-async def _assert_accepted(client, route, world):
-    resp = await send(client, agent_request(route, world.a))
-    assert resp.status_code == ACCEPTED[route], resp.text
 
 
 async def _rotate(admin, agent_id: int) -> tuple[int, str]:
@@ -82,8 +63,8 @@ async def test_revoke_original_revokes_successor(route, world, authz_client, as_
 
     await _revoke(admin, x.enrollment.id)
 
-    await _assert_refused(await authz_client(s_token), route, world)
-    await _assert_refused(await authz_client(x.raw_token), route, world)
+    await assert_refused(await authz_client(s_token), route, world)
+    await assert_refused(await authz_client(x.raw_token), route, world)
     assert await _newest_revoke_ids(world.a.org_id) == sorted([x.enrollment.id, s_id])
 
 
@@ -92,12 +73,13 @@ async def test_revoke_original_after_grace_revokes_successor(world, authz_client
     clock(t0)
     x = await issue_agent(world.a)
     admin = await as_user(world.a.admin)
-    _, s_token = await _rotate(admin, x.enrollment.id)
+    s_id, s_token = await _rotate(admin, x.enrollment.id)
     clock(t0 + GRACE + timedelta(hours=1))
 
     await _revoke(admin, x.enrollment.id)
 
-    await _assert_refused(await authz_client(s_token), STATUS, world)
+    await assert_refused(await authz_client(s_token), STATUS, world)
+    assert await _newest_revoke_ids(world.a.org_id) == [s_id]
     # Earlier than now, so it isn't moved.
     assert (await load_agent(x.enrollment.id)).revoked_at == t0 + GRACE
 
@@ -113,7 +95,7 @@ async def test_revoke_successor_revokes_predecessor_in_grace(world, authz_client
 
     await _revoke(admin, s_id)
 
-    await _assert_refused(await authz_client(x.raw_token), STATUS, world)
+    await assert_refused(await authz_client(x.raw_token), STATUS, world)
     assert (await load_agent(x.enrollment.id)).revoked_at == later
 
 
@@ -126,7 +108,7 @@ async def test_revoke_covers_two_rotations(world, authz_client, as_user, clock):
 
     await _revoke(admin, x.enrollment.id)
 
-    await _assert_refused(await authz_client(s2_token), STATUS, world)
+    await assert_refused(await authz_client(s2_token), STATUS, world)
     assert (await load_agent(s2_id)).chain_root_id == x.enrollment.id
 
 
@@ -139,8 +121,8 @@ async def test_revoke_leaves_same_name_agent_alone(world, authz_client, as_user,
 
     await _revoke(admin, first.enrollment.id)
 
-    await _assert_refused(await authz_client(first.raw_token), STATUS, world)
-    await _assert_accepted(await authz_client(second.raw_token), STATUS, world)
+    await assert_refused(await authz_client(first.raw_token), STATUS, world)
+    await assert_accepted(await authz_client(second.raw_token), STATUS, world)
 
 
 async def test_revoke_never_moves_revoked_at_later(world, as_user, clock):
@@ -189,8 +171,8 @@ async def test_revoke_waits_for_inflight_rotation(world, authz_client):
         )
         ids = await asyncio.wait_for(task, 10)
 
-        assert successor.enrollment.id in ids
-        await _assert_refused(await authz_client(successor.raw_token), STATUS, world)
+        assert ids == sorted([x_id, successor.enrollment.id])
+        await assert_refused(await authz_client(successor.raw_token), STATUS, world)
     finally:
         if task is not None:
             task.cancel()

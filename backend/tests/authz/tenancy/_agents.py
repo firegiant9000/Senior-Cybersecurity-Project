@@ -19,7 +19,7 @@ from app.repositories.agent_enrollments import SqlAgentEnrollmentRepository
 from app.services import agent_token
 from app.services.agent_token import IssuedToken
 from tests.authz.tenancy._cases import Req
-from tests.authz.tenancy._world import OrgWorld
+from tests.authz.tenancy._world import OrgWorld, snapshot_org
 
 AGENT_DENIED = "Invalid or expired agent token"
 REPLAY_DETAIL = "Duplicate scan submission (replay detected)"
@@ -113,3 +113,21 @@ async def send(client, req: Req) -> httpx.Response:
     return await client.request(
         req.method, req.url, params=req.params, json=req.json, files=req.files
     )
+
+
+async def assert_refused(client, route, world):
+    """The agent call is exactly 401 with the Bearer challenge, and changes nothing in the org."""
+    req = agent_request(route, world.a)
+    before = await snapshot_org(world.a.org_id, world.upload_dir)
+
+    resp = await send(client, req)
+
+    assert resp.status_code == 401, resp.text
+    assert resp.json()["detail"] == AGENT_DENIED
+    assert resp.headers["www-authenticate"] == "Bearer"
+    assert await snapshot_org(world.a.org_id, world.upload_dir) == before
+
+
+async def assert_accepted(client, route, world):
+    resp = await send(client, agent_request(route, world.a))
+    assert resp.status_code == ACCEPTED[route], resp.text
