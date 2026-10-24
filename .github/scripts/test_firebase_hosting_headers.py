@@ -20,8 +20,35 @@ def csp_directives(csp: str) -> dict[str, list[str]]:
     for part in csp.split(";"):
         tokens = part.split()
         if tokens:
-            directives[tokens[0]] = tokens[1:]
+            name = tokens[0].lower()
+            # Browsers enforce the first occurrence (CSP3 2.2.1); reject repeats outright.
+            if name in directives:
+                raise AssertionError(f"duplicate CSP directive {name}")
+            directives[name] = tokens[1:]
     return directives
+
+
+EXPECTED_CSP = {
+    "default-src": ["'self'"],
+    "script-src": ["'self'"],
+    "style-src": ["'self'", "https://fonts.googleapis.com"],
+    "font-src": ["'self'", "https://fonts.gstatic.com"],
+    "img-src": ["'self'", "data:", "https:"],
+    "connect-src": [
+        "'self'",
+        "https://hacker-tracker-backend.onrender.com",
+        "https://identitytoolkit.googleapis.com",
+        "https://securetoken.googleapis.com",
+        "https://*.ingest.sentry.io",
+        "https://*.ingest.us.sentry.io",
+    ],
+    "frame-src": ["https://hacker-tracker-75f91.firebaseapp.com"],
+    "object-src": ["'none'"],
+    "base-uri": ["'self'"],
+    "form-action": ["'self'"],
+    "frame-ancestors": ["'none'"],
+    "upgrade-insecure-requests": [],
+}
 
 
 def production_api_origin() -> str:
@@ -55,6 +82,11 @@ class FirebaseHostingHeadersTests(unittest.TestCase):
             self.assertNotIn("'unsafe-eval'", sources, name)
             self.assertNotIn("*", sources, name)
         self.assertNotIn("'unsafe-inline'", csp.get("script-src", []))
+        # The policy must equal the plan's origin table exactly (no widening).
+        self.assertEqual(csp, EXPECTED_CSP)
+        # A repeated directive is rejected: browsers enforce the first, not the last.
+        with self.assertRaises(AssertionError):
+            csp_directives("script-src 'self' 'unsafe-inline'; Script-Src 'self'")
 
     def test_spa_csp_allows_firebase_auth_endpoints(self):
         connect = self.csp().get("connect-src", [])
