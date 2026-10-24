@@ -260,7 +260,7 @@ Settings the owner applies; none is a code change. Rows from the S3 threat model
 - T-CI-04: `persist-credentials: false` on the remaining checkouts.
 - T-CI-05: required Security, CodeQL and Secret-scan checks, required approvals, and Dependabot security updates.
 
-#### S4. Authorization assurance — DONE 2026-10-2X (PRs #226–#TBD)
+#### S4. Authorization assurance — DONE 2026-10-24 (PRs #226–#230)
 
 Delivered: a route-enumerating authorization suite over 128 routes, all classified (public 11, authenticated-global 29, organization-scoped 76, agent 2, administrator 10), with real token verification instead of the auth mock; a cross-tenant sweep over the 76 organization-scoped routes; and 20 routes whose authorization changed (`[K]`). All 14 S4 threat-model rows are TEST. Stage E added the platform work: security headers on the API and the SPA, request-body limits with the agent upload authenticated before its body is read, a `/health` that checks the database, an HTTPS-only agent, and egress regression tests. T-UPL-09 reaches operators only with the next agent release.
 
