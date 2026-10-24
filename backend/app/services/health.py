@@ -14,6 +14,8 @@ logger = get_logger(__name__)
 _lock = asyncio.Lock()
 # (checked_at on time.monotonic(), ok); None until the first check completes.
 _cache: tuple[float, bool] | None = None
+# Strong references to abandoned (timed-out) checks until they finish unwinding.
+_orphans: set["asyncio.Future[None]"] = set()
 
 
 async def _select_one(db_engine: AsyncEngine) -> None:
@@ -27,12 +29,40 @@ async def database_reachable(db_engine: AsyncEngine, *, timeout: float) -> bool:
     Any exception or timeout means unreachable. Only the exception type is
     logged, never its text (it can carry the host or credentials).
     """
+    task = asyncio.ensure_future(_select_one(db_engine))
     try:
-        await asyncio.wait_for(_select_one(db_engine), timeout)
-    except Exception as exc:  # noqa: BLE001 - any failure (incl. TimeoutError) means unreachable
+        done, _ = await asyncio.wait({task}, timeout=timeout)
+    except BaseException:
+        # The caller was cancelled: don't leave the check running unbounded.
+        _abandon(task)
+        raise
+    if not done:
+        # Do not await the cancelled check: its cleanup (e.g. a pre-ping
+        # rollback) can block on a server that never answers.
+        _abandon(task)
+        logger.warning("health: database unreachable (%s)", TimeoutError.__name__)
+        return False
+    if task.cancelled():
+        logger.warning("health: database unreachable (%s)", asyncio.CancelledError.__name__)
+        return False
+    exc = task.exception()
+    if exc is not None:
         logger.warning("health: database unreachable (%s)", type(exc).__name__)
         return False
     return True
+
+
+def _abandon(task: "asyncio.Future[None]") -> None:
+    """Cancel ``task`` without waiting; keep a reference until it unwinds."""
+    _orphans.add(task)
+    task.add_done_callback(_orphan_done)
+    task.cancel()
+
+
+def _orphan_done(task: "asyncio.Future[None]") -> None:
+    _orphans.discard(task)
+    if not task.cancelled():
+        task.exception()  # retrieve it so asyncio doesn't warn
 
 
 def _fresh() -> bool | None:

@@ -52,10 +52,15 @@ class _FakeEngine:
 
 
 class _HangingEngine:
+    """Enter hangs, and so does cancellation cleanup (a server that never answers)."""
+
     def connect(self):
         @asynccontextmanager
         async def _cm():
-            await asyncio.sleep(30)
+            try:
+                await asyncio.sleep(30)
+            finally:
+                await asyncio.sleep(30)
             yield None
 
         return _cm()
@@ -101,7 +106,10 @@ async def test_health_v1_unauthenticated(anon_client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("path", ["/health", "/api/v1/health"])
-async def test_health_503_when_database_unreachable(anon_client: AsyncClient, path: str) -> None:
+async def test_health_503_when_database_unreachable(
+    anon_client: AsyncClient, path: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level("WARNING")
     bad = create_async_engine("postgresql+asyncpg://health:health@127.0.0.1:9/none")
     app.dependency_overrides[get_health_engine] = lambda: bad
     try:
@@ -115,13 +123,30 @@ async def test_health_503_when_database_unreachable(anon_client: AsyncClient, pa
     assert data["database"] == "unavailable"
     for leaked in ("127.0.0.1", "health:health", "Connect", "Error"):
         assert leaked not in response.text
+    for record in caplog.records:
+        assert "127.0.0.1" not in record.getMessage()
+        assert "health:health" not in record.getMessage()
+    health_records = [r for r in caplog.records if "health: database unreachable" in r.getMessage()]
+    assert health_records
+    for record in health_records:
+        assert isinstance(record.args, tuple) and len(record.args) == 1
+        assert re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", str(record.args[0]))
 
 
 @pytest.mark.asyncio
 async def test_database_reachable_times_out() -> None:
     start = time.monotonic()
-    assert await database_reachable(_HangingEngine(), timeout=0.05) is False  # type: ignore[arg-type]
-    assert time.monotonic() - start < 1.0
+    try:
+        assert await database_reachable(_HangingEngine(), timeout=0.05) is False  # type: ignore[arg-type]
+        assert time.monotonic() - start < 1.0
+    finally:
+        # Reap the abandoned check (its cleanup is blocked) so it can't leak.
+        await asyncio.sleep(0.05)  # let the first cancel land in the blocked cleanup
+        orphans = list(health_service._orphans)
+        for orphan in orphans:
+            orphan.cancel()
+        await asyncio.gather(*orphans, return_exceptions=True)
+        assert not health_service._orphans
 
 
 @pytest.mark.asyncio
