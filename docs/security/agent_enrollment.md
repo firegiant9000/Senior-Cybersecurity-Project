@@ -29,7 +29,8 @@ not collect is summarized on the in-app `/privacy` page and in
   the grace window is never extended by rotating again.
 - Revoking an agent also revokes every token in its rotation chain, so revoking
   the old id after a rotation kills the successor too. Rotations made before
-  this was introduced aren't linked; revoke those by their own id.
+  this release was live aren't linked (see PR #229's after-deploy checklist);
+  revoke those by their own id.
 - Agents with no contact for **30 days** are surfaced as *stale* in the admin UI.
 
 ## 1. Enroll a new agent

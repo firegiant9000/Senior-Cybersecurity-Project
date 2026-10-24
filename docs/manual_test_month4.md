@@ -66,8 +66,8 @@ capture screenshots at each numbered step for the trust pack.
 
 8. **Rotate.** **Settings → Agents → Rotate**. Confirm a new token issues; the
    **old** token still uploads successfully within the 24h grace window; an
-   `agent.rotate` audit row exists. Rotating an agent that is still in grace is
-   refused (409).
+   `agent.rotate` audit row exists. The Rotate button is hidden for an agent in
+   grace, and `POST /api/v1/agents/{id}/rotate` on it returns 409.
 
 9. **Revoke / lost host.** **Settings → Agents → Revoke**. Confirm:
    - The next upload under that token returns `401`.
@@ -89,7 +89,7 @@ capture screenshots at each numbered step for the trust pack.
   `source='agent'` scan_run → assets/software → findings.
 - Replayed and below-min-version payloads are rejected; auth schemes are
   isolated both ways.
-- Rotate honors the 24h grace and is refused (409) for an agent in grace;
+- Rotate honors the 24h grace and is refused (409) for an agent in grace (button hidden in the UI);
   revoke `401`s immediately and covers the whole rotation chain; every
   enroll/rotate/revoke/upload is audited.
 - The retention sweep prunes to 12 scan_runs/org and the 365-day audit window.
