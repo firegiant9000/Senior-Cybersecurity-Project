@@ -50,6 +50,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = useCallback(async (firebaseUser: User, maxRetries = 1) => {
     setProfileError(false);
+    // A previous user's verify screen must not survive into this fetch's outcome.
+    setEmailUnverified(false);
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         // Force-refresh on retry to avoid using a stale cached token.

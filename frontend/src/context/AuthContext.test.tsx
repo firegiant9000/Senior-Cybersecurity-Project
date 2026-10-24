@@ -1,8 +1,9 @@
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { act, render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { useState } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const { fakeUser, mockFetch } = vi.hoisted(() => {
+const { fakeUser, mockFetch, authListener } = vi.hoisted(() => {
+  const authListener: { current: ((u: unknown) => void) | null } = { current: null };
   const calls: string[] = [];
   const fakeUser = {
     email: "new@example.com",
@@ -16,11 +17,12 @@ const { fakeUser, mockFetch } = vi.hoisted(() => {
     }),
     calls,
   };
-  return { fakeUser, mockFetch: vi.fn() };
+  return { fakeUser, mockFetch: vi.fn(), authListener };
 });
 
 vi.mock("firebase/auth", () => ({
   onAuthStateChanged: vi.fn((_auth: unknown, cb: (u: unknown) => void) => {
+    authListener.current = cb;
     cb(fakeUser);
     return vi.fn();
   }),
@@ -108,6 +110,29 @@ describe("AuthContext profile fetch", () => {
     mockFetch.mockResolvedValue(response(403, { detail: "Account is disabled" }));
 
     renderProvider();
+
+    await waitFor(
+      () => {
+        expect(screen.getByTestId("profileError")).toHaveTextContent("true");
+      },
+      { timeout: 4000 },
+    );
+    expect(screen.getByTestId("emailUnverified")).toHaveTextContent("false");
+  });
+
+  it("a different user whose profile fetch fails does not inherit the verify screen", async () => {
+    mockFetch.mockResolvedValueOnce(response(403, { detail: "Email address not verified" }));
+
+    renderProvider();
+    await waitFor(() => {
+      expect(screen.getByTestId("emailUnverified")).toHaveTextContent("true");
+    });
+
+    mockFetch.mockResolvedValue(response(500, {}));
+    const otherUser = { ...fakeUser, email: "other@example.com", emailVerified: true };
+    act(() => {
+      authListener.current?.(otherUser);
+    });
 
     await waitFor(
       () => {
