@@ -1,9 +1,10 @@
 """The tenancy fixture world is shaped as documented: both role stores, every kind per org."""
 
 import importlib
+import uuid
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import func, or_, select, text
 
 from app.db.agent_enrollment import AgentEnrollment
 from app.db.ai_summary_generation import AISummaryGeneration
@@ -20,6 +21,7 @@ from app.db.membership import Membership
 from app.db.org_domain import OrgDomain
 from app.db.org_upload import OrgUpload
 from app.db.org_vendor import OrgVendor
+from app.db.organization import Organization
 from app.db.scan_run import ScanRun
 from app.db.user import User
 from tests.authz.tenancy._world import snapshot_org, snapshot_tables
@@ -209,30 +211,69 @@ async def test_purge_refuses_an_empty_marker(bad):
         await _purge(["htreal0000", bad], [], [])
 
 
-async def _marker_user_count() -> int:
+async def _tagged_row_counts(tag: str) -> dict[str, int]:
+    """Rows carrying this build's unique tag, in every table the world writes.
+
+    Orgs and users are found by name / email; every org-scoped table (derived from the metadata)
+    is counted through its org, so a row left behind by a failed build shows up wherever it is.
+    """
+    pattern = f"%{tag}%"
+    counts: dict[str, int] = {}
     async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            text(r"SELECT count(*) FROM users WHERE email LIKE 'a\_owner-hta%'")
-        )
-        return result.scalar_one()
+        org_ids = select(Organization.id).where(Organization.name.like(pattern))
+        counts["users"] = (
+            await session.execute(
+                select(func.count()).select_from(User).where(User.email.like(pattern))
+            )
+        ).scalar_one()
+        user_ids = select(User.id).where(User.email.like(pattern))
+        counts["memberships_of_tagged_users"] = (
+            await session.execute(
+                select(func.count())
+                .select_from(Membership)
+                .where(or_(Membership.user_id.in_(user_ids), Membership.org_id.in_(org_ids)))
+            )
+        ).scalar_one()
+        for table in snapshot_tables():
+            if table.name == "users":
+                continue
+            column = (
+                table.c.id
+                if table.name == "organizations"
+                else table.c.org_id
+                if "org_id" in table.c
+                else table.c.organization_id
+            )
+            counts[table.name] = (
+                await session.execute(
+                    select(func.count()).select_from(table).where(column.in_(org_ids))
+                )
+            ).scalar_one()
+    return counts
 
 
 async def test_failed_build_leaves_no_rows(monkeypatch, tmp_path):
     from app.services import agent_token
     from tests.authz.tenancy._world import build_world
 
+    tag = f"td{uuid.uuid4().hex[:8]}"
     real_issue = agent_token.issue
     calls = 0
+    mid_build: dict[str, int] = {}
 
     async def flaky_issue(*args, **kwargs):
         nonlocal calls
         calls += 1
         if calls == 2:
+            # Positive control: the first org was committed, so the tag really finds rows.
+            mid_build.update(await _tagged_row_counts(tag))
             raise RuntimeError("boom")
         return await real_issue(*args, **kwargs)
 
     monkeypatch.setattr(agent_token, "issue", flaky_issue)
-    before = await _marker_user_count()
     with pytest.raises(RuntimeError, match="boom"):
-        await build_world(tmp_path)
-    assert await _marker_user_count() == before
+        await build_world(tmp_path, tag=tag)
+    assert mid_build["organizations"] > 0
+    assert mid_build["users"] > 0
+    assert mid_build["agent_enrollments"] > 0
+    assert await _tagged_row_counts(tag) == dict.fromkeys(mid_build, 0)

@@ -10,8 +10,8 @@ Classes:
 - organization-scoped: reads or writes rows owned by one org. `org_from` says where the org
   comes from: the request path/query ("path"), the caller's own org ("caller"), or a looked-up
   resource ("resource"). `min_role` is the org role enforced today ("org:member" = membership only).
-  The org check and `min_role` behaviour of these routes is proven by `tests/authz/tenancy/`,
-  not by `check_table`.
+  `tests/authz/tenancy/` proves the org/tenancy check of these routes, not `check_table`.
+  Role floors (`min_role`) are proven by the role-matrix stage (stage C), not by the tenancy suite.
 - agent: authenticated by agent bearer token only.
 - administrator: requires the global admin role.
 """

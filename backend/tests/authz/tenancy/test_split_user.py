@@ -1,8 +1,13 @@
 """The split user (legacy org A, active membership only in B): which orgs each route reaches.
 
-Routes that name a target org are aimed at C, A and B in turn. Org C must always be refused. A and B
-are recorded against `Case.split_reaches`. Routes that take the org from the session are called
-once and must show only the legacy org's (A's) data.
+Routes that name a target org are aimed at C, A and B in turn. Routes that take the org from the
+session are called once and must show only the legacy org's (A's) data.
+
+Two kinds of assertion live here:
+- Hard invariant: the split user never reaches org C, and a refused request changes nothing.
+- Characterization: the exact A/B pins in `Case.split_reaches` record how the two role stores
+  disagree today (T-TEN-12, tracked by the OPEN row T-TEN-14 in docs/security/threat_model.md).
+  They are expected to change when the stores merge; update them then, do not treat them as intent.
 """
 
 import pytest
@@ -50,6 +55,7 @@ async def test_split_user_reach(key, fresh_world, as_user):
         if not reached[target]:
             assert await snapshot_org(org.org_id, world.upload_dir) == before, detail
 
+    # Characterization of the T-TEN-14 store drift (expected to change on merge), not a hard invariant.
     assert {t for t in "AB" if reached[t]} == case.split_reaches, f"{key}: {reached}"
 
 
