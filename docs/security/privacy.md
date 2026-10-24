@@ -83,15 +83,17 @@ address.
   `GET /api/v1/organizations/{id}/export` to retrieve a JSON dump of your
   organization record and its main tables (assets and their software, domains,
   vendors, uploads, memberships and invites, scan runs, findings snapshots and
-  statuses, AI summaries and feedback, and assessment submissions). It does not
+  statuses, normalization logs, AI summaries and feedback, and assessment
+  submissions). It does not
   include asset findings, agent enrollments, integration credentials,
   activation events, OAuth states or agent scan nonces. Organization admins and
   owners can't call it.
 - **Delete.** Ask the operator. A platform administrator can call
   `DELETE /api/v1/organizations/{id}` to purge the organization. The main
   tables are deleted explicitly; the tables the export leaves out are removed
-  by database foreign-key cascade when the organization row is deleted. Audit
-  log rows are kept, with their organization reference set to null. The
+  by database foreign-key cascade when the organization row is deleted. User
+  accounts are detached from the organization, not deleted. Audit log rows are
+  kept, with their organization reference set to null. The
   deletion event itself is logged for audit, then ages out after 12 months.
 - **Correct.** Edit your org profile from the in-app settings page.
 

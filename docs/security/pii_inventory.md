@@ -13,7 +13,7 @@ First-pass inventory of personally identifying or sensitive data the platform ha
 | Asset hostnames | future `assets.hostname` | Confidential — internal naming often leaks org structure. |
 | IP addresses | request logs, future asset records | Excluded from Sentry (`send_default_pii=False`). |
 | Vendor / product names supplied by user | onboarding inputs, vendor watchlists | Confidential but low sensitivity. |
-| API keys (NVD, Census, BEA, HIBP, Shodan, OTX, Gemini, Firebase) | env vars only | Never persisted to DB. The NVD key (two paths), the Census key and the BEA key are sent as URL query parameters and can appear in error logs, and in one route's error response; Shodan's key is a query parameter too (T-ING-10, scheduled for S5). |
+| API keys (NVD, Census, BEA, HIBP, Shodan, OTX, Gemini, Firebase) | env vars only | Never persisted to DB. The NVD key (two paths), the Census key and the BEA key are sent as URL query parameters and can appear in error logs; Shodan's key is a query parameter too (T-ING-10, scheduled for S5). |
 | Firebase Bearer tokens | `Authorization` request header | Scrubbed from Sentry. Stdout/JSON logs have no scrubber, but the application doesn't log tokens. |
 | Organization invite tokens | `org_invites` rows; the `/invites/{token}` and `/invites/{token}/accept` URL paths | The token is part of the request path, so the default server access log records it. Anyone who can read the operator's logs could see a live invite token (T-PLAT-10, scheduled for S5). |
 

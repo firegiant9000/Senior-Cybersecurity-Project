@@ -52,6 +52,8 @@ class CheckThreatModelTests(unittest.TestCase):
             "agent/y_test.go": (
                 "func helper() {}\n"
                 "func TestOk(t *testing.T) {}\n"
+                "func Test(t *testing.T) {}\n"
+                "func TestMain(m *testing.M) {}\n"
                 "func Testlower(t *testing.T) {}\n"
                 "func TestOuter() {\n\tfunc TestInner() {}\n}\n"
             ),
@@ -311,6 +313,7 @@ class CheckThreatModelTests(unittest.TestCase):
             "tests/test_collect.py::TestReal::test_method",
             "tests/test_collect.py::UnitStyle::test_u",
             "agent/y_test.go::TestOk",
+            "agent/y_test.go::Test",
         )
         for ev in good:
             with self.subTest(ev=ev):
@@ -324,6 +327,7 @@ class CheckThreatModelTests(unittest.TestCase):
             "tests/test_collect.py::TestReal::test_top",  # module-level function, not a method
             "agent/y_test.go::helper",
             "agent/y_test.go::Testlower",
+            "agent/y_test.go::TestMain",  # test-binary entry point, not a test
             "agent/y_test.go::TestInner",  # indented
         )
         for ev in bad:
@@ -348,7 +352,12 @@ class CheckThreatModelTests(unittest.TestCase):
         self.assertIn("outside a recognised threat table", p[0])
 
     def test_real_verification_needs_a_value(self):
-        for notes in ("real-verification:", "real-verification:   "):
+        for notes in (
+            "real-verification:",
+            "real-verification:   ",
+            "real-verification: ; x",
+            "real-verification:; x",
+        ):
             with self.subTest(notes=notes):
                 p = self.check(doc(row("T-AUTH-01", cls="TEST", evidence=TEST_EV, notes=notes)))
                 self.assertEqual(len(p), 1, p)

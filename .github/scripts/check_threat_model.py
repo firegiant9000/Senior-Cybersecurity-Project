@@ -38,7 +38,8 @@ TEST_FILE_RE = re.compile(r"^(test_.+\.py|.+_test\.py|.+_test\.go)$")
 THREAT_ROW_RE = re.compile(r"^T-[A-Z]+-\d+")
 PY_TEST_NAME_RE = re.compile(r"^test")
 PY_TEST_CLASS_RE = re.compile(r"^Test")
-GO_TEST_NAME_RE = re.compile(r"^Test[A-Z0-9_]")
+# `go test` runs TestX where X doesn't start lowercase; TestMain is the binary's entry point.
+GO_TEST_NAME_RE = re.compile(r"^Test(?![a-z])(?!Main$)")
 PROSE_SUFFIXES =(".md", ".txt", ".rst")
 NO_TABLES =f"no threat tables found (header must be: {HEADER_TEXT})"
 
@@ -259,7 +260,7 @@ def _check_test(row: Row, repo_root: Path) -> list[str]:
         if not scope or not re.search(py, scope, re.MULTILINE):
             problems.append(f"{label}: test {name!r} not defined in {where}")
     area = row.id.split("-")[1] if ID_RE.match(row.id) else ""
-    if area in ("AUTH", "TEN") and not re.search(r"(^|;\s*)real-verification:\s*\S", row.notes):
+    if area in ("AUTH", "TEN") and not re.search(r"(^|;\s*)real-verification:\s*[^;\s]", row.notes):
         problems.append(
             f"{label}: {area} TEST rows need 'real-verification:' in Notes (no mock-only proof)"
         )
