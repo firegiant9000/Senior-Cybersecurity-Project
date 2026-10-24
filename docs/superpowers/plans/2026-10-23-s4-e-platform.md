@@ -10,11 +10,15 @@
 - regression tests pin the domain-check client's `follow_redirects=False` and the redirect port rule (T-DOM-09).
 
 **Architecture:**
-- **Two pure-ASGI middlewares** in `app/core/`: `SecurityHeadersMiddleware` (outermost) and `BodySizeLimitMiddleware` (inside CORS). They're pure ASGI, not `BaseHTTPMiddleware`, so they don't buffer bodies or wrap tasks.
+- **Two pure-ASGI middlewares** in `app/core/`: `SecurityHeadersMiddleware` (outermost) and `BodySizeLimitMiddleware` (**innermost**, inside `RequestContextMiddleware`). They're pure ASGI, not `BaseHTTPMiddleware`, so they don't buffer bodies or wrap tasks.
 - **Unhandled-exception responses.** These are produced by Starlette's `ServerErrorMiddleware`, which sits outside every user middleware. They get their headers from an `Exception` handler that builds the same plain 500 and applies the same headers.
-- **The body cap** has two parts. It refuses a declared `Content-Length` over the limit without reading, and it counts the bytes `receive` delivers, raising `HTTPException(413)` once they pass the limit. FastAPI re-raises an `HTTPException` raised while it reads a body (`fastapi/routing.py` L406, checked in the gate venv), so the 413 comes out through the normal exception handler, with CORS and security headers.
-- **The agent upload reads its body after the token check.** FastAPI reads declared body params before it solves dependencies, so today an unauthenticated caller can make the server read and parse a body of any size on that route. The payload becomes a dependency that depends on `get_agent_from_token`, so the 80 MiB allowance is only ever read for a valid agent.
-- **`/health`** runs `SELECT 1` through an injectable engine dependency with a 2 s timeout. The 503 test points the dependency at an unreachable engine; the shared test DB is never stopped.
+- **The body cap** has two parts. It refuses a declared `Content-Length` over the limit without reading, and it counts the bytes `receive` delivers, raising `HTTPException(413)` once they pass the limit. FastAPI re-raises an `HTTPException` raised while it reads a body (`fastapi/routing.py` L406).
+  - **Why innermost.** `SlowAPIMiddleware` and `RequestContextMiddleware` are `BaseHTTPMiddleware`. Their `receive` runs inside an anyio task group, so an exception raised in a `receive` wrapper outside them comes back to FastAPI as an `ExceptionGroup`: a 400 on body params, and a 500 on the agent route (pre-flight review, round 1).
+  - Innermost, the wrapper raises in its own frame, after the downstream `receive` has returned. The 413 then goes out through the normal exception handler, with X-Request-ID, CORS and security headers.
+- **The agent upload reads its body after the token check, one or two uploads at a time, off the event loop.** FastAPI reads declared body params before it solves dependencies, so today an unauthenticated caller can make the server read and parse a body of any size on that route.
+  - The payload becomes a dependency that depends on `get_agent_from_token` and on an upload slot (a bounded semaphore; 503 when it's full, without reading). The 80 MiB allowance is only read for a valid agent, and never by more than `AGENT_UPLOAD_CONCURRENCY` requests at once.
+  - Parsing runs in `asyncio.to_thread`, so a large scan doesn't stall `/health`.
+- **`/health`** runs `SELECT 1` on a dedicated one-connection engine with a 2 s timeout. The result is cached for 2 s and shared by concurrent callers, so flooding `/health` can't exhaust the app's pool or make it report 503. The 503 test points the engine dependency at an unreachable engine; the shared test DB is never stopped.
 - **The Go agent** validates the URL in `upload.New`, and its `http.Client` refuses every redirect.
 
 **Tech Stack:** Python 3.11, FastAPI 0.133 / Starlette, SQLAlchemy 2 async + asyncpg, Postgres 15, pytest 9 + pytest-asyncio, httpx `ASGITransport`; Go 1.27 (stdlib only); Firebase Hosting (`firebase.json`); `.github/scripts` unittest.
@@ -30,7 +34,7 @@
 - **No new runtime or dev dependency** (spec Constraints). The Go agent stays stdlib-only (`agent/go.mod` header). No Playwright: the browser CSP check is owner-run (Task 5).
 - **Status codes.** An oversize body is exactly **413**, with `{"detail": "Request body too large"}`; a file over the upload cap keeps today's 413 detail, `"File exceeds maximum size of 10 MB"`. A 400, 422 or 500 for an oversize body fails the test. An unreachable DB on `/health` is exactly **503**.
 - **No error text in responses.** The 503 body and the 500 body carry no exception message, host or driver text (T-PLAT-07 is S5's, but this stage must not add a leak). Health logs record only the exception class name.
-- **Real verification in `tests/authz/`.** The agent-route tests in this stage go in `tests/authz/tenancy/` and use stage D's `_agents.py` helpers (`issue_agent`, `authz_client`, `scan_payload`, `snapshot_org`). Never use `app.dependency_overrides` or a patch on `get_agent_from_token` there. The only patches allowed are `monkeypatch.setattr(settings, "MAX_AGENT_UPLOAD_BYTES", …)` and the stage-D clock.
+- **Real verification in `tests/authz/`.** The agent-route tests in this stage go in `tests/authz/tenancy/` and use stage D's `_agents.py` helpers (`issue_agent`, `authz_client`, `scan_payload`, `snapshot_org`). Never use `app.dependency_overrides` or a patch on `get_agent_from_token` there. The only patches allowed are `monkeypatch.setattr(settings, "MAX_AGENT_UPLOAD_BYTES", …)`, holding or resetting the upload slot (`_reset_agent_upload_slots`, `agent_upload_slot`), and the stage-D clock.
 - **Settings are read at request time** by the body-limit lookup, so tests can lower a limit with `monkeypatch.setattr(settings, …)` instead of sending megabytes.
 - **Existing tests are updated to the new rule, never deleted** (spec Anti-goals). A changed test keeps its name, or its rename goes in the commit body. Task 8 lists them.
 - **Severe-finding stop.** If anything severe that S3 didn't record turns up (cross-tenant access, an auth bypass, a leaked credential): stop, leave the test uncommitted, and report to the controller in chat only. These are known and not a stop: the five stage-E rows, the T-TEN-12 drift, the assessments 500, and the agent route reading its body before authentication (it's part of T-PLAT-06, fixed in Task 3).
@@ -62,13 +66,19 @@
 - **The docs pages get their own CSP.** These are `docs_url`, `redoc_url` and `swagger_ui_oauth2_redirect_url`, read from the app at startup rather than hard-coded. T-PLAT-08 keeps them public in production. FastAPI's Swagger UI and ReDoc pages use an inline bootstrap script, plus assets from `cdn.jsdelivr.net`, Google Fonts (ReDoc), `fastapi.tiangolo.com` (favicon) and `blob:` workers (ReDoc). Their CSP is:
 
   ```
-  default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://fastapi.tiangolo.com https://cdn.redoc.ly; connect-src 'self'; worker-src blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+  default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/ https://cdn.jsdelivr.net/npm/redoc@2/; style-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/ https://cdn.jsdelivr.net/npm/redoc@2/ https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://fastapi.tiangolo.com https://cdn.redoc.ly; connect-src 'self'; worker-src blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
   ```
 
-  `'unsafe-inline'` is acceptable there: the pages render only the public schema, on the API origin, and they hold no credential. A structural test parses the served HTML and checks that every external `src`/`href` origin is allowed, so a FastAPI bump that moves the CDN fails CI.
+  - **The jsdelivr sources are path-restricted** to `https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/` and `https://cdn.jsdelivr.net/npm/redoc@2/`, in both `script-src` and `style-src`, instead of the whole CDN. That's because a user may paste a bearer token into Swagger's Authorize box.
+  - `'unsafe-inline'` is acceptable there: the pages render only the public schema, on the API origin.
+  - **Residual:** FastAPI loads those packages by major version without SRI, so the docs page trusts that CDN path. T-PLAT-08 accepts public docs. Recorded in the PR.
+  - A structural test parses the served HTML and checks that every external `src`/`href` URL matches an allowed source (origin plus path prefix), so a FastAPI bump that moves the CDN path fails CI.
 - **Headers are added only if absent,** so a route can set its own (none does today).
 - **The 500 path.** `fastapi_app.add_exception_handler(Exception, _internal_error)` returns `PlainTextResponse("Internal Server Error", status_code=500)`, the same body Starlette sends today, with the security headers. `ServerErrorMiddleware` still re-raises afterwards, so logging and Sentry are unchanged. CORS headers aren't on 500s, which is today's behaviour.
-- **Middleware order** (outermost first): `SecurityHeadersMiddleware` → `CORSMiddleware` → `BodySizeLimitMiddleware` → `SlowAPIMiddleware` → `RequestContextMiddleware` → routes. `add_middleware` prepends, so in `create_app` the two new calls go after the existing ones: `BodySizeLimitMiddleware` is added before CORS, and `SecurityHeadersMiddleware` is added last. A 413 from the body limit therefore carries CORS and security headers, and a preflight answered by CORS carries the security headers.
+- **Middleware order** (outermost first): `SecurityHeadersMiddleware` → `CORSMiddleware` → `SlowAPIMiddleware` → `RequestContextMiddleware` → `BodySizeLimitMiddleware` → routes.
+  - `add_middleware` prepends, so in `create_app`, `BodySizeLimitMiddleware` is added **first** (before `RequestContextMiddleware`) and `SecurityHeadersMiddleware` **last**.
+  - A 413 from the body limit therefore carries X-Request-ID, CORS and security headers, and a preflight answered by CORS carries the security headers.
+  - **Don't move the body limit outward**: see Architecture, "Why innermost".
 
 ### T-PLAT-01: SPA headers (`firebase.json`)
 - One `headers` entry for `"source": "**"`, with these headers:
@@ -88,7 +98,7 @@
   | `font-src` | `'self' https://fonts.gstatic.com` | the Inter font files |
   | `img-src` | `'self' data: https:` | `/logo.png`; data URIs from chart libraries; **org logos at any `https:` URL** (Review Focus 2). Images can't run script. The residual is that an org admin's logo host sees viewers' IPs, which is accepted |
   | `connect-src` | `'self' https://hacker-tracker-backend.onrender.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io` | `/states-10m.json` (map); the API (`frontend/.env.production`); Firebase Auth REST and token refresh; Sentry ingest. The DSN is a CI secret, so both regional ingest hosts are listed. The owner check confirms which one is used |
-  | `frame-src` | `https://hacker-tracker-75f91.firebaseapp.com` | Firebase Auth's helper iframe on the project's auth domain. Email/password sign-in may never load it. The owner check records whether it does; if it doesn't, a follow-up removes the source |
+  | `frame-src` | `https://hacker-tracker-75f91.firebaseapp.com` | Firebase Auth's helper iframe on the project's auth domain. Email/password sign-in may never load it. The owner check records whether it does; if it doesn't, a follow-up removes the source. **Fallback if the preview shows `apis.google.com` or iframe violations:** `getAuth()` wires in `browserPopupRedirectResolver`, so switch `firebase.ts` to `initializeAuth(app, {persistence: [indexedDBLocalPersistence, browserLocalPersistence]})` with no resolver and drop `frame-src`, rather than widening `script-src` |
   | `object-src` | `'none'` | |
   | `base-uri` | `'self'` | |
   | `form-action` | `'self'` | |
@@ -124,8 +134,20 @@
   
   The test `test_maximal_agent_payload_fits_limit` builds this payload from the schema's own caps. It asserts the byte count, that it validates, and that it fits, so raising a cap without the limit fails CI.
 - **The headroom doesn't cover a maximal payload made entirely of non-ASCII or escaped characters.** Go escapes `<`, `>` and `&` as 6 bytes, and non-ASCII is 2–4 bytes. Real package metadata is overwhelmingly ASCII, and 150,000 entries all at maximum length aren't a legitimate scan. Such a payload gets 413, which is acceptable.
-- **Residual: 80 MiB is large for Render's starter plan (512 MB).** Parsing a payload near the limit can take several times its size in memory. Only a valid agent token can now send one (next bullet), and the upload rate limit is 12/minute per token. The real fix is to lower the per-list caps to realistic values, which is a schema-contract change coordinated with the agent. Decision 7 fixes "derive from the existing caps", so the cap change is recorded as a follow-up (Task 7 Step 8) and a question for Arlo, not done here.
-- **The agent upload authenticates before it reads the body.** `upload_agent_scan`'s `payload` becomes `Depends(read_agent_payload)`. That dependency depends on `get_agent_from_token`, which FastAPI caches per request, so it is the same call the handler's `enrollment` uses. It reads `await request.body()`, which is capped by the middleware, and returns `AgentScanPayload.model_validate_json(body)`.
+- **Residual: 80 MiB is large for Render's starter plan (512 MB).**
+  - **Measured in the pre-flight review:** `model_validate_json` alone on the maximal 72 MB payload takes peak RSS from 168 to 327 MiB. On top of that come the body bytes, `payload_hash` (`model_dump` plus `json.dumps`), the row building and the ORM objects.
+  - **A valid agent token isn't a real barrier.** Any self-registered account can create an org (`onboarding.py` L25) and enroll an agent (`agents.py` L45).
+  - **The 12/minute rate limit doesn't help either.** slowapi checks decorated routes inside the endpoint wrapper, after the payload dependency has already read and parsed the body.
+  - **What this stage adds:**
+    - `AGENT_UPLOAD_CONCURRENCY` (default **1**) upload slots: a module-level `asyncio.Semaphore`, taken without waiting before the body is read. If none is free, the response is 503 `"Agent upload busy; retry shortly"` with `Retry-After: 5`, and the body isn't read;
+    - parsing in `asyncio.to_thread`.
+    
+    So one maximal upload at a time is the worst case, and the event loop keeps answering `/health`.
+  - **The real fix is to lower the per-list caps** to realistic values, which is a schema-contract change coordinated with the agent. Decision 7 fixes "derive from the existing caps", so this stage doesn't change them. **It's a question for Arlo before merge** (PR body), and if Arlo doesn't take it here, a follow-up (Task 7 Step 9).
+- **The agent upload authenticates before it reads the body.** `upload_agent_scan`'s `payload` becomes `Depends(read_agent_payload)`.
+  - `read_agent_payload` depends on `get_agent_from_token` (which FastAPI caches per request, so it's the same call the handler's `enrollment` uses) and on `agent_upload_slot`, a yield dependency that takes and releases a semaphore slot.
+  - It reads `await request.body()`, which the middleware caps, and returns `await asyncio.to_thread(AgentScanPayload.model_validate_json, body)`.
+  - The order is: token, then slot, then read. The two sub-dependencies are declared in that order; FastAPI solves them in parameter order. An unauthenticated request never takes a slot.
   - A `ValidationError` becomes `RequestValidationError` with each error's `loc` prefixed by `"body"` (from `exc.errors(include_url=False)`), so the 422 body keeps FastAPI's shape.
   - The route loses its generated OpenAPI request-body schema. `openapi_extra={"requestBody": {"required": True, "description": "AgentScanPayload: see backend/app/schemas/agent_scan.py and tests/fixtures/agent_scan_v1.json", "content": {"application/json": {}}}}` keeps the entry. The contract lives in the schema module and the golden fixture, not in OpenAPI.
   - **This doesn't change who is authorized:** the same token check runs and the same callers succeed. What changes is the order. A request with no token and an invalid body now gets 401 where it used to get 422.
@@ -135,10 +157,14 @@
 
 ### T-PLAT-09: health
 - **Both** `/health` and `/api/v1/health` check the DB. They share one handler, `app/api/routes/health.py::health_check`; `v1/health.py` registers the same function. Render uses `/health` (`render.yaml` L13).
-- `SELECT 1` on `engine.connect()`, inside `asyncio.wait_for(…, settings.HEALTH_DB_TIMEOUT_SECONDS)`, default **2.0** s. Any exception, or the timeout, means unreachable.
+- `SELECT 1` on `connect()`, inside `asyncio.wait_for(…, settings.HEALTH_DB_TIMEOUT_SECONDS)`, default **2.0** s. Any exception, or the timeout, means unreachable.
+- **A dedicated engine:** `health_engine = create_async_engine(settings.DATABASE_URL, pool_size=1, max_overflow=0, pool_timeout=1)` in `app/db/engine.py`.
+  - If health used the app pool (`pool_size=10, max_overflow=20`, 30 s checkout), a saturated pool would turn into 503s, and Render would restart the instance mid-load.
+  - The URL is the same one the app engine uses. Read it from `settings.DATABASE_URL`, after the validator at `config.py` L44 has normalised it.
+- **Cached for 2 s, single-flight:** `HEALTH_CACHE_SECONDS: float = 2.0`. An `asyncio.Lock` guards a `(checked_at, ok)` pair. Concurrent callers inside the window share one query, so an unauthenticated flood of `/health` costs at most one `SELECT 1` every 2 s. Tests clear the cache with `health_service.reset_cache()`.
 - **Body.** `HealthResponse` gains `database: str`, which is `"ok"` or `"unavailable"`. `status` is `"ok"`, or `"unavailable"` with HTTP 503. `service`, `version` and `environment` are unchanged, so no new information is exposed. There is never any error text.
 - **Stays unauthenticated and rate-limit-exempt.** The routes have no `@limiter.limit` decorator and the limiter has no `default_limits` (`app/core/limiter.py` L7), so nothing changes. Render's checker must never be throttled.
-- **Engine injection:** `app.db.engine.get_engine() -> AsyncEngine` returns the module engine and is the route's dependency. The 503 test overrides it with an engine on `127.0.0.1:9`, where nothing listens and the connection is refused at once, and disposes it afterwards.
+- **Engine injection:** `app.db.engine.get_health_engine() -> AsyncEngine` returns `health_engine` and is the route's dependency. The 503 test overrides it with an engine on `127.0.0.1:9`, where nothing listens and the connection is refused at once, and disposes it afterwards.
 - **Risk:** a DB outage now fails Render's health check. Render then holds a deploy or restarts the instance; it doesn't serve stale success. That's the intended T-PLAT-09 behaviour, recorded in the PR.
 
 ### T-UPL-09: agent HTTPS-only
@@ -162,7 +188,7 @@
   None is CONTROL-only. The SPA header values are proven by the unittest, and their effect in a browser by the owner check.
 - **T-DOM-02 moves CONTROL → TEST.** Its Notes say it's CONTROL only because no test pins the real client or the port rule. Task 1 adds exactly those tests, so this stage-D precedent (T-TOK-06) applies.
 - **The withdrawn T-UPL-06** keeps its `withdrawn:` Notes, with ` Closed with T-PLAT-06 in S4-E.` appended. The checker skips withdrawn rows.
-- **The OPEN RISK S4 row is kept** as `none: all 14 rows closed in S4 (stages A–E)`, so the index shows S4 as done rather than missing. The checker doesn't parse the index.
+- **The OPEN RISK S4 row is kept** as `none: all 14 rows closed in S4 (stages A–E); T-UPL-09 reaches operators only with the next agent release (owner step)`. The index then shows S4 as done rather than missing, without overclaiming for binaries already shipped. The checker doesn't parse the index.
 - **Expected counts:** 110 = **39 CONTROL / 37 TEST / 18 ACCEPTED / 16 OPEN**. That's stage D's 40/31/18/21 with five OPEN → TEST and T-DOM-02 CONTROL → TEST. Count with the checker's parser (Task 7 Step 3), and use the real numbers if they differ.
 - **`[K]` stays 20.** `[K]` counts routes whose authorization behaviour changed. Headers, the body cap and health are platform-wide. The agent upload's reorder runs the same check for the same callers. Only the order and the response to an unauthenticated invalid body change (401, where it was 422), and no caller gains or loses access. **`[N]` stays 128:** stage E adds no routes, and the route-count test pins it.
 
@@ -191,7 +217,7 @@
     - `resolve["ok.example.com"] = [PUBLIC_V4]`; `resolve["www.example.com"] = ["1.1.1.1"]`;
     - the handler returns `302` with `location: https://www.example.com:8443/` when `headers["host"] == "ok.example.com"`, and `200` otherwise;
     - assert no request has `headers["host"] == "www.example.com"`, and none has `url.port == 8443`.
-- [ ] **Step 2: Run** `pytest tests/test_domain_checks_egress.py -v` (the gate command from Task 7 Step 5, with this target). Expected: all pass. The guards exist (T-DOM-02), so per-test red is owner-run (Task 7 Step 6).
+- [ ] **Step 2: Run** `pytest tests/test_domain_checks_egress.py -v` (the gate command from Task 7 Step 5, with this target). Expected: all pass. The guards exist (T-DOM-02), so per-test red is owner-run (Task 7 Step 7).
 - [ ] **Step 3: Commit** `test(egress): pin the domain-check client's redirect and port guards (T-DOM-09)`. Body: the real factory runs with only its transport replaced; the guards themselves are unchanged.
 
 ### Task 2: T-PLAT-09 — `/health` checks the database
@@ -200,7 +226,7 @@
 
 **Files:**
 - Create: `backend/app/services/health.py`
-- Modify: `backend/app/db/engine.py` (add `get_engine`), `backend/app/core/config.py` (add `HEALTH_DB_TIMEOUT_SECONDS`)
+- Modify: `backend/app/db/engine.py` (add `health_engine`, `get_health_engine`), `backend/app/core/config.py` (add `HEALTH_DB_TIMEOUT_SECONDS`, `HEALTH_CACHE_SECONDS`)
 - Modify: `backend/app/api/routes/health.py` (the shared handler), `backend/app/api/routes/v1/health.py` (register the shared handler; delete its duplicate model and function)
 - Test: `backend/tests/test_health.py`
 
@@ -209,18 +235,24 @@
   ```python
   # app/core/config.py
   HEALTH_DB_TIMEOUT_SECONDS: float = 2.0
+  HEALTH_CACHE_SECONDS: float = 2.0
 
   # app/db/engine.py
-  def get_engine() -> AsyncEngine          # returns the module-level `engine`
+  health_engine = create_async_engine(settings.DATABASE_URL, pool_size=1, max_overflow=0, pool_timeout=1)
+  def get_health_engine() -> AsyncEngine   # returns health_engine
 
   # app/services/health.py
   async def database_reachable(db_engine: AsyncEngine, *, timeout: float) -> bool
       # wait_for(connect + execute(text("SELECT 1")), timeout); any Exception or TimeoutError → False,
       # logged as warning "health: database unreachable (%s)" with type(exc).__name__ only
+  async def cached_database_reachable(db_engine: AsyncEngine) -> bool
+      # under an asyncio.Lock: reuse the last result if it's younger than HEALTH_CACHE_SECONDS
+      # (time.monotonic), else call database_reachable(db_engine, timeout=HEALTH_DB_TIMEOUT_SECONDS)
+  def reset_cache() -> None                # tests only
 
   # app/api/routes/health.py
   class HealthResponse(BaseModel): status: str; service: str; version: str; environment: str; database: str
-  async def health_check(response: Response, db_engine: AsyncEngine = Depends(get_engine)) -> HealthResponse
+  async def health_check(response: Response, db_engine: AsyncEngine = Depends(get_health_engine)) -> HealthResponse
       # ok → 200 status "ok" database "ok"; unreachable → response.status_code = 503, status/database "unavailable"
 
   # app/api/routes/v1/health.py
@@ -228,17 +260,22 @@
   ```
 
 - [ ] **Step 1: Write the failing tests** in `test_health.py`:
+  - An autouse fixture calls `health_service.reset_cache()` before and after each test.
   - `_assert_health_body` additionally asserts `data["database"] == "ok"`. The four existing tests keep their names.
   - `test_health_503_when_database_unreachable` (parametrised over `"/health"` and `"/api/v1/health"`, `anon_client`):
-    - `bad = create_async_engine("postgresql+asyncpg://health:health@127.0.0.1:9/none")`; `app.dependency_overrides[get_engine] = lambda: bad`;
+    - `bad = create_async_engine("postgresql+asyncpg://health:health@127.0.0.1:9/none")`; `app.dependency_overrides[get_health_engine] = lambda: bad`;
     - GET → 503; `status == "unavailable"`, `database == "unavailable"`;
     - the response text contains none of `"127.0.0.1"`, `"health:health"`, `"Connect"`, `"Error"`;
     - in `finally`, pop the override and `await bad.dispose()`.
   - `test_database_reachable_times_out`:
     - a fake engine whose `connect()` returns an async context manager that awaits `asyncio.sleep(30)` on enter;
     - `await database_reachable(fake, timeout=0.05)` is `False`, and the elapsed time is under 1 s (`time.monotonic`).
-  - `test_database_reachable_true_on_real_engine`: `await database_reachable(engine, timeout=2.0)` is `True`.
-- [ ] **Step 2: Run** `pytest tests/test_health.py -v`. Expected: an `ImportError` on `get_engine` or `database_reachable` (a collection-level red).
+  - `test_database_reachable_true_on_real_engine`: `await database_reachable(health_engine, timeout=2.0)` is `True`.
+  - `test_concurrent_health_checks_share_one_query`:
+    - a fake engine whose `connect()` counts calls and yields a connection whose `execute` returns after `asyncio.sleep(0.05)`;
+    - `asyncio.gather(*(cached_database_reachable(fake) for _ in range(20)))` → all `True`, with `connect` called exactly once.
+  - `test_health_cache_expires`: `monkeypatch.setattr(settings, "HEALTH_CACHE_SECONDS", 0.0)`; two sequential calls → `connect` called twice.
+- [ ] **Step 2: Run** `pytest tests/test_health.py -v`. Expected: an `ImportError` on `get_health_engine` or `database_reachable` (a collection-level red).
 - [ ] **Step 3: Implement** per Interfaces. The docstring of `health_check` says: "Liveness plus a `SELECT 1`. 503 when the database is unreachable. Unauthenticated and not rate-limited (Render's health check)."
 - [ ] **Step 4: Run** `pytest tests/test_health.py tests/authz -q`. Expected: all pass. The route table and dependency cross-check are unchanged: both routes are still `public` with no auth dependency.
 - [ ] **Step 5: Commit** `feat(health): /health checks the database and returns 503 when it is unreachable (T-PLAT-09)`.
@@ -250,7 +287,7 @@
 **Files:**
 - Create: `backend/app/core/body_limit.py`
 - Modify: `backend/app/core/config.py` (`MAX_JSON_BODY_BYTES`, `MAX_AGENT_UPLOAD_BYTES`, next to `MAX_UPLOAD_SIZE_BYTES` at L193)
-- Modify: `backend/app/main.py::create_app` (add the middleware before `CORSMiddleware`)
+- Modify: `backend/app/main.py::create_app` (add the middleware **first**, before `RequestContextMiddleware`, so it is innermost)
 - Modify: `backend/app/services/file_upload.py` (`ensure_upload_size`; call it in `save_upload` before L69)
 - Modify: `backend/app/api/routes/v1/inventory.py` (`_read_csv` L172; `read_agent_payload`; `upload_agent_scan` L443–447)
 - Modify: `backend/app/api/routes/v1/vendors.py` (L332, L380: call `ensure_upload_size` before `file.read()`)
@@ -263,6 +300,7 @@
   # app/core/config.py
   MAX_JSON_BODY_BYTES: int = 1024 * 1024            # 1 MiB
   MAX_AGENT_UPLOAD_BYTES: int = 80 * 1024 * 1024    # 80 MiB; arithmetic in the S4-E plan / PR body
+  AGENT_UPLOAD_CONCURRENCY: int = 1                 # agent uploads read and parsed at once
 
   # app/core/body_limit.py
   REQUEST_TOO_LARGE = "Request body too large"
@@ -279,12 +317,22 @@
       # over limit → raise fastapi.HTTPException(413, REQUEST_TOO_LARGE).
 
   # app/services/file_upload.py
-  def ensure_upload_size(file: UploadFile) -> None  # 413 "File exceeds maximum size of 10 MB" (same text as save_upload) if file.size > cap
+  def ensure_upload_size(file: UploadFile) -> None
+      # 413 if file.size > cap; detail f"File exceeds maximum size of {cap_mb} MB", built from settings
+      # exactly as save_upload builds it today (one shared helper for the text)
 
   # app/api/routes/v1/inventory.py
+  AGENT_UPLOAD_BUSY = "Agent upload busy; retry shortly"
+  _agent_upload_slots: asyncio.Semaphore | None      # created lazily from settings.AGENT_UPLOAD_CONCURRENCY
+  async def agent_upload_slot() -> AsyncGenerator[None, None]
+      # if the semaphore is locked → HTTPException(503, AGENT_UPLOAD_BUSY, headers={"Retry-After": "5"});
+      # else acquire, yield, release in finally
   async def read_agent_payload(request: Request,
-                               enrollment: AgentEnrollment = Depends(get_agent_from_token)) -> AgentScanPayload  # noqa: ARG001
+                               enrollment: AgentEnrollment = Depends(get_agent_from_token),  # noqa: ARG001
+                               _slot: None = Depends(agent_upload_slot)) -> AgentScanPayload
+      # body = await request.body(); return await asyncio.to_thread(AgentScanPayload.model_validate_json, body)
   # upload_agent_scan: payload: AgentScanPayload = Depends(read_agent_payload); openapi_extra per Decisions
+  def _reset_agent_upload_slots() -> None            # tests only: drop the semaphore so the next request rebuilds it
   ```
 
 - [ ] **Step 1: Write the failing tests** in `test_body_limit.py`. Use the `client` fixture (mock auth) for human routes, and `limiter.reset()` in an autouse fixture. Every 413 asserts the exact detail.
@@ -302,13 +350,14 @@
   - `test_chunked_body_over_limit_is_413_and_read_stops[default-route|file-route]`:
     - `monkeypatch.setattr(settings, "MAX_JSON_BODY_BYTES", 256 * 1024)` and `monkeypatch.setattr(settings, "MAX_UPLOAD_SIZE_BYTES", 256 * 1024)`;
     - the content is an async generator of 64 KiB chunks, up to 4 MiB, counting the bytes it yields. httpx sends it chunked, with no `Content-Length`. Assert `"content-length" not in request.headers` with an event hook, or a check on the built request;
-    - the targets are `/api/v1/analytics/events`, and `/api/v1/organizations/{org}/uploads` with a `multipart/form-data; boundary=x` content type;
+    - the targets are `/api/v1/analytics/events` (filler is spaces), and `/api/v1/organizations/{org}/uploads` with a `multipart/form-data; boundary=x` content type;
+    - for the file route, the first chunk must be a valid part header, or python-multipart refuses the first byte with a 400 whatever the limit: `b'--x\r\nContent-Disposition: form-data; name="file"; filename="a.pdf"\r\nContent-Type: application/pdf\r\n\r\n%PDF'`, then filler bytes `b"a"`;
     - → 413, and the yielded bytes are at most `limit_for(path) + 64 * 1024` (the read stopped at the cap).
   - `test_file_route_allows_body_above_default_limit`: upload a 2 MiB PDF (starting with `%PDF`) to `/api/v1/organizations/{org}/uploads` → 201. Use `test_uploads.py`'s fixtures and `UPLOAD_DIR` handling.
   - `test_file_over_upload_cap_is_413_before_read[route]`, parametrised over the uploads route and the 4 CSV routes:
     - `monkeypatch.setattr(settings, "MAX_UPLOAD_SIZE_BYTES", 1024)`;
     - spy on `starlette.datastructures.UploadFile.read` with a counter;
-    - send a 4 KiB file (the request is under the 64 KiB overhead, so the middleware passes it) → 413 `"File exceeds maximum size of …"`, and `read` was never called;
+    - send a 4 KiB file (the request is under the 64 KiB overhead, so the middleware passes it). For the uploads route, use `application/pdf` with content starting `%PDF`: `save_upload` checks the type before the size. For CSV routes, use `text/csv`. → 413 with exactly the detail `ensure_upload_size` builds from the patched setting, and `read` was never called;
     - for the uploads route, no `org_uploads` row and no file under `UPLOAD_DIR`.
   - `test_maximal_agent_payload_fits_limit`:
     - build the maximal payload from the schema's own caps: read each field's `MaxLen` from `AgentScanPayload.model_fields[…].metadata` and `ScanSoftware`/`ScanService`/`ScanPort`/`ScanHost` `.model_fields`, so a raised cap changes the payload. Fill strings with `"a"`, use `port=65535`, `protocol="tcp"`, `schema_version="1.0"`, and a 64-character `scan_id`;
@@ -317,10 +366,19 @@
 - [ ] **Step 1b: Write the agent tests** in `tests/authz/tenancy/test_agent_body_limit.py` (module `world`, real verification). Each refusal also asserts that `snapshot_org(a)` is unchanged. Warm the token up with one status call first (gotchas, "S4 stage D").
   - `test_agent_upload_without_token_is_401_before_body_read`: an `authz_client` with no `Authorization` header. The content is an async generator of 1 MiB chunks, up to 8 MiB, counting yields. POST to `UPLOAD` → 401, and the yielded bytes are at most `1024 * 1024` (today FastAPI reads all 8 MiB first).
   - `test_agent_upload_over_limit_is_413`: `monkeypatch.setattr(settings, "MAX_AGENT_UPLOAD_BYTES", 64 * 1024)`; issue a token; the `scan_payload(a)` JSON, right-padded with spaces to `64 * 1024 + 1` bytes → 413.
+  - `test_chunked_agent_upload_over_limit_is_413`:
+    - the same limit and a valid token;
+    - the body is an async generator: first the `scan_payload(a)` JSON minus its closing `}`, then 16 KiB chunks of spaces up to 1 MiB, with no `Content-Length`;
+    - → exactly 413 (not 400 or 500; this is the case the pre-flight review showed fails if the middleware isn't innermost), the yielded bytes are at most `64 * 1024 + 16 * 1024`, and the snapshot is unchanged.
+  - `test_agent_upload_busy_is_503_unread`:
+    - `_reset_agent_upload_slots()`, then take the only slot directly in the test (`await anext(agent_upload_slot())` on the dependency generator, or acquire the semaphore it creates), under `try/finally`;
+    - a valid token, and a chunked body counting yields → 503 `AGENT_UPLOAD_BUSY`, `Retry-After: 5`, and 0 yielded bytes;
+    - release the slot in `finally`. After release, the same upload with a fresh payload → 201.
+  - `test_agent_upload_without_token_takes_no_slot`: hold the only slot as above; POST with no token → 401, not 503.
   - `test_agent_upload_at_limit_is_accepted`: the same limit; a fresh `scan_payload(a)` padded to exactly `64 * 1024` bytes → `ACCEPTED[UPLOAD]` (201).
   - `test_agent_upload_invalid_body_keeps_422_shape`: a valid token; body `{"schema_version": "1.0"}` → 422, and every `detail[i]["loc"][0] == "body"`.
-- [ ] **Step 2: Run** `pytest tests/test_body_limit.py tests/authz/tenancy/test_agent_body_limit.py -v`. Expected: an `ImportError` on `app.core.body_limit` (a collection-level red). After a stub `limit_for` exists, the agent 401 test fails on the yielded-bytes assertion. That's the known T-PLAT-06 gap, not a stop.
-- [ ] **Step 3: Implement** per Interfaces. Add the middleware in `create_app` after `SlowAPIMiddleware` and before `CORSMiddleware` (the order is in Decisions). In `upload_agent_scan`, keep `enrollment: AgentEnrollment = Depends(get_agent_from_token)`; FastAPI's per-request dependency cache makes it the same verification as the payload dependency's.
+- [ ] **Step 2: Run** `pytest tests/test_body_limit.py tests/authz/tenancy/test_agent_body_limit.py -v`. Expected: an `ImportError` on `app.core.body_limit` and on the slot names (a collection-level red). Without the reorder, the agent 401 test fails on the yielded-bytes assertion. That's the known T-PLAT-06 gap, not a stop.
+- [ ] **Step 3: Implement** per Interfaces. Add the middleware in `create_app` **before** the `RequestContextMiddleware` line, so it ends up innermost (the order is in Decisions). In `upload_agent_scan`, keep `enrollment: AgentEnrollment = Depends(get_agent_from_token)`; FastAPI's per-request dependency cache makes it the same verification as the payload dependency's.
 - [ ] **Step 4: Run** the Step 2 targets, then `pytest tests/test_agent_scan_routes.py tests/test_uploads.py tests/test_inventory_routes.py tests/test_org_vendors.py tests/authz -q`. Expected: all pass, including stage D's lifecycle and replay tests (the golden payload is about 1 KB). Update any failure per Task 8. Don't loosen it.
 - [ ] **Step 5: Run** the full `pytest tests/ -q`. Expected: no 413 anywhere outside the new tests, so no legitimate body exceeds 1 MiB.
 - [ ] **Step 6: Commit** `feat(platform): cap request bodies before they are read, and authenticate agent uploads before reading them (T-PLAT-06)`. Body: the three limits and the agent arithmetic at planning level; the pre-read file check; the auth-before-body reorder; the residuals (80 MiB on a 512 MB instance; multipart spooling before auth).
@@ -373,7 +431,7 @@
   - `test_docs_pages_get_the_docs_csp`: `GET /docs` and `GET /redoc` → 200, the CSP equals `DOCS_CSP`, and the other four headers equal `EXPECTED`.
   - `test_docs_csp_allows_the_assets_docs_pages_load`:
     - for `/docs` and `/redoc`, extract every `src="…"` and `href="…"` with an absolute `https://` URL from the HTML (a regex is enough);
-    - `<script src>` origins must be in `script-src`, `<link href>` origins in `style-src`, and favicons in `img-src`. The directives come from parsing `DOCS_CSP`;
+    - each `<script src>` URL must match a `script-src` source, each stylesheet `<link href>` a `style-src` source, and each favicon an `img-src` source. The directives come from parsing `DOCS_CSP`. A source with a path (ending `/`) matches by origin plus path prefix; a source without one matches by origin;
     - an inline `<script>` without `src` requires `'unsafe-inline'` in `script-src`.
   - `test_existing_header_not_overwritten` (pure ASGI): a stub app that sends `x-frame-options: SAMEORIGIN` → it's kept, and the other headers are added.
 - [ ] **Step 2: Run** `pytest tests/test_security_headers.py -v`. Expected: an `ImportError` (collection-level red).
@@ -405,7 +463,7 @@
     - `frame-ancestors == ["'none'"]`, `object-src == ["'none'"]`, `script-src == ["'self'"]`, `base-uri == ["'self'"]`;
     - no directive contains `'unsafe-eval'` or a bare `*`, and `script-src` has no `'unsafe-inline'`.
   - `test_spa_csp_allows_firebase_auth_endpoints` (Review Focus 1): `connect-src` contains `https://identitytoolkit.googleapis.com` and `https://securetoken.googleapis.com`.
-  - `test_spa_csp_allows_the_production_api`: the origin of `VITE_API_BASE_URL` in `ROOT/frontend/.env.production` is in `connect-src`. A changed backend URL then fails CI instead of breaking production.
+  - `test_spa_csp_allows_the_production_api`: the origin of `VITE_API_BASE_URL` in `ROOT/frontend/.env.production` is in `connect-src`. **Limit:** CI builds with the `VITE_API_BASE_URL`, `VITE_FIREBASE_AUTH_DOMAIN` and `VITE_SENTRY_DSN` secrets (`ci.yml` L210–217, L255–262), which override the committed file. This test therefore pins only the committed value. Whether the secret origins match the CSP is an owner checkbox in the PR (Task 7 Step 8), and a CI check on them is a follow-up.
   - `test_spa_csp_allows_fonts_and_org_logo_images` (Review Focus 2): `https://fonts.googleapis.com` is in `style-src`, `https://fonts.gstatic.com` is in `font-src`, and `https:` is in `img-src`.
 - [ ] **Step 2: Run** `python -m unittest discover -s .github/scripts -v` from the worktree root. Expected: the 5 new tests fail (there's no `headers` block); the existing 65 pass.
 - [ ] **Step 3: Implement** the `headers` block per Decisions, with the CSP as one string in table order. Keep `public`, `ignore` and `rewrites` unchanged.
@@ -477,7 +535,8 @@
     - Notes: "API: HSTS, nosniff, DENY, no-referrer and a deny-all CSP on every response (docs pages get a narrower CSP); SPA: CSP, nosniff, DENY via `firebase.json`, HSTS from Firebase Hosting. Browser check on the preview channel is an owner step. Fixed in S4-E."
   - **T-PLAT-06 → TEST.**
     - Evidence: `backend/tests/test_body_limit.py::test_chunked_body_over_limit_is_413_and_read_stops`, `backend/tests/test_body_limit.py::test_file_over_upload_cap_is_413_before_read` and `backend/tests/authz/tenancy/test_agent_body_limit.py::test_agent_upload_without_token_is_401_before_body_read`.
-    - Notes: "Bodies are capped before they're read (1 MiB default, 10 MiB + overhead for file routes, 80 MiB for the agent upload, derived from the schema's list caps); the agent upload authenticates before reading its body. Residual: a valid agent token can still send up to 80 MiB; lowering the list caps is a follow-up. Absorbs T-UPL-06. Fixed in S4-E."
+    - Evidence also includes `backend/tests/authz/tenancy/test_agent_body_limit.py::test_chunked_agent_upload_over_limit_is_413`.
+    - Notes: "Bodies are capped before they're read (1 MiB default, 10 MiB + overhead for file routes, 80 MiB for the agent upload, derived from the schema's list caps); the agent upload authenticates before reading its body, reads one upload at a time and parses off the event loop. Residuals: any self-registered account can enroll an agent and send one upload of up to 80 MiB at a time, a memory risk on a 512 MB instance until the list caps are lowered; the five multipart routes spool up to about 10 MiB per request before authentication. Absorbs T-UPL-06. Fixed in S4-E."
   - **T-PLAT-09 → TEST.**
     - Evidence: `backend/tests/test_health.py::test_health_503_when_database_unreachable`, `backend/tests/test_health.py::test_database_reachable_times_out`.
     - Notes: "`SELECT 1` with a 2 s timeout; 503 with no error text. Render's health check uses `/health`. Fixed in S4-E."
@@ -488,11 +547,16 @@
     - Evidence: `backend/tests/test_domain_checks_egress.py::test_real_http_client_does_not_follow_redirects`, `backend/tests/test_domain_checks_egress.py::test_real_client_redirect_is_rechecked_not_followed` and `backend/tests/test_domain_checks_egress.py::test_http_check_does_not_follow_a_redirect_to_a_non_default_port`.
     - Notes: "Closed in S4-E."
   - **T-DOM-02 → TEST.**
-    - Evidence: the three existing hop tests named in its Notes, plus `::test_real_client_redirect_is_rechecked_not_followed` and `::test_http_check_does_not_follow_a_redirect_to_a_non_default_port`.
+    - Evidence: five ids, each written out in full, because the checker's `EVIDENCE_RE` silently skips a token with no path before `::`:
+      - `backend/tests/test_domain_checks_egress.py::test_http_check_does_not_follow_a_redirect_to_an_internal_host`;
+      - `backend/tests/test_domain_checks_egress.py::test_http_check_does_not_follow_a_redirect_to_an_ip_literal`;
+      - `backend/tests/test_domain_checks_egress.py::test_http_check_stops_after_the_redirect_limit`;
+      - `backend/tests/test_domain_checks_egress.py::test_real_client_redirect_is_rechecked_not_followed`;
+      - `backend/tests/test_domain_checks_egress.py::test_http_check_does_not_follow_a_redirect_to_a_non_default_port`.
     - Notes: drop the "CONTROL rather than TEST" sentences, and keep the description of the guard.
   - **T-UPL-06:** keep `withdrawn:` first in Notes, and append " Closed with T-PLAT-06 in S4-E."
   - **T-AUTH-04 and T-TEN-07 Threat cells:** rewrite in the past tense, "…did not require…", matching the fixed rows (todos, "S4 stage C"; stage-C deferred minor).
-- [ ] **Step 2: OPEN RISK row.** S4 becomes `none: all 14 rows closed in S4 (stages A–E)`.
+- [ ] **Step 2: OPEN RISK row.** S4 becomes `none: all 14 rows closed in S4 (stages A–E); T-UPL-09 reaches operators only with the next agent release (owner step)`.
 - [ ] **Step 3: Recount.** Run this from the worktree root, in one call:
   ```
   python -c "import sys,collections; sys.path.insert(0,'.github/scripts'); import check_threat_model as c; rows,_=c.parse(open('docs/security/threat_model.md',encoding='utf-8').read()); live=[r for r in rows if not r.notes.startswith('withdrawn:')]; print(len(live), collections.Counter(r.cls for r in live))"
@@ -503,7 +567,7 @@
     - **L162:** the new counts; "16 open and scheduled for S5 or owner action".
     - **L17–21:** the threat model, the route-enumerating suite and the attested agent release with an SBOM are done (S1, S3, S4). The SAST/SCA gates are in place (S2) and become blocking once the owner applies T-CI-05. The next work is DAST and a manual AppSec pass (S5) and matcher accuracy against Trivy (S6).
     - **L180:** delete "the rest of roadmap milestone S4 is still in progress".
-    - **L194–197:** "Request bodies are capped before they're read: 1 MiB by default, 10 MB per uploaded file (checked before the file is read), and 80 MiB for the agent upload, derived from its per-list caps. The agent upload is authenticated before its body is read."
+    - **L194–197:** "Request bodies are capped before they're read: 1 MiB by default, 10 MB per uploaded file (checked before the file is loaded into memory; multipart bodies are still spooled before authentication), and 80 MiB for the agent upload, derived from its per-list caps. The agent upload is authenticated before its body is read and handles one upload at a time."
   - **Roadmap:**
     - the heading becomes `#### S4. Authorization assurance — DONE 2026-10-2X (PRs #226–#TBD)` (the controller fills the number after the PR exists);
     - add a `Delivered:` paragraph in the S3 style: 128 routes classified (with the per-class counts from L277), real verification, cross-tenant sweep over 76 org-scoped routes, `[K]` = 20 routes whose authorization changed, all 14 rows TEST, and stage E's platform work;
@@ -536,19 +600,25 @@
   10. `client.go::ValidateServerURL`: accept any `http://`. Then `TestNewRejectsPlainHTTPServer` fails.
   11. `client.go::New`: drop `CheckRedirect`. Then `TestClientDoesNotFollowRedirects` fails.
   12. `firebase.json`: delete `frame-ancestors 'none'`. Then `test_spa_csp_blocks_framing_and_inline_script` fails.
+  13. `main.py`: move the `BodySizeLimitMiddleware` line to just before `CORSMiddleware`, so it's outside the `BaseHTTPMiddleware`s. Then `test_chunked_agent_upload_over_limit_is_413` fails with a 500, and `test_chunked_body_over_limit_is_413_and_read_stops` fails with a 400.
+  14. `inventory.py::agent_upload_slot`: make it a no-op `yield`. Then `test_agent_upload_busy_is_503_unread` fails.
+  15. `services/health.py::cached_database_reachable`: skip the cache. Then `test_concurrent_health_checks_share_one_query` fails.
 - [ ] **Step 8: The controller pushes and opens the draft PR.**
   - Target `main`, title `S4-E: platform hardening (headers, body limit, DB health, agent HTTPS, egress tests)`. Verify `baseRefName == main`. Don't mark it ready.
   - Body (planning level, public repo):
     - start with `> Stacked on #229`;
     - the decisions above: header values and the docs CSP; the SPA origin table; the three body limits; **the agent arithmetic table** (per-item bytes, per-list totals, 72,351,014 total, 80 MiB limit, the non-ASCII caveat, the starter-plan residual); auth before body on the agent route; health behaviour; agent loopback-only HTTP and no redirects;
     - the threat-model counts, `[K]` = 20 and `[N]` = 128, with their reasoning;
-    - an unchecked **"Mutation check (owner)"** section with Step 7's 12 steps;
+    - a **"Decision for Arlo before merge"** section: lower the agent schema's per-list caps (say, 20,000 software, 5,000 services and 5,000 ports) and with them `MAX_AGENT_UPLOAD_BYTES`, or accept the 80 MiB residual, bounded by one upload at a time, until a later stage;
+    - an unchecked **"Mutation check (owner)"** section with Step 7's 15 steps;
+    - an unchecked **"Docs check (owner, before merge)"**: run the backend locally (docker compose or `uvicorn`), open `/docs` and `/redoc` with DevTools open, and expect no CSP violations. Use Swagger's "Try it out" on `/health`;
     - an unchecked **"CSP check (owner, before merge)"** section:
       1. Local: from `C:/dev/ht-s4-e/frontend`, run `npm run build` with your real `frontend/.env.production.local` values. Then, from the worktree root, run `npx --yes firebase-tools serve --only hosting --project hacker-tracker-75f91 --port 5050`. Open `http://localhost:5050` with DevTools open.
       2. Sign in, then visit the Dashboard (map and charts), Org profile (set a logo URL on another `https` host and check that the preview shows), Inventory, Settings (Members, Agents), Integrations and Privacy. Sign out and sign in again. Leave a tab open for more than an hour, or run `await auth.currentUser.getIdToken(true)` in the console, to exercise the token refresh.
       3. Expect **no** `Refused to …` / `Content-Security-Policy` console messages. Record whether the `firebaseapp.com` iframe loads, and which Sentry ingest host is called, if any.
       4. Repeat steps 2–3 on the PR's Firebase preview-channel URL (from the deploy-preview job). Then run `curl -sI <preview-url>` and confirm `content-security-policy`, `x-frame-options: DENY`, `x-content-type-options: nosniff` and `strict-transport-security` (from Firebase).
-      5. Any violation: paste it in the PR; the fix is a follow-up commit, not a weaker policy without review.
+      5. **Secret origins (the unittest can't see them):** in the GitHub repo secrets, the origin of `VITE_API_BASE_URL` must be in `connect-src`, `VITE_FIREBASE_AUTH_DOMAIN` must equal the `frame-src` host (or `frame-src` is dropped per Decisions), and the `VITE_SENTRY_DSN` host must match one of the two ingest wildcards. Check these without pasting values anywhere.
+      6. Any violation: paste it in the PR; the fix is a follow-up commit, not a weaker policy without review. If it's `apis.google.com` or the auth iframe, apply the `initializeAuth` fallback in Decisions.
     - an unchecked **"After deploy (owner)"** section:
       - Render's health check is green;
       - `curl -s https://hacker-tracker-backend.onrender.com/health` shows `"database":"ok"`;
@@ -557,7 +627,9 @@
       - one real agent upload over `https://` still succeeds (201);
       - tag the next agent release so T-UPL-09 reaches operators (owner's call).
 - [ ] **Step 9: Record follow-ups.** The controller writes these to Obsidian `todos.md` under "S4 stage E", with the stage-E gotchas and decisions:
-  - **lower the agent schema's per-list caps** to realistic values (a coordinated schema change), then lower `MAX_AGENT_UPLOAD_BYTES`. Today 80 MiB is a memory risk on the 512 MB starter plan for a valid token;
+  - **lower the agent schema's per-list caps** to realistic values (a coordinated schema change), then lower `MAX_AGENT_UPLOAD_BYTES`, unless Arlo takes this before merge. Today 80 MiB is a memory risk on the 512 MB starter plan for any self-registered account's agent;
+  - a CI step that checks the build secrets' origins (`VITE_API_BASE_URL`, `VITE_FIREBASE_AUTH_DOMAIN`, the Sentry DSN host) against the `firebase.json` CSP without printing them;
+  - the agent upload's rate limit still runs after the body is parsed; the slot is the bound. Consider checking the limit inside `read_agent_payload`;
   - remove `frame-src` if the owner check shows the iframe never loads;
   - multipart routes still spool up to 10 MiB before authentication;
   - S5's ZAP baseline can now fail on missing headers (roadmap L293);
@@ -575,7 +647,7 @@ Not a separate commit: Tasks 2–6 each update their own items. Surveyed 2026-10
 - **`tests/test_cors_guard.py`** (Task 4): settings validation only; unchanged.
 - **`tests/test_domain_checks_egress.py`** (Task 1): additions only.
 - **`tests/authz/`** (Tasks 2–3):
-  - the route table, the count (128) and the dependency cross-check are unchanged: health stays `public` with only `get_engine`, and the agent upload still depends on `get_agent_from_token` and not `get_current_user`;
+  - the route table, the count (128) and the dependency cross-check are unchanged: health stays `public` with only `get_health_engine`, and the agent upload still depends on `get_agent_from_token` and not `get_current_user`;
   - stage A's "valid Firebase token on an agent route → 401" and stage B/D's agent-route cases still get 401 or 201;
   - a failure there means an ordering assumption broke. It goes to the controller and isn't fixed by loosening the case.
 - **OpenAPI:** grep `tests/` for `openapi` and `requestBody`. A test that reads the agent upload's generated request schema is updated to the `openapi_extra` entry (Task 3). None was found in the survey.
