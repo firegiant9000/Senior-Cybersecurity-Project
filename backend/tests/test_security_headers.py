@@ -1,6 +1,7 @@
 """API security headers (T-PLAT-01): every response, including errors, preflights and docs."""
 
 import re
+from html.parser import HTMLParser
 from urllib.parse import urlparse
 
 import pytest
@@ -140,24 +141,40 @@ def _allowed(url: str, sources: list[str]) -> bool:
     return False
 
 
+_EXTERNAL_URL = re.compile(r"(?:https?:)?//")
+
+
+class _TagCollector(HTMLParser):
+    """Records (lower-cased tag name, decoded attrs) for every start tag."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.tags: list[tuple[str, dict[str, str | None]]] = []
+
+    def handle_starttag(self, tag, attrs):
+        self.tags.append((tag, dict(attrs)))
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("path", ["/docs", "/redoc"])
 async def test_docs_csp_allows_the_assets_docs_pages_load(anon_client, path):
     html = (await anon_client.get(path)).text
     directives = _directives(DOCS_CSP)
 
+    parser = _TagCollector()
+    parser.feed(html)
+    parser.close()
+
     found: dict[str, list[str]] = {"script": [], "style": [], "icon": []}
-    for tag in re.finditer(r"<(\w+)\b([^>]*)>", html):
-        name, attrs = tag.group(1).lower(), tag.group(2)
-        for attr in re.finditer(
-            r"""\b(?:src|href)\s*=\s*(["'])((?:https?:)?//[^"']+)\1""", attrs, re.IGNORECASE
-        ):
-            url = attr.group(2)
+    for name, attrs in parser.tags:
+        rels = (attrs.get("rel") or "").lower().split()
+        for attr_name in ("src", "href"):
+            url = attrs.get(attr_name) or ""
+            if not _EXTERNAL_URL.match(url):
+                continue
             if url.startswith("//"):
                 url = "https:" + url
-            rel = re.search(r"""\brel\s*=\s*(["'])([^"']*)\1""", attrs, re.IGNORECASE)
-            rels = rel.group(2).lower().split() if rel else []
-            if name == "script" and re.match(r"\s*src", attr.group(0)):
+            if name == "script" and attr_name == "src":
                 kind, directive = "script", "script-src"
             elif name == "link" and "stylesheet" in rels:
                 kind, directive = "style", "style-src"
@@ -173,9 +190,7 @@ async def test_docs_csp_allows_the_assets_docs_pages_load(anon_client, path):
     if path == "/docs":
         assert found["icon"], "/docs loads no icon"
 
-    inline = [
-        m for m in re.finditer(r"<script\b([^>]*)>", html) if not re.search(r"\bsrc=", m.group(1))
-    ]
+    inline = [attrs for name, attrs in parser.tags if name == "script" and "src" not in attrs]
     if inline:
         assert "'unsafe-inline'" in directives["script-src"]
 
