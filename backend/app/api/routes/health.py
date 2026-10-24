@@ -1,9 +1,12 @@
 """Health check routes."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.core.config import settings
+from app.db.engine import get_health_engine
+from app.services.health import cached_database_reachable
 
 router = APIRouter()
 
@@ -15,14 +18,26 @@ class HealthResponse(BaseModel):
     service: str
     version: str
     environment: str
+    database: str
 
 
 @router.get("/health", response_model=HealthResponse)
-async def health_check() -> HealthResponse:
-    """Root health check endpoint."""
+async def health_check(
+    response: Response,
+    db_engine: AsyncEngine = Depends(get_health_engine),
+) -> HealthResponse:
+    """Liveness plus a `SELECT 1`. 503 when the database is unreachable.
+
+    Unauthenticated and not rate-limited (Render's health check).
+    """
+    ok = await cached_database_reachable(db_engine)
+    if not ok:
+        response.status_code = 503
+    state = "ok" if ok else "unavailable"
     return HealthResponse(
-        status="ok",
+        status=state,
         service=settings.APP_NAME,
         version="0.1.0",
         environment=settings.APP_ENV,
+        database=state,
     )

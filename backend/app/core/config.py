@@ -37,6 +37,10 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     # Database
     DATABASE_URL: str
 
+    # /health: bound on the SELECT 1 and how long a result is shared between callers.
+    HEALTH_DB_TIMEOUT_SECONDS: float = 2.0
+    HEALTH_CACHE_SECONDS: float = 2.0
+
     @model_validator(mode="after")
     def _normalize_database_url(self) -> "Settings":
         """Render (and some other hosts) provide postgres:// which SQLAlchemy
