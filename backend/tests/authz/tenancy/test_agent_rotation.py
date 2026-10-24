@@ -148,6 +148,28 @@ async def test_stale_object_rotation_refused_by_database(world):
     assert (await load_agent(x.enrollment.id)).revoked_at == now + GRACE
 
 
+async def test_claim_refuses_expired_row_in_database(world):
+    """The claim's own `expires_at > now` clause refuses an expired row, with no service pre-check."""
+    org = world.a
+    t0 = frozen_now()
+    x = await issue_agent(org, now=t0 - timedelta(days=1), expires_at=t0)
+    session = AsyncSessionLocal()
+    try:
+        repo = SqlAgentEnrollmentRepository(session)
+        row = await repo.get_by_id(x.enrollment.id, org.org_id)
+        assert row is not None
+
+        claimed = await repo.claim_for_rotation(row, grace_until=t0 + GRACE, now=t0)
+
+        assert claimed is False
+    finally:
+        try:
+            await session.rollback()
+        finally:
+            await session.close()
+    assert (await load_agent(x.enrollment.id)).revoked_at is None
+
+
 async def test_rotation_after_revoke_refused_by_database(world):
     org = world.a
     x = await issue_agent(org)
@@ -240,8 +262,8 @@ async def test_revoke_mid_chain_waits_for_inflight_claim(world, authz_client, as
         )
         ids = await asyncio.wait_for(task, 10)
 
-        assert s3.enrollment.id in ids
-        assert s2_id in ids
+        # X and S1 are already past their grace (unchanged); S2 moves earlier, S3 is new.
+        assert ids == sorted([s2_id, s3.enrollment.id])
         await assert_refused(await authz_client(s3.raw_token), STATUS, world)
     finally:
         if task is not None:

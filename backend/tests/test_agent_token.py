@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -279,10 +280,13 @@ async def test_rotate_refuses_revoked(repo):
         repo, org_id=5, name="a", scopes=None, created_by_user_id=1, now=now
     )
     await agent_token.revoke(repo, x.enrollment, now=now)
+    # A permissive claim: only the service pre-check can refuse.
+    repo.claim_for_rotation = AsyncMock(return_value=True)
 
     with pytest.raises(agent_token.AgentNotActiveError):
         await agent_token.rotate(repo, x.enrollment, created_by_user_id=1, now=now)
 
+    repo.claim_for_rotation.assert_not_awaited()
     assert len(repo._rows) == 1
     assert x.enrollment.revoked_at == now
 
@@ -299,10 +303,12 @@ async def test_rotate_refuses_expired(repo):
         expires_at=now,
         now=now - timedelta(days=1),
     )
+    repo.claim_for_rotation = AsyncMock(return_value=True)
 
     with pytest.raises(agent_token.AgentNotActiveError):
         await agent_token.rotate(repo, x.enrollment, created_by_user_id=1, now=now)
 
+    repo.claim_for_rotation.assert_not_awaited()
     assert len(repo._rows) == 1
     assert x.enrollment.revoked_at is None
 
@@ -315,10 +321,12 @@ async def test_rotate_refuses_in_grace(repo):
     )
     await agent_token.rotate(repo, x.enrollment, created_by_user_id=1, now=now)
     grace_until = x.enrollment.revoked_at
+    repo.claim_for_rotation = AsyncMock(return_value=True)
 
     with pytest.raises(agent_token.AgentNotActiveError):
         await agent_token.rotate(repo, x.enrollment, created_by_user_id=1, now=now)
 
+    repo.claim_for_rotation.assert_not_awaited()
     assert len(repo._rows) == 2
     assert x.enrollment.revoked_at == grace_until
 
