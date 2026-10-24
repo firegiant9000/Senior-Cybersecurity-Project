@@ -104,6 +104,20 @@ def setup_logging(log_level: str = "DEBUG", *, json_output: bool = True) -> None
     logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
+def safe_http_error(exc: BaseException) -> str:
+    """Describe an HTTP client error without its message or request URL.
+
+    httpx exception text embeds the full request URL, which carries API keys
+    when they are sent as query parameters. Log this instead of ``str(exc)``.
+    """
+    name = type(exc).__name__
+    response = getattr(exc, "response", None)
+    status = getattr(response, "status_code", None)
+    if status is not None:
+        return f"{name} (HTTP {status})"
+    return name
+
+
 def get_logger(name: str) -> logging.Logger:
     """Get a logger instance."""
     return logging.getLogger(name)

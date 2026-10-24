@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.logging import safe_http_error
 from app.db.models import EconomicIndicator
 from app.schemas.validators import EconomicIndicatorValidationSchema
 
@@ -240,7 +241,7 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:  # noqa
         )
 
     except (httpx.HTTPError, ValueError) as e:
-        logger.warning("Census API error: %s. Falling back to CSV file.", e)
+        logger.warning("Census API error: %s. Falling back to CSV file.", safe_http_error(e))
         await ingest_region_economics_from_csv(db)
 
 

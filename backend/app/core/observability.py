@@ -49,6 +49,21 @@ _REDACTED = "[redacted]"
 # Best-effort: strip email addresses out of free-form strings.
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
+# URLs embedded in free-form strings (e.g. httpx exception text). API keys are
+# sent as query parameters (Census `key`, BEA `UserID`), so every query value
+# inside a URL is redacted rather than guessing by parameter name.
+_URL_RE = re.compile(r"https?://[^\s'\"<>]+")
+_QUERY_PARAM_RE = re.compile(r"(?<=[?&])([^=&#\s]+)=([^&#\s]*)")
+
+
+def _redact_url_queries(text: str) -> str:
+    if "://" not in text:
+        return text
+    return _URL_RE.sub(
+        lambda m: _QUERY_PARAM_RE.sub(lambda p: f"{p.group(1)}={_REDACTED}", m.group(0)),
+        text,
+    )
+
 
 def _scrub(obj: Any) -> Any:
     """Recursively redact sensitive keys and email-looking strings."""
@@ -66,7 +81,7 @@ def _scrub(obj: Any) -> Any:
     if isinstance(obj, tuple):
         return tuple(_scrub(v) for v in obj)
     if isinstance(obj, str):
-        return _EMAIL_RE.sub(_REDACTED, obj)
+        return _redact_url_queries(_EMAIL_RE.sub(_REDACTED, obj))
     return obj
 
 
