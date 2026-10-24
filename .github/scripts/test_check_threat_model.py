@@ -55,6 +55,7 @@ class CheckThreatModelTests(unittest.TestCase):
                 "func Test(t *testing.T) {}\n"
                 "func TestMain(m *testing.M) {}\n"
                 "func Testlower(t *testing.T) {}\n"
+                "func Testé(t *testing.T) {}\n"
                 "func TestOuter() {\n\tfunc TestInner() {}\n}\n"
             ),
         }.items():
@@ -328,6 +329,7 @@ class CheckThreatModelTests(unittest.TestCase):
             "agent/y_test.go::helper",
             "agent/y_test.go::Testlower",
             "agent/y_test.go::TestMain",  # test-binary entry point, not a test
+            "agent/y_test.go::Testé",  # non-ASCII lowercase after Test
             "agent/y_test.go::TestInner",  # indented
         )
         for ev in bad:

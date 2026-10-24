@@ -38,10 +38,8 @@ TEST_FILE_RE = re.compile(r"^(test_.+\.py|.+_test\.py|.+_test\.go)$")
 THREAT_ROW_RE = re.compile(r"^T-[A-Z]+-\d+")
 PY_TEST_NAME_RE = re.compile(r"^test")
 PY_TEST_CLASS_RE = re.compile(r"^Test")
-# `go test` runs TestX where X doesn't start lowercase; TestMain is the binary's entry point.
-GO_TEST_NAME_RE = re.compile(r"^Test(?![a-z])(?!Main$)")
-PROSE_SUFFIXES =(".md", ".txt", ".rst")
-NO_TABLES =f"no threat tables found (header must be: {HEADER_TEXT})"
+PROSE_SUFFIXES = (".md", ".txt", ".rst")
+NO_TABLES = f"no threat tables found (header must be: {HEADER_TEXT})"
 
 
 @dataclass(frozen=True)
@@ -162,6 +160,11 @@ def _class_body(text: str, cls: str) -> str | None:
     return None
 
 
+def _is_go_test_name(name: str) -> bool:
+    # `go test` runs TestX unless X is lowercase (unicode.IsLower); TestMain is the entry point.
+    return name.startswith("Test") and name != "TestMain" and not name[4:5].islower()
+
+
 def _collectable_class(text: str, cls: str) -> bool:
     """pytest collects `Test*` classes; unittest collects any TestCase subclass."""
     if PY_TEST_CLASS_RE.match(cls):
@@ -233,7 +236,7 @@ def _check_test(row: Row, repo_root: Path) -> list[str]:
             continue
         where = f"class {classes[-1]} in {path}" if classes else path
         if full.suffix == ".go":
-            ok = bool(GO_TEST_NAME_RE.match(name)) and not classes and bool(
+            ok = _is_go_test_name(name) and not classes and bool(
                 re.search(rf"^func\s+{re.escape(name)}\s*\(", scope, re.MULTILINE)
             )
             if not ok:
