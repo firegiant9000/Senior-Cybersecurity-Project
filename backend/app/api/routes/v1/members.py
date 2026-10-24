@@ -333,12 +333,8 @@ async def update_member_role(
                 detail="Cannot demote the last organization owner",
             )
 
-    updated = await repo.update_member_role(member, str(body.role))
-    user = await repo.get_user(updated.user_id)
-    if user is not None and user.org_id == org_id:
-        user.org_role = updated.role
-        session.add(user)
-        await session.commit()
+    user = await repo.get_user(member.user_id)
+    updated = await repo.update_member_role(member, str(body.role), user)
     return MemberRead(
         user_id=updated.user_id,
         email=user.email if user else "",

@@ -9,6 +9,7 @@ access can still be removed.
 
 import importlib
 from collections.abc import AsyncGenerator, Awaitable, Callable
+from datetime import UTC, datetime, timedelta
 
 import pytest
 import pytest_asyncio
@@ -16,6 +17,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.engine import AsyncSessionLocal
+from app.db.invitation import Invitation
 from app.db.membership import Membership
 from app.db.user import User
 from tests.authz.tenancy._roles import ROLE_DENIED
@@ -155,9 +157,14 @@ async def test_failed_commit_leaves_nothing_half_applied(
     failures: list[str] = []
 
     async def failing_commit(self, *args, **kwargs):
-        # Fail the commit that detaches the legacy fields, once. A single-transaction removal
-        # carries the membership change in that same commit, so nothing can land without it.
-        if not failures and any(isinstance(o, User) and o.org_id is None for o in self.dirty):
+        # Fail, once, the commit that carries BOTH changes. A removal split over two commits
+        # (in either order) never has both dirty at once, so it would not hit this and the
+        # test's "failure was triggered" assertion would fail.
+        dirty = list(self.dirty)
+        both = any(isinstance(o, User) and o.org_id is None for o in dirty) and any(
+            isinstance(o, Membership) and o.status == "inactive" for o in dirty
+        )
+        if not failures and both:
             failures.append("boom")
             raise RuntimeError("simulated commit failure")
         return await original(self, *args, **kwargs)
@@ -285,6 +292,122 @@ async def test_legacy_org_elsewhere_is_404_not_cleared(fresh_world, as_user, mak
 
     assert resp.status_code == 404, f"{resp.status_code}: {resp.text}"
     assert (await _state(legacy.user_id, world.a.org_id))["org_id"] == world.a.org_id
+
+
+# ── Role change: both stores in one transaction ─────────────────────────────
+
+
+async def test_failed_commit_on_demotion_leaves_both_stores_unchanged(
+    fresh_world, as_user, make_user, monkeypatch: pytest.MonkeyPatch
+):
+    a = fresh_world.a
+    target = await make_user("adm", legacy_role="admin", membership=("admin", "active"))
+    before = await _state(target.user_id, a.org_id)
+    assert before["memberships"] == [("active", "admin")]
+
+    original = AsyncSession.commit
+    failures: list[str] = []
+
+    async def failing_commit(self, *args, **kwargs):
+        # Fail, once, the commit that carries both role writes. A change split over two commits
+        # never has both dirty at once, so the "was triggered" assertion below would fail.
+        dirty = list(self.dirty)
+        both = any(isinstance(o, User) and o.org_role == "member" for o in dirty) and any(
+            isinstance(o, Membership) and o.role == "member" for o in dirty
+        )
+        if not failures and both:
+            failures.append("boom")
+            raise RuntimeError("simulated commit failure")
+        return await original(self, *args, **kwargs)
+
+    monkeypatch.setattr(AsyncSession, "commit", failing_commit)
+    owner_client = await as_user(a.owner)
+
+    try:
+        resp = await owner_client.patch(
+            _members_url(a.org_id, target.user_id), json={"org_role": "member"}
+        )
+    except RuntimeError:
+        pass
+    else:
+        assert resp.status_code >= 500, f"{resp.status_code}: {resp.text}"
+
+    assert failures, "the failure was never triggered"
+    assert await _state(target.user_id, a.org_id) == before
+
+
+async def test_demotion_updates_both_stores(fresh_world, as_user, make_user):
+    a = fresh_world.a
+    target = await make_user("adm", legacy_role="admin", membership=("admin", "active"))
+
+    resp = await (await as_user(a.owner)).patch(
+        _members_url(a.org_id, target.user_id), json={"org_role": "member"}
+    )
+
+    assert resp.status_code == 200, f"{resp.status_code}: {resp.text}"
+    state = await _state(target.user_id, a.org_id)
+    assert state["memberships"] == [("active", "member")]
+    assert state["org_role"] == "member"
+
+
+# ── Pending invites die with the removal ──────────────────────────────────────
+
+
+async def _add_invite(org_id: int, email: str, inviter_id: int | None, token: str) -> int:
+    async with AsyncSessionLocal() as session:
+        invite = Invitation(
+            email=email,
+            org_id=org_id,
+            inviter_id=inviter_id,
+            role="member",
+            token=token,
+            status="pending",
+            expires_at=datetime.now(UTC) + timedelta(days=3),
+        )
+        session.add(invite)
+        await session.commit()
+        return invite.id
+
+
+async def _invite_status(invite_id: int) -> str:
+    async with AsyncSessionLocal() as session:
+        return (
+            await session.execute(select(Invitation.status).where(Invitation.id == invite_id))
+        ).scalar_one()
+
+
+async def test_removal_revokes_pending_invites_to_and_from_the_user(
+    fresh_world, as_user, make_user
+):
+    a = fresh_world.a
+    legacy = await make_user("legacy", legacy_role="member")
+    real = await make_user("real", legacy_role="member", membership=("member", "active"))
+    admin_client = await as_user(a.admin)
+
+    # A legacy-only user with an invite to their own address (accepting would restore access)
+    # and one they created; a real member with one they created; and an unrelated invite.
+    to_legacy = await _add_invite(a.org_id, legacy.email, a.admin.user_id, f"t-{a.marker}-1")
+    from_legacy = await _add_invite(
+        a.org_id, f"out1-{a.marker}@example.com", legacy.user_id, f"t-{a.marker}-2"
+    )
+    from_real = await _add_invite(
+        a.org_id, f"out2-{a.marker}@example.com", real.user_id, f"t-{a.marker}-3"
+    )
+    unrelated = await _add_invite(
+        a.org_id, f"other-{a.marker}@example.com", a.admin.user_id, f"t-{a.marker}-4"
+    )
+
+    for target in (legacy, real):
+        resp = await admin_client.delete(_members_url(a.org_id, target.user_id))
+        assert resp.status_code == 204, f"{resp.status_code}: {resp.text}"
+
+    assert await _invite_status(to_legacy) == "revoked"
+    assert await _invite_status(from_legacy) == "revoked"
+    assert await _invite_status(from_real) == "revoked"
+    assert await _invite_status(unrelated) == "pending"
+    accept = await (await as_user(legacy)).post(f"{_V1}/invites/t-{a.marker}-1/accept")
+    assert accept.status_code == 404, f"{accept.status_code}: {accept.text}"
+    await _assert_denied_everywhere(await as_user(legacy), a.org_id)
 
 
 # ── Migration 052 ─────────────────────────────────────────────────────────────
