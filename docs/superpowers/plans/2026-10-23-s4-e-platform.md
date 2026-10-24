@@ -15,9 +15,11 @@
 - **The body cap** has two parts. It refuses a declared `Content-Length` over the limit without reading, and it counts the bytes `receive` delivers, raising `HTTPException(413)` once they pass the limit. FastAPI re-raises an `HTTPException` raised while it reads a body (`fastapi/routing.py` L406).
   - **Why innermost.** `SlowAPIMiddleware` and `RequestContextMiddleware` are `BaseHTTPMiddleware`. Their `receive` runs inside an anyio task group, so an exception raised in a `receive` wrapper outside them comes back to FastAPI as an `ExceptionGroup`: a 400 on body params, and a 500 on the agent route (pre-flight review, round 1).
   - Innermost, the wrapper raises in its own frame, after the downstream `receive` has returned. The 413 then goes out through the normal exception handler, with X-Request-ID, CORS and security headers.
-- **The agent upload reads its body after the token check, one or two uploads at a time, off the event loop.** FastAPI reads declared body params before it solves dependencies, so today an unauthenticated caller can make the server read and parse a body of any size on that route.
-  - The payload becomes a dependency that depends on `get_agent_from_token` and on an upload slot (a bounded semaphore; 503 when it's full, without reading). The 80 MiB allowance is only read for a valid agent, and never by more than `AGENT_UPLOAD_CONCURRENCY` requests at once.
-  - Parsing runs in `asyncio.to_thread`, so a large scan doesn't stall `/health`.
+- **The agent upload reads its body after the token check, with large bodies one at a time and a read deadline.** FastAPI reads declared body params before it solves dependencies, so today an unauthenticated caller can make the server read and parse a body of any size on that route.
+  - The payload becomes a dependency that depends on `get_agent_from_token`, and then on a "large upload" slot (an `asyncio.Semaphore`; 503 when it's held, without reading). The slot is taken only when the declared `Content-Length` is over `AGENT_LARGE_UPLOAD_BYTES` (8 MiB) or is absent (chunked). Typical scans (the Go agent sends `Content-Length`; real scans are well under 1 MiB) never contend.
+  - The body read runs under `asyncio.timeout(AGENT_UPLOAD_READ_TIMEOUT_SECONDS)` (60 s), so a trickled body can't hold the slot indefinitely.
+  - The 80 MiB allowance is only read for a valid agent, and at most one large body is in flight.
+  - **This isn't a CPU bound.** pydantic-core holds the GIL while it validates, and the rest of the handler is synchronous. A maximal upload still stalls the event loop for around a second (measured: 0.63 s stall on a 70 MB parse, round-2 review). The bounds are the slot and the list-cap follow-up.
 - **`/health`** runs `SELECT 1` on a dedicated one-connection engine with a 2 s timeout. The result is cached for 2 s and shared by concurrent callers, so flooding `/health` can't exhaust the app's pool or make it report 503. The 503 test points the engine dependency at an unreachable engine; the shared test DB is never stopped.
 - **The Go agent** validates the URL in `upload.New`, and its `http.Client` refuses every redirect.
 
@@ -139,14 +141,16 @@
   - **A valid agent token isn't a real barrier.** Any self-registered account can create an org (`onboarding.py` L25) and enroll an agent (`agents.py` L45).
   - **The 12/minute rate limit doesn't help either.** slowapi checks decorated routes inside the endpoint wrapper, after the payload dependency has already read and parsed the body.
   - **What this stage adds:**
-    - `AGENT_UPLOAD_CONCURRENCY` (default **1**) upload slots: a module-level `asyncio.Semaphore`, taken without waiting before the body is read. If none is free, the response is 503 `"Agent upload busy; retry shortly"` with `Retry-After: 5`, and the body isn't read;
-    - parsing in `asyncio.to_thread`.
+    - one "large upload" slot (`AGENT_UPLOAD_CONCURRENCY`, default **1**): a module-level `asyncio.Semaphore`, taken without waiting before the body is read, but only for bodies declared over `AGENT_LARGE_UPLOAD_BYTES` (8 MiB) or sent without `Content-Length`. If the slot is held, the response is 503 `"Agent upload busy; retry shortly"` with `Retry-After: 5`, and the body isn't read;
+    - a 60 s read deadline (`AGENT_UPLOAD_READ_TIMEOUT_SECONDS`). On expiry the response is 408 `"Agent upload timed out"`, and the slot is released.
     
-    So one maximal upload at a time is the worst case, and the event loop keeps answering `/health`.
+    So at most one large body is in memory at a time, and a slow-loris holds the slot for at most 60 s per request. The loop still stalls while a large payload is parsed (Architecture).
+  - **Residual: a self-registered account can still hold the large slot by sending large bodies back to back,** delaying other orgs' large uploads (small uploads are unaffected). The Go agent doesn't retry a 503 today. A bounded retry that honours `Retry-After` is a follow-up. The real fix is lowering the caps.
   - **The real fix is to lower the per-list caps** to realistic values, which is a schema-contract change coordinated with the agent. Decision 7 fixes "derive from the existing caps", so this stage doesn't change them. **It's a question for Arlo before merge** (PR body), and if Arlo doesn't take it here, a follow-up (Task 7 Step 9).
 - **The agent upload authenticates before it reads the body.** `upload_agent_scan`'s `payload` becomes `Depends(read_agent_payload)`.
-  - `read_agent_payload` depends on `get_agent_from_token` (which FastAPI caches per request, so it's the same call the handler's `enrollment` uses) and on `agent_upload_slot`, a yield dependency that takes and releases a semaphore slot.
-  - It reads `await request.body()`, which the middleware caps, and returns `await asyncio.to_thread(AgentScanPayload.model_validate_json, body)`.
+  - `read_agent_payload` depends on `get_agent_from_token` (which FastAPI caches per request, so it's the same call the handler's `enrollment` uses) and on `agent_upload_slot`, a yield dependency that takes and releases the large-upload slot when the body needs it.
+  - It reads `await request.body()` under the read deadline (the middleware caps the size), and returns `AgentScanPayload.model_validate_json(body)`.
+  - **A client disconnect mid-read** (`starlette.requests.ClientDisconnect`) becomes `HTTPException(400, "Client disconnected")`. Without this, it would be an unhandled 500 and a Sentry event, because a dependency has no FastAPI body-read wrapper around it.
   - The order is: token, then slot, then read. The two sub-dependencies are declared in that order; FastAPI solves them in parameter order. An unauthenticated request never takes a slot.
   - A `ValidationError` becomes `RequestValidationError` with each error's `loc` prefixed by `"body"` (from `exc.errors(include_url=False)`), so the 422 body keeps FastAPI's shape.
   - The route loses its generated OpenAPI request-body schema. `openapi_extra={"requestBody": {"required": True, "description": "AgentScanPayload: see backend/app/schemas/agent_scan.py and tests/fixtures/agent_scan_v1.json", "content": {"application/json": {}}}}` keeps the entry. The contract lives in the schema module and the golden fixture, not in OpenAPI.
@@ -161,7 +165,10 @@
 - **A dedicated engine:** `health_engine = create_async_engine(settings.DATABASE_URL, pool_size=1, max_overflow=0, pool_timeout=1)` in `app/db/engine.py`.
   - If health used the app pool (`pool_size=10, max_overflow=20`, 30 s checkout), a saturated pool would turn into 503s, and Render would restart the instance mid-load.
   - The URL is the same one the app engine uses. Read it from `settings.DATABASE_URL`, after the validator at `config.py` L44 has normalised it.
-- **Cached for 2 s, single-flight:** `HEALTH_CACHE_SECONDS: float = 2.0`. An `asyncio.Lock` guards a `(checked_at, ok)` pair. Concurrent callers inside the window share one query, so an unauthenticated flood of `/health` costs at most one `SELECT 1` every 2 s. Tests clear the cache with `health_service.reset_cache()`.
+- **Cached for 2 s, single-flight:** `HEALTH_CACHE_SECONDS: float = 2.0`. An `asyncio.Lock` guards a `(checked_at, ok)` pair. Concurrent callers inside the window share one query, so an unauthenticated flood of `/health` costs at most one `SELECT 1` every 2 s.
+  - **`checked_at` is taken after the check completes,** and each caller re-reads the cache after it gets the lock. A slow check (up to 2 s against a blackholed DB) then serves all its queued waiters, rather than each running its own serial check.
+  - Tests clear the cache with `health_service.reset_cache()`.
+- **`pool_pre_ping=True` on `health_engine`,** so a connection the server killed (a DB restart) is replaced instead of producing one false 503. `close_db` disposes `health_engine` as well.
 - **Body.** `HealthResponse` gains `database: str`, which is `"ok"` or `"unavailable"`. `status` is `"ok"`, or `"unavailable"` with HTTP 503. `service`, `version` and `environment` are unchanged, so no new information is exposed. There is never any error text.
 - **Stays unauthenticated and rate-limit-exempt.** The routes have no `@limiter.limit` decorator and the limiter has no `default_limits` (`app/core/limiter.py` L7), so nothing changes. Render's checker must never be throttled.
 - **Engine injection:** `app.db.engine.get_health_engine() -> AsyncEngine` returns `health_engine` and is the route's dependency. The 503 test overrides it with an engine on `127.0.0.1:9`, where nothing listens and the connection is refused at once, and disposes it afterwards.
@@ -238,7 +245,8 @@
   HEALTH_CACHE_SECONDS: float = 2.0
 
   # app/db/engine.py
-  health_engine = create_async_engine(settings.DATABASE_URL, pool_size=1, max_overflow=0, pool_timeout=1)
+  health_engine = create_async_engine(settings.DATABASE_URL, pool_size=1, max_overflow=0, pool_timeout=1,
+                                      pool_pre_ping=True)        # also disposed in close_db()
   def get_health_engine() -> AsyncEngine   # returns health_engine
 
   # app/services/health.py
@@ -246,8 +254,8 @@
       # wait_for(connect + execute(text("SELECT 1")), timeout); any Exception or TimeoutError → False,
       # logged as warning "health: database unreachable (%s)" with type(exc).__name__ only
   async def cached_database_reachable(db_engine: AsyncEngine) -> bool
-      # under an asyncio.Lock: reuse the last result if it's younger than HEALTH_CACHE_SECONDS
-      # (time.monotonic), else call database_reachable(db_engine, timeout=HEALTH_DB_TIMEOUT_SECONDS)
+      # under an asyncio.Lock: re-read the cache; reuse it if younger than HEALTH_CACHE_SECONDS (time.monotonic),
+      # else ok = await database_reachable(db_engine, timeout=HEALTH_DB_TIMEOUT_SECONDS); THEN checked_at = monotonic()
   def reset_cache() -> None                # tests only
 
   # app/api/routes/health.py
@@ -275,6 +283,7 @@
     - a fake engine whose `connect()` counts calls and yields a connection whose `execute` returns after `asyncio.sleep(0.05)`;
     - `asyncio.gather(*(cached_database_reachable(fake) for _ in range(20)))` → all `True`, with `connect` called exactly once.
   - `test_health_cache_expires`: `monkeypatch.setattr(settings, "HEALTH_CACHE_SECONDS", 0.0)`; two sequential calls → `connect` called twice.
+  - `test_slow_health_check_serves_queued_callers`: `HEALTH_CACHE_SECONDS` = 0.1. The fake's `execute` sleeps 0.3 s, which is longer than the cache window and shorter than the timeout. 20 concurrent `cached_database_reachable` calls → `connect` called exactly once (the timestamp is taken after the check).
 - [ ] **Step 2: Run** `pytest tests/test_health.py -v`. Expected: an `ImportError` on `get_health_engine` or `database_reachable` (a collection-level red).
 - [ ] **Step 3: Implement** per Interfaces. The docstring of `health_check` says: "Liveness plus a `SELECT 1`. 503 when the database is unreachable. Unauthenticated and not rate-limited (Render's health check)."
 - [ ] **Step 4: Run** `pytest tests/test_health.py tests/authz -q`. Expected: all pass. The route table and dependency cross-check are unchanged: both routes are still `public` with no auth dependency.
@@ -300,7 +309,9 @@
   # app/core/config.py
   MAX_JSON_BODY_BYTES: int = 1024 * 1024            # 1 MiB
   MAX_AGENT_UPLOAD_BYTES: int = 80 * 1024 * 1024    # 80 MiB; arithmetic in the S4-E plan / PR body
-  AGENT_UPLOAD_CONCURRENCY: int = 1                 # agent uploads read and parsed at once
+  AGENT_UPLOAD_CONCURRENCY: int = 1                 # large agent bodies read and parsed at once
+  AGENT_LARGE_UPLOAD_BYTES: int = 8 * 1024 * 1024   # declared size above which (or no Content-Length) the slot is needed
+  AGENT_UPLOAD_READ_TIMEOUT_SECONDS: float = 60.0
 
   # app/core/body_limit.py
   REQUEST_TOO_LARGE = "Request body too large"
@@ -323,14 +334,19 @@
 
   # app/api/routes/v1/inventory.py
   AGENT_UPLOAD_BUSY = "Agent upload busy; retry shortly"
+  AGENT_UPLOAD_TIMEOUT = "Agent upload timed out"
   _agent_upload_slots: asyncio.Semaphore | None      # created lazily from settings.AGENT_UPLOAD_CONCURRENCY
-  async def agent_upload_slot() -> AsyncGenerator[None, None]
-      # if the semaphore is locked → HTTPException(503, AGENT_UPLOAD_BUSY, headers={"Retry-After": "5"});
-      # else acquire, yield, release in finally
+  def _needs_large_slot(request: Request) -> bool     # no/invalid content-length, or > AGENT_LARGE_UPLOAD_BYTES
+  async def agent_upload_slot(request: Request) -> AsyncGenerator[None, None]
+      # not _needs_large_slot → yield (no slot). Else: sem = the semaphore, captured in a LOCAL;
+      # sem.locked() → HTTPException(503, AGENT_UPLOAD_BUSY, headers={"Retry-After": "5"});
+      # else await sem.acquire(); try: yield; finally: sem.release()   (release the local, never the global)
   async def read_agent_payload(request: Request,
                                enrollment: AgentEnrollment = Depends(get_agent_from_token),  # noqa: ARG001
                                _slot: None = Depends(agent_upload_slot)) -> AgentScanPayload
-      # body = await request.body(); return await asyncio.to_thread(AgentScanPayload.model_validate_json, body)
+      # async with asyncio.timeout(settings.AGENT_UPLOAD_READ_TIMEOUT_SECONDS): body = await request.body()
+      #   TimeoutError → HTTPException(408, AGENT_UPLOAD_TIMEOUT); ClientDisconnect → HTTPException(400, "Client disconnected")
+      # ValidationError → RequestValidationError (loc prefixed "body"); return AgentScanPayload.model_validate_json(body)
   # upload_agent_scan: payload: AgentScanPayload = Depends(read_agent_payload); openapi_extra per Decisions
   def _reset_agent_upload_slots() -> None            # tests only: drop the semaphore so the next request rebuilds it
   ```
@@ -370,11 +386,17 @@
     - the same limit and a valid token;
     - the body is an async generator: first the `scan_payload(a)` JSON minus its closing `}`, then 16 KiB chunks of spaces up to 1 MiB, with no `Content-Length`;
     - → exactly 413 (not 400 or 500; this is the case the pre-flight review showed fails if the middleware isn't innermost), the yielded bytes are at most `64 * 1024 + 16 * 1024`, and the snapshot is unchanged.
-  - `test_agent_upload_busy_is_503_unread`:
-    - `_reset_agent_upload_slots()`, then take the only slot directly in the test (`await anext(agent_upload_slot())` on the dependency generator, or acquire the semaphore it creates), under `try/finally`;
-    - a valid token, and a chunked body counting yields → 503 `AGENT_UPLOAD_BUSY`, `Retry-After: 5`, and 0 yielded bytes;
-    - release the slot in `finally`. After release, the same upload with a fresh payload → 201.
-  - `test_agent_upload_without_token_takes_no_slot`: hold the only slot as above; POST with no token → 401, not 503.
+  - An **autouse fixture** in this module calls `_reset_agent_upload_slots()` before and after each test, so a held slot can't leak into later agent tests as spurious 503s.
+  - **Holding the slot:** `gen = agent_upload_slot(<a Request whose scope has no content-length>)`; `await anext(gen)`; release with `await gen.aclose()` in `finally`.
+  - `test_agent_upload_busy_is_503_unread`: hold the slot. With a valid token, send a chunked body that counts yields → 503 `AGENT_UPLOAD_BUSY`, `Retry-After: 5`, and 0 yielded bytes. Release the slot, then repeat the same upload chunked with a fresh payload → 201.
+  - `test_small_agent_upload_skips_the_slot` (Review Focus for M1): hold the slot. A normal `scan_payload(a)` upload with `Content-Length` (under 8 MiB) → 201.
+  - `test_agent_upload_without_token_takes_no_slot`: hold the slot; a chunked POST with no token → 401, not 503.
+  - `test_stalled_agent_upload_times_out_and_frees_the_slot`:
+    - `monkeypatch.setattr(settings, "AGENT_UPLOAD_READ_TIMEOUT_SECONDS", 0.2)`;
+    - a valid token; a chunked generator that yields the first 1 KiB, then `await asyncio.sleep(5)`;
+    - → 408 `AGENT_UPLOAD_TIMEOUT` within 2 s;
+    - afterwards a chunked upload with a fresh payload → 201 (the slot was released).
+  - `test_agent_upload_client_disconnect_is_400`, pure ASGI against `app`: an `http` scope for `UPLOAD`, with a valid token header and no `content-length`. `receive` returns `{"type": "http.disconnect"}`. Expect a 400 start message and no exception (`ClientDisconnect` doesn't reach `ServerErrorMiddleware`).
   - `test_agent_upload_at_limit_is_accepted`: the same limit; a fresh `scan_payload(a)` padded to exactly `64 * 1024` bytes → `ACCEPTED[UPLOAD]` (201).
   - `test_agent_upload_invalid_body_keeps_422_shape`: a valid token; body `{"schema_version": "1.0"}` → 422, and every `detail[i]["loc"][0] == "body"`.
 - [ ] **Step 2: Run** `pytest tests/test_body_limit.py tests/authz/tenancy/test_agent_body_limit.py -v`. Expected: an `ImportError` on `app.core.body_limit` and on the slot names (a collection-level red). Without the reorder, the agent 401 test fails on the yielded-bytes assertion. That's the known T-PLAT-06 gap, not a stop.
@@ -536,7 +558,7 @@
   - **T-PLAT-06 → TEST.**
     - Evidence: `backend/tests/test_body_limit.py::test_chunked_body_over_limit_is_413_and_read_stops`, `backend/tests/test_body_limit.py::test_file_over_upload_cap_is_413_before_read` and `backend/tests/authz/tenancy/test_agent_body_limit.py::test_agent_upload_without_token_is_401_before_body_read`.
     - Evidence also includes `backend/tests/authz/tenancy/test_agent_body_limit.py::test_chunked_agent_upload_over_limit_is_413`.
-    - Notes: "Bodies are capped before they're read (1 MiB default, 10 MiB + overhead for file routes, 80 MiB for the agent upload, derived from the schema's list caps); the agent upload authenticates before reading its body, reads one upload at a time and parses off the event loop. Residuals: any self-registered account can enroll an agent and send one upload of up to 80 MiB at a time, a memory risk on a 512 MB instance until the list caps are lowered; the five multipart routes spool up to about 10 MiB per request before authentication. Absorbs T-UPL-06. Fixed in S4-E."
+    - Notes: "Bodies are capped before they're read (1 MiB default, 10 MiB + overhead for file routes, 80 MiB for the agent upload, derived from the schema's list caps); the agent upload authenticates before reading its body, reads one large body at a time, and has a 60 s read deadline. Residuals: any self-registered account can enroll an agent and send one upload of up to 80 MiB at a time, a memory risk on a 512 MB instance until the list caps are lowered; the five multipart routes spool up to about 10 MiB per request before authentication. Absorbs T-UPL-06. Fixed in S4-E."
   - **T-PLAT-09 → TEST.**
     - Evidence: `backend/tests/test_health.py::test_health_503_when_database_unreachable`, `backend/tests/test_health.py::test_database_reachable_times_out`.
     - Notes: "`SELECT 1` with a 2 s timeout; 503 with no error text. Render's health check uses `/health`. Fixed in S4-E."
@@ -567,7 +589,7 @@
     - **L162:** the new counts; "16 open and scheduled for S5 or owner action".
     - **L17–21:** the threat model, the route-enumerating suite and the attested agent release with an SBOM are done (S1, S3, S4). The SAST/SCA gates are in place (S2) and become blocking once the owner applies T-CI-05. The next work is DAST and a manual AppSec pass (S5) and matcher accuracy against Trivy (S6).
     - **L180:** delete "the rest of roadmap milestone S4 is still in progress".
-    - **L194–197:** "Request bodies are capped before they're read: 1 MiB by default, 10 MB per uploaded file (checked before the file is loaded into memory; multipart bodies are still spooled before authentication), and 80 MiB for the agent upload, derived from its per-list caps. The agent upload is authenticated before its body is read and handles one upload at a time."
+    - **L194–197:** "Request bodies are capped before they're read: 1 MiB by default, 10 MB per uploaded file (checked before the file is loaded into memory; multipart bodies are still spooled before authentication), and 80 MiB for the agent upload, derived from its per-list caps. The agent upload is authenticated before its body is read, and handles one large upload at a time."
   - **Roadmap:**
     - the heading becomes `#### S4. Authorization assurance — DONE 2026-10-2X (PRs #226–#TBD)` (the controller fills the number after the PR exists);
     - add a `Delivered:` paragraph in the S3 style: 128 routes classified (with the per-class counts from L277), real verification, cross-tenant sweep over 76 org-scoped routes, `[K]` = 20 routes whose authorization changed, all 14 rows TEST, and stage E's platform work;
@@ -600,9 +622,10 @@
   10. `client.go::ValidateServerURL`: accept any `http://`. Then `TestNewRejectsPlainHTTPServer` fails.
   11. `client.go::New`: drop `CheckRedirect`. Then `TestClientDoesNotFollowRedirects` fails.
   12. `firebase.json`: delete `frame-ancestors 'none'`. Then `test_spa_csp_blocks_framing_and_inline_script` fails.
-  13. `main.py`: move the `BodySizeLimitMiddleware` line to just before `CORSMiddleware`, so it's outside the `BaseHTTPMiddleware`s. Then `test_chunked_agent_upload_over_limit_is_413` fails with a 500, and `test_chunked_body_over_limit_is_413_and_read_stops` fails with a 400.
+  13. `main.py`: move the `BodySizeLimitMiddleware` line to just before `CORSMiddleware`, so it's outside the `BaseHTTPMiddleware`s. Then `test_chunked_agent_upload_over_limit_is_413` errors with an `ExceptionGroup` (it would be a 500 in production), and `test_chunked_body_over_limit_is_413_and_read_stops` fails with a 400.
   14. `inventory.py::agent_upload_slot`: make it a no-op `yield`. Then `test_agent_upload_busy_is_503_unread` fails.
-  15. `services/health.py::cached_database_reachable`: skip the cache. Then `test_concurrent_health_checks_share_one_query` fails.
+  15. `inventory.py::read_agent_payload`: remove the `asyncio.timeout`. Then `test_stalled_agent_upload_times_out_and_frees_the_slot` fails.
+  16. `services/health.py::cached_database_reachable`: skip the cache. Then `test_concurrent_health_checks_share_one_query` fails.
 - [ ] **Step 8: The controller pushes and opens the draft PR.**
   - Target `main`, title `S4-E: platform hardening (headers, body limit, DB health, agent HTTPS, egress tests)`. Verify `baseRefName == main`. Don't mark it ready.
   - Body (planning level, public repo):
@@ -610,15 +633,16 @@
     - the decisions above: header values and the docs CSP; the SPA origin table; the three body limits; **the agent arithmetic table** (per-item bytes, per-list totals, 72,351,014 total, 80 MiB limit, the non-ASCII caveat, the starter-plan residual); auth before body on the agent route; health behaviour; agent loopback-only HTTP and no redirects;
     - the threat-model counts, `[K]` = 20 and `[N]` = 128, with their reasoning;
     - a **"Decision for Arlo before merge"** section: lower the agent schema's per-list caps (say, 20,000 software, 5,000 services and 5,000 ports) and with them `MAX_AGENT_UPLOAD_BYTES`, or accept the 80 MiB residual, bounded by one upload at a time, until a later stage;
-    - an unchecked **"Mutation check (owner)"** section with Step 7's 15 steps;
+    - an unchecked **"Mutation check (owner)"** section with Step 7's 16 steps;
     - an unchecked **"Docs check (owner, before merge)"**: run the backend locally (docker compose or `uvicorn`), open `/docs` and `/redoc` with DevTools open, and expect no CSP violations. Use Swagger's "Try it out" on `/health`;
     - an unchecked **"CSP check (owner, before merge)"** section:
       1. Local: from `C:/dev/ht-s4-e/frontend`, run `npm run build` with your real `frontend/.env.production.local` values. Then, from the worktree root, run `npx --yes firebase-tools serve --only hosting --project hacker-tracker-75f91 --port 5050`. Open `http://localhost:5050` with DevTools open.
       2. Sign in, then visit the Dashboard (map and charts), Org profile (set a logo URL on another `https` host and check that the preview shows), Inventory, Settings (Members, Agents), Integrations and Privacy. Sign out and sign in again. Leave a tab open for more than an hour, or run `await auth.currentUser.getIdToken(true)` in the console, to exercise the token refresh.
-      3. Expect **no** `Refused to …` / `Content-Security-Policy` console messages. Record whether the `firebaseapp.com` iframe loads, and which Sentry ingest host is called, if any.
-      4. Repeat steps 2–3 on the PR's Firebase preview-channel URL (from the deploy-preview job). Then run `curl -sI <preview-url>` and confirm `content-security-policy`, `x-frame-options: DENY`, `x-content-type-options: nosniff` and `strict-transport-security` (from Firebase).
-      5. **Secret origins (the unittest can't see them):** in the GitHub repo secrets, the origin of `VITE_API_BASE_URL` must be in `connect-src`, `VITE_FIREBASE_AUTH_DOMAIN` must equal the `frame-src` host (or `frame-src` is dropped per Decisions), and the `VITE_SENTRY_DSN` host must match one of the two ingest wildcards. Check these without pasting values anywhere.
-      6. Any violation: paste it in the PR; the fix is a follow-up commit, not a weaker policy without review. If it's `apis.google.com` or the auth iframe, apply the `initializeAuth` fallback in Decisions.
+      3. Repeat sign-in in **Safari (macOS or iOS)** as well as Chrome or Edge. Firebase's popup/redirect resolver may load the auth iframe and `apis.google.com` at startup on Safari and iOS.
+      4. Expect **no** `Refused to …` / `Content-Security-Policy` console messages. Record whether the `firebaseapp.com` iframe loads, and which Sentry ingest host is called, if any.
+      5. Repeat steps 2–4 on the PR's Firebase preview-channel URL (from the deploy-preview job). Then run `curl -sI <preview-url>` and confirm `content-security-policy`, `x-frame-options: DENY`, `x-content-type-options: nosniff` and `strict-transport-security` (from Firebase).
+      6. **Secret origins (the unittest can't see them):** in the GitHub repo secrets, the origin of `VITE_API_BASE_URL` must be in `connect-src`, `VITE_FIREBASE_AUTH_DOMAIN` must equal the `frame-src` host (or `frame-src` is dropped per Decisions), and the `VITE_SENTRY_DSN` host must match one of the two ingest wildcards. Check these without pasting values anywhere.
+      7. Any violation: paste it in the PR; the fix is a follow-up commit, not a weaker policy without review. If it's `apis.google.com` or the auth iframe, apply the `initializeAuth` fallback in Decisions.
     - an unchecked **"After deploy (owner)"** section:
       - Render's health check is green;
       - `curl -s https://hacker-tracker-backend.onrender.com/health` shows `"database":"ok"`;
@@ -630,6 +654,8 @@
   - **lower the agent schema's per-list caps** to realistic values (a coordinated schema change), then lower `MAX_AGENT_UPLOAD_BYTES`, unless Arlo takes this before merge. Today 80 MiB is a memory risk on the 512 MB starter plan for any self-registered account's agent;
   - a CI step that checks the build secrets' origins (`VITE_API_BASE_URL`, `VITE_FIREBASE_AUTH_DOMAIN`, the Sentry DSN host) against the `firebase.json` CSP without printing them;
   - the agent upload's rate limit still runs after the body is parsed; the slot is the bound. Consider checking the limit inside `read_agent_payload`;
+  - a bounded retry in the Go agent that honours `Retry-After` on 503;
+  - one account can keep the single large-upload slot busy with back-to-back large bodies (other orgs' large uploads get 503). Consider a per-org slot or a byte-budget gate if the caps aren't lowered;
   - remove `frame-src` if the owner check shows the iframe never loads;
   - multipart routes still spool up to 10 MiB before authentication;
   - S5's ZAP baseline can now fail on missing headers (roadmap L293);
