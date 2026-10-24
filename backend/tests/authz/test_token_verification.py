@@ -67,12 +67,12 @@ async def test_wrong_issuer_rejected(authz_client, new_user, signing_key):
     await _assert_rejected(authz_client, token, uid)
 
 
-async def test_hs256_token_rejected(authz_client, new_user, signing_key):
+async def test_hs256_token_rejected(authz_client, new_user, signing_key, caplog):
     """Algorithm confusion: HMAC keyed on the served cert PEM must not verify as RS256."""
     uid, email = new_user()
     token = mint_hs256_with_cert_pem(signing_key.cert_pem, uid=uid, email=email)
     assert jwt.get_unverified_header(token)["alg"] == "HS256"
-    await _assert_rejected(authz_client, token, uid)
+    await _assert_rejected(authz_client, token, uid, reason="algorithm", caplog=caplog)
 
 
 @pytest.mark.parametrize(

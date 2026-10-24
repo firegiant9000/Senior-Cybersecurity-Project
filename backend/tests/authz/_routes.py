@@ -1,5 +1,9 @@
 """Route enumeration and dependency cross-check for the authz route table."""
 
+import ast
+import inspect
+import re
+import textwrap
 from collections.abc import Callable
 from typing import get_args
 
@@ -77,6 +81,60 @@ ADMIN_ORG_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("POST", "/api/v1/organizations/{org_id}/retention/run"),
     }
 )
+
+
+# Handlers that enforce org access with inline comparisons (organizations.py
+# get_organization and update_organization) rather than a shared access-check helper.
+INLINE_CHECK_ROUTES: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("GET", "/api/v1/organizations/{org_id}"),
+        ("PUT", "/api/v1/organizations/{org_id}"),
+    }
+)
+
+# The only organization-scoped routes allowed to enforce no membership (min_role None).
+# Each must cite a threat ID in its note.
+NO_MEMBERSHIP_ORG_ROUTES: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("POST", "/api/v1/analytics/events"),
+        ("POST", "/api/v1/organizations/mine/intake-preview"),
+    }
+)
+
+_ACCESS_CHECKS = {"check_org_access", "_check_org_access", "_ensure_org_access"}
+_THREAT_ID = re.compile(r"T-[A-Z]+-\d+")
+
+
+def _calls_access_check(endpoint: Callable) -> bool:
+    try:
+        source = textwrap.dedent(inspect.getsource(inspect.unwrap(endpoint)))
+    except (OSError, TypeError):
+        return False
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Call):
+            func = node.func
+            name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
+            if name in _ACCESS_CHECKS:
+                return True
+    return False
+
+
+def _handler_problems(key: tuple[str, str], spec: RouteSpec, route: BaseRoute) -> list[str]:
+    """in_handler must be true of the handler source; min_role None is an allowlist."""
+    problems: list[str] = []
+    label = f"{key[0]} {key[1]}"
+    if spec.in_handler and key not in INLINE_CHECK_ROUTES:
+        endpoint = getattr(route, "endpoint", None)
+        if endpoint is None or not _calls_access_check(endpoint):
+            problems.append(f"in_handler set but the handler calls no access check: {label}")
+    if spec.cls == "organization-scoped" and spec.min_role is None:
+        if key not in NO_MEMBERSHIP_ORG_ROUTES:
+            problems.append(
+                f"organization-scoped min_role None is not in NO_MEMBERSHIP_ORG_ROUTES: {label}"
+            )
+        elif not _THREAT_ID.search(spec.note):
+            problems.append(f"min_role None route must cite a threat ID in its note: {label}")
+    return problems
 
 
 def _param_names(route: BaseRoute) -> set[str]:
@@ -257,5 +315,6 @@ def check_table(app: FastAPI, table: dict[tuple[str, str], RouteSpec]) -> list[s
                 f"labelled {spec.cls} but get_current_user is not a dependency: {label}"
             )
         problems.extend(_check_roles(key, spec, calls, _param_names(route)))
+        problems.extend(_handler_problems(key, spec, route))
     problems.extend(f"stale: {m} {p}" for (m, p) in table if (m, p) not in seen_keys)
     return problems
