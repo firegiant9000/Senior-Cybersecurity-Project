@@ -203,7 +203,10 @@ async def _load_bea_cache():
         return items
 
     except (httpx.HTTPError, ValueError, TypeError, KeyError) as e:
-        logger.error("Failed to load BEA cache: %s", safe_http_error(e))
+        if isinstance(e, httpx.HTTPError):
+            logger.error("Failed to load BEA cache: %s", safe_http_error(e))
+        else:
+            logger.error("Failed to load BEA cache: %s", e)
         _BEA_CACHE_LOADED = True
         _BEA_CACHE = []
         return []

@@ -53,7 +53,13 @@ _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 # sent as query parameters (Census `key`, BEA `UserID`), so every query value
 # inside a URL is redacted rather than guessing by parameter name.
 _URL_RE = re.compile(r"https?://[^\s'\"<>]+")
-_QUERY_PARAM_RE = re.compile(r"(?<=[?&])([^=&#\s]+)=([^&#\s]*)")
+_QUERY_PARAM_RE = re.compile(r"(?<=[?&])([^=&#?\s]+)=([^&#\s]*)")
+# A bare query string (no scheme/host), as stored by sentry's httpx integration.
+_BARE_QUERY_RE = re.compile(r"([^=&#?\s]+)=([^&#\s]*)")
+
+
+def _redact_bare_query(text: str) -> str:
+    return _BARE_QUERY_RE.sub(lambda p: f"{p.group(1)}={_REDACTED}", text)
 
 
 def _redact_url_queries(text: str) -> str:
@@ -73,6 +79,8 @@ def _scrub(obj: Any) -> Any:
             key_lc = str(k).lower()
             if any(pat in key_lc for pat in _SENSITIVE_KEY_PATTERNS):
                 scrubbed[k] = _REDACTED
+            elif key_lc in ("http.query", "query_string") and isinstance(v, str):
+                scrubbed[k] = _redact_bare_query(v)
             else:
                 scrubbed[k] = _scrub(v)
         return scrubbed
@@ -85,10 +93,30 @@ def _scrub(obj: Any) -> Any:
     return obj
 
 
+def _strip_frame_vars(obj: Any) -> None:
+    """Drop stack-frame local variables (they can hold params dicts and settings)."""
+    if isinstance(obj, dict):
+        obj.pop("vars", None)
+        for v in obj.values():
+            _strip_frame_vars(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            _strip_frame_vars(v)
+
+
+def _before_breadcrumb(crumb: dict[str, Any], _hint: dict[str, Any]) -> dict[str, Any] | None:
+    """Sentry before_breadcrumb hook — breadcrumbs carry request URLs/queries."""
+    try:
+        return _scrub(crumb)
+    except Exception:  # noqa: BLE001 - never block error reporting
+        return None
+
+
 def _before_send(event: dict[str, Any], _hint: dict[str, Any]) -> dict[str, Any] | None:
     """Sentry before_send hook — scrub PII and tag the request_id."""
     try:
         scrubbed = _scrub(event)
+        _strip_frame_vars(scrubbed)
         rid = request_id_ctx.get()
         if rid:
             scrubbed.setdefault("tags", {})["request_id"] = rid
@@ -130,7 +158,10 @@ def init_sentry() -> bool:
                 FastApiIntegration(),
                 AsyncioIntegration(),
             ],
+            include_local_variables=False,  # frame locals can hold keys / settings
             before_send=_before_send,
+            before_send_transaction=_before_send,
+            before_breadcrumb=_before_breadcrumb,
         )
         _log.info("Sentry initialized (env=%s)", settings.SENTRY_ENVIRONMENT or settings.APP_ENV)
         return True
