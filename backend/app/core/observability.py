@@ -54,12 +54,17 @@ _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 # inside a URL is redacted rather than guessing by parameter name.
 _URL_RE = re.compile(r"https?://[^\s'\"<>]+")
 _QUERY_PARAM_RE = re.compile(r"(?<=[?&])([^=&#?\s]+)=([^&#\s]*)")
-# A bare query string (no scheme/host), as stored by sentry's httpx integration.
-_BARE_QUERY_RE = re.compile(r"([^=&#?\s]+)=([^&#\s]*)")
 
 
 def _redact_bare_query(text: str) -> str:
-    return _BARE_QUERY_RE.sub(lambda p: f"{p.group(1)}={_REDACTED}", text)
+    """Redact every value in a bare query string (no scheme/host), e.g. sentry's
+    httpx `http.query` or the inbound `query_string`. Split rather than regex:
+    the input can be client-controlled, so this must stay linear."""
+    pieces = []
+    for piece in text.split("&"):
+        name, sep, _ = piece.partition("=")
+        pieces.append(f"{name}={_REDACTED}" if sep else piece)
+    return "&".join(pieces)
 
 
 def _redact_url_queries(text: str) -> str:

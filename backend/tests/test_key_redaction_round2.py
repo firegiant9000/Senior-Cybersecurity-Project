@@ -219,6 +219,18 @@ def test_scrub_adversarial_question_marks_is_fast():
     assert time.perf_counter() - start < 1.0
 
 
+@pytest.mark.parametrize("field", ["query_string", "http.query"])
+def test_scrub_adversarial_bare_query_is_fast(field):
+    start = time.perf_counter()
+    _scrub({field: "a" * 100_000})
+    assert time.perf_counter() - start < 1.0
+
+
+def test_scrub_bare_query_keeps_names_and_valueless_pieces():
+    out = _scrub({"query_string": f"get=ESTAB&key={KEY}&flag"})
+    assert out["query_string"] == "get=[redacted]&key=[redacted]&flag"
+
+
 # --- 6: non-HTTP errors keep their message ------------------------------------------------------
 
 
