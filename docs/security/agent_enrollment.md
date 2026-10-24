@@ -24,7 +24,12 @@ not collect is summarized on the in-app `/privacy` page and in
 - Each upload carries a fresh `scan_id` + `nonce`; a replayed payload is rejected
   for 24h.
 - Default token lifetime is 365 days. Rotation keeps the old token valid for a
-  **24h grace window** so live hosts don't break mid-swap.
+  **24h grace window** so live hosts don't break mid-swap. Only an active agent
+  can be rotated: a revoked, expired or in-grace agent is refused (409), and
+  the grace window is never extended by rotating again.
+- Revoking an agent also revokes every token in its rotation chain, so revoking
+  the old id after a rotation kills the successor too. Rotations made before
+  this was introduced aren't linked; revoke those by their own id.
 - Agents with no contact for **30 days** are surfaced as *stale* in the admin UI.
 
 ## 1. Enroll a new agent
@@ -69,6 +74,10 @@ Routine hygiene, or when a token may have been exposed.
 2. Update the host (cron/timer/secret manager) with the new token.
 3. The old token keeps working for **24h** — no downtime if you swap within the
    grace window.
+
+Only an active agent can be rotated. An agent that is already in its grace
+window (rotated within the last 24h), revoked or expired is refused with 409;
+rotate its successor instead.
 
 API equivalent: `POST /api/v1/agents/{id}/rotate`.
 

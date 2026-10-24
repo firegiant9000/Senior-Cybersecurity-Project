@@ -274,7 +274,7 @@ Threat-model rows: T-PLAT-06, T-ENR-04, T-UPL-09, T-TOK-07, T-TOK-08, T-AUTH-04,
 - HTTPS-only check on the agent's `--server` URL, with HSTS from the headers work (T-UPL-09).
 - Egress guard regression tests: pin the real HTTP client's `follow_redirects=False`, and test a redirect to a non-default port (T-DOM-09).
 
-**Progress.** Stage A (harness, real verification, route table: 128 routes: public 11, authenticated-global 29, organization-scoped 76, agent 2, administrator 10; 5 behind the M365 flag) — PR #226. Stage B (cross-tenant sweep over 76 organization-scoped routes; T-TEN-10 fixed) — PR #227. Stage C (role rules: owner-only admin management, org admin on 7 destructive routes, verified email for sign-up and invites) — PR #228. S4 is not done.
+**Progress.** Stage A (harness, real verification, route table: 128 routes: public 11, authenticated-global 29, organization-scoped 76, agent 2, administrator 10; 5 behind the M365 flag) — PR #226. Stage B (cross-tenant sweep over 76 organization-scoped routes; T-TEN-10 fixed) — PR #227. Stage C (role rules: owner-only admin management, org admin on 7 destructive routes, verified email for sign-up and invites) — PR #228. Stage D (agent-token lifecycle: end-to-end token tests on both agent routes, chain revocation, active-only rotation) — PR #TBD. S4 is not done.
 
 **Acceptance.** Unclassified routes: 0. Cross-tenant leaks: 0. Routes returning 500 on a denied request: 0. The suite runs with the autouse auth mock disabled. The classification table is committed and counted.
 
