@@ -24,6 +24,9 @@ func TestNewRejectsPlainHTTPServer(t *testing.T) {
 		"api.example.com",
 		"https://",
 		"",
+		"https://user:pw@api.example.com",
+		"https://api.example.com?token=x",
+		"https://api.example.com#x",
 	}
 	for _, raw := range cases {
 		t.Run(raw, func(t *testing.T) {
@@ -57,6 +60,40 @@ func TestNewAllowsHTTPSAndLoopbackHTTP(t *testing.T) {
 				t.Fatalf("BaseURL %q keeps its trailing slash", got)
 			}
 		})
+	}
+}
+
+func TestNewLowerCasesTheHost(t *testing.T) {
+	cases := map[string]string{
+		"http://LOCALHOST:8000":      "http://localhost:8000",
+		"http://LocalHost:8000/":     "http://localhost:8000",
+		"https://API.Example.com":    "https://api.example.com",
+		"http://[::1]:8000":          "http://[::1]:8000",
+		"https://api.example.com/x/": "https://api.example.com/x",
+	}
+	for raw, want := range cases {
+		c, err := New(raw, "ht_abc_def", time.Second)
+		if err != nil {
+			t.Fatalf("New(%q): %v", raw, err)
+		}
+		if c.BaseURL != want {
+			t.Fatalf("New(%q).BaseURL = %q, want %q", raw, c.BaseURL, want)
+		}
+	}
+}
+
+func TestPlainHTTPNeverUsesAProxy(t *testing.T) {
+	t.Setenv("HTTP_PROXY", "http://proxy.invalid:3128")
+	t.Setenv("http_proxy", "http://proxy.invalid:3128")
+	c, err := New("http://localhost:8000", "ht_abc_def", time.Second)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	proxy := c.HTTP.Transport.(*http.Transport).Proxy
+	req, _ := http.NewRequest(http.MethodPost, "http://localhost:8000/x", nil)
+	got, err := proxy(req)
+	if err != nil || got != nil {
+		t.Fatalf("Proxy(http://localhost:8000/x) = %v, %v; want nil, nil", got, err)
 	}
 }
 

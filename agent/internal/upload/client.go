@@ -60,11 +60,25 @@ func New(baseURL, token string, timeout time.Duration) (*Client, error) {
 	if err := ValidateServerURL(baseURL); err != nil {
 		return nil, err
 	}
+	// Rebuild from the parsed URL with the host lower-cased: Go's proxy bypass
+	// matches "localhost" case-sensitively, so "LOCALHOST" would otherwise be
+	// sent, with the token, to HTTP_PROXY in cleartext.
+	u, _ := url.Parse(baseURL) // validated above
+	clean := url.URL{Scheme: u.Scheme, Host: strings.ToLower(u.Host), Path: u.Path, RawPath: u.RawPath}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = func(req *http.Request) (*url.URL, error) {
+		// Plain-HTTP (loopback) traffic never goes through a proxy.
+		if req.URL.Scheme == "http" {
+			return nil, nil
+		}
+		return http.ProxyFromEnvironment(req)
+	}
 	return &Client{
-		BaseURL: strings.TrimRight(baseURL, "/"),
+		BaseURL: strings.TrimRight(clean.String(), "/"),
 		Token:   token,
 		HTTP: &http.Client{
-			Timeout: timeout,
+			Timeout:   timeout,
+			Transport: transport,
 			// The bearer token must never be replayed to another location.
 			CheckRedirect: func(*http.Request, []*http.Request) error { return ErrRedirectRefused },
 		},
@@ -77,6 +91,9 @@ func ValidateServerURL(raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" || u.Hostname() == "" {
 		return fmt.Errorf("%w (got an unparseable or host-less value)", ErrInsecureServer)
+	}
+	if u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" {
+		return fmt.Errorf("%w (got %s://%s with extra URL components)", ErrInsecureServer, u.Scheme, u.Host)
 	}
 	if u.Scheme == "https" {
 		return nil

@@ -111,7 +111,7 @@ Flags (`hacker-tracker scan --help`):
 | `--output <file>` | — | Write JSON to a file (mode `0600`) |
 | `--upload` | — | Upload to the backend |
 | `--include-ports` | — | Also collect listening TCP/UDP ports (needs `ss`) |
-| `--server <url>` | `HT_SERVER` | Backend base URL, e.g. `https://api.example.com`; must be `https://`; `http://` is accepted only for `localhost`, `127.0.0.1` or `[::1]` |
+| `--server <url>` | `HT_SERVER` | Backend base URL, e.g. `https://api.example.com`; must be `https://`; `http://` is accepted only for a loopback address (`localhost`, `127.0.0.0/8`, `[::1]`) |
 | `--api-key <token>` | `HT_API_KEY` | Agent enrollment token `ht_<prefix>_<secret>` |
 | `--timeout <dur>` | — | HTTP timeout for upload/poll (default `30s`) |
 
