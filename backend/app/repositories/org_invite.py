@@ -167,9 +167,35 @@ class SqlOrgInviteRepository:
         await self._session.refresh(membership)
         return membership
 
-    async def remove_member(self, membership: Membership) -> None:
+    async def remove_member(self, membership: Membership, user: User | None) -> None:
+        """Deactivate the membership and detach the user's legacy org, in ONE commit.
+
+        The legacy fields are only cleared when they point at this org (a user whose legacy org
+        is another one keeps it). If the commit fails, neither store changes.
+        """
         membership.status = "inactive"
+        self._clear_legacy_org(user, membership.org_id)
         await self._session.commit()
+
+    async def detach_legacy_member(self, user: User, org_id: int) -> None:
+        """Remove a user whose access comes only from the legacy fields (no membership row)."""
+        self._clear_legacy_org(user, org_id)
+        await self._session.commit()
+
+    def _clear_legacy_org(self, user: User | None, org_id: int) -> None:
+        if user is not None and user.org_id == org_id:
+            user.org_id = None
+            user.org_role = None
+            self._session.add(user)
+
+    async def has_membership_row(self, user_id: int, org_id: int) -> bool:
+        """True if a membership row of any status exists for (user, org)."""
+        result = await self._session.execute(
+            select(func.count(Membership.id)).where(
+                Membership.user_id == user_id, Membership.org_id == org_id
+            )
+        )
+        return int(result.scalar_one()) > 0
 
     async def count_active_owners(self, org_id: int) -> int:
         result = await self._session.execute(

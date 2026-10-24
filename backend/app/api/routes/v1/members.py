@@ -373,23 +373,34 @@ async def remove_member(
     Last-owner protections apply.
     """
     member = await repo.get_member(user_id, org_id)
-    if member is None:
-        raise HTTPException(status_code=404, detail="Member not found")
-    if member.role != OrgRole.MEMBER:
+    user = await repo.get_user(user_id)
+    legacy_only = False
+    if member is not None:
+        role = member.role
+    else:
+        # No active membership. A user whose access comes only from the legacy fields (no
+        # membership row of any status) is still a member of that org and can be removed.
+        legacy_only = (
+            user is not None
+            and user.org_id == org_id
+            and not await repo.has_membership_row(user_id, org_id)
+        )
+        if not legacy_only:
+            raise HTTPException(status_code=404, detail="Member not found")
+        role = user.org_role or OrgRole.MEMBER
+
+    if role != OrgRole.MEMBER:
         _require_owner(current_membership)
-    if member.role == OrgRole.OWNER:
-        owners = await repo.count_active_owners(org_id)
+    if role == OrgRole.OWNER:
+        owners = await repo.count_active_owners(org_id) + (1 if legacy_only else 0)
         if owners <= 1:
             raise HTTPException(
                 status_code=400,
                 detail="Cannot remove the last organization owner",
             )
 
-    await repo.remove_member(member)
-    user = await repo.get_user(member.user_id)
-    if user is not None and user.org_id == org_id:
-        user.org_id = None
-        user.org_role = None
-        session.add(user)
-        await session.commit()
+    if member is not None:
+        await repo.remove_member(member, user)
+    else:
+        await repo.detach_legacy_member(user, org_id)
     return None
