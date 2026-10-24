@@ -15,7 +15,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -38,6 +40,12 @@ type Accepted struct {
 // is newer than this build. main() reports it as a graceful "please upgrade".
 var ErrUpgradeRequired = errors.New("scanner version is below the server minimum; please upgrade")
 
+// ErrInsecureServer is returned when --server is not https:// (loopback http excepted).
+var ErrInsecureServer = errors.New("--server must be an https:// URL; http:// is allowed only for localhost, 127.0.0.1 or [::1]")
+
+// ErrRedirectRefused is returned when the server answers with a redirect.
+var ErrRedirectRefused = errors.New("server redirected the request; refusing to follow (use the final https:// URL as --server)")
+
 // Client uploads scans to a backend base URL ("https://api.example.com", no
 // trailing path) using a bearer token.
 type Client struct {
@@ -48,12 +56,43 @@ type Client struct {
 
 // New builds a Client with a sane default timeout. baseURL is trimmed of a
 // trailing slash so joining the API path never double-slashes.
-func New(baseURL, token string, timeout time.Duration) *Client {
+func New(baseURL, token string, timeout time.Duration) (*Client, error) {
+	if err := ValidateServerURL(baseURL); err != nil {
+		return nil, err
+	}
 	return &Client{
 		BaseURL: strings.TrimRight(baseURL, "/"),
 		Token:   token,
-		HTTP:    &http.Client{Timeout: timeout},
+		HTTP: &http.Client{
+			Timeout: timeout,
+			// The bearer token must never be replayed to another location.
+			CheckRedirect: func(*http.Request, []*http.Request) error { return ErrRedirectRefused },
+		},
+	}, nil
+}
+
+// ValidateServerURL accepts an https:// URL, or http:// only for a loopback
+// host. The error names only scheme://host, never userinfo, path or query.
+func ValidateServerURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" || u.Hostname() == "" {
+		return fmt.Errorf("%w (got an unparseable or host-less value)", ErrInsecureServer)
 	}
+	if u.Scheme == "https" {
+		return nil
+	}
+	if u.Scheme == "http" && isLoopback(u.Hostname()) {
+		return nil
+	}
+	return fmt.Errorf("%w (got %s://%s)", ErrInsecureServer, u.Scheme, u.Host)
+}
+
+func isLoopback(h string) bool {
+	if strings.EqualFold(h, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && ip.IsLoopback()
 }
 
 // Upload POSTs the scan and returns the accepted scan_run summary. The bearer

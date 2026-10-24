@@ -72,7 +72,7 @@ func runScan(args []string) error {
 		outPath      = fs.String("output", "", "write the collected inventory JSON to this file")
 		doUpload     = fs.Bool("upload", false, "upload the inventory to the backend")
 		includePorts = fs.Bool("include-ports", false, "also collect listening TCP/UDP ports (requires `ss`)")
-		server       = fs.String("server", envOr("HT_SERVER", ""), "backend base URL, e.g. https://api.example.com (env HT_SERVER)")
+		server       = fs.String("server", envOr("HT_SERVER", ""), "backend base URL; must be https:// (http:// only for localhost), e.g. https://api.example.com (env HT_SERVER)")
 		apiKey       = fs.String("api-key", envOr("HT_API_KEY", ""), "agent enrollment token ht_<prefix>_<secret> (env HT_API_KEY)")
 		timeout      = fs.Duration("timeout", 30*time.Second, "HTTP timeout for upload/poll")
 	)
@@ -143,7 +143,10 @@ func uploadScan(scan output.Scan, server, apiKey string, timeout time.Duration) 
 	if apiKey == "" {
 		return errors.New("--api-key (or HT_API_KEY) is required to upload")
 	}
-	client := upload.New(server, apiKey, timeout)
+	client, err := upload.New(server, apiKey, timeout)
+	if err != nil {
+		return err
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 

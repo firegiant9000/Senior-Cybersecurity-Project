@@ -111,7 +111,7 @@ Flags (`hacker-tracker scan --help`):
 | `--output <file>` | — | Write JSON to a file (mode `0600`) |
 | `--upload` | — | Upload to the backend |
 | `--include-ports` | — | Also collect listening TCP/UDP ports (needs `ss`) |
-| `--server <url>` | `HT_SERVER` | Backend base URL, e.g. `https://api.example.com` |
+| `--server <url>` | `HT_SERVER` | Backend base URL, e.g. `https://api.example.com`; must be `https://`; `http://` is accepted only for `localhost`, `127.0.0.1` or `[::1]` |
 | `--api-key <token>` | `HT_API_KEY` | Agent enrollment token `ht_<prefix>_<secret>` |
 | `--timeout <dur>` | — | HTTP timeout for upload/poll (default `30s`) |
 
@@ -139,6 +139,8 @@ user-facing walkthrough (enroll → install → rotate → revoke → lost host)
 
 - Uploads go to `POST {server}/api/v1/inventory/scans` with
   `Authorization: Bearer ht_<prefix>_<secret>` over **HTTPS only**.
+  The scanner refuses a plain-HTTP server and never follows a redirect; builds
+  before this change don't enforce this.
 - Each upload carries a fresh `scan_id` (UUIDv4) and `nonce`; the backend rejects
   a duplicate `(scan_id, nonce)` within 24h (`409`), so a captured payload cannot
   be replayed.

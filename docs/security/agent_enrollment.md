@@ -19,8 +19,7 @@ not collect is summarized on the in-app `/privacy` page and in
   affecting the others.
 - The token is shown **once** at enrollment and stored **hashed** server-side —
   there is no "show it again". Treat it like an SSH private key.
-- Transport is `Authorization: Bearer ht_<prefix>_<secret>` over HTTPS. HTTPS is expected and Render terminates TLS, but neither the agent
-  nor the API enforces it yet (T-UPL-09, roadmap S4).
+- Transport is `Authorization: Bearer ht_<prefix>_<secret>` over HTTPS. HTTPS is expected and Render terminates TLS; the agent refuses a non-HTTPS server (loopback excepted) and doesn't follow redirects; the API sends HSTS. Agent builds before the next release don't enforce this.
 - Each upload carries a fresh `scan_id` + `nonce`; a replayed payload is rejected
   for 24h.
 - Default token lifetime is 365 days. Rotation keeps the old token valid for a
