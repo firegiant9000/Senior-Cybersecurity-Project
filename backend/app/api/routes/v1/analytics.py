@@ -6,6 +6,9 @@ event payloads pass through the observability scrubber on the way
 in so we never persist PII even if a caller sends a hostname or
 email by mistake (R10).
 
+Events are always stored under the caller's own organization; a body org_id
+that differs from it is refused (T-TEN-10).
+
 Allowed event types are pinned — unknown types are rejected so clients
 can't grow the schema implicitly.
 """
@@ -66,6 +69,8 @@ async def record_event(
     session: AsyncSession = Depends(get_session),
 ) -> ActivationEventAck:
     """Record one activation event. Best-effort; failures are non-fatal to the UI."""
+    if body.org_id is not None and body.org_id != current_user.org_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     if body.event_type not in ALLOWED_EVENT_TYPES:
         raise HTTPException(status_code=400, detail="Unknown event_type")
 
@@ -76,7 +81,7 @@ async def record_event(
 
     event = ActivationEvent(
         event_type=body.event_type,
-        org_id=body.org_id,
+        org_id=current_user.org_id,
         user_id=current_user.id,
         payload=scrubbed,
     )

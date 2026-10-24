@@ -29,11 +29,14 @@ _log = logging.getLogger(__name__)
 bearer_scheme = HTTPBearer()
 
 
-async def get_current_user(
+EMAIL_NOT_VERIFIED = "Email address not verified"
+EMAIL_MISMATCH = "Signed-in email does not match this account"
+
+
+async def get_token_claims(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-    session: AsyncSession = Depends(get_session),
-) -> User:
-    """Verify Firebase ID token and return (or auto-create) the local User."""
+) -> dict:
+    """Verify the Firebase ID token and return its decoded claims."""
     token = credentials.credentials
     try:
         # check_revoked also rejects tokens belonging to disabled Firebase users.
@@ -48,7 +51,14 @@ async def get_current_user(
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
+    return decoded
 
+
+async def get_current_user(
+    decoded: dict = Depends(get_token_claims),
+    session: AsyncSession = Depends(get_session),
+) -> User:
+    """Return (or auto-create) the local User for the verified token."""
     firebase_uid: str = decoded["uid"]
     email: str = decoded.get("email", "")
 
@@ -90,6 +100,12 @@ async def get_current_user(
 
     # Auto-create on first login
     if user is None:
+        if decoded.get("email_verified") is not True:
+            _log.warning(
+                "Refused to create an account for an unverified email",
+                extra={"reason": "email_not_verified"},
+            )
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=EMAIL_NOT_VERIFIED)
         user = User(
             firebase_uid=firebase_uid,
             email=email,

@@ -18,6 +18,7 @@ fake_domain.updated_at = datetime(2024, 1, 1, tzinfo=UTC)
 
 _ORG_ID = 1
 _CHECK_ORG = "app.api.routes.v1.domains.check_org_access"
+_CHECK_ROLE = "app.api.routes.v1.domains.check_org_role"
 _REPO_CREATE = "app.repositories.org_domain.SqlOrgDomainRepository.create"
 _REPO_LIST = "app.repositories.org_domain.SqlOrgDomainRepository.list_domains"
 _REPO_DELETE = "app.repositories.org_domain.SqlOrgDomainRepository.delete"
@@ -78,6 +79,7 @@ async def test_list_domains(client: AsyncClient):
 async def test_delete_domain(client: AsyncClient):
     with (
         patch(_CHECK_ORG, new=AsyncMock(return_value=None)),
+        patch(_CHECK_ROLE, new=MagicMock(return_value=None)),
         patch(_REPO_DELETE, new=AsyncMock(return_value=True)),
     ):
         resp = await client.delete(f"/api/v1/organizations/{_ORG_ID}/domains/1")
@@ -88,6 +90,7 @@ async def test_delete_domain(client: AsyncClient):
 async def test_delete_domain_not_found(client: AsyncClient):
     with (
         patch(_CHECK_ORG, new=AsyncMock(return_value=None)),
+        patch(_CHECK_ROLE, new=MagicMock(return_value=None)),
         patch(_REPO_DELETE, new=AsyncMock(return_value=False)),
     ):
         resp = await client.delete(f"/api/v1/organizations/{_ORG_ID}/domains/999")

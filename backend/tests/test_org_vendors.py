@@ -18,6 +18,7 @@ fake_vendor.matched_kev_count = 3
 
 _ORG_ID = 1
 _CHECK_ORG = "app.api.routes.v1.vendors._check_org_access"
+_CHECK_ROLE = "app.api.routes.v1.vendors.check_org_role"
 _REPO_LIST = "app.repositories.org_vendor.SqlOrgVendorRepository.list_vendors"
 _REPO_CREATE = "app.repositories.org_vendor.SqlOrgVendorRepository.create"
 _REPO_UPDATE = "app.repositories.org_vendor.SqlOrgVendorRepository.update"
@@ -97,6 +98,7 @@ async def test_update_vendor_not_found(client: AsyncClient):
 async def test_delete_vendor(client: AsyncClient):
     with (
         patch(_CHECK_ORG, new=AsyncMock(return_value=None)),
+        patch(_CHECK_ROLE, new=MagicMock(return_value=None)),
         patch(_REPO_DELETE, new=AsyncMock(return_value=True)),
     ):
         resp = await client.delete(f"/api/v1/organizations/{_ORG_ID}/vendors/1")
@@ -107,6 +109,7 @@ async def test_delete_vendor(client: AsyncClient):
 async def test_delete_vendor_not_found(client: AsyncClient):
     with (
         patch(_CHECK_ORG, new=AsyncMock(return_value=None)),
+        patch(_CHECK_ROLE, new=MagicMock(return_value=None)),
         patch(_REPO_DELETE, new=AsyncMock(return_value=False)),
     ):
         resp = await client.delete(f"/api/v1/organizations/{_ORG_ID}/vendors/999")

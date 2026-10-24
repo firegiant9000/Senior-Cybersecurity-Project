@@ -6,13 +6,29 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // Hoisted Mocks
 // ─────────────────────────────────────────────────────────────────────────────
 
-const { mockNavigate, mockRefreshProfile, mockGetInvite, mockAcceptInvite } = vi.hoisted(() => {
+const {
+  mockNavigate,
+  mockRefreshProfile,
+  mockGetInvite,
+  mockAcceptInvite,
+  mockConfirmVerification,
+  mockResendVerification,
+} = vi.hoisted(() => {
   const mockNavigate = vi.fn()
   const mockRefreshProfile = vi.fn()
   const mockGetInvite = vi.fn()
   const mockAcceptInvite = vi.fn()
+  const mockConfirmVerification = vi.fn()
+  const mockResendVerification = vi.fn()
 
-  return { mockNavigate, mockRefreshProfile, mockGetInvite, mockAcceptInvite }
+  return {
+    mockNavigate,
+    mockRefreshProfile,
+    mockGetInvite,
+    mockAcceptInvite,
+    mockConfirmVerification,
+    mockResendVerification,
+  }
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -40,7 +56,13 @@ vi.mock('react-router-dom', async () => {
 })
 
 vi.mock('../../context/AuthContext', () => ({
-  useAuth: () => ({ refreshProfile: mockRefreshProfile }),
+  useAuth: () => ({
+    refreshProfile: mockRefreshProfile,
+    user: { email: 'user@example.com', emailVerified: true },
+    confirmVerification: mockConfirmVerification,
+    resendVerification: mockResendVerification,
+    logout: vi.fn(),
+  }),
   AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
 
@@ -51,6 +73,7 @@ vi.mock('../../api/members', () => ({
 
 // Import component AFTER mocks
 import AcceptInvitePage from '../AcceptInvitePage'
+import { ForbiddenError } from '../../api/fetchWithAuth'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mock Data
@@ -94,6 +117,60 @@ describe('AcceptInvitePage', () => {
     mockGetInvite.mockResolvedValue(mockInviteData)
     mockAcceptInvite.mockResolvedValue(undefined)
     mockRefreshProfile.mockResolvedValue(undefined)
+    mockConfirmVerification.mockResolvedValue(true)
+    mockResendVerification.mockResolvedValue('sent')
+  })
+
+  describe('Email verification', () => {
+    const clickAccept = async () => {
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Accept & Join/i })).toBeInTheDocument()
+      })
+      fireEvent.click(screen.getByRole('button', { name: /Accept & Join/i }))
+    }
+
+    it('not-verified 403 shows the verify panel', async () => {
+      mockAcceptInvite.mockRejectedValue(new ForbiddenError('Email address not verified'))
+
+      renderPage()
+      await clickAccept()
+
+      expect(await screen.findByText(/Verify your email address to continue/i)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /I've verified my email/i })).toBeInTheDocument()
+    })
+
+    it('verifying retries the accept', async () => {
+      mockAcceptInvite
+        .mockRejectedValueOnce(new ForbiddenError('Email address not verified'))
+        .mockResolvedValueOnce(undefined)
+
+      renderPage()
+      await clickAccept()
+      fireEvent.click(await screen.findByRole('button', { name: /I've verified my email/i }))
+
+      await waitFor(() => {
+        expect(mockConfirmVerification).toHaveBeenCalledTimes(1)
+        expect(mockAcceptInvite).toHaveBeenCalledTimes(2)
+      })
+      expect(
+        mockConfirmVerification.mock.invocationCallOrder[0],
+      ).toBeLessThan(mockAcceptInvite.mock.invocationCallOrder[1])
+      expect(await screen.findByText(/You have joined the organization/i)).toBeInTheDocument()
+    })
+
+    it('mismatch 403 shows plain text', async () => {
+      mockAcceptInvite.mockRejectedValue(
+        new ForbiddenError('Signed-in email does not match this account'),
+      )
+
+      renderPage()
+      await clickAccept()
+
+      expect(
+        await screen.findByText('Signed-in email does not match this account'),
+      ).toBeInTheDocument()
+      expect(screen.queryByText(/Verify your email address to continue/i)).not.toBeInTheDocument()
+    })
   })
 
   describe('Loading & Error States', () => {

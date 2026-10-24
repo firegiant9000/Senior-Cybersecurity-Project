@@ -158,30 +158,43 @@ flowchart LR
 
 ## Security design
 
+- **Threat model.** [docs/security/threat_model.md](docs/security/threat_model.md)
+  is a STRIDE model of 110 threats (40 controlled, 31 tested, 18 accepted, 21
+  open and scheduled for S4/S5 or owner action). CI checks that every row has
+  one classification and that its evidence exists.
 - **Authentication.** Users sign in through Firebase Authentication. The API
   verifies the ID token on every request with the Admin SDK and resolves the
   user's global role (`viewer` / `member` / `admin`) and organization role
   (`member` / `admin` / `owner`). An existing account is linked to a new
   Firebase sign-in only when the email is verified and the account has no
-  Firebase identity yet; revoked and disabled tokens are rejected.
-- **Authorization and data isolation.** Organization-scoped routes resolve the
-  caller's organization server-side and repositories filter by it; global
-  admins can read any organization by design. This is enforced by convention
-  in each handler, not by a route-enumerating test yet; that suite is roadmap
-  milestone S4. Demo organizations are flagged
+  Firebase identity yet (`email_verified` is required for linking, for first
+  sign-in and for invite acceptance: T-AUTH-04); revoked and disabled tokens are
+  rejected.
+- **Authorization and data isolation.** Organization-scoped routes check the
+  caller's organization, either from the path via `check_org_access` or from the
+  caller's own row via `get_current_org`, and repositories filter by it. Global
+  admins can read, change, export and delete any organization by design; this
+  is an operator role granted only by a database change (T-TEN-08). This is enforced per
+  handler and verified by the route-enumerating cross-tenant suite in
+  `backend/tests/authz/tenancy/` (every organization-scoped route has a case);
+  the rest of roadmap milestone S4 is still in progress. Demo organizations are flagged
   and segregated. Data lifecycle endpoints allow per-org export and deletion,
   and a retention job prunes old scan runs and audit rows per org.
 - **Agent tokens and replay protection.** Described above; the enrollment,
   rotation and revocation flow is documented in
   [docs/security/agent_enrollment.md](docs/security/agent_enrollment.md).
-- **Rate limiting.** SlowAPI limits on auth and other sensitive routes.
+- **Rate limiting.** SlowAPI limits on most API routes (in-memory, per
+  process). The data export, deletion and retention routes are not limited yet
+  (T-PLAT-05).
 - **Secrets.** All secrets come from environment variables. `.env.example`
   and `frontend/.env.example` list the names only. The app refuses to start in
   production with the default `SECRET_KEY` or a `localhost` CORS origin. The
   Firebase Admin key is read from `GOOGLE_APPLICATION_CREDENTIALS` or the
   `FIREBASE_SERVICE_ACCOUNT_JSON` variable and is gitignored.
-- **Input boundaries.** Uploaded inventory files are size-limited and
-  filename-sanitized; the agent payload is a versioned schema validated with
+- **Input boundaries.** General file uploads are capped at 10 MB, checked
+  after reading, and filename-sanitized. Inventory CSV imports are capped by row
+  count. The agent payload is capped per list but has no request-size limit yet
+  (T-PLAT-06, roadmap S4); it is a versioned schema validated with
   Pydantic; AI prompts receive organization and finding data only inside a
   JSON data block (above), and a deterministic CI corpus of injection strings
   checks that structure

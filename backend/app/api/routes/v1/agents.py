@@ -39,6 +39,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+NOT_ACTIVE_DETAIL = "Only an active agent can be rotated"
+
 
 @router.post("/enroll", response_model=AgentTokenIssued, status_code=201)
 @limiter.limit(settings.RATE_LIMIT_DATA)
@@ -102,11 +104,17 @@ async def rotate_agent(
     repo: SqlAgentEnrollmentRepository = Depends(get_agent_enrollment_repo),
     session: AsyncSession = Depends(get_session),
 ):
-    """Issue a replacement token; the old one stays valid for the 24h grace window."""
+    """Issue a replacement token; the old one stays valid for the 24h grace window.
+
+    Only an active agent can be rotated: a revoked, expired or in-grace one is a 409.
+    """
     enrollment = await repo.get_by_id(agent_id, org.id)
     if enrollment is None:
         raise HTTPException(status_code=404, detail="Agent not found")
-    issued = await agent_token.rotate(repo, enrollment, created_by_user_id=current_user.id)
+    try:
+        issued = await agent_token.rotate(repo, enrollment, created_by_user_id=current_user.id)
+    except agent_token.AgentNotActiveError as exc:
+        raise HTTPException(status_code=409, detail=NOT_ACTIVE_DETAIL) from exc
     await _audit_safe(
         session,
         actor=current_user,
@@ -130,17 +138,17 @@ async def revoke_agent(
     repo: SqlAgentEnrollmentRepository = Depends(get_agent_enrollment_repo),
     session: AsyncSession = Depends(get_session),
 ):
-    """Revoke an agent immediately (``revoked_at = now``, no grace)."""
+    """Revoke an agent and its whole rotation chain immediately (no grace); repeating is a no-op."""
     enrollment = await repo.get_by_id(agent_id, org.id)
     if enrollment is None:
         raise HTTPException(status_code=404, detail="Agent not found")
-    await agent_token.revoke(repo, enrollment)
+    revoked_ids = await agent_token.revoke(repo, enrollment)
     await _audit_safe(
         session,
         actor=current_user,
         org_id=org.id,
         action="agent.revoke",
-        payload={"agent_id": agent_id},
+        payload={"agent_id": agent_id, "revoked_ids": revoked_ids},
     )
     return None
 

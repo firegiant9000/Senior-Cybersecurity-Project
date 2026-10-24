@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.routes.v1.auth import get_current_user
 from app.core.config import settings
-from app.core.dependencies import check_org_access
+from app.core.dependencies import check_org_access, check_org_role
 from app.core.limiter import limiter
 from app.db.engine import get_session
 from app.db.org_domain import OrgDomain
@@ -190,8 +190,9 @@ async def delete_domain(
     repo: SqlOrgDomainRepository = Depends(get_domain_repo),
     session: AsyncSession = Depends(get_session),
 ):
-    """Remove a domain from the organization."""
+    """Remove a domain from the organization. Requires org admin."""
     await check_org_access(current_user, org_id, session)
+    check_org_role(current_user, "admin")
     try:
         deleted = await repo.delete(domain_id, org_id)
     except SQLAlchemyError:
