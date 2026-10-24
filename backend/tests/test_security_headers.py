@@ -63,6 +63,8 @@ async def test_api_headers_on_representative_responses(
     resp = await c.request(method, path, **kwargs)
     if status is not None:
         assert resp.status_code == status
+    elif method == "OPTIONS":
+        assert resp.status_code in (200, 400)
     assert_headers(resp)
 
 
@@ -95,6 +97,14 @@ async def test_headers_on_unhandled_500():
         assert resp.text == "Internal Server Error"
         assert "boom-secret" not in resp.text
         assert_headers(resp)
+
+        # ServerErrorMiddleware still re-raises, so logging and Sentry see the exception.
+        async with AsyncClient(
+            transport=ASGITransport(app=app, raise_app_exceptions=True),
+            base_url="http://test",
+        ) as c:
+            with pytest.raises(RuntimeError, match="boom-secret"):
+                await c.get(f"{_P}/public/stats")
     finally:
         app.dependency_overrides.pop(get_session, None)
         limiter.reset()
@@ -102,7 +112,7 @@ async def test_headers_on_unhandled_500():
 
 @pytest.mark.asyncio
 async def test_docs_pages_get_the_docs_csp(anon_client):
-    for path in ("/docs", "/redoc"):
+    for path in ("/docs", "/redoc", app.swagger_ui_oauth2_redirect_url):
         resp = await anon_client.get(path)
         assert resp.status_code == 200
         assert_headers(resp, csp=DOCS_CSP)
@@ -136,31 +146,47 @@ async def test_docs_csp_allows_the_assets_docs_pages_load(anon_client, path):
     html = (await anon_client.get(path)).text
     directives = _directives(DOCS_CSP)
 
-    for tag in re.findall(r"<script\b[^>]*>", html):
-        match = re.search(r'\bsrc="(https://[^"]+)"', tag)
-        if match:
-            assert _allowed(match.group(1), directives["script-src"]), match.group(1)
+    found: dict[str, list[str]] = {"script": [], "style": [], "icon": []}
+    for tag in re.finditer(r"<(\w+)\b([^>]*)>", html):
+        name, attrs = tag.group(1).lower(), tag.group(2)
+        for attr in re.finditer(
+            r"""\b(?:src|href)\s*=\s*(["'])((?:https?:)?//[^"']+)\1""", attrs, re.IGNORECASE
+        ):
+            url = attr.group(2)
+            if url.startswith("//"):
+                url = "https:" + url
+            rel = re.search(r"""\brel\s*=\s*(["'])([^"']*)\1""", attrs, re.IGNORECASE)
+            rels = rel.group(2).lower().split() if rel else []
+            if name == "script" and re.match(r"\s*src", attr.group(0)):
+                kind, directive = "script", "script-src"
+            elif name == "link" and "stylesheet" in rels:
+                kind, directive = "style", "style-src"
+            elif (name == "link" and "icon" in rels) or name == "img":
+                kind, directive = "icon", "img-src"
+            else:
+                pytest.fail(f"unclassified external URL in <{name}>: {url}")
+            found[kind].append(url)
+            assert _allowed(url, directives[directive]), url
+
+    assert found["script"], "page loads no external script"
+    assert found["style"], "page loads no external stylesheet"
+    if path == "/docs":
+        assert found["icon"], "/docs loads no icon"
+
     inline = [
         m for m in re.finditer(r"<script\b([^>]*)>", html) if not re.search(r"\bsrc=", m.group(1))
     ]
     if inline:
         assert "'unsafe-inline'" in directives["script-src"]
 
-    for tag in re.findall(r"<link\b[^>]*>", html):
-        match = re.search(r'\bhref="(https://[^"]+)"', tag)
-        if not match:
-            continue
-        url = match.group(1)
-        if "stylesheet" in tag:
-            assert _allowed(url, directives["style-src"]), url
-        elif "icon" in tag:
-            assert _allowed(url, directives["img-src"]), url
-
 
 def test_allowed_helper_is_path_restricted():
     sources = ["https://cdn.jsdelivr.net/npm/redoc@2/", "https://fonts.googleapis.com"]
     assert _allowed("https://cdn.jsdelivr.net/npm/redoc@2/bundles/x.js", sources)
     assert not _allowed("https://cdn.jsdelivr.net/npm/evil@1/x.js", sources)
+    assert not _allowed("https://cdn.jsdelivr.net/npm/redoc@2evil/x.js", sources)
+    assert not _allowed("https://evil.example/npm/redoc@2/x.js", sources)
+    assert not _allowed("https://cdn.jsdelivr.net.evil.com/npm/redoc@2/x.js", sources)
     assert _allowed("https://fonts.googleapis.com/css?family=a", sources)
 
 
