@@ -243,7 +243,7 @@ Work: `docs/security/threat_model.md` covering agent enrollment, agent upload, t
 
 **Evidence produced.** The threat model document.
 
-**Resume potential.** "Wrote a STRIDE threat model for Hacker Tracker's agent enrollment, upload, token lifecycle, tenancy and AI-input paths (110 threats), mapping each to a control, a test or an accepted risk, and used it to drive the authorization suite."
+**Resume potential.** "Wrote a STRIDE threat model for Hacker Tracker's agent enrollment, upload, token lifecycle, tenancy and AI-input paths (111 threats), mapping each to a control, a test or an accepted risk, and used it to drive the authorization suite."
 
 **Interview questions.**
 - Walk me through the spoofing and tampering threats on the agent upload path and how each is controlled.
