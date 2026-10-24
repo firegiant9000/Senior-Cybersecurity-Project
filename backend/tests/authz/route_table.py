@@ -1,15 +1,27 @@
 """Route classification table for the authz suite.
 
 Every route in the app must appear here with the class its handler actually enforces.
-`tests/authz/test_route_table.py` fails on a route that is unclassified, stale, or whose
-class disagrees with its dependency tree (see `_routes.check_table`).
+`tests/authz/test_route_table.py` fails on a route that is unclassified or stale, and
+`_routes.check_table` checks each label against the route's FastAPI dependency tree, both ways:
+- forward: `min_role` must match the role dependency in the tree (global X is
+  `require_role(X)`; `org:X` is `require_org_role(X)` / `require_membership_role(X)`, or
+  membership only for `org:member`); `org_from="path"` needs an org_id parameter and
+  `require_same_org_membership`. A check made in the handler body (`check_org_access`) is not
+  visible in the tree, so those routes carry `in_handler=True`; the marker is rejected where a
+  dependency is visible. The handler-body check itself is exercised by the behavioural tests,
+  not by this table.
+- reverse: `require_role("admin")` forces the administrator class; any org dependency or
+  org_id/organization_id parameter forces organization-scoped (except the explicit
+  `ADMIN_ORG_ROUTES` allowlist of admin data-lifecycle routes).
+Not checked here: the body-derived org (`org_from="body"`) and the agent's own org.
 
 Classes:
 - public: no auth dependency.
 - authenticated-global: any signed-in user (optionally a global role floor); no org-owned data.
 - organization-scoped: reads or writes rows owned by one org. `org_from` says where the org
-  comes from: the request path/query ("path"), the caller's own org ("caller"), or a looked-up
-  resource ("resource"). `min_role` is the org role enforced today ("org:member" = membership only).
+  comes from: the request path/query ("path"), the caller's own org ("caller"), a looked-up
+  resource ("resource") or the request body ("body"). `min_role` is the org role enforced today
+  ("org:member" = membership only); None where no membership is enforced at all.
 - agent: authenticated by agent bearer token only.
 - administrator: requires the global admin role.
 """
@@ -20,7 +32,7 @@ from typing import Literal
 RouteClass = Literal[
     "public", "authenticated-global", "organization-scoped", "agent", "administrator"
 ]
-OrgFrom = Literal["path", "caller", "resource"]
+OrgFrom = Literal["path", "caller", "resource", "body"]
 
 
 @dataclass(frozen=True)
@@ -30,6 +42,7 @@ class RouteSpec:
         None  # "viewer"|"member"|"admin" (global) or "org:member"|"org:admin"|"org:owner"
     )
     org_from: OrgFrom | None = None
+    in_handler: bool = False  # the org/role check runs in the handler body, not a dependency
     flag: str | None = None
     note: str = ""
 
@@ -53,13 +66,22 @@ _VIEWER = RouteSpec("authenticated-global", min_role="viewer")
 _SIGNED_IN = RouteSpec("authenticated-global")
 _ADMIN = RouteSpec("administrator", min_role="admin")
 _AGENT = RouteSpec("agent")
-_ORG_MEMBER_PATH = RouteSpec("organization-scoped", min_role="org:member", org_from="path")
+# Path-org routes whose access check is check_org_access() in the handler body.
+_ORG_MEMBER_PATH = RouteSpec(
+    "organization-scoped", min_role="org:member", org_from="path", in_handler=True
+)
+# Path-org routes guarded by the require_same_org_membership dependency.
+_ORG_MEMBER_MEMBERSHIP = RouteSpec("organization-scoped", min_role="org:member", org_from="path")
 _ORG_ADMIN_PATH = RouteSpec("organization-scoped", min_role="org:admin", org_from="path")
 _ORG_MEMBER_CALLER = RouteSpec("organization-scoped", min_role="org:member", org_from="caller")
 _ORG_ADMIN_CALLER = RouteSpec("organization-scoped", min_role="org:admin", org_from="caller")
 _T_TEN_05 = "T-TEN-05: intent org:admin"
 _DESTRUCTIVE_PATH = RouteSpec(
-    "organization-scoped", min_role="org:member", org_from="path", note=_T_TEN_05
+    "organization-scoped",
+    min_role="org:member",
+    org_from="path",
+    in_handler=True,
+    note=_T_TEN_05,
 )
 
 
@@ -68,6 +90,7 @@ def _m365(note: str = "", *, destructive: bool = False) -> RouteSpec:
         "organization-scoped",
         min_role="org:member",
         org_from="path",
+        in_handler=True,
         flag=_M365,
         note=_T_TEN_05 if destructive else note,
     )
@@ -153,9 +176,9 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
             f"{_MINE}/intake-preview",
             RouteSpec(
                 "organization-scoped",
-                min_role="org:member",
+                min_role=None,
                 org_from="caller",
-                note="org optional (pre-onboarding); nothing persisted",
+                note="org optional (pre-onboarding); no membership enforced; nothing persisted",
             ),
         ),
         ("POST", f"{_MINE}/intake/skip", _ORG_MEMBER_CALLER),
@@ -180,6 +203,7 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
                 "organization-scoped",
                 min_role="org:member",
                 org_from="path",
+                in_handler=True,
                 note="legacy org_id or active Membership",
             ),
         ),
@@ -190,6 +214,7 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
                 "organization-scoped",
                 min_role="org:admin",
                 org_from="path",
+                in_handler=True,
                 note="global member floor; legacy org_role owner/admin",
             ),
         ),
@@ -207,8 +232,9 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
             RouteSpec(
                 "organization-scoped",
                 min_role="org:member",
-                org_from="path",
-                note="org id comes from the request body",
+                org_from="body",
+                in_handler=True,
+                note="body.organization_id checked in the handler",
             ),
         ),
         ("GET", f"{_V1}/assessments/{{org_id}}", _ORG_MEMBER_PATH),
@@ -220,6 +246,7 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
                 "organization-scoped",
                 min_role="org:member",
                 org_from="resource",
+                in_handler=True,
                 note="route loads the submission, then checks its org (T-TEN-11)",
             ),
         ),
@@ -230,6 +257,7 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
                 "organization-scoped",
                 min_role="org:member",
                 org_from="resource",
+                in_handler=True,
                 note=f"{_T_TEN_05}; T-TEN-11",
             ),
         ),
@@ -296,12 +324,9 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
             f"{_V1}/analytics/events",
             RouteSpec(
                 "organization-scoped",
-                min_role="org:member",
-                org_from="path",
-                note=(
-                    "T-TEN-10: org id in the body is not bound to the caller; write-only"
-                    "; org id from the request body"
-                ),
+                min_role=None,
+                org_from="body",
+                note="T-TEN-10: body.org_id is not bound to the caller; write-only",
             ),
         ),
         # --- domains -----------------------------------------------------------------
@@ -341,8 +366,8 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
             f"{_V1}/invites/{{token}}/accept",
             RouteSpec("authenticated-global", note="invite token plus email match; T-AUTH-04"),
         ),
-        ("GET", f"{_ORGS}/{{org_id}}/members", _ORG_MEMBER_PATH),
-        ("GET", f"{_V1}/orgs/{{org_id}}/members", _ORG_MEMBER_PATH),
+        ("GET", f"{_ORGS}/{{org_id}}/members", _ORG_MEMBER_MEMBERSHIP),
+        ("GET", f"{_V1}/orgs/{{org_id}}/members", _ORG_MEMBER_MEMBERSHIP),
         (
             "PUT",
             f"{_ORGS}/{{org_id}}/members/{{user_id}}",

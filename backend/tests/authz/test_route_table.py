@@ -32,6 +32,73 @@ def test_cross_check_catches_mislabel():
     assert "stale: GET /api/v1/nope" in check_table(app, stale)
 
 
+def _relabel(key: tuple[str, str], spec: RouteSpec) -> list[str]:
+    table = dict(ROUTES)
+    assert key in table, f"{key} is not in the route table"
+    table[key] = spec
+    label = f"{key[0]} {key[1]}"
+    return [p for p in check_table(app, table) if p.endswith(label)]
+
+
+ORG_ADMIN_ROUTE = ("DELETE", "/api/v1/agents/{agent_id}")  # require_org_role("admin")
+ORG_MEMBER_ROUTE = ("GET", "/api/v1/organizations/mine/risk")  # get_current_org
+PATH_ADMIN_ROUTE = ("GET", "/api/v1/organizations/{org_id}/invites")  # require_membership_role
+PATH_MEMBER_ROUTE = ("GET", "/api/v1/organizations/{org_id}/members")  # same-org membership
+HANDLER_ROUTE = ("GET", "/api/v1/organizations/{org_id}/vendors")  # check_org_access in handler
+ADMIN_ROUTE = ("POST", "/api/v1/ingest/trigger")  # require_role("admin")
+VIEWER_ROUTE = ("GET", "/api/v1/ingest/runs")  # require_role("viewer")
+
+
+def test_org_role_mislabels_are_caught():
+    member_caller = RouteSpec("organization-scoped", "org:member", org_from="caller")
+    admin_caller = RouteSpec("organization-scoped", "org:admin", org_from="caller")
+    assert _relabel(ORG_ADMIN_ROUTE, member_caller)
+    assert _relabel(ORG_MEMBER_ROUTE, admin_caller)
+    assert not _relabel(ORG_ADMIN_ROUTE, admin_caller)
+    assert not _relabel(ORG_MEMBER_ROUTE, member_caller)
+    member_path = RouteSpec("organization-scoped", "org:member", org_from="path")
+    admin_path = RouteSpec("organization-scoped", "org:admin", org_from="path")
+    assert _relabel(PATH_ADMIN_ROUTE, member_path)
+    assert _relabel(PATH_MEMBER_ROUTE, admin_path)
+
+
+def test_admin_route_relabelled_lower_is_caught():
+    assert _relabel(ADMIN_ROUTE, RouteSpec("authenticated-global", min_role="viewer"))
+    assert _relabel(ADMIN_ROUTE, RouteSpec("authenticated-global"))
+    assert _relabel(VIEWER_ROUTE, RouteSpec("authenticated-global", min_role="member"))
+    assert _relabel(VIEWER_ROUTE, RouteSpec("authenticated-global"))
+
+
+def test_org_dependency_route_labelled_global_is_caught():
+    assert _relabel(ORG_MEMBER_ROUTE, RouteSpec("authenticated-global"))
+    assert _relabel(ORG_ADMIN_ROUTE, RouteSpec("authenticated-global"))
+    assert _relabel(PATH_MEMBER_ROUTE, RouteSpec("authenticated-global"))
+    # A bare org_id path parameter is enough, even with no org dependency.
+    assert _relabel(HANDLER_ROUTE, RouteSpec("authenticated-global", min_role="viewer"))
+
+
+def test_global_admin_dependency_requires_administrator_class():
+    assert _relabel(ADMIN_ROUTE, RouteSpec("organization-scoped", "org:admin", org_from="path"))
+
+
+def test_in_handler_marker_must_be_explicit_and_truthful():
+    in_handler = RouteSpec("organization-scoped", "org:member", org_from="path", in_handler=True)
+    plain = RouteSpec("organization-scoped", "org:member", org_from="path")
+    assert not _relabel(HANDLER_ROUTE, in_handler)
+    assert _relabel(HANDLER_ROUTE, plain), "a path-org route with no visible check needs the marker"
+    assert _relabel(PATH_MEMBER_ROUTE, in_handler), "marker on a route with a visible dependency"
+
+
+def test_body_org_routes_carry_no_path_claim():
+    for key in (
+        ("POST", "/api/v1/assessments/"),
+        ("POST", "/api/v1/analytics/events"),
+    ):
+        assert ROUTES[key].org_from == "body"
+    assert ROUTES[("POST", "/api/v1/analytics/events")].min_role is None
+    assert ROUTES[("POST", "/api/v1/organizations/mine/intake-preview")].min_role is None
+
+
 def test_duplicate_entry_rejected():
     entry = ("GET", "/x", RouteSpec("public"))
     with pytest.raises(ValueError, match="duplicate: GET /x"):
