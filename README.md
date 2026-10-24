@@ -17,8 +17,8 @@ plain-English executive report.
 > **Direction (2026-09):** Hacker Tracker is developed as an application-security
 > and DevSecOps reference implementation, not as a startup. The next work is
 > assurance of the product itself. The threat model, the route-enumerating
-> authorization suite and the attested agent release with an SBOM are done (S1,
-> S3, S4). The SAST/SCA gates are in place (S2) and become blocking once the
+> authorization suite and the attested agent release with an SBOM are done
+> (S3, S4 and S1 respectively). The SAST/SCA gates are in place (S2) and become blocking once the
 > owner applies T-CI-05. The next work is DAST and a manual AppSec pass (S5) and
 > matcher accuracy measured against Trivy on real images (S6). See
 > [docs/PRODUCT_VIABILITY_ROADMAP.md](docs/PRODUCT_VIABILITY_ROADMAP.md) and
