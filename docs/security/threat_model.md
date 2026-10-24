@@ -39,7 +39,7 @@ Hacker Tracker is a vulnerability-intelligence web app for small organizations.
 - Users sign in with Firebase Authentication and use a React frontend served from Firebase Hosting.
 - The frontend calls a FastAPI backend on Render, which stores its data in Postgres.
 - A read-only Linux agent, released from this repository's GitHub Actions, uploads a host's software inventory with a per-agent bearer token.
-- The backend ingests public vulnerability feeds (NVD, CISA KEV, FIRST EPSS), matches them against each organization's inventory, and can ask the Gemini API for a plain-language summary.
+- The backend ingests public vulnerability feeds (NVD, CISA KEV, FIRST EPSS) and public economic data (US Census, BEA), matches them against each organization's inventory, and can ask the Gemini API for a plain-language summary.
 
 ```mermaid
 flowchart LR
@@ -58,7 +58,7 @@ flowchart LR
   end
   subgraph TB4["TB4: Third-party services"]
     FA["Firebase Auth"]
-    FEEDS["NVD / CISA KEV / FIRST EPSS"]
+    FEEDS["NVD / CISA KEV / FIRST EPSS / Census / BEA"]
     GEM["Gemini API"]
     OSINT["HIBP / Shodan / OTX / crt.sh"]
   end
@@ -91,7 +91,7 @@ flowchart LR
 
 1. **TB1 → TB2: client to backend.** Every request is untrusted until authenticated, either with a Firebase ID token (humans) or an agent bearer token (agents).
 2. **TB2 → TB3: backend to Postgres.** Tenancy is enforced in the backend, by each handler and repository. The database has no row-level security.
-3. **TB2 → TB4: backend to third parties.** Feed content, model output and lookup results (HIBP, Shodan, OTX, crt.sh) are untrusted input to the backend. Org data sent to Gemini, and org domains sent to the lookup services, leave our control. The domain checks also probe a host the org names, so where the backend connects is itself attacker-influenced (DOM).
+3. **TB2 → TB4: backend to third parties.** Feed content (including Census and BEA data), model output and lookup results (HIBP, Shodan, OTX, crt.sh) are untrusted input to the backend. Org data sent to Gemini, and org domains sent to the lookup services, leave our control. The domain checks also probe a host the org names, so where the backend connects is itself attacker-influenced (DOM).
 4. **TB5 → TB1/TB2: CI to production and to consumers.** Workflows hold deploy credentials and mint release attestations.
 5. **Organization to organization, inside TB2/TB3.** This is a logical boundary: one org's members must not reach another org's data. Global admins cross it by design (T-TEN-08).
 
@@ -101,7 +101,7 @@ flowchart LR
 - **Agent tokens:** the raw token on the agent host, and its hash in the database.
 - **Identities:** Firebase identities and the user↔org memberships and roles.
 - **Release artifacts:** the agent binaries and the trust in their provenance.
-- **Credentials:** the deploy credentials (Firebase service account, Render deploy hook) and the API keys (NVD, Gemini, HIBP, Shodan, OTX).
+- **Credentials:** the deploy credentials (Firebase service account, Render deploy hook) and the API keys (NVD, Census, BEA, Gemini, HIBP, Shodan, OTX).
 - **The backend's network position:** whatever the Render service can reach that the internet can't. The domain checks must not lend it out (DOM).
 - **M365 integration secrets:** the stored Microsoft 365 OAuth tokens (encrypted at rest) and the `M365_FERNET_KEY` that encrypts them. The integration is disabled in production (T-PLAT-16).
 - **Personal data:** the PII listed in [pii_inventory.md](pii_inventory.md), mainly email addresses and IP addresses in logs.
@@ -197,7 +197,7 @@ flowchart LR
 | T-ING-07 | T | A failed or partial sync is reported as completed, so data freshness looks green. | OPEN | milestone: S5; item: manual AppSec findings (EPSS batch errors and NVD 429s mark the run partial) | |
 | T-ING-08 | E | A non-admin triggers, retries or cancels ingestion runs. | CONTROL | `backend/app/api/routes/v1/ingest.py::trigger_ingestion` (L613) | Requires the global admin role. The trigger tests call the function directly, bypassing the role check; see T-TEN-12. |
 | T-ING-09 | D | Concurrent runs of the same source corrupt data or double the load. | TEST | `backend/tests/test_ingest_run_behaviors.py::test_run_ingestion_skips_when_lock_held`, `backend/tests/test_ingest_lock.py::test_acquire_lock_contention` | A Postgres advisory lock per source. |
-| T-ING-10 | I | The NVD API key is sent in a URL query string on two enrichment paths and can end up in error logs. | OPEN | milestone: S5; item: manual AppSec findings (send the NVD key as a header on every path) | The main ingestors already send it as a header. Exposure is limited to people who can read the operator's logs. Shodan's API requires its key as a query parameter, so the same logging care applies there. Found while writing the model. |
+| T-ING-10 | I | The NVD API key (two enrichment paths), the Census key (`backend/app/api/routes/v1/economics.py` and `backend/app/ingestors/econ.py`) and the BEA key (`economics.py`) are sent in URL query strings, so they can end up in error logs, and in one route's error response. | OPEN | milestone: S5; item: manual AppSec findings (send the keys as headers where the API allows it, or redact URLs in logged and returned errors) | The main NVD ingestors already send the key as a header. The economics route and the economics ingestor log exceptions whose text can include the request URL, and the BEA error path also returns the exception text in its 502 response. Log exposure is limited to people who can read the operator's logs; the response path reaches the caller. Shodan's API requires its key as a query parameter, so the same care applies there. Found while writing the model. |
 | T-ING-11 | I | The public `/api/v1/ingest/health` endpoint reveals per-source staleness and failure counts. | ACCEPTED | reason: intended for external uptime monitors; it shows no tenant data; owner: Arlo; review: 2027-04-22 | |
 
 ## Domain checks: outbound probes (DOM)
@@ -257,7 +257,7 @@ This section builds on the S5a case study, [docs/ai/case-study.md](../ai/case-st
 | T-CI-04 | I | Checkouts leave `GITHUB_TOKEN` in the git config while third-party build code runs. | OPEN | milestone: OWNER; item: `persist-credentials: false` on the remaining checkouts | Missing in `ci.yml`, `matcher-regression.yml` and `secret-scan.yml`. Most of those tokens are `contents: read`. |
 | T-CI-05 | T | Code reaches `main` without the security gates passing or without review. | OPEN | milestone: OWNER; item: required checks and code-scanning rule on `main`, and Dependabot security updates | The `main` ruleset is applied (no deletion, no force-push, a PR required, five required checks). It doesn't require the Security, CodeQL or Secret scan jobs, requires 0 approvals, and admins can bypass it. Dependabot security updates are off. Checked 2026-10-22. |
 | T-CI-06 | I | The Render deploy hook URL leaks or is triggered from an untrusted context. | CONTROL | `.github/workflows/ci.yml::jobs.deploy-backend` (L308) | Used only on pushes to `main`, through an environment variable; it is never echoed. |
-| T-CI-07 | I | A secret is committed to the repository. | CONTROL | `.github/workflows/secret-scan.yml::gitleaks` (L16) | Gitleaks scans the full history on every PR, and GitHub push protection is on. |
+| T-CI-07 | I | A secret is committed to the repository. | CONTROL | `.github/workflows/secret-scan.yml::gitleaks` (L16) | Gitleaks scans each PR's commits, and the full history on every push to `main` and on the weekly schedule. GitHub push protection is on. |
 | T-CI-08 | T | A vulnerable dependency ships in the backend, the frontend or the image. | CONTROL | `.github/workflows/security.yml::jobs.pip-audit` (L74), `.github/workflows/security.yml::jobs.trivy` (L135) | pip-audit with hash-pinned lockfiles, npm audit, govulncheck and Trivy, all failing the job (blocking once T-CI-05 is applied). |
 
 ## Platform-wide (PLAT)
@@ -265,7 +265,7 @@ This section builds on the S5a case study, [docs/ai/case-study.md](../ai/case-st
 | ID | STRIDE | Threat | Class | Evidence | Notes |
 |----|--------|--------|-------|----------|-------|
 | T-PLAT-01 | T | Clickjacking, MIME sniffing and missing transport security, because no security headers are sent by the API or by Firebase Hosting. | OPEN | milestone: S4; item: security headers middleware and a `headers` block in `firebase.json` | No CSP, HSTS, X-Frame-Options or nosniff anywhere. |
-| T-PLAT-02 | S | A page on another origin calls the API with a user's credentials. | TEST | `backend/tests/test_cors_guard.py::test_cors_localhost_blocked_in_production` | The CORS allowlist comes from settings, and production refuses `localhost` origins. The API uses bearer tokens, not cookies, which also limits CSRF. |
+| T-PLAT-02 | S | A page on another origin calls the API with a user's credentials. | CONTROL | `backend/app/api/routes/v1/auth.py::bearer_scheme` (L29), `backend/app/main.py::CORSMiddleware` (L201), `backend/app/core/config.py::CORS_ORIGINS` (L69) | Credentials are read from the `Authorization: Bearer` header (`HTTPBearer`), not from cookies, which also limits CSRF. The CORS allowlist comes from settings, and production refuses `localhost` origins. The localhost-in-production guard is tested by `test_cors_guard.py::test_cors_localhost_blocked_in_production`, but no test proves the allowlist itself. |
 | T-PLAT-03 | E | A missing `APP_ENV` silently relaxes the production guards (CORS, `SECRET_KEY`), or a loose origin passes the CORS guard. | OPEN | milestone: S5; item: manual AppSec findings (fail closed when `APP_ENV` is unset; reject wildcard, IP and `http://` origins in production) | `APP_ENV` defaults to `development`. |
 | T-PLAT-04 | S | Production runs with the default `SECRET_KEY`. | TEST | `backend/tests/test_secret_key_guard.py::test_default_secret_key_blocks_production` | Render generates the value. |
 | T-PLAT-05 | D | Rate-limit storage and client identity need hardening (shared store, trusted client identity, limits on data-lifecycle routes). | OPEN | milestone: S5; item: manual AppSec findings (proxy-aware client IP, shared limiter store, limits on data-lifecycle routes) | Limits key on client or proxy IPs (unverified). |
@@ -273,9 +273,9 @@ This section builds on the S5a case study, [docs/ai/case-study.md](../ai/case-st
 | T-PLAT-07 | I | Error responses and stored error fields leak internal exception text, such as database errors to the agent status route or SDK errors to the AI history. | OPEN | milestone: S5; item: manual AppSec findings (error-message policy and a global exception handler) | Unhandled errors already return a generic 500 body. |
 | T-PLAT-08 | I | `/docs` and `/openapi.json` are public in production. | ACCEPTED | reason: the source and routes are public in this repository, and the schema reveals nothing the code doesn't; owner: Arlo; review: 2027-04-22 | |
 | T-PLAT-09 | D | `/health` is static, so the platform reports healthy while the database is down. | OPEN | milestone: S4; item: a `/health` that checks the database | Render's health check uses `/health`. |
-| T-PLAT-10 | I | Personal data reaches stdout logs: an email address on one member route, client or proxy IPs (unverified) in the access logs, and no scrubber outside Sentry. | OPEN | milestone: S5; item: manual AppSec findings (log scrubbing and access-log policy) | `pii_inventory.md` and `privacy.md` are corrected to match the code. Found while writing the model. |
+| T-PLAT-10 | I | Personal data and credentials reach stdout logs: an email address on one member route, client or proxy IPs (unverified) in the access logs, organization invite tokens (they are part of the `/invites/{token}` and `/invites/{token}/accept` paths in `members.py`, and the default uvicorn access log records paths), and no scrubber outside Sentry. | OPEN | milestone: S5; item: manual AppSec findings (log scrubbing and access-log policy: move the invite token out of the URL path, or filter it from the access-log format) | `pii_inventory.md` and `privacy.md` are corrected to match the code. Found while writing the model. |
 | T-PLAT-11 | I | The Firebase service-account file written at startup is readable by other users of the container. | ACCEPTED | reason: the container runs a single non-root process with no other users; owner: Arlo; review: 2027-04-22 | Revisit if the image gains other processes. |
-| T-PLAT-12 | T | SQL injection through query parameters. | CONTROL | `.github/workflows/codeql.yml::jobs.analyze` (L15) | CodeQL (`security-extended`) scans the Python code on every PR to `main` (blocking once T-CI-05 is applied). The ORM is used throughout. The few `text()` queries, such as the one in `data_lifecycle.py::export_organization`, build identifiers from hard-coded allowlists and bind every value. |
+| T-PLAT-12 | T | SQL injection through query parameters. | CONTROL | `backend/app/repositories/assets.py::SqlAssetRepository.get_by_id` (L33), `backend/app/api/routes/v1/data_lifecycle.py::export_organization` (L200) | Queries are built through the SQLAlchemy ORM and its bound parameters throughout. The few `text()` queries, such as the one in `export_organization`, build table and column names from hard-coded lists and bind every value. CodeQL (`security-extended`, `.github/workflows/codeql.yml`) scans the Python code on every PR to `main` as a detector (blocking once T-CI-05 is applied); it is not the control. |
 | T-PLAT-13 | T | A client-supplied `X-Request-ID` injects forged lines into the logs. | OPEN | milestone: S5; item: manual AppSec findings (validate the request-id characters) | Capped at 128 characters, but the characters aren't checked. |
 | T-PLAT-14 | R | An organization's deletion or export can't be attributed to the person who did it. | TEST | `backend/tests/test_data_lifecycle.py::test_delete_org_purges_tenant_rows_and_audits`, `backend/tests/test_data_lifecycle.py::test_export_org_streams_json_and_audits` | Each writes an audit row. Delete writes it in the same transaction. |
 | T-PLAT-15 | I | Error reports sent to Sentry carry personal data or secrets. | CONTROL | `backend/app/core/observability.py::_before_send` (L73) | `send_default_pii=False`, plus redaction of sensitive keys and email addresses. |
@@ -289,7 +289,7 @@ These are what writing the model surfaced that wasn't already known or documente
 2. **Several destructive org-scoped routes check only membership**, not an org role: T-TEN-05.
 3. **First sign-in and invite acceptance don't yet require a verified email**: T-AUTH-04. S0 closed the account-takeover path; this is the remaining gap.
 4. **Revocation doesn't follow a rotation** (T-TOK-08), and **rotation can extend or restore an older token's validity** (T-ENR-04).
-5. **The NVD API key travels in a URL query string** on two paths: T-ING-10.
+5. **The NVD, Census and BEA API keys travel in URL query strings** and can reach logs, and in one route the error response: T-ING-10.
 6. **The analytics event route doesn't bind events to the caller's org**: T-TEN-10. Write-only.
 7. **Docs and code disagreed** in several places, and the docs are corrected in this PR:
    - the README's upload-size, rate-limit and global-admin claims;
@@ -326,7 +326,7 @@ The reasons are in each row.
 
 The following are out of scope:
 - the developer's workstation;
-- the internal security of GitHub, Google (Firebase and Gemini), Render, the NVD, CISA and FIRST services, and the HIBP, Shodan, OTX and crt.sh lookup services;
+- the internal security of GitHub, Google (Firebase and Gemini), Render, the NVD, CISA, FIRST, Census and BEA services, and the HIBP, Shodan, OTX and crt.sh lookup services;
 - physical access;
 - the Go agent's local collectors, which are read-only and open no listener (roadmap R6).
 
@@ -342,10 +342,11 @@ The following are out of scope:
 
 **What CI checks.** `.github/scripts/check_threat_model.py` runs in the `Scan exceptions and workflow pins` job of `security.yml` and checks that:
 - every row has exactly one valid class;
-- every CONTROL path and symbol exists;
-- every TEST names a test that exists;
+- no `T-XXX-nn` row sits outside a table with the exact header;
+- every CONTROL path and symbol exists, in a file that isn't documentation or this document;
+- every TEST names a collectable test (a `test*` function or a method of a test class) that exists;
 - every OPEN row names S4, S5, S6 or OWNER;
-- every ACCEPTED row has an owner and an unexpired review date.
+- every ACCEPTED row has exactly one non-empty reason, owner and review date, and the date isn't expired.
 
 An expired review date fails every PR until the row is reviewed. This is deliberate, and matches how `scan_exceptions.md` handles expiry. The Security workflow isn't a required check yet, so these failures are blocking only once T-CI-05 is applied.
 

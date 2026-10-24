@@ -37,6 +37,24 @@ class CheckThreatModelTests(unittest.TestCase):
                 "def test_foobar(): pass\n"
             ),
             "agent/x_test.go": "func TestScan(t *testing.T) {}",
+            "tests/test_collect.py": (
+                "def helper(): pass\n\n"
+                "def test_top(): pass\n\n"
+                "async def test_async_top(): pass\n\n"
+                "def outer():\n    def test_nested_fn(): pass\n\n"
+                "class Fake:\n    def test_in_fake(self): pass\n\n"
+                "class TestReal:\n"
+                "    def test_method(self): pass\n\n"
+                "    def helper_method(self): pass\n\n"
+                "    def test_with_inner(self):\n        def test_inner(): pass\n\n"
+                "class UnitStyle(unittest.TestCase):\n    def test_u(self): pass\n"
+            ),
+            "agent/y_test.go": (
+                "func helper() {}\n"
+                "func TestOk(t *testing.T) {}\n"
+                "func Testlower(t *testing.T) {}\n"
+                "func TestOuter() {\n\tfunc TestInner() {}\n}\n"
+            ),
         }.items():
             path = cls.root / rel
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -286,11 +304,89 @@ class CheckThreatModelTests(unittest.TestCase):
         self.assertIn("4 threats", out.getvalue())
         self.assertIn("1 withdrawn", out.getvalue())
 
+    def test_cited_test_must_be_collectable(self):
+        good = (
+            "tests/test_collect.py::test_top",
+            "tests/test_collect.py::test_async_top",
+            "tests/test_collect.py::TestReal::test_method",
+            "tests/test_collect.py::UnitStyle::test_u",
+            "agent/y_test.go::TestOk",
+        )
+        for ev in good:
+            with self.subTest(ev=ev):
+                self.assertEqual(self.check(doc(row(cls="TEST", evidence=f"`{ev}`"))), [])
+        bad = (
+            "tests/test_collect.py::helper",  # not named test*
+            "tests/test_collect.py::test_nested_fn",  # nested helper, not column 0
+            "tests/test_collect.py::Fake::test_in_fake",  # class is not Test*
+            "tests/test_collect.py::TestReal::helper_method",  # not named test*
+            "tests/test_collect.py::TestReal::test_inner",  # nested deeper than class body
+            "tests/test_collect.py::TestReal::test_top",  # module-level function, not a method
+            "agent/y_test.go::helper",
+            "agent/y_test.go::Testlower",
+            "agent/y_test.go::TestInner",  # indented
+        )
+        for ev in bad:
+            with self.subTest(ev=ev):
+                p = self.check(doc(row(cls="TEST", evidence=f"`{ev}`")))
+                self.assertEqual(len(p), 1, p)
+
+    def test_test_file_must_exist(self):
+        p = self.check(doc(row(cls="TEST", evidence="`tests/test_missing.py::test_x`")))
+        self.assertEqual(len(p), 1, p)
+        self.assertIn("does not exist", p[0])
+
+    def test_threat_row_outside_recognised_table_is_error(self):
+        other = "| Threat ID | Category | Threat | Class | Evidence | Notes |\n|---|---|---|---|---|---|\n"
+        p = self.check("# t\n\n" + other + row("T-UPL-01"))
+        self.assertEqual(len(p), 1, p)
+        self.assertIn("outside a recognised threat table", p[0])
+        # A non-pipe line ends the table early; later rows are no longer checked as rows.
+        p = self.check(doc(row("T-UPL-01"), "stray prose\n", row("T-UPL-02")))
+        self.assertEqual(len(p), 1, p)
+        self.assertIn("T-UPL-02", p[0])
+        self.assertIn("outside a recognised threat table", p[0])
+
+    def test_real_verification_needs_a_value(self):
+        for notes in ("real-verification:", "real-verification:   "):
+            with self.subTest(notes=notes):
+                p = self.check(doc(row("T-AUTH-01", cls="TEST", evidence=TEST_EV, notes=notes)))
+                self.assertEqual(len(p), 1, p)
+                self.assertIn("real-verification", p[0])
+
+    def test_control_evidence_must_not_be_prose(self):
+        for path in ("README.md", "notes.txt", "docs/x.rst"):
+            with self.subTest(path=path):
+                p = self.check(doc(row(evidence=f"`{path}::Guard` (L1)")))
+                self.assertEqual(len(p), 1, p)
+                self.assertIn("documentation", p[0])
+        itself = self.root / "src/app.py"
+        p = ctm.check(doc(row()), self.root, TODAY, doc_path=itself)
+        self.assertEqual(len(p), 1, p)
+        self.assertIn("the document itself", p[0])
+        self.assertEqual(ctm.check(doc(row()), self.root, TODAY, doc_path=self.root / "x.md"), [])
+
+    def test_accepted_keys_exactly_once_with_values(self):
+        cases = {
+            "duplicate reason": "reason: a; reason: b; owner: A; review: 2027-04-22",
+            "duplicate owner": "reason: a; owner: A; owner: B; review: 2027-04-22",
+            "duplicate review": "reason: a; owner: A; review: 2027-04-22; review: 2027-04-23",
+            "empty reason": "reason:; owner: A; review: 2027-04-22",
+            "empty owner": "reason: a; owner: ; review: 2027-04-22",
+            "empty review": "reason: a; owner: A; review:",
+            "key only inside value": "reason: a; owner: A; note: review: 2027-04-22",
+        }
+        for name, ev in cases.items():
+            with self.subTest(name):
+                p = self.accepted(ev)
+                self.assertEqual(len(p), 1, p)
+        self.assertEqual(self.accepted("reason: a: b; owner: A; review: 2027-04-22"), [])
+
     @unittest.skipUnless(REAL.exists(), "docs/security/threat_model.md not written yet")
     def test_real_threat_model(self):
         today = datetime.now(timezone.utc).date()
         root = Path(__file__).resolve().parents[2]
-        self.assertEqual(ctm.check(REAL.read_text(encoding="utf-8"), root, today), [])
+        self.assertEqual(ctm.check(REAL.read_text(encoding="utf-8"), root, today, REAL), [])
 
 
 if __name__ == "__main__":
