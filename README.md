@@ -16,9 +16,11 @@ plain-English executive report.
 >
 > **Direction (2026-09):** Hacker Tracker is developed as an application-security
 > and DevSecOps reference implementation, not as a startup. The next work is
-> assurance of the product itself: a threat model, a route-enumerating
-> authorization suite, blocking SAST/SCA/DAST gates, an attested agent release
-> with an SBOM, and matcher accuracy measured against Trivy on real images. See
+> assurance of the product itself. The threat model, the route-enumerating
+> authorization suite and the attested agent release with an SBOM are done (S1,
+> S3, S4). The SAST/SCA gates are in place (S2) and become blocking once the
+> owner applies T-CI-05. The next work is DAST and a manual AppSec pass (S5) and
+> matcher accuracy measured against Trivy on real images (S6). See
 > [docs/PRODUCT_VIABILITY_ROADMAP.md](docs/PRODUCT_VIABILITY_ROADMAP.md) and
 > [docs/roadmap-review-2026-09.md](docs/roadmap-review-2026-09.md).
 
@@ -159,8 +161,8 @@ flowchart LR
 ## Security design
 
 - **Threat model.** [docs/security/threat_model.md](docs/security/threat_model.md)
-  is a STRIDE model of 110 threats (40 controlled, 31 tested, 18 accepted, 21
-  open and scheduled for S4/S5 or owner action). CI checks that every row has
+  is a STRIDE model of 110 threats (39 controlled, 37 tested, 18 accepted, 16
+  open and scheduled for S5 or owner action). CI checks that every row has
   one classification and that its evidence exists.
 - **Authentication.** Users sign in through Firebase Authentication. The API
   verifies the ID token on every request with the Admin SDK and resolves the
@@ -176,8 +178,8 @@ flowchart LR
   admins can read, change, export and delete any organization by design; this
   is an operator role granted only by a database change (T-TEN-08). This is enforced per
   handler and verified by the route-enumerating cross-tenant suite in
-  `backend/tests/authz/tenancy/` (every organization-scoped route has a case);
-  the rest of roadmap milestone S4 is still in progress. Demo organizations are flagged
+  `backend/tests/authz/tenancy/` (every organization-scoped route has a case).
+  Demo organizations are flagged
   and segregated. Data lifecycle endpoints allow per-org export and deletion,
   and a retention job prunes old scan runs and audit rows per org.
 - **Agent tokens and replay protection.** Described above; the enrollment,
@@ -191,10 +193,13 @@ flowchart LR
   production with the default `SECRET_KEY` or a `localhost` CORS origin. The
   Firebase Admin key is read from `GOOGLE_APPLICATION_CREDENTIALS` or the
   `FIREBASE_SERVICE_ACCOUNT_JSON` variable and is gitignored.
-- **Input boundaries.** General file uploads are capped at 10 MB, checked
-  after reading, and filename-sanitized. Inventory CSV imports are capped by row
-  count. The agent payload is capped per list but has no request-size limit yet
-  (T-PLAT-06, roadmap S4); it is a versioned schema validated with
+- **Input boundaries.** Request bodies are capped before they're read: 1 MiB
+  by default, 10 MB per uploaded file (checked before the file is loaded into
+  memory; multipart bodies are still spooled before authentication), and 80 MiB
+  for the agent upload, derived from its per-list caps. The agent upload is
+  authenticated before its body is read, and handles one large upload at a time.
+  Uploaded files are filename-sanitized. Inventory CSV imports are capped by row
+  count. The agent payload is a versioned schema validated with
   Pydantic; AI prompts receive organization and finding data only inside a
   JSON data block (above), and a deterministic CI corpus of injection strings
   checks that structure
