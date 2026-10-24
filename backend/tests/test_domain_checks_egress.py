@@ -304,9 +304,10 @@ async def test_real_client_redirect_is_rechecked_not_followed(resolve, monkeypat
 
     monkeypatch.setattr(dc.httpx, "AsyncClient", _Recording)
 
-    await dc.check_http_headers("ok.example.com")
+    result = await dc.check_http_headers("ok.example.com")
 
-    assert requests
+    assert len(requests) == 1
+    assert result.error == "internal.example.com does not resolve to a public address"
     assert all(r.url.host == PUBLIC_V4 for r in requests)
 
 
@@ -321,8 +322,11 @@ async def test_http_check_does_not_follow_a_redirect_to_a_non_default_port(resol
 
     http["handler"] = handler
 
-    await dc.check_http_headers("ok.example.com")
+    result = await dc.check_http_headers("ok.example.com")
 
+    assert len(http["requests"]) == 1
+    assert http["requests"][0].headers["host"] == "ok.example.com"
+    assert result.error == "redirect to a non-public destination"
     assert all(r.headers["host"] != "www.example.com" for r in http["requests"])
     assert all(r.url.port != 8443 for r in http["requests"])
 
