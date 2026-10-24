@@ -4,10 +4,12 @@ import json
 import re
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
+from typing import get_args
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import annotated_types
 import pytest
+from fastapi.dependencies.utils import get_flat_dependant
 from fastapi.routing import APIRoute
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
@@ -64,22 +66,31 @@ def test_limit_for_routes():
 
 
 def _is_upload_field(field) -> bool:
-    annotation = getattr(field.field_info, "annotation", None)
-    return isinstance(annotation, type) and issubclass(annotation, UploadFile)
+    return _holds_upload(getattr(field.field_info, "annotation", None))
+
+
+def _holds_upload(annotation) -> bool:
+    """True for UploadFile, also inside Optional/Union and list[...]."""
+    if isinstance(annotation, type) and issubclass(annotation, UploadFile):
+        return True
+    return any(_holds_upload(arg) for arg in get_args(annotation))
 
 
 def test_every_file_route_gets_the_file_limit():
-    upload_paths = []
+    upload_paths = set()
     for route in app.routes:
-        if not isinstance(route, APIRoute) or not route.dependant.body_params:
+        if not isinstance(route, APIRoute):
+            continue
+        body_params = get_flat_dependant(route.dependant).body_params
+        if not body_params:
             continue
         path = re.sub(r"\{[^}]*\}", "1", route.path)
-        if any(_is_upload_field(f) for f in route.dependant.body_params):
-            upload_paths.append(path)
+        if any(_is_upload_field(f) for f in body_params):
+            upload_paths.add(path)
             assert limit_for(path) == _file_limit(), route.path
         elif path != _AGENT_PATH:
             assert limit_for(path) == settings.MAX_JSON_BODY_BYTES, route.path
-    assert len(upload_paths) >= len(_FILE_PATHS), upload_paths
+    assert upload_paths == {t.format(org_id=1) for t in _FILE_PATHS}
 
 
 async def test_declared_oversize_body_is_refused_unread():
@@ -126,7 +137,7 @@ async def test_json_body_at_default_limit_is_not_413(client: AsyncClient):
     body = event + b" " * (settings.MAX_JSON_BODY_BYTES - len(event))
     assert len(body) == settings.MAX_JSON_BODY_BYTES
     resp = await client.post(_EVENTS, content=body, headers={"content-type": "application/json"})
-    assert resp.status_code != 413, resp.text
+    assert resp.status_code == 200, resp.text
 
 
 _FILE_PART_HEAD = (

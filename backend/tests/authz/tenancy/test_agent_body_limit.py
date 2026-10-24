@@ -169,6 +169,7 @@ async def test_small_agent_upload_skips_the_slot(world, authz_client):
 
 async def test_agent_upload_without_token_takes_no_slot(world, authz_client):
     client = await authz_client(None)
+    before = await snapshot_org(world.a.org_id, world.upload_dir)
     gen = await _held_slot()
     try:
         resp = await client.post(
@@ -179,6 +180,7 @@ async def test_agent_upload_without_token_takes_no_slot(world, authz_client):
     finally:
         await gen.aclose()
     assert resp.status_code == 401, resp.text
+    assert await snapshot_org(world.a.org_id, world.upload_dir) == before
 
 
 async def test_stalled_agent_upload_times_out_and_frees_the_slot(world, authz_client, monkeypatch):
@@ -210,8 +212,10 @@ async def test_stalled_agent_upload_times_out_and_frees_the_slot(world, authz_cl
     assert again.status_code == ACCEPTED[UPLOAD], again.text
 
 
-async def test_agent_upload_client_disconnect_is_400(world):
+async def test_agent_upload_client_disconnect_is_400(world, authz_client):
     issued = await issue_agent(world.a)
+    await _warm(await authz_client(issued.raw_token), world)
+    before = await snapshot_org(world.a.org_id, world.upload_dir)
     sent: list[dict] = []
 
     async def receive():
@@ -242,6 +246,7 @@ async def test_agent_upload_client_disconnect_is_400(world):
 
     starts = [m for m in sent if m["type"] == "http.response.start"]
     assert [m["status"] for m in starts] == [400]
+    assert await snapshot_org(world.a.org_id, world.upload_dir) == before
 
 
 async def test_agent_upload_at_limit_is_accepted(world, authz_client, monkeypatch):
@@ -257,6 +262,8 @@ async def test_agent_upload_at_limit_is_accepted(world, authz_client, monkeypatc
 
 async def test_agent_upload_invalid_body_keeps_422_shape(world, authz_client):
     client = await authz_client((await issue_agent(world.a)).raw_token)
+    await _warm(client, world)
+    before = await snapshot_org(world.a.org_id, world.upload_dir)
 
     resp = await client.post(UPLOAD[1], json={"schema_version": "1.0"})
 
@@ -264,3 +271,33 @@ async def test_agent_upload_invalid_body_keeps_422_shape(world, authz_client):
     detail = resp.json()["detail"]
     assert detail
     assert all(item["loc"][0] == "body" for item in detail)
+    assert await snapshot_org(world.a.org_id, world.upload_dir) == before
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        pytest.param(
+            json.dumps(
+                {"software": [{"vendor": "v" * 200, "product": "p"}] * 50_001},
+                separators=(",", ":"),
+            ).encode(),
+            id="missing-fields-and-list-over-cap",
+        ),
+        pytest.param(b"{not json", id="json-invalid"),
+    ],
+)
+async def test_agent_422_never_echoes_the_request_body(world, authz_client, body):
+    client = await authz_client((await issue_agent(world.a)).raw_token)
+    await _warm(client, world)
+    before = await snapshot_org(world.a.org_id, world.upload_dir)
+
+    resp = await client.post(UPLOAD[1], content=body, headers={"content-type": "application/json"})
+
+    assert resp.status_code == 422, resp.text[:300]
+    detail = resp.json()["detail"]
+    assert detail
+    assert all("input" not in item for item in detail)
+    assert all(item["loc"][0] == "body" for item in detail)
+    assert len(resp.content) < 10_000
+    assert await snapshot_org(world.a.org_id, world.upload_dir) == before

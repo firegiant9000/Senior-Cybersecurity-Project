@@ -517,8 +517,8 @@ async def read_agent_payload(
     except ValidationError as exc:
         errors = []
         for err in exc.errors(include_url=False):
-            if err["type"] == "json_invalid":
-                err.pop("input", None)  # would echo the whole body
+            # `input` can be the whole parsed body (or list); never echo it back.
+            err.pop("input", None)
             err["loc"] = ("body", *err["loc"])
             errors.append(err)
         raise RequestValidationError(errors) from exc
