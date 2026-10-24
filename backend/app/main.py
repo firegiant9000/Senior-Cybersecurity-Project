@@ -14,6 +14,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy import func, select
 
 from app.api.routes import health, v1
+from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.config import settings
 from app.core.firebase import init_firebase
 from app.core.limiter import limiter
@@ -178,6 +179,10 @@ def create_app() -> FastAPI:
         description="Cyber Threat Intelligence & Anomaly Detection Platform",
         lifespan=lifespan,
     )
+
+    # The body cap must be the INNERMOST middleware: add_middleware prepends, so it is added
+    # first. Outside the BaseHTTPMiddlewares below, its 413 would surface as an ExceptionGroup.
+    fastapi_app.add_middleware(BodySizeLimitMiddleware)
 
     # Request-correlation middleware must run before any handler that logs
     # or raises, so request_id is bound for the entire request lifecycle.

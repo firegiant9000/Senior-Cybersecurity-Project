@@ -5,7 +5,9 @@ get a scan_run back. The same scan_run model is reused by the
 M365 spike (Phase E) and the future agent path.
 """
 
+import asyncio
 import logging
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
@@ -17,9 +19,11 @@ from fastapi import (
     Request,
     UploadFile,
 )
-from pydantic import BaseModel
+from fastapi.exceptions import RequestValidationError
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.requests import ClientDisconnect
 
 from app.api.routes.v1.auth import get_current_user
 from app.core.config import settings
@@ -54,6 +58,7 @@ from app.schemas.scan_run import (
     ScanRunUpdate,
 )
 from app.services import agent_scan
+from app.services.file_upload import ensure_upload_size
 from app.services.inventory_import import (
     MAX_CSV_ROWS,
     commit_inventory,
@@ -176,6 +181,7 @@ async def _read_csv(file: UploadFile) -> str:
         "application/octet-stream",
     ):
         raise HTTPException(status_code=400, detail="File must be a CSV")
+    ensure_upload_size(file)
     raw = await file.read()
     try:
         return raw.decode("utf-8-sig")
@@ -440,11 +446,103 @@ async def _audit_agent(
     await session.flush()
 
 
-@router.post("/inventory/scans", response_model=ScanUploadAccepted, status_code=201)
+AGENT_UPLOAD_BUSY = "Agent upload busy; retry shortly"
+AGENT_UPLOAD_TIMEOUT = "Agent upload timed out"
+
+# Large agent bodies are read and parsed one at a time (T-PLAT-06). Created lazily so the
+# size follows settings.AGENT_UPLOAD_CONCURRENCY; tests drop it with _reset_agent_upload_slots.
+_agent_upload_slots: asyncio.Semaphore | None = None
+
+
+def _reset_agent_upload_slots() -> None:
+    """Tests only: drop the semaphore so the next request rebuilds it."""
+    global _agent_upload_slots  # noqa: PLW0603
+    _agent_upload_slots = None
+
+
+def _get_agent_upload_slots() -> asyncio.Semaphore:
+    global _agent_upload_slots  # noqa: PLW0603
+    if _agent_upload_slots is None:
+        _agent_upload_slots = asyncio.Semaphore(settings.AGENT_UPLOAD_CONCURRENCY)
+    return _agent_upload_slots
+
+
+def _needs_large_slot(request: Request) -> bool:
+    """True when the body may be large: no usable Content-Length, or one over the threshold."""
+    raw = request.headers.get("content-length")
+    if raw is None:
+        return True
+    try:
+        declared = int(raw)
+    except ValueError:
+        return True
+    return declared > settings.AGENT_LARGE_UPLOAD_BYTES
+
+
+async def agent_upload_slot(request: Request) -> AsyncGenerator[None, None]:
+    """Hold the large-upload slot for the request, or answer 503 without reading the body."""
+    if not _needs_large_slot(request):
+        yield
+        return
+    # Capture the semaphore: a test reset may replace the global while we hold this one.
+    sem = _get_agent_upload_slots()
+    if sem.locked():
+        raise HTTPException(status_code=503, detail=AGENT_UPLOAD_BUSY, headers={"Retry-After": "5"})
+    await sem.acquire()
+    try:
+        yield
+    finally:
+        sem.release()
+
+
+async def read_agent_payload(
+    request: Request,
+    enrollment: AgentEnrollment = Depends(get_agent_from_token),  # noqa: ARG001
+    _slot: None = Depends(agent_upload_slot),
+) -> AgentScanPayload:
+    """Read and validate the scan body after the token check and under the slot and deadline.
+
+    Declaration order matters: the token is solved first, so an unauthenticated request never
+    takes a slot or has its body read.
+    """
+    try:
+        async with asyncio.timeout(settings.AGENT_UPLOAD_READ_TIMEOUT_SECONDS):
+            body = await request.body()
+    except TimeoutError:
+        raise HTTPException(status_code=408, detail=AGENT_UPLOAD_TIMEOUT) from None
+    except ClientDisconnect:
+        raise HTTPException(status_code=400, detail="Client disconnected") from None
+    try:
+        return AgentScanPayload.model_validate_json(body)
+    except ValidationError as exc:
+        errors = []
+        for err in exc.errors(include_url=False):
+            if err["type"] == "json_invalid":
+                err.pop("input", None)  # would echo the whole body
+            err["loc"] = ("body", *err["loc"])
+            errors.append(err)
+        raise RequestValidationError(errors) from exc
+
+
+@router.post(
+    "/inventory/scans",
+    response_model=ScanUploadAccepted,
+    status_code=201,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "description": (
+                "AgentScanPayload: see backend/app/schemas/agent_scan.py "
+                "and tests/fixtures/agent_scan_v1.json"
+            ),
+            "content": {"application/json": {}},
+        }
+    },
+)
 @limiter.limit(settings.RATE_LIMIT_AGENT_UPLOAD, key_func=agent_token_key)
 async def upload_agent_scan(
     request: Request,  # noqa: ARG001 — required by limiter
-    payload: AgentScanPayload,
+    payload: AgentScanPayload = Depends(read_agent_payload),
     enrollment: AgentEnrollment = Depends(get_agent_from_token),
     session: AsyncSession = Depends(get_session),
     scan_repo: SqlScanRunRepository = Depends(get_scan_run_repo),

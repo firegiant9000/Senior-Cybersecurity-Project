@@ -195,6 +195,12 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     # File uploads
     UPLOAD_DIR: str = "./uploads"
     MAX_UPLOAD_SIZE_BYTES: int = 10 * 1024 * 1024  # 10 MB
+    # Request-body caps, enforced before the body is read (app/core/body_limit.py).
+    MAX_JSON_BODY_BYTES: int = 1024 * 1024  # 1 MiB: every route without its own limit
+    MAX_AGENT_UPLOAD_BYTES: int = 80 * 1024 * 1024  # 80 MiB: derived from the scan schema's caps
+    AGENT_UPLOAD_CONCURRENCY: int = 1  # large agent bodies read and parsed at once
+    AGENT_LARGE_UPLOAD_BYTES: int = 8 * 1024 * 1024  # declared size above which the slot is needed
+    AGENT_UPLOAD_READ_TIMEOUT_SECONDS: float = 60.0
     ALLOWED_UPLOAD_TYPES: list[str] = [
         "text/csv",
         "application/pdf",
