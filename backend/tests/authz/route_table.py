@@ -11,7 +11,8 @@ Classes:
   comes from: the request path/query ("path"), the caller's own org ("caller"), or a looked-up
   resource ("resource"). `min_role` is the org role enforced today ("org:member" = membership only).
   `tests/authz/tenancy/` proves the org/tenancy check of these routes, not `check_table`.
-  Role floors (`min_role`) are proven by the role-matrix stage (stage C), not by the tenancy suite.
+  Role floors (`min_role`) are not proven by the tenancy suite; the role-matrix tests arrive in
+  stage C (#228).
 - agent: authenticated by agent bearer token only.
 - administrator: requires the global admin role.
 """

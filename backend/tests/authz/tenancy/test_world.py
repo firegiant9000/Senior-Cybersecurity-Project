@@ -215,7 +215,9 @@ async def _tagged_row_counts(tag: str) -> dict[str, int]:
     """Rows carrying this build's unique tag, in every table the world writes.
 
     Orgs and users are found by name / email; every org-scoped table (derived from the metadata)
-    is counted through its org, so a row left behind by a failed build shows up wherever it is.
+    is counted through its org. After the purge only the users, organizations and memberships
+    counts can fail: the org-scoped tables are counted through org rows the purge deletes, so
+    they rely on the ON DELETE CASCADE foreign keys (audit_log is SET NULL and isn't covered).
     """
     pattern = f"%{tag}%"
     counts: dict[str, int] = {}
