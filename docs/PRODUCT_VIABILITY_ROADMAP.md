@@ -233,7 +233,7 @@ Work: blocking CI gates for each language: **CodeQL** (Python, JavaScript/TypeSc
 
 #### S3. STRIDE threat model — DONE 2026-10-22 (#225)
 
-Delivered: [`threat_model.md`](security/threat_model.md) holds 110 threats: 41 CONTROL, 21 TEST, 18 ACCEPTED and 30 OPEN (plus 1 withdrawn). `.github/scripts/check_threat_model.py` runs in the `security.yml` workflow and checks the classifications and evidence. Writing it surfaced 10 findings (see the document's Findings). One, an SSRF in the domain checks, was fixed in #224 before publication; none of the other nine was severe, and none of them was fixed in S3. The OPEN rows are scheduled for S4, S5 or owner action.
+Delivered: [`threat_model.md`](security/threat_model.md) holds 110 threats: 42 CONTROL, 20 TEST, 18 ACCEPTED and 30 OPEN (plus 1 withdrawn). `.github/scripts/check_threat_model.py` runs in the `security.yml` workflow and checks the classifications and evidence. Writing it surfaced 10 findings (see the document's Findings). One, an SSRF in the domain checks, was fixed in #224 before publication; none of the other nine was severe, and none of them was fixed in S3. The OPEN rows are scheduled for S4, S5 or owner action.
 
 <a id="s3-privacy-page-follow-up"></a>Follow-up (2026-10-22): bring the in-app `/privacy` page (`frontend/src/pages/PrivacyPage.tsx`) in line with [`privacy.md`](security/privacy.md): the hosting region, and the Gemini and domain-lookup providers. Confirm the Render database region, then pin it in `render.yaml`.
 
@@ -243,7 +243,7 @@ Work: `docs/security/threat_model.md` covering agent enrollment, agent upload, t
 
 **Evidence produced.** The threat model document.
 
-**Resume potential.** "Wrote a STRIDE threat model for Hacker Tracker's agent enrollment, upload, token lifecycle, tenancy and AI-input paths (111 threats), mapping each to a control, a test or an accepted risk, and used it to drive the authorization suite."
+**Resume potential.** "Wrote a STRIDE threat model for Hacker Tracker's agent enrollment, upload, token lifecycle, tenancy and AI-input paths (114 threats), mapping each to a control, a test or an accepted risk, and used it to drive the authorization suite."
 
 **Interview questions.**
 - Walk me through the spoofing and tampering threats on the agent upload path and how each is controlled.
@@ -292,20 +292,23 @@ Threat-model rows: T-PLAT-06, T-ENR-04, T-UPL-09, T-TOK-07, T-TOK-08, T-AUTH-04,
 
 Work: **OWASP ZAP baseline** against the docker-compose stack in CI, failing at medium and above once the header work in S4 lands. ~~Harden the AI summary prompt: delimit and escape org-supplied fields, add a prompt-injection test corpus, validate output against the schema.~~ _(Moved to S5a on 2026-10-18.)_ If pursuing BSCP, perform a **manual Burp assessment** of the API and record each finding as: finding, risk, exploit path, fix, regression test.
 
-Threat-model rows: T-ING-04, T-ING-06, T-ING-07, T-ING-10, T-DOM-08, T-AI-09, T-PLAT-03, T-PLAT-05, T-PLAT-07, T-PLAT-10, T-PLAT-13.
+Threat-model rows: T-ING-04, T-ING-06, T-ING-07, T-ING-10, T-DOM-08, T-AI-09, T-PLAT-03, T-PLAT-05, T-PLAT-07, T-PLAT-10, T-PLAT-13, T-TEN-14, T-TEN-15, T-TEN-16.
 
 Threat-model fixes (from the OPEN rows in [`threat_model.md`](security/threat_model.md)):
 - Validate ingested EPSS values (within [0, 1], only for requested CVEs) (T-ING-04).
 - Explicit timeouts and response-size caps on feed fetches (T-ING-06).
 - Mark a run partial when EPSS batches fail or NVD returns 429 (T-ING-07).
-- Send the NVD key as a header on every path (T-ING-10).
+- Keep the NVD, Census and BEA keys out of URLs: headers where the API allows it, otherwise redact URLs in logged and returned errors (T-ING-10).
 - Domain-check follow-ups from #224: try every resolved address, validate `primary_domain` on write, and test that the body read stops at the cap (T-DOM-08).
 - Per-user or per-org quota on AI summary `force_refresh` (T-AI-09).
 - Fail closed when `APP_ENV` is unset, and reject wildcard, IP and `http://` origins in production (T-PLAT-03).
 - Rate-limit storage and client identity need hardening (shared store, trusted client identity, limits on data-lifecycle routes) (T-PLAT-05).
 - An error-message policy and a global exception handler (T-PLAT-07).
-- Log scrubbing and an access-log policy (T-PLAT-10).
+- Log scrubbing and an access-log policy, including moving the invite token out of the URL path or filtering it from access logs (T-PLAT-10).
 - Validate the characters of the request id (T-PLAT-13).
+- Merge the two org role stores (legacy `users.org_id`/`org_role` and memberships) into one source of truth (T-TEN-14).
+- Make member removal revoke access in both role stores, atomically, with a test per path (T-TEN-15).
+- Write an audit row for every global-admin cross-org write (T-TEN-16).
 
 **Acceptance.** ZAP baseline green at medium and above on every PR; ~~the injection corpus runs in CI~~ (moved to S5a, 2026-10-18); if the Burp assessment is done, `docs/security/assessment-YYYY-MM.md` exists with every finding closed by a regression test or accepted.
 

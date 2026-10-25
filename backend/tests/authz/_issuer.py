@@ -1,5 +1,9 @@
 """Local Firebase ID-token issuer: an RSA key, a self-signed cert and a token minter."""
 
+import base64
+import hashlib
+import hmac
+import json
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -51,13 +55,67 @@ def mint_id_token(
     exp: int | None = None,
     aud: str = PROJECT_ID,
     iss: str = ISSUER,
-    kid: str = KID,
+    kid: str | None = KID,
     alg: str = "RS256",
     hs_secret: str = "authz-hs-secret",  # noqa: S107 - test-only HS256 confusion secret
     extra: dict | None = None,
-    omit: tuple[str, ...] = (),
+    drop_claims: tuple[str, ...] = (),
 ) -> str:
-    """Mint a Firebase-shaped ID token. `alg` HS256/none build forged variants."""
+    """Mint a Firebase-shaped ID token. `alg` HS256/none build forged variants.
+
+    `kid=None` omits the header; `drop_claims` removes claims after `extra` is applied.
+    """
+    claims = _claims(
+        uid=uid,
+        email=email,
+        email_verified=email_verified,
+        iat=iat,
+        exp=exp,
+        aud=aud,
+        iss=iss,
+        extra=extra,
+        drop_claims=drop_claims,
+    )
+    headers = {} if kid is None else {"kid": kid}
+    if alg == "none":
+        return jwt.encode(claims, key=None, algorithm="none", headers=headers)
+    if alg == "HS256":
+        return jwt.encode(claims, hs_secret, algorithm="HS256", headers=headers)
+    if key is None:
+        raise ValueError("a SigningKey is required for asymmetric algorithms")
+    return jwt.encode(claims, key.private_key, algorithm=alg, headers=headers)
+
+
+def _b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+def mint_hs256_with_cert_pem(cert_pem: str, *, uid: str, email: str, kid: str = KID) -> str:
+    """Algorithm-confusion token: HS256 whose HMAC key is the served public cert's PEM bytes.
+
+    PyJWT refuses PEM material as an HMAC secret, so the token is assembled by hand.
+    """
+    claims = _claims(uid=uid, email=email)
+    header = {"alg": "HS256", "typ": "JWT", "kid": kid}
+    signing_input = ".".join(
+        _b64url(json.dumps(part, separators=(",", ":")).encode()) for part in (header, claims)
+    )
+    signature = hmac.new(cert_pem.encode(), signing_input.encode(), hashlib.sha256).digest()
+    return f"{signing_input}.{_b64url(signature)}"
+
+
+def _claims(
+    *,
+    uid: str,
+    email: str,
+    email_verified: bool = True,
+    iat: int | None = None,
+    exp: int | None = None,
+    aud: str = PROJECT_ID,
+    iss: str = ISSUER,
+    extra: dict | None = None,
+    drop_claims: tuple[str, ...] = (),
+) -> dict:
     issued_at = int(time.time()) - 5 if iat is None else iat
     claims = {
         "iss": iss,
@@ -72,13 +130,6 @@ def mint_id_token(
     }
     if extra:
         claims.update(extra)
-    for name in omit:
+    for name in drop_claims:
         claims.pop(name, None)
-    headers = {"kid": kid}
-    if alg == "none":
-        return jwt.encode(claims, key=None, algorithm="none", headers=headers)
-    if alg == "HS256":
-        return jwt.encode(claims, hs_secret, algorithm="HS256", headers=headers)
-    if key is None:
-        raise ValueError("a SigningKey is required for asymmetric algorithms")
-    return jwt.encode(claims, key.private_key, algorithm=alg, headers=headers)
+    return claims

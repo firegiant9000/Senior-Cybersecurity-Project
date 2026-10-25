@@ -17,9 +17,10 @@ Pins mean:
   A `belongs_to` on a write route also catches a row that lands in the wrong org.
 """
 
+import re
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal
 
 from tests.authz.route_table import ROUTES
@@ -62,7 +63,7 @@ _AB = frozenset({"A", "B"})
 _ACCESS_DENIED = "Access denied"
 _MEMBERSHIP_DENIED = "Access denied for this organization"
 _T_TEN_05 = "T-TEN-05: destructive, org admin (legacy org role)"
-_T_TEN_12 = "T-TEN-12: membership and legacy org disagree for the split user"
+_T_TEN_14 = "T-TEN-14: membership and legacy org disagree for the split user"
 
 
 def _org(t: OrgWorld, suffix: str = "") -> str:
@@ -123,7 +124,7 @@ def _membership(build, allowed, **kw) -> Case:
         denial_detail=_MEMBERSHIP_DENIED,
         admin_bypass=False,
         split_reaches=_AB,
-        note=kw.pop("note", _T_TEN_12),
+        note=kw.pop("note", _T_TEN_14),
         **kw,
     )
 
@@ -529,13 +530,13 @@ CASES: dict[tuple[str, str], Case] = {
         lambda w, t: _new_invite(w, t, _org(t, "/invites")),
         201,
         belongs_to=_owns_org_id,
-        note=f"T-TEN-07; {_T_TEN_12}",
+        note=f"T-TEN-07; {_T_TEN_14}",
     ),
     ("POST", f"{_V1}/orgs/{{org_id}}/invites"): _membership(
         lambda w, t: _new_invite(w, t, _org_alias(t, "/invites")),
         201,
         belongs_to=_owns_org_id,
-        note=f"T-TEN-07; {_T_TEN_12}",
+        note=f"T-TEN-07; {_T_TEN_14}",
     ),
     ("GET", f"{_ORGS}/{{org_id}}/invites"): _membership(
         _get(lambda t: _org(t, "/invites")), 200, shows_marker=True
@@ -559,25 +560,25 @@ CASES: dict[tuple[str, str], Case] = {
         _member_update("PUT", alias=False),
         200,
         shows_marker=True,
-        note=f"T-TEN-06, T-TEN-07; {_T_TEN_12}",
+        note=f"T-TEN-06, T-TEN-07; {_T_TEN_14}",
     ),
     ("PUT", f"{_V1}/orgs/{{org_id}}/members/{{user_id}}"): _membership(
         _member_update("PUT", alias=True),
         200,
         shows_marker=True,
-        note=f"T-TEN-06, T-TEN-07; {_T_TEN_12}",
+        note=f"T-TEN-06, T-TEN-07; {_T_TEN_14}",
     ),
     ("PATCH", f"{_ORGS}/{{org_id}}/members/{{user_id}}"): _membership(
         _member_update("PATCH", alias=False),
         200,
         shows_marker=True,
-        note=f"T-TEN-06, T-TEN-07; {_T_TEN_12}",
+        note=f"T-TEN-06, T-TEN-07; {_T_TEN_14}",
     ),
     ("PATCH", f"{_V1}/orgs/{{org_id}}/members/{{user_id}}"): _membership(
         _member_update("PATCH", alias=True),
         200,
         shows_marker=True,
-        note=f"T-TEN-06, T-TEN-07; {_T_TEN_12}",
+        note=f"T-TEN-06, T-TEN-07; {_T_TEN_14}",
     ),
     ("DELETE", f"{_ORGS}/{{org_id}}/members/{{user_id}}"): _membership(
         _simple("DELETE", lambda t: _org(t, f"/members/{t.ids['member_user_id']}")), 204
@@ -608,3 +609,67 @@ CASES: dict[tuple[str, str], Case] = {
 
 def org_scoped_keys() -> set[tuple[str, str]]:
     return {key for key, spec in ROUTES.items() if spec.cls == "organization-scoped"}
+
+
+# --- mixed path/resource cases ----------------------------------------------------------------
+# A route that names its org in the path AND takes a resource id has two checks: the path org and
+# the repository's org filter. Aiming both at A only proves the first. The mixed request names the
+# caller's own org (B) in the path and uses A's resource ids, so only the repository filter can
+# refuse it.
+
+_PLACEHOLDER = re.compile(r"\{(\w+)(?::\w+)?\}")
+
+
+def resource_id_keys() -> set[tuple[str, str]]:
+    """Org-scoped routes whose org comes from the path and that also take a resource id."""
+    return {
+        key
+        for key, spec in ROUTES.items()
+        if spec.cls == "organization-scoped"
+        and spec.org_from == "path"
+        and set(_PLACEHOLDER.findall(key[1])) - {"org_id"}
+    }
+
+
+@dataclass(frozen=True)
+class Mixed:
+    status: int  # what B's owner and admin get for A's resource id under B's own org
+    detail: str  # the exact `detail`
+
+
+def mixed_request(case: Case, world: World) -> Req:
+    """Path/query org is B; every resource id is A's."""
+    hybrid = replace(world.b, ids=world.a.ids, ids_all=world.a.ids_all)
+    return case.build(world, hybrid)
+
+
+def _not_found(detail: str) -> Mixed:
+    return Mixed(404, detail)
+
+
+# Pinned from the routes' own not-found responses: the resource lookup is filtered by the path org.
+_MIXED_DETAILS: dict[str, str] = {
+    "/vendors/{vendor_id}": "Vendor not found",
+    "/uploads/{upload_id}": "Upload not found",
+    "/scan-runs/{scan_run_id}": "Scan run not found",
+    "/assets/{asset_id}": "Asset not found",
+    "/domains/{domain_id}": "Domain not found",
+    "/invites/{invite_id}": "Invite not found or already used",
+    "/members/{user_id}": "Member not found",
+}
+# Longest marker first, so `/assets/{asset_id}/findings/{finding_id}/status` is matched as a
+# finding, not an asset.
+_MIXED_OVERRIDES: dict[str, str] = {"/findings/{finding_id}/status": "Finding not found"}
+
+
+def _mixed_for(path: str) -> Mixed:
+    for marker, detail in _MIXED_OVERRIDES.items():
+        if marker in path:
+            return _not_found(detail)
+    for marker, detail in _MIXED_DETAILS.items():
+        if marker in path:
+            return _not_found(detail)
+    raise KeyError(f"no mixed-case pin for {path}")
+
+
+MIXED: dict[tuple[str, str], Mixed] = {key: _mixed_for(key[1]) for key in resource_id_keys()}
