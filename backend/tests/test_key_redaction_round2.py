@@ -226,6 +226,32 @@ def test_scrub_adversarial_bare_query_is_fast(field):
     assert time.perf_counter() - start < 1.0
 
 
+@pytest.mark.parametrize(
+    "payload",
+    ["%" * 100_000, "a@" + "a" * 100_000, "a@" + "a." * 50_000, "a@" * 50_000],
+    ids=["local-run", "domain-run", "dotted-domain", "many-ats"],
+)
+def test_scrub_adversarial_email_like_text_is_fast(payload):
+    start = time.perf_counter()
+    _scrub(payload)
+    assert time.perf_counter() - start < 1.0
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("mail a.b+c@example.com now", "mail [redacted] now"),
+        ("x=foo@bar.io,y=baz_1@qux.org", "x=[redacted],y=[redacted]"),
+        ("(ops%team@example.co.uk)", "([redacted])"),
+        ("to=alice@x.com+bob@y.com", "to=[redacted][redacted]"),
+        ("a@b.cc.x@y.zz", "[redacted][redacted]"),
+        ("no email here", "no email here"),
+    ],
+)
+def test_scrub_still_redacts_emails(text, expected):
+    assert _scrub(text) == expected
+
+
 def test_scrub_bare_query_keeps_names_and_valueless_pieces():
     out = _scrub({"query_string": f"get=ESTAB&key={KEY}&flag"})
     assert out["query_string"] == "get=[redacted]&key=[redacted]&flag"

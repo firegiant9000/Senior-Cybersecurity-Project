@@ -46,8 +46,17 @@ _SENSITIVE_KEY_PATTERNS = (
 )
 _REDACTED = "[redacted]"
 
-# Best-effort: strip email addresses out of free-form strings.
-_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+# Best-effort: strip email addresses out of free-form strings. Group 1 is the
+# email; the second branch consumes a local-part run that isn't one, so the
+# engine never restarts mid-run (a bare email pattern rescans the run from every
+# offset, which is quadratic on client text). A match that ends mid-run still
+# gets a fresh attempt at its end, so adjacent addresses are both redacted.
+_EMAIL_RE = re.compile(r"([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})|[A-Za-z0-9._%+-]+")
+
+
+def _redact_emails(text: str) -> str:
+    return _EMAIL_RE.sub(lambda m: _REDACTED if m.group(1) else m.group(0), text)
+
 
 # URLs embedded in free-form strings (e.g. httpx exception text). API keys are
 # sent as query parameters (Census `key`, BEA `UserID`), so every query value
@@ -94,7 +103,7 @@ def _scrub(obj: Any) -> Any:
     if isinstance(obj, tuple):
         return tuple(_scrub(v) for v in obj)
     if isinstance(obj, str):
-        return _redact_url_queries(_EMAIL_RE.sub(_REDACTED, obj))
+        return _redact_url_queries(_redact_emails(obj))
     return obj
 
 
