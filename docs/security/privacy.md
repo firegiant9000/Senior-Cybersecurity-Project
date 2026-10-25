@@ -62,14 +62,16 @@ disclosure and the enrollment/revocation flow live in
 | Provider          | Role                                       | Region                |
 |-------------------|--------------------------------------------|-----------------------|
 | Firebase Auth     | Authentication                             | Google global         |
-| Render            | Backend + managed PostgreSQL               | US (backend in Oregon) |
+| Render            | Backend + managed PostgreSQL               | US (backend pinned to Oregon; database region not yet pinned) |
 | Firebase Hosting  | Static frontend assets                     | Google global         |
 | Sentry            | Error reports (scrubbed)                   | US                    |
 | Google Gemini API | AI summary (org-level fields and findings only, no user identifiers) | Google global |
 | HIBP, Shodan, AlienVault OTX, crt.sh | External domain checks (the org's domain name or its public address only) | Each provider's own |
 
-Organization and application data is stored in our PostgreSQL database in the
-United States. Sign-in identities are held by Firebase Auth, which operates
+Organization and application data is stored in our PostgreSQL database, which
+is expected to be in the United States (Oregon) alongside the web service. The
+database region is not yet pinned in `render.yaml` (roadmap S3 follow-up).
+Sign-in identities are held by Firebase Auth, which operates
 globally. Some other providers above also process data globally: the CDN for
 static assets, Google Gemini for the AI summary, and the domain-lookup
 services, which receive only your organization's domain name or its public
@@ -78,12 +80,23 @@ address.
 ## Your rights
 
 - **Export.** Ask the operator. A platform administrator can call
-  `GET /api/v1/organizations/{id}/export` to retrieve a JSON dump of every
-  row we hold about your org; organization admins and owners can't call it.
+  `GET /api/v1/organizations/{id}/export` to retrieve a JSON dump of your
+  organization record and its main tables (assets and their software, domains,
+  vendors, uploads, memberships and invites, scan runs, findings snapshots and
+  statuses, normalization logs, AI summaries and feedback, and assessment
+  submissions). Invites are exported as stored, including any unexpired invite
+  tokens, so treat the file as a credential. It does not include asset
+  findings, agent enrollments, integration credentials, activation events,
+  OAuth states or agent scan nonces. Organization admins and
+  owners can't call it.
 - **Delete.** Ask the operator. A platform administrator can call
-  `DELETE /api/v1/organizations/{id}` to purge the organization. The deletion iterates every table explicitly — no orphan
-  rows. The deletion event itself is logged for audit, then ages out after 12
-  months.
+  `DELETE /api/v1/organizations/{id}` to purge the organization. The main
+  tables are deleted explicitly; the tables the export leaves out are removed
+  by database foreign-key cascade when the organization row is deleted. User
+  accounts are detached from the organization, not deleted. Audit log rows are
+  kept, with their organization reference set to null. The deletion event
+  itself is logged for audit, with the organization's name and original id and
+  the per-table row counts, then ages out after 12 months.
 - **Correct.** Edit your org profile from the in-app settings page.
 
 If you need help exercising these rights, email the project owner

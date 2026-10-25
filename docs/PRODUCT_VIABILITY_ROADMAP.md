@@ -233,7 +233,7 @@ Work: blocking CI gates for each language: **CodeQL** (Python, JavaScript/TypeSc
 
 #### S3. STRIDE threat model — DONE 2026-10-22 (#225)
 
-Delivered: [`threat_model.md`](security/threat_model.md) holds 110 threats: 41 CONTROL, 21 TEST, 18 ACCEPTED and 30 OPEN (plus 1 withdrawn). `.github/scripts/check_threat_model.py` runs in the `security.yml` workflow and checks the classifications and evidence. Writing it surfaced 10 findings (see the document's Findings). One, an SSRF in the domain checks, was fixed in #224 before publication; none of the other nine was severe, and none of them was fixed in S3. The OPEN rows are scheduled for S4, S5 or owner action.
+Delivered: [`threat_model.md`](security/threat_model.md) holds 110 threats: 42 CONTROL, 20 TEST, 18 ACCEPTED and 30 OPEN (plus 1 withdrawn). `.github/scripts/check_threat_model.py` runs in the `security.yml` workflow and checks the classifications and evidence. Writing it surfaced 10 findings (see the document's Findings). One, an SSRF in the domain checks, was fixed in #224 before publication; none of the other nine was severe, and none of them was fixed in S3. The OPEN rows are scheduled for S4, S5 or owner action.
 
 <a id="s3-privacy-page-follow-up"></a>Follow-up (2026-10-22): bring the in-app `/privacy` page (`frontend/src/pages/PrivacyPage.tsx`) in line with [`privacy.md`](security/privacy.md): the hosting region, and the Gemini and domain-lookup providers. Confirm the Render database region, then pin it in `render.yaml`.
 
@@ -298,13 +298,13 @@ Threat-model fixes (from the OPEN rows in [`threat_model.md`](security/threat_mo
 - Validate ingested EPSS values (within [0, 1], only for requested CVEs) (T-ING-04).
 - Explicit timeouts and response-size caps on feed fetches (T-ING-06).
 - Mark a run partial when EPSS batches fail or NVD returns 429 (T-ING-07).
-- Send the NVD key as a header on every path (T-ING-10).
+- Keep the NVD, Census and BEA keys out of URLs: headers where the API allows it, otherwise redact URLs in logged and returned errors (T-ING-10).
 - Domain-check follow-ups from #224: try every resolved address, validate `primary_domain` on write, and test that the body read stops at the cap (T-DOM-08).
 - Per-user or per-org quota on AI summary `force_refresh` (T-AI-09).
 - Fail closed when `APP_ENV` is unset, and reject wildcard, IP and `http://` origins in production (T-PLAT-03).
 - Rate-limit storage and client identity need hardening (shared store, trusted client identity, limits on data-lifecycle routes) (T-PLAT-05).
 - An error-message policy and a global exception handler (T-PLAT-07).
-- Log scrubbing and an access-log policy (T-PLAT-10).
+- Log scrubbing and an access-log policy, including moving the invite token out of the URL path or filtering it from access logs (T-PLAT-10).
 - Validate the characters of the request id (T-PLAT-13).
 - Merge the two org role stores (legacy `users.org_id`/`org_role` and memberships) into one source of truth (T-TEN-14).
 - Make member removal revoke access in both role stores, atomically, with a test per path (T-TEN-15).
