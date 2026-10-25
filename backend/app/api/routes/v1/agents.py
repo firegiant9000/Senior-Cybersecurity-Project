@@ -1,6 +1,6 @@
 """Agent enrollment management routes (Month 4 Phase 2).
 
-Admin-only, Firebase-authed human endpoints to enroll / list / rotate / revoke
+Admin-only, Firebase-authed human endpoints to enroll / list / rotate / end-grace / revoke
 the per-host scanner credentials minted by ``services/agent_token.py`` (Phase 1).
 These are the *management* surface; the scanner itself authenticates with the
 issued bearer token against the Phase 3 upload endpoint, never here.
@@ -40,6 +40,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 NOT_ACTIVE_DETAIL = "Only an active agent can be rotated"
+NOT_IN_GRACE_DETAIL = "Only an agent in its grace window can be ended"
 
 
 @router.post("/enroll", response_model=AgentTokenIssued, status_code=201)
@@ -126,6 +127,37 @@ async def rotate_agent(
         agent=AgentRead.model_validate(issued.enrollment),
         raw_token=issued.raw_token,
     )
+
+
+@router.post("/{agent_id}/end-grace", status_code=204)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def end_agent_grace(
+    request: Request,  # noqa: ARG001
+    agent_id: int,
+    current_user: User = Depends(require_org_role("admin")),
+    org: Organization = Depends(get_current_org),
+    repo: SqlAgentEnrollmentRepository = Depends(get_agent_enrollment_repo),
+    session: AsyncSession = Depends(get_session),
+):
+    """End one rotated-out token's grace window now; its successor stays valid.
+
+    Only a row inside its grace window qualifies: an active, revoked or expired one is a 409.
+    """
+    enrollment = await repo.get_by_id(agent_id, org.id)
+    if enrollment is None:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    try:
+        await agent_token.end_grace(repo, enrollment)
+    except agent_token.AgentNotInGraceError as exc:
+        raise HTTPException(status_code=409, detail=NOT_IN_GRACE_DETAIL) from exc
+    await _audit_safe(
+        session,
+        actor=current_user,
+        org_id=org.id,
+        action="agent.end_grace",
+        payload={"agent_id": agent_id},
+    )
+    return None
 
 
 @router.delete("/{agent_id}", status_code=204)

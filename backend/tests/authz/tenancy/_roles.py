@@ -30,6 +30,7 @@ DESTRUCTIVE_ORG: frozenset[tuple[str, str]] = NEWLY_GATED | frozenset(
     {
         ("DELETE", f"{_V1}/agents/{{agent_id}}"),
         ("POST", f"{_V1}/agents/{{agent_id}}/rotate"),
+        ("POST", f"{_V1}/agents/{{agent_id}}/end-grace"),
         ("DELETE", f"{_ORGS}/{{org_id}}/invites/{{invite_id}}"),
         ("DELETE", f"{_V1}/orgs/{{org_id}}/invites/{{invite_id}}"),
         ("DELETE", f"{_ORGS}/{{org_id}}/members/{{user_id}}"),

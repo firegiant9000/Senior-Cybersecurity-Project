@@ -52,6 +52,10 @@ class AgentNotActiveError(Exception):
     """Rotation was refused: the enrollment is revoked, expired or already in its grace window."""
 
 
+class AgentNotInGraceError(Exception):
+    """End-grace was refused: the enrollment is not inside a rotation grace window."""
+
+
 def _utcnow() -> datetime:
     """The module's only clock; tests patch this to move time for issue/verify/rotate/revoke."""
     return datetime.now(UTC)
@@ -235,6 +239,25 @@ async def revoke(
     """
     now = now or _utcnow()
     return await repo.revoke_chain(enrollment, when=now)
+
+
+async def end_grace(
+    repo: SqlAgentEnrollmentRepository,
+    enrollment: AgentEnrollment,
+    *,
+    now: datetime | None = None,
+) -> None:
+    """End a rotated-out row's grace window now, leaving its successor valid.
+
+    Only a row inside its grace window (``revoked_at`` in the future) qualifies; anything else
+    raises ``AgentNotInGraceError``. The pre-check is a cheap early refusal; the conditional
+    update in the repository is what holds under concurrency.
+    """
+    now = now or _utcnow()
+    if enrollment.revoked_at is None or _as_aware(enrollment.revoked_at) <= now:
+        raise AgentNotInGraceError("Only an agent in its grace window can be ended")
+    if not await repo.end_grace(enrollment, when=now):
+        raise AgentNotInGraceError("Only an agent in its grace window can be ended")
 
 
 def _is_active(enrollment: AgentEnrollment, now: datetime) -> bool:

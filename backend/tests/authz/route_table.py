@@ -448,6 +448,16 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
             ),
         ),
         (
+            "POST",
+            f"{_V1}/agents/{{agent_id}}/end-grace",
+            RouteSpec(
+                "organization-scoped",
+                min_role="org:admin",
+                org_from="caller",
+                note="ends one rotated-out token's grace window; successor stays valid (T-TOK-08)",
+            ),
+        ),
+        (
             "DELETE",
             f"{_V1}/agents/{{agent_id}}",
             RouteSpec(
