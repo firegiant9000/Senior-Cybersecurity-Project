@@ -161,7 +161,7 @@ flowchart LR
 ## Security design
 
 - **Threat model.** [docs/security/threat_model.md](docs/security/threat_model.md)
-  is a STRIDE model of 112 threats (39 controlled, 38 tested, 18 accepted, 17
+  is a STRIDE model of 115 threats (37 controlled, 40 tested, 18 accepted, 20
   open and scheduled for S5 or owner action). CI checks that every row has
   one classification and that its evidence exists.
 - **Authentication.** Users sign in through Firebase Authentication. The API
@@ -195,9 +195,12 @@ flowchart LR
   `FIREBASE_SERVICE_ACCOUNT_JSON` variable and is gitignored.
 - **Input boundaries.** Request bodies are capped before they're read: 1 MiB
   by default, 10 MB per uploaded file (checked before the file is loaded into
-  memory; multipart bodies are still spooled before authentication), and 80 MiB
+  memory; multipart bodies are still spooled before authentication), and 24 MiB
   for the agent upload, derived from its per-list caps. The agent upload is
-  authenticated before its body is read, and handles one large upload at a time.
+  authenticated before its body is read, is weighed by its declared Content-Length (a body without one counts as a maximal upload), holds no
+  database connection while it waits or reads, and is admitted against a byte
+  budget (process-wide and per org, one per enrollment; a request that doesn't
+  fit waits up to 10 s, then gets 503).
   Uploaded files are filename-sanitized. Inventory CSV imports are capped by row
   count. The agent payload is a versioned schema validated with
   Pydantic; AI prompts receive organization and finding data only inside a
@@ -241,7 +244,7 @@ on `main` (395 of 560 commits are mine, across the identities listed in
 - Most of the React dashboard: the analytics-tab rebuild, component
   reorganization, assets and findings views, executive report page, Firebase
   auth UI
-- All four CI workflows; 47 of the 49 Alembic migration files; the majority of the
+- The repository CI workflows; 47 of the 49 Alembic migration files; the majority of the
   backend tests
 
 ### Major contributions by me (originally built by a teammate)

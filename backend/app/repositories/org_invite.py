@@ -161,6 +161,38 @@ class SqlOrgInviteRepository:
         )
         return result.scalar_one_or_none()
 
+    async def lock_target_and_owners(
+        self, org_id: int, user_id: int, caller_id: int
+    ) -> tuple[Membership | None, int, Membership | None]:
+        """Lock the target's and the caller's active memberships and the org's active owner rows,
+        in id order.
+
+        Returns the locked target and caller (None if not an active member) and the active owner
+        count, all read under the lock so a concurrent role change or removal cannot slip between
+        the checks and the write. One ordered statement keeps the lock order the same for every
+        request, so concurrent requests queue instead of deadlocking. Held until commit.
+        """
+        result = await self._session.execute(
+            select(Membership)
+            .where(
+                Membership.org_id == org_id,
+                Membership.status == "active",
+                or_(
+                    Membership.role == "owner",
+                    Membership.user_id == user_id,
+                    Membership.user_id == caller_id,
+                ),
+            )
+            .order_by(Membership.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        rows = list(result.scalars().all())
+        target = next((m for m in rows if m.user_id == user_id), None)
+        caller = next((m for m in rows if m.user_id == caller_id), None)
+        owners = sum(1 for m in rows if m.role == "owner")
+        return target, owners, caller
+
     async def update_member_role(
         self, membership: Membership, new_role: str, user: User | None = None
     ) -> Membership:
@@ -246,6 +278,28 @@ class SqlOrgInviteRepository:
             )
         )
         return result.scalar_one_or_none()
+
+    async def get_membership_for_update(self, user_id: int, org_id: int) -> Membership | None:
+        """The (user, org) membership row in any status, locked. At most one row can exist."""
+        result = await self._session.execute(
+            select(Membership)
+            .where(Membership.user_id == user_id, Membership.org_id == org_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        return result.scalar_one_or_none()
+
+    async def activate_membership(
+        self, existing: Membership | None, user_id: int, org_id: int, role: str
+    ) -> Membership:
+        """Join the org with `role`: reactivate the (user, org) row `existing` (never keeping its
+        old role) or insert a new one. Call inside the transaction that holds the invite lock."""
+        if existing is None:
+            return await self.create_membership(user_id, org_id, role)
+        existing.role = role
+        existing.status = "active"
+        await self._session.flush()
+        return existing
 
     async def create_membership(self, user_id: int, org_id: int, role: str) -> Membership:
         membership = Membership(

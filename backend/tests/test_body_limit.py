@@ -339,6 +339,6 @@ def test_maximal_agent_payload_fits_limit():
     }
     body = json.dumps(payload, separators=(",", ":")).encode()
 
-    assert len(body) == 72_351_014
+    assert len(body) == 19_311_014
     AgentScanPayload.model_validate_json(body)
     assert len(body) <= settings.MAX_AGENT_UPLOAD_BYTES

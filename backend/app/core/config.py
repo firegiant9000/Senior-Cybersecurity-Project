@@ -84,6 +84,19 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
                 )
         return self
 
+    @model_validator(mode="after")
+    def _validate_agent_upload_budgets(self) -> "Settings":
+        """A maximal agent upload must always fit the budgets, or it could never be admitted."""
+        if (
+            self.AGENT_UPLOAD_BUDGET_BYTES < self.MAX_AGENT_UPLOAD_BYTES
+            or self.AGENT_UPLOAD_ORG_BUDGET_BYTES < self.MAX_AGENT_UPLOAD_BYTES
+        ):
+            raise ValueError(
+                "AGENT_UPLOAD_BUDGET_BYTES and AGENT_UPLOAD_ORG_BUDGET_BYTES must each be "
+                "at least MAX_AGENT_UPLOAD_BYTES"
+            )
+        return self
+
     # Auth (Firebase — service account key path is set via GOOGLE_APPLICATION_CREDENTIALS env var)
     SECRET_KEY: str = "change-me-in-production"  # retained for non-auth signing if needed
     GOOGLE_APPLICATION_CREDENTIALS: str = ""
@@ -197,9 +210,16 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     MAX_UPLOAD_SIZE_BYTES: int = 10 * 1024 * 1024  # 10 MB
     # Request-body caps, enforced before the body is read (app/core/body_limit.py).
     MAX_JSON_BODY_BYTES: int = 1024 * 1024  # 1 MiB: every route without its own limit
-    MAX_AGENT_UPLOAD_BYTES: int = 80 * 1024 * 1024  # 80 MiB: derived from the scan schema's caps
-    AGENT_UPLOAD_CONCURRENCY: int = 1  # large agent bodies read and parsed at once
-    AGENT_LARGE_UPLOAD_BYTES: int = 8 * 1024 * 1024  # declared size above which the slot is needed
+    # 24 MiB: the largest legal scan is 19,311,014 bytes (20k software, 5k services, 5k ports)
+    MAX_AGENT_UPLOAD_BYTES: int = 24 * 1024 * 1024
+    # Agent uploads in flight (body read through ingest) are admitted by declared Content-Length
+    # (MAX_AGENT_UPLOAD_BYTES when absent, e.g. chunked) against a process-wide byte budget and a
+    # per-org share; each enrollment also has at most one.
+    # A request that doesn't fit waits up to AGENT_UPLOAD_WAIT_SECONDS, then gets 503 + Retry-After.
+    # Both budgets must be at least MAX_AGENT_UPLOAD_BYTES so one maximal upload is always admissible.
+    AGENT_UPLOAD_BUDGET_BYTES: int = 32 * 1024 * 1024
+    AGENT_UPLOAD_ORG_BUDGET_BYTES: int = 24 * 1024 * 1024
+    AGENT_UPLOAD_WAIT_SECONDS: float = 10.0
     AGENT_UPLOAD_READ_TIMEOUT_SECONDS: float = 60.0
     ALLOWED_UPLOAD_TYPES: list[str] = [
         "text/csv",

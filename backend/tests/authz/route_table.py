@@ -1,17 +1,33 @@
 """Route classification table for the authz suite.
 
 Every route in the app must appear here with the class its handler actually enforces.
-`tests/authz/test_route_table.py` fails on a route that is unclassified, stale, or whose
-class disagrees with its dependency tree (see `_routes.check_table`).
+`tests/authz/test_route_table.py` fails on a route that is unclassified or stale, and
+`_routes.check_table` checks each label against the route's FastAPI dependency tree, both ways:
+- forward: `min_role` must match the role dependency in the tree (global X is
+  `require_role(X)`; `org:X` is `require_org_role(X)` / `require_membership_role(X)`, or
+  membership only for `org:member`); `org_from="path"` needs an org_id parameter and
+  `require_same_org_membership`. A check made in the handler body (`check_org_access`) is not
+  visible in the tree, so those routes carry `in_handler=True`; the marker is rejected where a
+  dependency is visible, and the handler source (AST) must call `check_org_access` or
+  `_ensure_org_access`, except the two inline-check handlers in `INLINE_CHECK_ROUTES`.
+  Whether the check is correct is exercised by the behavioural tests, not by this table.
+- `min_role=None` on an organization-scoped route is allowed only for
+  `NO_MEMBERSHIP_ORG_ROUTES`, and each such note must cite a threat ID.
+- reverse: `require_role("admin")` forces the administrator class; any org dependency or
+  org_id/organization_id parameter forces organization-scoped (except the explicit
+  `ADMIN_ORG_ROUTES` allowlist of admin data-lifecycle routes).
+Not checked here: the body-derived org (`org_from="body"`) and the agent's own org.
 
 Classes:
 - public: no auth dependency.
 - authenticated-global: any signed-in user (optionally a global role floor); no org-owned data.
 - organization-scoped: reads or writes rows owned by one org. `org_from` says where the org
-  comes from: the request path/query ("path"), the caller's own org ("caller"), or a looked-up
-  resource ("resource"). `min_role` is the org role enforced today ("org:member" = membership only).
-  The org check and `min_role` behaviour of these routes is proven by `tests/authz/tenancy/`,
-  not by `check_table`.
+  comes from: the request path/query ("path"), the caller's own org ("caller"), a looked-up
+  resource ("resource") or the request body ("body"). `min_role` is the org role enforced today
+  ("org:member" = membership only); None where no membership is enforced at all.
+  `tests/authz/tenancy/` proves the org/tenancy check of these routes, not `check_table`.
+  Role floors (`min_role`) are not proven by the tenancy suite; the role-matrix tests arrive in
+  stage C (#228).
 - agent: authenticated by agent bearer token only.
 - administrator: requires the global admin role.
 """
@@ -22,7 +38,7 @@ from typing import Literal
 RouteClass = Literal[
     "public", "authenticated-global", "organization-scoped", "agent", "administrator"
 ]
-OrgFrom = Literal["path", "caller", "resource"]
+OrgFrom = Literal["path", "caller", "resource", "body"]
 
 
 @dataclass(frozen=True)
@@ -32,6 +48,7 @@ class RouteSpec:
         None  # "viewer"|"member"|"admin" (global) or "org:member"|"org:admin"|"org:owner"
     )
     org_from: OrgFrom | None = None
+    in_handler: bool = False  # the org/role check runs in the handler body, not a dependency
     flag: str | None = None
     note: str = ""
 
@@ -55,14 +72,24 @@ _VIEWER = RouteSpec("authenticated-global", min_role="viewer")
 _SIGNED_IN = RouteSpec("authenticated-global")
 _ADMIN = RouteSpec("administrator", min_role="admin")
 _AGENT = RouteSpec("agent")
-_ORG_MEMBER_PATH = RouteSpec("organization-scoped", min_role="org:member", org_from="path")
+# Path-org routes whose access check is check_org_access() in the handler body.
+_ORG_MEMBER_HANDLER = RouteSpec(
+    "organization-scoped", min_role="org:member", org_from="path", in_handler=True
+)
+# Path-org routes guarded by the require_same_org_membership dependency.
+_ORG_MEMBER_MEMBERSHIP = RouteSpec("organization-scoped", min_role="org:member", org_from="path")
 _ORG_ADMIN_PATH = RouteSpec("organization-scoped", min_role="org:admin", org_from="path")
 _T_TEN_07_NOTE = "T-TEN-07: admins manage members; admins and owners are owner-only"
 _ORG_MEMBER_CALLER = RouteSpec("organization-scoped", min_role="org:member", org_from="caller")
 _ORG_ADMIN_CALLER = RouteSpec("organization-scoped", min_role="org:admin", org_from="caller")
 _T_TEN_05 = "T-TEN-05: destructive, org admin"
-_DESTRUCTIVE_PATH = RouteSpec(
-    "organization-scoped", min_role="org:admin", org_from="path", note=_T_TEN_05
+# Destructive path-org routes: check_org_access() then check_org_role("admin") in the handler.
+_DESTRUCTIVE_HANDLER = RouteSpec(
+    "organization-scoped",
+    min_role="org:admin",
+    org_from="path",
+    in_handler=True,
+    note=_T_TEN_05,
 )
 
 
@@ -71,6 +98,7 @@ def _m365(note: str = "", *, destructive: bool = False) -> RouteSpec:
         "organization-scoped",
         min_role="org:admin" if destructive else "org:member",
         org_from="path",
+        in_handler=True,
         flag=_M365,
         note=_T_TEN_05 if destructive else note,
     )
@@ -160,9 +188,12 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
             f"{_MINE}/intake-preview",
             RouteSpec(
                 "organization-scoped",
-                min_role="org:member",
+                min_role=None,
                 org_from="caller",
-                note="org optional (pre-onboarding); nothing persisted",
+                note=(
+                    "T-TEN-12: org optional (pre-onboarding); no membership enforced; "
+                    "nothing persisted"
+                ),
             ),
         ),
         ("POST", f"{_MINE}/intake/skip", _ORG_MEMBER_CALLER),
@@ -187,6 +218,7 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
                 "organization-scoped",
                 min_role="org:member",
                 org_from="path",
+                in_handler=True,
                 note="legacy org_id or active Membership",
             ),
         ),
@@ -197,6 +229,7 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
                 "organization-scoped",
                 min_role="org:admin",
                 org_from="path",
+                in_handler=True,
                 note="global member floor; legacy org_role owner/admin",
             ),
         ),
@@ -214,12 +247,13 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
             RouteSpec(
                 "organization-scoped",
                 min_role="org:member",
-                org_from="path",
-                note="org id comes from the request body",
+                org_from="body",
+                in_handler=True,
+                note="body.organization_id checked in the handler",
             ),
         ),
-        ("GET", f"{_V1}/assessments/{{org_id}}", _ORG_MEMBER_PATH),
-        ("GET", f"{_V1}/assessments/{{org_id}}/history", _ORG_MEMBER_PATH),
+        ("GET", f"{_V1}/assessments/{{org_id}}", _ORG_MEMBER_HANDLER),
+        ("GET", f"{_V1}/assessments/{{org_id}}/history", _ORG_MEMBER_HANDLER),
         (
             "PUT",
             f"{_V1}/assessments/{{assessment_id}}",
@@ -227,6 +261,7 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
                 "organization-scoped",
                 min_role="org:member",
                 org_from="resource",
+                in_handler=True,
                 note="route loads the submission, then checks its org (T-TEN-11)",
             ),
         ),
@@ -237,41 +272,42 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
                 "organization-scoped",
                 min_role="org:admin",
                 org_from="resource",
+                in_handler=True,
                 note=f"{_T_TEN_05}; T-TEN-11",
             ),
         ),
         # --- vendors -----------------------------------------------------------------
         ("GET", f"{_V1}/vendors/autocomplete", _SIGNED_IN),
         ("GET", f"{_V1}/vendors/suggest", _SIGNED_IN),
-        ("GET", f"{_ORGS}/{{org_id}}/vendors", _ORG_MEMBER_PATH),
-        ("POST", f"{_ORGS}/{{org_id}}/vendors", _ORG_MEMBER_PATH),
-        ("PUT", f"{_ORGS}/{{org_id}}/vendors/{{vendor_id}}", _ORG_MEMBER_PATH),
-        ("DELETE", f"{_ORGS}/{{org_id}}/vendors/{{vendor_id}}", _DESTRUCTIVE_PATH),
-        ("POST", f"{_ORGS}/{{org_id}}/vendors/import/preview", _ORG_MEMBER_PATH),
-        ("POST", f"{_ORGS}/{{org_id}}/vendors/import", _ORG_MEMBER_PATH),
+        ("GET", f"{_ORGS}/{{org_id}}/vendors", _ORG_MEMBER_HANDLER),
+        ("POST", f"{_ORGS}/{{org_id}}/vendors", _ORG_MEMBER_HANDLER),
+        ("PUT", f"{_ORGS}/{{org_id}}/vendors/{{vendor_id}}", _ORG_MEMBER_HANDLER),
+        ("DELETE", f"{_ORGS}/{{org_id}}/vendors/{{vendor_id}}", _DESTRUCTIVE_HANDLER),
+        ("POST", f"{_ORGS}/{{org_id}}/vendors/import/preview", _ORG_MEMBER_HANDLER),
+        ("POST", f"{_ORGS}/{{org_id}}/vendors/import", _ORG_MEMBER_HANDLER),
         # --- uploads -----------------------------------------------------------------
-        ("POST", f"{_ORGS}/{{org_id}}/uploads", _ORG_MEMBER_PATH),
-        ("GET", f"{_ORGS}/{{org_id}}/uploads", _ORG_MEMBER_PATH),
-        ("DELETE", f"{_ORGS}/{{org_id}}/uploads/{{upload_id}}", _DESTRUCTIVE_PATH),
-        ("GET", f"{_ORGS}/{{org_id}}/uploads/{{upload_id}}/download", _ORG_MEMBER_PATH),
+        ("POST", f"{_ORGS}/{{org_id}}/uploads", _ORG_MEMBER_HANDLER),
+        ("GET", f"{_ORGS}/{{org_id}}/uploads", _ORG_MEMBER_HANDLER),
+        ("DELETE", f"{_ORGS}/{{org_id}}/uploads/{{upload_id}}", _DESTRUCTIVE_HANDLER),
+        ("GET", f"{_ORGS}/{{org_id}}/uploads/{{upload_id}}/download", _ORG_MEMBER_HANDLER),
         # --- inventory (human routes) ------------------------------------------------
-        ("POST", f"{_ORGS}/{{org_id}}/inventory/uploads/csv/preview", _ORG_MEMBER_PATH),
-        ("POST", f"{_ORGS}/{{org_id}}/inventory/uploads/csv/import", _ORG_MEMBER_PATH),
-        ("GET", f"{_ORGS}/{{org_id}}/scan-runs", _ORG_MEMBER_PATH),
-        ("GET", f"{_ORGS}/{{org_id}}/scan-runs/{{scan_run_id}}", _ORG_MEMBER_PATH),
-        ("GET", f"{_ORGS}/{{org_id}}/assets", _ORG_MEMBER_PATH),
-        ("GET", f"{_ORGS}/{{org_id}}/assets/{{asset_id}}", _ORG_MEMBER_PATH),
-        ("GET", f"{_ORGS}/{{org_id}}/assets/{{asset_id}}/findings", _ORG_MEMBER_PATH),
+        ("POST", f"{_ORGS}/{{org_id}}/inventory/uploads/csv/preview", _ORG_MEMBER_HANDLER),
+        ("POST", f"{_ORGS}/{{org_id}}/inventory/uploads/csv/import", _ORG_MEMBER_HANDLER),
+        ("GET", f"{_ORGS}/{{org_id}}/scan-runs", _ORG_MEMBER_HANDLER),
+        ("GET", f"{_ORGS}/{{org_id}}/scan-runs/{{scan_run_id}}", _ORG_MEMBER_HANDLER),
+        ("GET", f"{_ORGS}/{{org_id}}/assets", _ORG_MEMBER_HANDLER),
+        ("GET", f"{_ORGS}/{{org_id}}/assets/{{asset_id}}", _ORG_MEMBER_HANDLER),
+        ("GET", f"{_ORGS}/{{org_id}}/assets/{{asset_id}}/findings", _ORG_MEMBER_HANDLER),
         (
             "PATCH",
             f"{_ORGS}/{{org_id}}/assets/{{asset_id}}/findings/{{finding_id}}/status",
-            _ORG_MEMBER_PATH,
+            _ORG_MEMBER_HANDLER,
         ),
-        ("GET", f"{_ORGS}/{{org_id}}/inventory/health", _ORG_MEMBER_PATH),
-        ("PUT", f"{_ORGS}/{{org_id}}/assets/{{asset_id}}/tags", _ORG_MEMBER_PATH),
-        ("GET", f"{_ORGS}/{{org_id}}/scan-runs/{{scan_run_id}}/diff", _ORG_MEMBER_PATH),
-        ("POST", f"{_ORGS}/{{org_id}}/scan-runs/{{scan_run_id}}/rollback", _DESTRUCTIVE_PATH),
-        ("GET", f"{_ORGS}/{{org_id}}/inventory/risk-summary", _ORG_MEMBER_PATH),
+        ("GET", f"{_ORGS}/{{org_id}}/inventory/health", _ORG_MEMBER_HANDLER),
+        ("PUT", f"{_ORGS}/{{org_id}}/assets/{{asset_id}}/tags", _ORG_MEMBER_HANDLER),
+        ("GET", f"{_ORGS}/{{org_id}}/scan-runs/{{scan_run_id}}/diff", _ORG_MEMBER_HANDLER),
+        ("POST", f"{_ORGS}/{{org_id}}/scan-runs/{{scan_run_id}}/rollback", _DESTRUCTIVE_HANDLER),
+        ("GET", f"{_ORGS}/{{org_id}}/inventory/risk-summary", _ORG_MEMBER_HANDLER),
         # --- inventory (agent routes) ------------------------------------------------
         (
             "POST",
@@ -309,10 +345,10 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
             ),
         ),
         # --- domains -----------------------------------------------------------------
-        ("POST", f"{_ORGS}/{{org_id}}/domains", _ORG_MEMBER_PATH),
-        ("GET", f"{_ORGS}/{{org_id}}/domains", _ORG_MEMBER_PATH),
-        ("GET", f"{_ORGS}/{{org_id}}/domains/{{domain_id}}/external-checks", _ORG_MEMBER_PATH),
-        ("DELETE", f"{_ORGS}/{{org_id}}/domains/{{domain_id}}", _DESTRUCTIVE_PATH),
+        ("POST", f"{_ORGS}/{{org_id}}/domains", _ORG_MEMBER_HANDLER),
+        ("GET", f"{_ORGS}/{{org_id}}/domains", _ORG_MEMBER_HANDLER),
+        ("GET", f"{_ORGS}/{{org_id}}/domains/{{domain_id}}/external-checks", _ORG_MEMBER_HANDLER),
+        ("DELETE", f"{_ORGS}/{{org_id}}/domains/{{domain_id}}", _DESTRUCTIVE_HANDLER),
         # --- invites and members (both /orgs and /organizations aliases) ------------
         (
             "POST",
@@ -354,8 +390,8 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
                 note="invite token plus email match; verified email required (T-AUTH-04)",
             ),
         ),
-        ("GET", f"{_ORGS}/{{org_id}}/members", _ORG_MEMBER_PATH),
-        ("GET", f"{_V1}/orgs/{{org_id}}/members", _ORG_MEMBER_PATH),
+        ("GET", f"{_ORGS}/{{org_id}}/members", _ORG_MEMBER_MEMBERSHIP),
+        ("GET", f"{_V1}/orgs/{{org_id}}/members", _ORG_MEMBER_MEMBERSHIP),
         (
             "PUT",
             f"{_ORGS}/{{org_id}}/members/{{user_id}}",
@@ -445,6 +481,16 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
                 min_role="org:admin",
                 org_from="caller",
                 note="rotates active agents only (T-ENR-04)",
+            ),
+        ),
+        (
+            "POST",
+            f"{_V1}/agents/{{agent_id}}/end-grace",
+            RouteSpec(
+                "organization-scoped",
+                min_role="org:admin",
+                org_from="caller",
+                note="ends one rotated-out token's grace window; successor stays valid (T-TOK-08)",
             ),
         ),
         (

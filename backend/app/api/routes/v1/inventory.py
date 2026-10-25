@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import ClientDisconnect
 
 from app.api.routes.v1.auth import get_current_user
+from app.core.body_limit import REQUEST_TOO_LARGE
 from app.core.config import settings
 from app.core.dependencies import check_org_access, check_org_role, get_agent_from_token
 from app.core.limiter import agent_token_key, limiter
@@ -449,71 +450,151 @@ async def _audit_agent(
 AGENT_UPLOAD_BUSY = "Agent upload busy; retry shortly"
 AGENT_UPLOAD_TIMEOUT = "Agent upload timed out"
 
-# Large agent bodies are read and parsed one at a time (T-PLAT-06). Created lazily so the
-# size follows settings.AGENT_UPLOAD_CONCURRENCY; tests drop it with _reset_agent_upload_slots.
-_agent_upload_slots: asyncio.Semaphore | None = None
+
+class _AgentUploadGate:
+    """Admission control for agent uploads in flight (T-PLAT-06), at every body size.
+
+    An upload is weighed by its declared Content-Length (MAX_AGENT_UPLOAD_BYTES when there is
+    none, e.g. a chunked body) and admitted while the process-wide byte
+    budget and its org's share both have room. Each enrollment has at most one in flight (a
+    duplicate is refused at once). Anything else waits up to AGENT_UPLOAD_WAIT_SECONDS for room,
+    then gets 503. One event loop, no locks: every check-and-reserve runs without an await, and
+    ``release`` is synchronous so it is safe in a ``finally`` even while being cancelled.
+    """
+
+    def __init__(self) -> None:
+        self.enrollments: set[int] = set()
+        self.total = 0
+        self.by_org: dict[int, int] = {}
+        self.waiters: list[asyncio.Future[None]] = []
+
+    def _fits(self, org_id: int, size: int) -> bool:
+        return (
+            self.total + size <= settings.AGENT_UPLOAD_BUDGET_BYTES
+            and self.by_org.get(org_id, 0) + size <= settings.AGENT_UPLOAD_ORG_BUDGET_BYTES
+        )
+
+    @staticmethod
+    def _busy() -> HTTPException:
+        return HTTPException(
+            status_code=503, detail=AGENT_UPLOAD_BUSY, headers={"Retry-After": "5"}
+        )
+
+    async def acquire(self, enrollment_id: int, org_id: int, size: int) -> None:
+        if enrollment_id in self.enrollments:
+            raise self._busy()
+        self.enrollments.add(enrollment_id)  # reserved while waiting, so a duplicate is immediate
+        try:
+            async with asyncio.timeout(settings.AGENT_UPLOAD_WAIT_SECONDS):
+                while not self._fits(org_id, size):
+                    waiter: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+                    self.waiters.append(waiter)
+                    try:
+                        await waiter
+                    finally:
+                        if waiter in self.waiters:
+                            self.waiters.remove(waiter)
+        except BaseException as exc:
+            self.enrollments.discard(enrollment_id)
+            if isinstance(exc, TimeoutError):
+                raise self._busy() from None
+            raise
+        self.total += size
+        self.by_org[org_id] = self.by_org.get(org_id, 0) + size
+
+    def release(self, enrollment_id: int, org_id: int, size: int) -> None:
+        self.enrollments.discard(enrollment_id)
+        self.total -= size
+        remaining = self.by_org.get(org_id, 0) - size
+        if remaining > 0:
+            self.by_org[org_id] = remaining
+        else:
+            self.by_org.pop(org_id, None)
+        for waiter in self.waiters:
+            if not waiter.done():
+                waiter.set_result(None)
+        self.waiters.clear()
+
+    def in_flight(self) -> int:
+        return len(self.enrollments) + self.total + len(self.by_org) + len(self.waiters)
+
+
+_gate = _AgentUploadGate()
+
+
+def _agent_gate() -> _AgentUploadGate:
+    return _gate
 
 
 def _reset_agent_upload_slots() -> None:
-    """Tests only: drop the semaphore so the next request rebuilds it."""
-    global _agent_upload_slots  # noqa: PLW0603
-    _agent_upload_slots = None
+    """Tests only: forget every reservation and waiter."""
+    global _gate  # noqa: PLW0603
+    _gate = _AgentUploadGate()
 
 
-def _get_agent_upload_slots() -> asyncio.Semaphore:
-    global _agent_upload_slots  # noqa: PLW0603
-    if _agent_upload_slots is None:
-        _agent_upload_slots = asyncio.Semaphore(settings.AGENT_UPLOAD_CONCURRENCY)
-    return _agent_upload_slots
+def _agent_uploads_in_flight() -> int:
+    return _gate.in_flight()
 
 
-def _needs_large_slot(request: Request) -> bool:
-    """True when the body may be large: no usable Content-Length, or one over the threshold."""
-    raw = request.headers.get("content-length")
-    if raw is None:
-        return True
+def _declared_length(request: Request) -> int | None:
+    """The declared Content-Length, or None when it is absent or invalid (e.g. chunked)."""
+    raw = request.headers.get("content-length", "")
+    if not (raw.isascii() and raw.isdigit()):
+        return None
+    return int(raw)
+
+
+async def agent_upload_slot(
+    request: Request,
+    enrollment: AgentEnrollment = Depends(get_agent_from_token),
+    session: AsyncSession = Depends(get_session),
+) -> AsyncGenerator[int | None, None]:
+    """Admit the upload by its declared length, or refuse without reading the body.
+
+    A body without a valid Content-Length (chunked) is weighed as a maximal upload
+    (``MAX_AGENT_UPLOAD_BYTES``); the body-limit middleware still caps the streamed bytes. The token check leaves the session's
+    transaction open (inside the last-used debounce nothing commits), which would pin a pooled
+    connection through the wait and the body read. End it first; ``expire_on_commit=False`` keeps
+    the loaded enrollment usable and the session starts a new transaction when the handler next
+    needs it. Yields the declared length, or None.
+    """
+    declared = _declared_length(request)
+    # Read these now: after a later rollback the enrollment is expired and touching it would
+    # reload it (IO) during teardown.
+    enrollment_id, org_id = enrollment.id, enrollment.org_id
+    await session.commit()
+    gate = _gate  # captured: a test reset may replace the global while we hold a reservation
+    weight = settings.MAX_AGENT_UPLOAD_BYTES if declared is None else declared
+    await gate.acquire(enrollment_id, org_id, weight)
     try:
-        declared = int(raw)
-    except ValueError:
-        return True
-    return declared > settings.AGENT_LARGE_UPLOAD_BYTES
-
-
-async def agent_upload_slot(request: Request) -> AsyncGenerator[None, None]:
-    """Hold the large-upload slot for the request, or answer 503 without reading the body."""
-    if not _needs_large_slot(request):
-        yield
-        return
-    # Capture the semaphore: a test reset may replace the global while we hold this one.
-    sem = _get_agent_upload_slots()
-    if sem.locked():
-        raise HTTPException(status_code=503, detail=AGENT_UPLOAD_BUSY, headers={"Retry-After": "5"})
-    await sem.acquire()
-    try:
-        yield
+        yield declared
     finally:
-        sem.release()
+        gate.release(enrollment_id, org_id, weight)
 
 
 async def read_agent_payload(
     request: Request,
-    enrollment: AgentEnrollment = Depends(get_agent_from_token),  # noqa: ARG001
-    _slot: None = Depends(agent_upload_slot),
+    declared: int | None = Depends(agent_upload_slot),
 ) -> AgentScanPayload:
-    """Read and validate the scan body after the token check and under the slot and deadline.
+    """Read and validate the scan body after the token check, under the slot and the deadline.
 
-    Declaration order matters: the token is solved first, so an unauthenticated request never
-    takes a slot or has its body read.
+    The slot depends on the token, so an unauthenticated request never takes a slot or has its
+    body read. The body is streamed into a local buffer rather than ``request.body()``, so it is
+    not cached on the Request and is freed once parsed; if it declared a length it may not outrun it.
     """
+    buffer = bytearray()
     try:
         async with asyncio.timeout(settings.AGENT_UPLOAD_READ_TIMEOUT_SECONDS):
-            body = await request.body()
+            async for chunk in request.stream():
+                buffer.extend(chunk)
+                if declared is not None and len(buffer) > declared:
+                    raise HTTPException(status_code=413, detail=REQUEST_TOO_LARGE)
     except TimeoutError:
         raise HTTPException(status_code=408, detail=AGENT_UPLOAD_TIMEOUT) from None
     except ClientDisconnect:
         raise HTTPException(status_code=400, detail="Client disconnected") from None
     try:
-        return AgentScanPayload.model_validate_json(body)
+        return AgentScanPayload.model_validate_json(buffer)
     except ValidationError as exc:
         errors = []
         for err in exc.errors(include_url=False):

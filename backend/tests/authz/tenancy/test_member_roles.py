@@ -5,20 +5,21 @@ admin or owner role (inviting as admin, promoting, demoting, removing an admin o
 changing itself) is refused with 403 "Owner role required", and a refused request changes nothing.
 """
 
+import asyncio
 import uuid
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import delete, select
+from sqlalchemy import delete, event, select, update
 
-from app.db.engine import AsyncSessionLocal
+from app.db.engine import AsyncSessionLocal, engine
 from app.db.invitation import Invitation
 from app.db.membership import Membership
 from app.db.user import User
 from tests.authz.tenancy._roles import ROLE_DENIED
-from tests.authz.tenancy._world import World, snapshot_org
+from tests.authz.tenancy._world import World, WorldUser, snapshot_org
 
 OWNER_REQUIRED = "Owner role required"
 
@@ -286,3 +287,214 @@ async def test_owner_rule_on_alias_routes(fresh_world, as_user, extra_member):
         assert resp.status_code == 403, f"{resp.status_code}: {resp.text}"
         assert resp.json()["detail"] == OWNER_REQUIRED
     assert await snapshot_org(a.org_id, fresh_world.upload_dir) == before
+
+
+# ── Re-invite after removal ───────────────────────────────────────────────────
+
+
+def _extra_world_user(world: World, n: int, user_id: int) -> WorldUser:
+    """The n-th user `extra_member` created, as a client-ready identity."""
+    a = world.a
+    return WorldUser(
+        key=f"extra{n}",
+        uid=f"authz-{a.marker}-extra-{n}",
+        email=f"extra{n}-{a.marker}@example.com",
+        user_id=user_id,
+    )
+
+
+async def _pending_token(email: str) -> str:
+    async with AsyncSessionLocal() as session:
+        invite = (
+            await session.execute(
+                select(Invitation).where(Invitation.email == email, Invitation.status == "pending")
+            )
+        ).scalar_one()
+        return invite.token
+
+
+async def _membership_rows(org_id: int, user_id: int) -> list[tuple[str, str]]:
+    async with AsyncSessionLocal() as session:
+        rows = await session.execute(
+            select(Membership.role, Membership.status).where(
+                Membership.user_id == user_id, Membership.org_id == org_id
+            )
+        )
+        return [(r, s) for r, s in rows.all()]
+
+
+async def _remove_reinvite_accept(world: World, as_user, who: WorldUser) -> None:
+    a = world.a
+    owner = await as_user(a.owner)
+    base = _ORG.format(a=a.org_id)
+    removed = await owner.delete(f"{base}/members/{who.user_id}")
+    assert removed.status_code == 204, removed.text
+    invited = await owner.post(f"{base}/invites", json={"email": who.email, "org_role": "member"})
+    assert invited.status_code == 201, invited.text
+    token = await _pending_token(who.email)
+
+    resp = await (await as_user(who)).post(f"/api/v1/invites/{token}/accept")
+
+    assert resp.status_code == 200, f"{resp.status_code}: {resp.text}"
+    assert resp.json()["org_id"] == a.org_id
+    assert await _membership_rows(a.org_id, who.user_id) == [("member", "active")]
+    assert await _member_state(a.org_id, who.user_id) == ("member", "member", a.org_id)
+
+
+async def test_removed_member_accepts_reinvite(fresh_world, as_user):
+    await _remove_reinvite_accept(fresh_world, as_user, fresh_world.a.member)
+
+
+async def test_removed_admin_reinvited_as_member_comes_back_as_member(
+    fresh_world, as_user, extra_member
+):
+    admin_id = await extra_member("admin")
+    who = _extra_world_user(fresh_world, 1, admin_id)
+
+    await _remove_reinvite_accept(fresh_world, as_user, who)
+
+
+# ── Owner and target races ────────────────────────────────────────────────────
+
+
+async def test_concurrent_cross_demotion_keeps_an_owner(fresh_world, as_user, extra_member):
+    a = fresh_world.a
+    second = _extra_world_user(fresh_world, 1, await extra_member("owner"))
+    first_client = await as_user(a.owner)
+    second_client = await as_user(second)
+    base = _ORG.format(a=a.org_id)
+
+    results = await asyncio.gather(
+        first_client.patch(f"{base}/members/{second.user_id}", json={"org_role": "admin"}),
+        second_client.patch(f"{base}/members/{a.owner.user_id}", json={"org_role": "admin"}),
+    )
+
+    # Which refusal the loser gets depends on timing; it must be a clean 4xx, never both winning.
+    assert sorted(r.status_code for r in results)[0] == 200, [r.text for r in results]
+    assert all(r.status_code in {200, 400, 403} for r in results), [r.text for r in results]
+    assert await _active_owner_count(a.org_id) == 1
+
+
+async def _active_owner_count(org_id: int) -> int:
+    async with AsyncSessionLocal() as session:
+        rows = await session.execute(
+            select(Membership.id).where(
+                Membership.org_id == org_id,
+                Membership.status == "active",
+                Membership.role == "owner",
+            )
+        )
+        return len(rows.all())
+
+
+async def test_last_owner_count_is_taken_under_lock(fresh_world, as_user, extra_member):
+    """Two owners; the second is mid-demotion (uncommitted) when the first demotes itself."""
+    a = fresh_world.a
+    second = _extra_world_user(fresh_world, 1, await extra_member("owner"))
+    client = await as_user(a.owner)
+    url = f"{_ORG.format(a=a.org_id)}/members/{a.owner.user_id}"
+
+    async with AsyncSessionLocal() as other:
+        await other.execute(
+            update(Membership)
+            .where(Membership.user_id == second.user_id, Membership.org_id == a.org_id)
+            .values(role="admin")
+        )
+        task = asyncio.ensure_future(client.patch(url, json={"org_role": "admin"}))
+        await asyncio.sleep(1.0)
+        assert not task.done()
+        await other.commit()
+    resp = await asyncio.wait_for(task, timeout=15)
+
+    assert resp.status_code == 400, f"{resp.status_code}: {resp.text}"
+    assert resp.json()["detail"] == "Cannot demote yourself as the last organization owner"
+    assert await _active_owner_count(a.org_id) == 1
+
+
+@pytest.mark.parametrize(
+    ("caller", "body", "detail"),
+    [
+        ("admin", {"org_role": "member"}, ROLE_DENIED),
+        ("owner", {"org_role": "admin"}, OWNER_REQUIRED),
+    ],
+)
+async def test_caller_role_is_rechecked_under_lock(
+    fresh_world, as_user, extra_member, caller, body, detail
+):
+    """The caller is demoted (uncommitted) while its request is in flight: judged on the new role."""
+    a = fresh_world.a
+    await extra_member("owner")  # keep a second owner so the owner case isn't a last-owner case
+    who = getattr(a, caller)
+    new_role = "member" if caller == "admin" else "admin"
+    client = await as_user(who)
+    url = f"{_ORG.format(a=a.org_id)}/members/{a.member.user_id}"
+
+    async with AsyncSessionLocal() as other:
+        await other.execute(
+            update(Membership)
+            .where(Membership.user_id == who.user_id, Membership.org_id == a.org_id)
+            .values(role=new_role)
+        )
+        task = asyncio.ensure_future(client.patch(url, json=body))
+        await asyncio.sleep(1.0)
+        assert not task.done()
+        await other.commit()
+    resp = await asyncio.wait_for(task, timeout=15)
+
+    assert resp.status_code == 403, f"{resp.status_code}: {resp.text}"
+    assert resp.json()["detail"] == detail
+    assert await _membership_rows(a.org_id, a.member.user_id) == [("member", "active")]
+
+
+@pytest.mark.parametrize("op", ["patch", "delete"])
+async def test_target_role_is_rechecked_under_lock(fresh_world, as_user, op):
+    """An owner promotes the member while an admin's request for the same member is in flight."""
+    a = fresh_world.a
+    url = f"{_ORG.format(a=a.org_id)}/members/{a.member.user_id}"
+    admin_client = await as_user(a.admin)
+    request = (
+        admin_client.patch(url, json={"org_role": "member"})
+        if op == "patch"
+        else admin_client.delete(url)
+    )
+
+    async with AsyncSessionLocal() as other:
+        await other.execute(
+            update(Membership)
+            .where(Membership.user_id == a.member.user_id, Membership.org_id == a.org_id)
+            .values(role="admin")
+        )
+        task = asyncio.ensure_future(request)
+        await asyncio.sleep(1.0)
+        assert not task.done()
+        await other.commit()
+    resp = await asyncio.wait_for(task, timeout=15)
+
+    assert resp.status_code == 403, f"{resp.status_code}: {resp.text}"
+    assert resp.json()["detail"] == OWNER_REQUIRED
+    assert await _membership_rows(a.org_id, a.member.user_id) == [("admin", "active")]
+
+
+async def test_role_changes_lock_target_and_owner_rows(fresh_world, as_user, extra_member):
+    a = fresh_world.a
+    extra_owner = await extra_member("owner")
+    client = await as_user(a.owner)
+    base = _ORG.format(a=a.org_id)
+    statements: list[str] = []
+
+    def capture(_conn, _cursor, statement, *_args):
+        statements.append(statement)
+
+    event.listen(engine.sync_engine, "before_cursor_execute", capture)
+    try:
+        patched = await client.patch(
+            f"{base}/members/{a.member.user_id}", json={"org_role": "admin"}
+        )
+        deleted = await client.delete(f"{base}/members/{extra_owner}")
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", capture)
+
+    assert patched.status_code == 200, patched.text
+    assert deleted.status_code == 204, deleted.text
+    locking = [s for s in statements if "FOR UPDATE" in s and "memberships" in s]
+    assert len(locking) >= 2, locking

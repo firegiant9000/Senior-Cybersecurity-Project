@@ -233,7 +233,7 @@ Work: blocking CI gates for each language: **CodeQL** (Python, JavaScript/TypeSc
 
 #### S3. STRIDE threat model — DONE 2026-10-22 (#225)
 
-Delivered: [`threat_model.md`](security/threat_model.md) holds 110 threats: 41 CONTROL, 21 TEST, 18 ACCEPTED and 30 OPEN (plus 1 withdrawn). `.github/scripts/check_threat_model.py` runs in the `security.yml` workflow and checks the classifications and evidence. Writing it surfaced 10 findings (see the document's Findings). One, an SSRF in the domain checks, was fixed in #224 before publication; none of the other nine was severe, and none of them was fixed in S3. The OPEN rows are scheduled for S4, S5 or owner action.
+Delivered: [`threat_model.md`](security/threat_model.md) holds 110 threats: 42 CONTROL, 20 TEST, 18 ACCEPTED and 30 OPEN (plus 1 withdrawn). `.github/scripts/check_threat_model.py` runs in the `security.yml` workflow and checks the classifications and evidence. Writing it surfaced 10 findings (see the document's Findings). One, an SSRF in the domain checks, was fixed in #224 before publication; none of the other nine was severe, and none of them was fixed in S3. The OPEN rows are scheduled for S4, S5 or owner action.
 
 <a id="s3-privacy-page-follow-up"></a>Follow-up (2026-10-22): bring the in-app `/privacy` page (`frontend/src/pages/PrivacyPage.tsx`) in line with [`privacy.md`](security/privacy.md): the hosting region, and the Gemini and domain-lookup providers. Confirm the Render database region, then pin it in `render.yaml`.
 
@@ -243,7 +243,7 @@ Work: `docs/security/threat_model.md` covering agent enrollment, agent upload, t
 
 **Evidence produced.** The threat model document.
 
-**Resume potential.** "Wrote a STRIDE threat model for Hacker Tracker's agent enrollment, upload, token lifecycle, tenancy and AI-input paths (112 threats), mapping each to a control, a test or an accepted risk, and used it to drive the authorization suite."
+**Resume potential.** "Wrote a STRIDE threat model for Hacker Tracker's agent enrollment, upload, token lifecycle, tenancy and AI-input paths (115 threats), mapping each to a control, a test or an accepted risk, and used it to drive the authorization suite."
 
 **Interview questions.**
 - Walk me through the spoofing and tampering threats on the agent upload path and how each is controlled.
@@ -262,7 +262,7 @@ Settings the owner applies; none is a code change. Rows from the S3 threat model
 
 #### S4. Authorization assurance — DONE 2026-10-24 (PRs #226–#230)
 
-Delivered: a route-enumerating authorization suite over 128 routes, all classified (public 11, authenticated-global 29, organization-scoped 76, agent 2, administrator 10), with real token verification instead of the auth mock; a cross-tenant sweep over the 76 organization-scoped routes; and 20 routes whose authorization changed (`[K]`). All 14 S4 threat-model rows are TEST. Stage E added the platform work: security headers on the API and the SPA, request-body limits with the agent upload authenticated before its body is read, a `/health` that checks the database, an HTTPS-only agent, and egress regression tests. T-UPL-09 reaches operators only with the next agent release.
+Delivered: a route-enumerating authorization suite over 129 routes, all classified (public 11, authenticated-global 29, organization-scoped 77, agent 2, administrator 10), with real token verification instead of the auth mock; a cross-tenant sweep over the 76 organization-scoped routes; and 20 routes whose authorization changed (`[K]`). All 14 S4 threat-model rows are TEST. Stage E added the platform work: security headers on the API and the SPA, request-body limits with the agent upload authenticated before its body is read, a `/health` that checks the database, an HTTPS-only agent, and egress regression tests. T-UPL-09 reaches operators only with the next agent release.
 
 Work: a **route-enumerating authorization suite**. A test walks the FastAPI router, requires every route to appear in a classification table (`public`, `authenticated-global`, `organization-scoped`, `agent`, `administrator`), and fails CI on any unclassified route. For organization-scoped routes it issues requests as a member of org B against org A's resources and expects 403 or 404 (never 200, never 500). It also tests member vs admin on admin-only routes, a revoked agent token, an expired rotated token past its grace, a replayed upload, and the public endpoint boundary. These tests use **real token verification**: Firebase emulator or a locally signed test key with the real verification code path, not the autouse mock. Add security headers middleware (and a `headers` block in `firebase.json`), a body-size limit on the agent upload route, and a `/health` that checks the database.
 
@@ -273,7 +273,8 @@ Threat-model rows: T-PLAT-06, T-ENR-04, T-UPL-09, T-TOK-07, T-TOK-08, T-AUTH-04,
 - Org-role checks on the destructive routes that only check membership (T-TEN-05) (done, S4-C).
 - Decide and enforce owner-only admin grants (T-TEN-07) (done, S4-C).
 - Close the gap where the analytics event route doesn't bind events to the caller's org (T-TEN-10) (done, S4-B).
-- HTTPS-only check on the agent's `--server` URL, with HSTS from the headers work (T-UPL-09) (done, S4-E).
+- HTTPS-only check on the agent's `--server` URL, and no redirects (T-UPL-09) (done, S4-E). HSTS protects browsers only.
+- **Next agent release (with T-UPL-09):** a bounded retry that honours `Retry-After` on a 503 from the upload route. The backend now queues an upload up to 10 s for room and then answers 503, and today's agent does not retry, so an upload that loses the wait is lost until the next run (T-PLAT-06 residual).
 - Egress guard regression tests: pin the real HTTP client's `follow_redirects=False`, and test a redirect to a non-default port (T-DOM-09) (done, S4-E).
 
 **Progress.** Stage A (harness, real verification, route table: 128 routes: public 11, authenticated-global 29, organization-scoped 76, agent 2, administrator 10; 5 behind the M365 flag) — PR #226. Stage B (cross-tenant sweep over 76 organization-scoped routes; T-TEN-10 fixed) — PR #227. Stage C (role rules: owner-only admin management, org admin on 7 destructive routes, verified email for sign-up and invites) — PR #228. Stage D (agent-token lifecycle: end-to-end token tests on both agent routes, chain revocation, active-only rotation) — PR #229. Stage E (platform hardening: API and SPA security headers, request-body limits, database-backed `/health`, HTTPS-only agent, egress regression tests) — this PR. S4 is done.
@@ -294,20 +295,23 @@ Threat-model rows: T-PLAT-06, T-ENR-04, T-UPL-09, T-TOK-07, T-TOK-08, T-AUTH-04,
 
 Work: **OWASP ZAP baseline** against the docker-compose stack in CI, failing at medium and above once the header work in S4 lands. ~~Harden the AI summary prompt: delimit and escape org-supplied fields, add a prompt-injection test corpus, validate output against the schema.~~ _(Moved to S5a on 2026-10-18.)_ If pursuing BSCP, perform a **manual Burp assessment** of the API and record each finding as: finding, risk, exploit path, fix, regression test.
 
-Threat-model rows: T-ING-04, T-ING-06, T-ING-07, T-ING-10, T-DOM-08, T-AI-09, T-TEN-17, T-PLAT-03, T-PLAT-05, T-PLAT-07, T-PLAT-10, T-PLAT-13.
+Threat-model rows: T-ING-04, T-ING-06, T-ING-07, T-ING-10, T-DOM-08, T-AI-09, T-PLAT-03, T-PLAT-05, T-PLAT-07, T-PLAT-10, T-PLAT-13, T-TEN-14, T-TEN-16, T-TEN-17, T-TEN-18.
 
 Threat-model fixes (from the OPEN rows in [`threat_model.md`](security/threat_model.md)):
 - Validate ingested EPSS values (within [0, 1], only for requested CVEs) (T-ING-04).
 - Explicit timeouts and response-size caps on feed fetches (T-ING-06).
 - Mark a run partial when EPSS batches fail or NVD returns 429 (T-ING-07).
-- Send the NVD key as a header on every path (T-ING-10).
+- Keep the NVD, Census and BEA keys out of URLs: headers where the API allows it, otherwise redact URLs in logged and returned errors (T-ING-10).
 - Domain-check follow-ups from #224: try every resolved address, validate `primary_domain` on write, and test that the body read stops at the cap (T-DOM-08).
 - Per-user or per-org quota on AI summary `force_refresh` (T-AI-09).
 - Fail closed when `APP_ENV` is unset, and reject wildcard, IP and `http://` origins in production (T-PLAT-03).
 - Rate-limit storage and client identity need hardening (shared store, trusted client identity, limits on data-lifecycle routes) (T-PLAT-05).
 - An error-message policy and a global exception handler (T-PLAT-07).
-- Log scrubbing and an access-log policy (T-PLAT-10).
+- Log scrubbing and an access-log policy, including moving the invite token out of the URL path or filtering it from access logs (T-PLAT-10).
 - Validate the characters of the request id (T-PLAT-13).
+- Merge the two org role stores (legacy `users.org_id`/`org_role` and memberships) into one source of truth (T-TEN-14).
+- ~~Make member removal revoke access in both role stores, atomically, with a test per path (T-TEN-15).~~ _(Done in #232.)_
+- Write an audit row for every global-admin cross-org write (T-TEN-16).
 
 **Acceptance.** ZAP baseline green at medium and above on every PR; ~~the injection corpus runs in CI~~ (moved to S5a, 2026-10-18); if the Burp assessment is done, `docs/security/assessment-YYYY-MM.md` exists with every finding closed by a regression test or accepted.
 
@@ -344,7 +348,7 @@ Ingest CycloneDX SBOMs produced by the author's other repositories (FairTix, Pla
 
 ### R5. Do not do (2026-09 revision)
 
-MSP management console, Windows or macOS agent, generic attack-surface platform, additional threat-intelligence feeds, M365 expansion, more economic-data correlation, arbitrary AI features, PDF or email reports, forecasting, SOC 2 scoping, customer interviews, Terraform, OpenTelemetry, load testing (except one optional test of the synchronous agent upload at the 50,000-item cap).
+MSP management console, Windows or macOS agent, generic attack-surface platform, additional threat-intelligence feeds, M365 expansion, more economic-data correlation, arbitrary AI features, PDF or email reports, forecasting, SOC 2 scoping, customer interviews, Terraform, OpenTelemetry, load testing (except one optional test of the synchronous agent upload at the 20,000-item software cap).
 
 ### R6. Non-goals (restated 2026-09-29)
 
