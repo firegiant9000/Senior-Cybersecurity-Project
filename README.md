@@ -159,7 +159,7 @@ flowchart LR
 ## Security design
 
 - **Threat model.** [docs/security/threat_model.md](docs/security/threat_model.md)
-  is a STRIDE model of 110 threats (38 controlled, 25 tested, 18 accepted, 29
+  is a STRIDE model of 110 threats (39 controlled, 24 tested, 18 accepted, 29
   open and scheduled for S4/S5 or owner action). CI checks that every row has
   one classification and that its evidence exists.
 - **Authentication.** Users sign in through Firebase Authentication. The API
@@ -234,7 +234,7 @@ on `main` (395 of 560 commits are mine, across the identities listed in
 - Most of the React dashboard: the analytics-tab rebuild, component
   reorganization, assets and findings views, executive report page, Firebase
   auth UI
-- All four CI workflows; 47 of the 49 Alembic migration files; the majority of the
+- The repository CI workflows; 47 of the 49 Alembic migration files; the majority of the
   backend tests
 
 ### Major contributions by me (originally built by a teammate)
