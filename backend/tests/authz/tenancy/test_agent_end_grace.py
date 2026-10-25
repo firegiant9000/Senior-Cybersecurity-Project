@@ -142,6 +142,43 @@ async def test_end_grace_refused_after_grace_elapsed(world, as_user, clock):
     assert (await load_agent(x.enrollment.id)).revoked_at == t0 + GRACE
 
 
+async def test_end_grace_refused_when_expired_but_still_in_grace_window(world, as_user, clock):
+    """Rotated, then expired before the grace ended: `revoked_at` is in the future but the row is dead."""
+    t0 = frozen_now()
+    x = await issue_agent(world.a, now=t0, expires_at=t0 + timedelta(hours=2))
+    clock(t0)
+    admin = await as_user(world.a.admin)
+    await _rotate(admin, x.enrollment.id)
+    clock(t0 + timedelta(hours=3))
+
+    await _assert_refused_409(admin, x.enrollment.id, world)
+
+    assert (await load_agent(x.enrollment.id)).revoked_at == t0 + GRACE
+
+
+async def test_repository_end_grace_refuses_expired_row(world):
+    org = world.a
+    t0 = frozen_now()
+    x = await issue_agent(org, now=t0, expires_at=t0 + timedelta(hours=2))
+    session = AsyncSessionLocal()
+    try:
+        repo = SqlAgentEnrollmentRepository(session)
+        row = await repo.get_by_id(x.enrollment.id, org.org_id)
+        assert row is not None
+        assert await repo.claim_for_rotation(row, grace_until=t0 + GRACE, now=t0)
+        await session.commit()
+
+        ended = await repo.end_grace(row, when=t0 + timedelta(hours=3))
+
+        assert ended is False
+    finally:
+        try:
+            await session.rollback()
+        finally:
+            await session.close()
+    assert (await load_agent(x.enrollment.id)).revoked_at == t0 + GRACE
+
+
 async def test_end_grace_twice_never_moves_revoked_at_later(world, as_user, clock):
     t0 = frozen_now()
     clock(t0)
@@ -277,14 +314,19 @@ async def test_concurrent_end_grace_one_wins(world):
 async def test_end_grace_waits_for_chain_lock_then_leaves_successor(
     world, authz_client, as_user, clock
 ):
-    """An end-grace that starts while another chain writer holds the lock waits, then applies to its row only."""
+    """End-grace on a mid-chain row waits for the lock on the chain ROOT, then applies to that row only.
+
+    X -> S1 -> S2: S1 is in grace. The lock is held on X only, so only the chain-root lock
+    (not S1's own row lock) can make the end-grace on S1 wait.
+    """
     org = world.a
     t0 = frozen_now()
     clock(t0)
     x = await issue_agent(org)
     x_id = x.enrollment.id
     admin = await as_user(org.admin)
-    s_id, s_token = await _rotate(admin, x_id)
+    s1_id, _ = await _rotate(admin, x_id)
+    s2_id, s_token = await _rotate(admin, s1_id)
     now = t0 + timedelta(hours=1)
     clock(now)
 
@@ -299,17 +341,18 @@ async def test_end_grace_waits_for_chain_lock_then_leaves_successor(
         await session2.execute(text("SET LOCAL lock_timeout = '10s'"))
         p2 = (await session2.execute(text("SELECT pg_backend_pid()"))).scalar_one()
         repo2 = SqlAgentEnrollmentRepository(session2)
-        x2 = await repo2.get_by_id(x_id, org.org_id)
-        assert x2 is not None
-        task = asyncio.create_task(agent_token.end_grace(repo2, x2, now=now))
+        s1 = await repo2.get_by_id(s1_id, org.org_id)
+        assert s1 is not None
+        task = asyncio.create_task(agent_token.end_grace(repo2, s1, now=now))
 
         await wait_until_blocked(p2, blocker=p1)
         assert not task.done()
         await session1.commit()
         await asyncio.wait_for(task, 10)
 
-        assert (await load_agent(x_id)).revoked_at == now
-        assert (await load_agent(s_id)).revoked_at is None
+        assert (await load_agent(s1_id)).revoked_at == now
+        assert (await load_agent(x_id)).revoked_at == t0 + GRACE
+        assert (await load_agent(s2_id)).revoked_at is None
         await assert_accepted(await authz_client(s_token), STATUS, world)
     finally:
         if task is not None:
@@ -328,11 +371,12 @@ async def test_end_grace_waits_for_chain_lock_then_leaves_successor(
 
 
 async def test_end_grace_and_chain_revoke_concurrent(world):
-    """Whichever order they run, the predecessor is revoked and never later than the earlier time."""
+    """Whichever order they run, X ends at the earlier time and the successor at the later one."""
     org = world.a
     t0 = frozen_now()
     x = await issue_agent(org, now=t0)
     now = t0 + timedelta(hours=1)
+    later = t0 + timedelta(hours=2)
     async with AsyncSessionLocal() as session1, AsyncSessionLocal() as session2:
         repo1 = SqlAgentEnrollmentRepository(session1)
         repo2 = SqlAgentEnrollmentRepository(session2)
@@ -343,12 +387,15 @@ async def test_end_grace_and_chain_revoke_concurrent(world):
         x2 = await repo2.get_by_id(x.enrollment.id, org.org_id)
         assert x1 is not None and x2 is not None
 
-        await asyncio.gather(
+        end_result, revoke_result = await asyncio.gather(
             agent_token.end_grace(repo1, x1, now=now),
-            agent_token.revoke(repo2, x2, now=now),
+            agent_token.revoke(repo2, x2, now=later),
             return_exceptions=True,
         )
 
+    assert end_result is None or isinstance(end_result, AgentNotInGraceError), end_result
+    assert isinstance(revoke_result, list), revoke_result
+    # Earlier of the two times, in either order; never moved later.
     assert (await load_agent(x.enrollment.id)).revoked_at == now
     # The chain revoke always runs, so the successor is revoked in either order.
-    assert (await load_agent(succ.enrollment.id)).revoked_at == now
+    assert (await load_agent(succ.enrollment.id)).revoked_at == later

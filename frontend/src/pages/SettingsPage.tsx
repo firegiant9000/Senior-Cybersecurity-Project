@@ -176,6 +176,13 @@ export default function SettingsPage() {
   };
 
   const handleEndGrace = async (agentId: number) => {
+    if (
+      !window.confirm(
+        "The old token stops working now. Has the host switched to the new token?",
+      )
+    ) {
+      return;
+    }
     setAgentsError("");
     setAgentsMsg("");
     try {

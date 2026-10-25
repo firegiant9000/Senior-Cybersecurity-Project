@@ -249,12 +249,16 @@ async def end_grace(
 ) -> None:
     """End a rotated-out row's grace window now, leaving its successor valid.
 
-    Only a row inside its grace window (``revoked_at`` in the future) qualifies; anything else
-    raises ``AgentNotInGraceError``. The pre-check is a cheap early refusal; the conditional
-    update in the repository is what holds under concurrency.
+    Only a row inside its grace window (``revoked_at`` in the future, not yet expired)
+    qualifies; anything else raises ``AgentNotInGraceError``. The pre-check is a cheap early
+    refusal; the conditional update in the repository is what holds under concurrency.
     """
     now = now or _utcnow()
-    if enrollment.revoked_at is None or _as_aware(enrollment.revoked_at) <= now:
+    if (
+        enrollment.revoked_at is None
+        or _as_aware(enrollment.revoked_at) <= now
+        or (enrollment.expires_at is not None and _as_aware(enrollment.expires_at) <= now)
+    ):
         raise AgentNotInGraceError("Only an agent in its grace window can be ended")
     if not await repo.end_grace(enrollment, when=now):
         raise AgentNotInGraceError("Only an agent in its grace window can be ended")

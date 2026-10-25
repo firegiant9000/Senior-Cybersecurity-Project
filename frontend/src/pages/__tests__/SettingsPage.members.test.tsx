@@ -1103,17 +1103,40 @@ describe('SettingsPage - Member Management', () => {
       expect(screen.queryByRole('button', { name: 'End grace now' })).not.toBeInTheDocument()
     })
 
-    it('End grace now calls the API client for that agent', async () => {
-      mockListAgents.mockResolvedValue({ items: [agentWithStatus('grace')], total: 1 })
-      renderPage()
-      const button = await screen.findByRole('button', { name: 'End grace now' })
-
-      fireEvent.click(button)
-
-      await waitFor(() => {
-        expect(mockEndAgentGrace).toHaveBeenCalledWith(31)
+    describe('End grace confirmation', () => {
+      afterEach(() => {
+        vi.restoreAllMocks()
       })
-      expect(mockRevokeAgent).not.toHaveBeenCalled()
+
+      it('after confirming, calls the API client for that agent only', async () => {
+        const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+        mockListAgents.mockResolvedValue({ items: [agentWithStatus('grace')], total: 1 })
+        renderPage()
+        const button = await screen.findByRole('button', { name: 'End grace now' })
+
+        fireEvent.click(button)
+
+        await waitFor(() => {
+          expect(mockEndAgentGrace).toHaveBeenCalledWith(31)
+        })
+        expect(String(confirmSpy.mock.calls[0][0])).toMatch(
+          /old token stops working now.*switched to the new token/i,
+        )
+        expect(mockRevokeAgent).not.toHaveBeenCalled()
+      })
+
+      it('cancelling does nothing', async () => {
+        const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+        mockListAgents.mockResolvedValue({ items: [agentWithStatus('grace')], total: 1 })
+        renderPage()
+        const button = await screen.findByRole('button', { name: 'End grace now' })
+
+        fireEvent.click(button)
+
+        expect(confirmSpy).toHaveBeenCalledTimes(1)
+        expect(mockEndAgentGrace).not.toHaveBeenCalled()
+        expect(mockListAgents).toHaveBeenCalledTimes(1)
+      })
     })
 
     describe('Revoke confirmation', () => {
