@@ -449,71 +449,77 @@ async def _audit_agent(
 AGENT_UPLOAD_BUSY = "Agent upload busy; retry shortly"
 AGENT_UPLOAD_TIMEOUT = "Agent upload timed out"
 
-# Large agent bodies are read and parsed one at a time (T-PLAT-06). Created lazily so the
-# size follows settings.AGENT_UPLOAD_CONCURRENCY; tests drop it with _reset_agent_upload_slots.
-_agent_upload_slots: asyncio.Semaphore | None = None
+# Agent uploads in flight (T-PLAT-06), at every body size: at most one per enrollment and at
+# most settings.AGENT_MAX_CONCURRENT_UPLOADS in total. Each slot is one enrollment id, so the
+# set's size is the process-wide count. Check-and-add has no await, so it is atomic on the loop.
+_agent_uploads: set[int] = set()
 
 
 def _reset_agent_upload_slots() -> None:
-    """Tests only: drop the semaphore so the next request rebuilds it."""
-    global _agent_upload_slots  # noqa: PLW0603
-    _agent_upload_slots = None
+    """Tests only: forget every held slot."""
+    _agent_uploads.clear()
 
 
-def _get_agent_upload_slots() -> asyncio.Semaphore:
-    global _agent_upload_slots  # noqa: PLW0603
-    if _agent_upload_slots is None:
-        _agent_upload_slots = asyncio.Semaphore(settings.AGENT_UPLOAD_CONCURRENCY)
-    return _agent_upload_slots
+def _agent_uploads_in_flight() -> int:
+    return len(_agent_uploads)
 
 
-def _needs_large_slot(request: Request) -> bool:
-    """True when the body may be large: no usable Content-Length, or one over the threshold."""
-    raw = request.headers.get("content-length")
-    if raw is None:
-        return True
-    try:
-        declared = int(raw)
-    except ValueError:
-        return True
-    return declared > settings.AGENT_LARGE_UPLOAD_BYTES
-
-
-async def agent_upload_slot(request: Request) -> AsyncGenerator[None, None]:
-    """Hold the large-upload slot for the request, or answer 503 without reading the body."""
-    if not _needs_large_slot(request):
-        yield
-        return
-    # Capture the semaphore: a test reset may replace the global while we hold this one.
-    sem = _get_agent_upload_slots()
-    if sem.locked():
+def _acquire_agent_upload(enrollment_id: int) -> None:
+    """Take the enrollment's slot, or refuse at once with 503 (never queue)."""
+    if enrollment_id in _agent_uploads or len(_agent_uploads) >= (
+        settings.AGENT_MAX_CONCURRENT_UPLOADS
+    ):
         raise HTTPException(status_code=503, detail=AGENT_UPLOAD_BUSY, headers={"Retry-After": "5"})
-    await sem.acquire()
+    _agent_uploads.add(enrollment_id)
+
+
+def _release_agent_upload(enrollment_id: int) -> None:
+    _agent_uploads.discard(enrollment_id)
+
+
+async def agent_upload_slot(
+    enrollment: AgentEnrollment = Depends(get_agent_from_token),
+    session: AsyncSession = Depends(get_session),
+) -> AsyncGenerator[None, None]:
+    """Hold the enrollment's upload slot for the request, or answer 503 without reading the body.
+
+    The token check leaves the session's transaction open (inside the last-used debounce nothing
+    commits), which would pin a pooled connection for the whole body read. End it first;
+    ``expire_on_commit=False`` keeps the loaded enrollment usable and the session starts a new
+    transaction when the handler next needs it.
+    """
+    # Read the id now: after a later rollback the enrollment is expired and touching it would
+    # reload it (IO) during teardown.
+    enrollment_id = enrollment.id
+    _acquire_agent_upload(enrollment_id)
     try:
+        await session.commit()
         yield
     finally:
-        sem.release()
+        _release_agent_upload(enrollment_id)
 
 
 async def read_agent_payload(
     request: Request,
-    enrollment: AgentEnrollment = Depends(get_agent_from_token),  # noqa: ARG001
     _slot: None = Depends(agent_upload_slot),
 ) -> AgentScanPayload:
-    """Read and validate the scan body after the token check and under the slot and deadline.
+    """Read and validate the scan body after the token check, under the slot and the deadline.
 
-    Declaration order matters: the token is solved first, so an unauthenticated request never
-    takes a slot or has its body read.
+    The slot depends on the token, so an unauthenticated request never takes a slot or has its
+    body read. The body is streamed into a local buffer rather than ``request.body()``, so it is
+    not cached on the Request and is freed once parsed.
     """
+    buffer = bytearray()
     try:
         async with asyncio.timeout(settings.AGENT_UPLOAD_READ_TIMEOUT_SECONDS):
-            body = await request.body()
+            async for chunk in request.stream():
+                buffer.extend(chunk)
     except TimeoutError:
         raise HTTPException(status_code=408, detail=AGENT_UPLOAD_TIMEOUT) from None
     except ClientDisconnect:
         raise HTTPException(status_code=400, detail="Client disconnected") from None
     try:
-        return AgentScanPayload.model_validate_json(body)
+        return AgentScanPayload.model_validate_json(buffer)
     except ValidationError as exc:
         errors = []
         for err in exc.errors(include_url=False):

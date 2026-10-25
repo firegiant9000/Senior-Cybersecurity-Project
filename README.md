@@ -195,9 +195,11 @@ flowchart LR
   `FIREBASE_SERVICE_ACCOUNT_JSON` variable and is gitignored.
 - **Input boundaries.** Request bodies are capped before they're read: 1 MiB
   by default, 10 MB per uploaded file (checked before the file is loaded into
-  memory; multipart bodies are still spooled before authentication), and 80 MiB
+  memory; multipart bodies are still spooled before authentication), and 24 MiB
   for the agent upload, derived from its per-list caps. The agent upload is
-  authenticated before its body is read, and handles one large upload at a time.
+  authenticated before its body is read, holds no database connection while the
+  body arrives, and is bounded in flight (a small process-wide cap and one per
+  enrollment, refused at once with 503 when full).
   Uploaded files are filename-sanitized. Inventory CSV imports are capped by row
   count. The agent payload is a versioned schema validated with
   Pydantic; AI prompts receive organization and finding data only inside a

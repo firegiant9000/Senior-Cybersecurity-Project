@@ -15,10 +15,11 @@
 - **The body cap** has two parts. It refuses a declared `Content-Length` over the limit without reading, and it counts the bytes `receive` delivers, raising `HTTPException(413)` once they pass the limit. FastAPI re-raises an `HTTPException` raised while it reads a body (`fastapi/routing.py` L406).
   - **Why innermost.** `SlowAPIMiddleware` and `RequestContextMiddleware` are `BaseHTTPMiddleware`. Their `receive` runs inside an anyio task group, so an exception raised in a `receive` wrapper outside them comes back to FastAPI as an `ExceptionGroup`: a 400 on body params, and a 500 on the agent route (pre-flight review, round 1).
   - Innermost, the wrapper raises in its own frame, after the downstream `receive` has returned. The 413 then goes out through the normal exception handler, with X-Request-ID, CORS and security headers.
-- **The agent upload reads its body after the token check, with large bodies one at a time and a read deadline.** FastAPI reads declared body params before it solves dependencies, so today an unauthenticated caller can make the server read and parse a body of any size on that route.
-  - The payload becomes a dependency that depends on `get_agent_from_token`, and then on a "large upload" slot (an `asyncio.Semaphore`; 503 when it's held, without reading). The slot is taken only when the declared `Content-Length` is over `AGENT_LARGE_UPLOAD_BYTES` (8 MiB) or is absent (chunked). Typical scans (the Go agent sends `Content-Length`; real scans are well under 1 MiB) never contend.
+- **Revised after review (supersedes the 80 MiB, 8 MiB and "large upload" wording below).** The agent list caps are now 20,000 software, 5,000 services and 5,000 ports, so the worst-case body is 19,311,014 bytes (18.4 MiB) and `MAX_AGENT_UPLOAD_BYTES` is 24 MiB (30 % headroom). The large-body threshold (`AGENT_LARGE_UPLOAD_BYTES`) and `AGENT_UPLOAD_CONCURRENCY` are gone. One mechanism replaces them: every agent upload, at any size, takes a slot before its body is read. The slot is one per enrollment plus a process-wide cap (`AGENT_MAX_CONCURRENT_UPLOADS`, default 4). A full cap is refused at once with 503 `"Agent upload busy; retry shortly"` and `Retry-After: 5`, never queued. The token check's transaction is ended (committed) before the body is read, so a slow body holds no pooled DB connection. The body is streamed into a local buffer and not cached on the Request.
+- **The agent upload reads its body after the token check, under a slot and a read deadline.** FastAPI reads declared body params before it solves dependencies, so today an unauthenticated caller can make the server read and parse a body of any size on that route.
+  - The payload becomes a dependency that depends on `get_agent_from_token`, and then on the upload slot (503 when it can't be taken, without reading).
   - The body read runs under `asyncio.timeout(AGENT_UPLOAD_READ_TIMEOUT_SECONDS)` (60 s), so a trickled body can't hold the slot indefinitely.
-  - The 80 MiB allowance is only read for a valid agent, and at most one large body is in flight.
+  - The body allowance is only read for a valid agent, and the number of bodies in flight is bounded.
   - **This isn't a CPU bound.** pydantic-core holds the GIL while it validates, and the rest of the handler is synchronous. A maximal upload still stalls the event loop for around a second (measured: 0.63 s stall on a 70 MB parse, round-2 review). The bounds are the slot and the list-cap follow-up.
 - **`/health`** runs `SELECT 1` on a dedicated one-connection engine with a 2 s timeout. The result is cached for 2 s and shared by concurrent callers, so flooding `/health` can't exhaust the app's pool or make it report 503. The 503 test points the engine dependency at an unreachable engine; the shared test DB is never stopped.
 - **The Go agent** validates the URL in `upload.New`, and its `http.Client` refuses every redirect.
@@ -117,7 +118,7 @@
 
   | Route | Limit | Setting |
   |---|---|---|
-  | `POST /api/v1/inventory/scans` (agent upload) | 80 MiB = 83,886,080 bytes | `MAX_AGENT_UPLOAD_BYTES` (new) |
+  | `POST /api/v1/inventory/scans` (agent upload) | 24 MiB = 25,165,824 bytes | `MAX_AGENT_UPLOAD_BYTES` (new) |
   | the 5 multipart routes: `…/uploads`, `…/vendors/import`, `…/vendors/import/preview`, `…/inventory/uploads/csv/preview`, `…/inventory/uploads/csv/import` (all under `/api/v1/organizations/{org_id}`) | `MAX_UPLOAD_SIZE_BYTES` + 64 KiB multipart overhead = 10,551,296 bytes | `MAX_UPLOAD_SIZE_BYTES` (existing, 10 MiB) |
   | everything else | 1 MiB = 1,048,576 bytes | `MAX_JSON_BODY_BYTES` (new) |
 
@@ -127,29 +128,29 @@
     - software: `{"vendor":"…","product":"…","version":"…"}` = 39 + 255 × 3 = **804** bytes;
     - service: `{"name":"…","state":"…"}` = 22 + 255 + 64 = **341**;
     - port: `{"port":65535,"protocol":"tcp","process":"…"}` = 44 + 255 = **299**.
-  - Each list holds 50,000 items, with 49,999 commas between them:
-    - software 40,249,999;
-    - services 17,099,999;
-    - ports 14,999,999.
+  - The lists hold 20,000 software, 5,000 services and 5,000 ports, with one comma fewer than items between them:
+    - software 16,099,999;
+    - services 1,709,999;
+    - ports 1,499,999.
   - The top level and the host come to **1,017** bytes: the top-level keys, `scan_id` 64, `nonce` 128, `scanner_version` 32, `schema_version` `"1.0"`, three `[]`, and a host with every field at its cap (677).
-  - **Total: 72,351,014 bytes (69.0 MiB).** The limit is 80 MiB, 16 % headroom.
+  - **Total: 19,311,014 bytes (18.4 MiB).** The limit is 24 MiB, 30 % headroom.
   
   The test `test_maximal_agent_payload_fits_limit` builds this payload from the schema's own caps. It asserts the byte count, that it validates, and that it fits, so raising a cap without the limit fails CI.
 - **The headroom doesn't cover a maximal payload made entirely of non-ASCII or escaped characters.** Go escapes `<`, `>` and `&` as 6 bytes, and non-ASCII is 2–4 bytes. Real package metadata is overwhelmingly ASCII, and 150,000 entries all at maximum length aren't a legitimate scan. Such a payload gets 413, which is acceptable.
-- **Residual: 80 MiB is large for Render's starter plan (512 MB).**
+- **Residual (as first measured at the old 80 MiB limit; the caps are now lower, see the revision above).**
   - **Measured in the pre-flight review:** `model_validate_json` alone on the maximal 72 MB payload takes peak RSS from 168 to 327 MiB. On top of that come the body bytes, `payload_hash` (`model_dump` plus `json.dumps`), the row building and the ORM objects.
   - **A valid agent token isn't a real barrier.** Any self-registered account can create an org (`onboarding.py` L25) and enroll an agent (`agents.py` L45).
   - **The 12/minute rate limit doesn't help either.** slowapi checks decorated routes inside the endpoint wrapper, after the payload dependency has already read and parsed the body.
   - **What this stage adds:**
-    - one "large upload" slot (`AGENT_UPLOAD_CONCURRENCY`, default **1**): a module-level `asyncio.Semaphore`, taken without waiting before the body is read, but only for bodies declared over `AGENT_LARGE_UPLOAD_BYTES` (8 MiB) or sent without `Content-Length`. If the slot is held, the response is 503 `"Agent upload busy; retry shortly"` with `Retry-After: 5`, and the body isn't read;
+    - an upload slot for every agent body (one per enrollment, plus `AGENT_MAX_CONCURRENT_UPLOADS` in total, default **4**), taken without waiting before the body is read. If it can't be taken, the response is 503 `"Agent upload busy; retry shortly"` with `Retry-After: 5`, and the body isn't read;
     - a 60 s read deadline (`AGENT_UPLOAD_READ_TIMEOUT_SECONDS`). On expiry the response is 408 `"Agent upload timed out"`, and the slot is released.
     
     So at most one large body is in memory at a time, and a slow-loris holds the slot for at most 60 s per request. The loop still stalls while a large payload is parsed (Architecture).
-  - **Residual: a self-registered account can still hold the large slot by sending large bodies back to back,** delaying other orgs' large uploads (small uploads are unaffected). The Go agent doesn't retry a 503 today. A bounded retry that honours `Retry-After` is a follow-up. The real fix is lowering the caps.
-  - **The real fix is to lower the per-list caps** to realistic values, which is a schema-contract change coordinated with the agent. Decision 7 fixes "derive from the existing caps", so this stage doesn't change them. **It's a question for Arlo before merge** (PR body), and if Arlo doesn't take it here, a follow-up (Task 7 Step 9).
+  - **Residual: a self-registered account can still hold process-wide slots by enrolling several agents and sending uploads back to back,** delaying other orgs' uploads (they get 503 and retry). The Go agent doesn't retry a 503 today. A bounded retry that honours `Retry-After` is a follow-up. The real fix is lowering the caps.
+  - **The per-list caps were lowered** (20,000 / 5,000 / 5,000) on the owner's decision at review. The Go agent applies no caps of its own, so no agent change was needed.
 - **The agent upload authenticates before it reads the body.** `upload_agent_scan`'s `payload` becomes `Depends(read_agent_payload)`.
-  - `read_agent_payload` depends on `get_agent_from_token` (which FastAPI caches per request, so it's the same call the handler's `enrollment` uses) and on `agent_upload_slot`, a yield dependency that takes and releases the large-upload slot when the body needs it.
-  - It reads `await request.body()` under the read deadline (the middleware caps the size), and returns `AgentScanPayload.model_validate_json(body)`.
+  - `read_agent_payload` depends on `agent_upload_slot`, a yield dependency that depends on `get_agent_from_token` (which FastAPI caches per request, so it's the same call the handler's `enrollment` uses), takes the upload slot, ends the session's transaction, and releases the slot at the end.
+  - It streams `request.stream()` into a local buffer under the read deadline (the middleware caps the size), and returns `AgentScanPayload.model_validate_json(body)`.
   - **A client disconnect mid-read** (`starlette.requests.ClientDisconnect`) becomes `HTTPException(400, "Client disconnected")`. Without this, it would be an unhandled 500 and a Sentry event, because a dependency has no FastAPI body-read wrapper around it.
   - The order is: token, then slot, then read. The two sub-dependencies are declared in that order; FastAPI solves them in parameter order. An unauthenticated request never takes a slot.
   - A `ValidationError` becomes `RequestValidationError` with each error's `loc` prefixed by `"body"` (from `exc.errors(include_url=False)`), so the 422 body keeps FastAPI's shape.

@@ -344,7 +344,7 @@ Ingest CycloneDX SBOMs produced by the author's other repositories (FairTix, Pla
 
 ### R5. Do not do (2026-09 revision)
 
-MSP management console, Windows or macOS agent, generic attack-surface platform, additional threat-intelligence feeds, M365 expansion, more economic-data correlation, arbitrary AI features, PDF or email reports, forecasting, SOC 2 scoping, customer interviews, Terraform, OpenTelemetry, load testing (except one optional test of the synchronous agent upload at the 50,000-item cap).
+MSP management console, Windows or macOS agent, generic attack-surface platform, additional threat-intelligence feeds, M365 expansion, more economic-data correlation, arbitrary AI features, PDF or email reports, forecasting, SOC 2 scoping, customer interviews, Terraform, OpenTelemetry, load testing (except one optional test of the synchronous agent upload at the 20,000-item software cap).
 
 ### R6. Non-goals (restated 2026-09-29)
 
