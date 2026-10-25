@@ -410,6 +410,25 @@ async def test_removal_revokes_pending_invites_to_and_from_the_user(
     await _assert_denied_everywhere(await as_user(legacy), a.org_id)
 
 
+async def test_removal_leaves_other_orgs_invites_pending(fresh_world, as_user, make_user):
+    # The revocation is scoped to the org the user is removed from.
+    world = fresh_world
+    a, b = world.a, world.b
+    legacy = await make_user("legacy", legacy_role="member")
+    to_user_in_b = await _add_invite(b.org_id, legacy.email, b.owner.user_id, f"t-{b.marker}-1")
+    from_user_in_b = await _add_invite(
+        b.org_id, f"out-{b.marker}@example.com", legacy.user_id, f"t-{b.marker}-2"
+    )
+    in_a = await _add_invite(a.org_id, legacy.email, a.admin.user_id, f"t-{a.marker}-9")
+
+    resp = await (await as_user(a.admin)).delete(_members_url(a.org_id, legacy.user_id))
+
+    assert resp.status_code == 204, f"{resp.status_code}: {resp.text}"
+    assert await _invite_status(in_a) == "revoked"
+    assert await _invite_status(to_user_in_b) == "pending"
+    assert await _invite_status(from_user_in_b) == "pending"
+
+
 # ── Migration 052 ─────────────────────────────────────────────────────────────
 
 
