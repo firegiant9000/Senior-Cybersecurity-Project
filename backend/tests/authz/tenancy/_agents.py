@@ -24,6 +24,7 @@ from tests.authz.tenancy._world import OrgWorld, snapshot_org
 AGENT_DENIED = "Invalid or expired agent token"
 REPLAY_DETAIL = "Duplicate scan submission (replay detected)"
 NOT_ACTIVE = "Only an active agent can be rotated"  # used from Task 3
+NOT_IN_GRACE = "Only an agent in its grace window can be ended"
 GRACE = timedelta(hours=settings.AGENT_TOKEN_ROTATION_GRACE_HOURS)
 
 UPLOAD = ("POST", "/api/v1/inventory/scans")

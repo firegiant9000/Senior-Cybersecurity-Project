@@ -79,21 +79,36 @@ Only an active agent can be rotated. An agent that is already in its grace
 window (rotated within the last 24h), revoked or expired is refused with 409;
 rotate its successor instead.
 
-API equivalent: `POST /api/v1/agents/{id}/rotate`.
+**If the old token may have leaked.** After a rotate, use **Settings → Agents →
+End grace now** on the old (in-grace) row once the host has the new token. That
+ends only the old token's grace window immediately (its next use gets `401`);
+the successor stays valid. Do **not** use Revoke for this: Revoke is chain-wide
+and would also cut off the successor you just installed.
+
+API equivalents: `POST /api/v1/agents/{id}/rotate`, and
+`POST /api/v1/agents/{id}/end-grace` (only a row in its grace window; anything
+else is refused with 409).
 
 ## 5. Revoke / lost host
 
-If a host is decommissioned, lost, or you suspect the token leaked:
+If a host is decommissioned, lost, or you suspect a full compromise (the host
+or the current token, not just a rotated-out one):
 
-1. **Settings → Agents → Revoke** on that agent.
-2. The token is invalidated immediately; the next upload from it gets `401`.
+1. **Settings → Agents → Revoke** on that agent and confirm. Revoke is
+   chain-wide: it also revokes every token rotated from that agent.
+2. The tokens are invalidated immediately; the next upload from any of them
+   gets `401`.
 3. Re-enroll a fresh agent if the host is being rebuilt — never reuse a revoked
    token.
 
+For a leaked token that has already been rotated out, see "If the old token may
+have leaked" in section 4 instead.
+
 API equivalent: `DELETE /api/v1/agents/{id}`.
 
-Every enroll / rotate / revoke is recorded in the audit log (`agent.enroll`,
-`agent.rotate`, `agent.revoke`), and each scan upload as `inventory.agent_scan`.
+Every enroll / rotate / end-grace / revoke is recorded in the audit log
+(`agent.enroll`, `agent.rotate`, `agent.end_grace`, `agent.revoke`), and each
+scan upload as `inventory.agent_scan`.
 
 ## Data retention
 

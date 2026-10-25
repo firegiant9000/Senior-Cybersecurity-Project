@@ -35,6 +35,9 @@ class _FakeSession:
     async def commit(self):
         return None
 
+    async def execute(self, _stmt):  # noqa: ANN001
+        return None
+
 
 async def _user_for_email(email: str, user_id: int = 101):
     return SimpleNamespace(id=user_id, email=email, org_id=None, org_role=None)
@@ -136,8 +139,8 @@ async def test_accept_invite_with_fake_user_success(client: AsyncClient):
             role="member",
         )
     )
-    repo.get_active_membership = AsyncMock(return_value=None)
-    repo.create_membership = AsyncMock()
+    repo.get_membership_for_update = AsyncMock(return_value=None)
+    repo.activate_membership = AsyncMock()
     repo.mark_accepted = AsyncMock()
 
     app.dependency_overrides[get_invite_repo] = lambda: repo
@@ -156,7 +159,7 @@ async def test_accept_invite_with_fake_user_success(client: AsyncClient):
 
     assert resp.status_code == 200
     assert resp.json()["detail"] == "Invite accepted"
-    repo.create_membership.assert_awaited_once()
+    repo.activate_membership.assert_awaited_once()
     repo.mark_accepted.assert_awaited_once()
 
 

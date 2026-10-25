@@ -125,6 +125,33 @@ class SqlAgentEnrollmentRepository:
         set_committed_value(enrollment, "revoked_at", grace_until)
         return True
 
+    async def end_grace(self, enrollment: AgentEnrollment, *, when: datetime) -> bool:
+        """End this one row's grace window at ``when``; no other row of the chain changes.
+
+        Takes the chain-root lock, then one conditional UPDATE that matches only while the row's
+        ``revoked_at`` is still in the future and the row has not expired, so it can only move
+        that time earlier, never later,
+        and a concurrent revoke or end-grace that got there first leaves 0 rows matched.
+        Returns whether a row changed.
+        """
+        await self._lock_chain_root(enrollment.chain_root_id or enrollment.id)
+        result = await self._session.execute(
+            update(AgentEnrollment)
+            .where(
+                AgentEnrollment.id == enrollment.id,
+                AgentEnrollment.org_id == enrollment.org_id,
+                AgentEnrollment.revoked_at > when,
+                or_(AgentEnrollment.expires_at.is_(None), AgentEnrollment.expires_at > when),
+            )
+            .values(revoked_at=when)
+            .returning(AgentEnrollment.id)
+            .execution_options(synchronize_session=False)
+        )
+        changed = result.scalar_one_or_none() is not None
+        await self._session.commit()
+        await self._session.refresh(enrollment)
+        return changed
+
     async def revoke_chain(self, enrollment: AgentEnrollment, *, when: datetime) -> list[int]:
         """Revoke every row of the enrollment's chain at ``when``; never moves a time later.
 

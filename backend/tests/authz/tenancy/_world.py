@@ -212,12 +212,13 @@ async def _seed_people(
     return pending
 
 
-async def build_world(upload_dir: Path) -> World:
+async def build_world(upload_dir: Path, *, tag: str | None = None) -> World:
     """Seed the world. On any failure, purge whatever was already committed, then re-raise.
 
-    The purge matters because `agent_token.issue` commits mid-build.
+    The purge matters because `agent_token.issue` commits mid-build. `tag` replaces the random
+    part of every marker, so a test can find exactly this build's rows; it must be unique.
     """
-    hex8 = uuid.uuid4().hex[:8]
+    hex8 = tag or uuid.uuid4().hex[:8]
     # A, B, C name the orgs; X names the cross-cutting users and belongs to no org.
     markers = {n: f"ht{n.lower()}{hex8}" for n in ("A", "B", "C", "X")}
     try:
