@@ -213,7 +213,8 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     # 24 MiB: the largest legal scan is 19,311,014 bytes (20k software, 5k services, 5k ports)
     MAX_AGENT_UPLOAD_BYTES: int = 24 * 1024 * 1024
     # Agent uploads in flight (body read through ingest) are admitted by declared Content-Length
-    # against a process-wide byte budget and a per-org share; each enrollment also has at most one.
+    # (MAX_AGENT_UPLOAD_BYTES when absent, e.g. chunked) against a process-wide byte budget and a
+    # per-org share; each enrollment also has at most one.
     # A request that doesn't fit waits up to AGENT_UPLOAD_WAIT_SECONDS, then gets 503 + Retry-After.
     # Both budgets must be at least MAX_AGENT_UPLOAD_BYTES so one maximal upload is always admissible.
     AGENT_UPLOAD_BUDGET_BYTES: int = 32 * 1024 * 1024

@@ -454,7 +454,8 @@ AGENT_UPLOAD_TIMEOUT = "Agent upload timed out"
 class _AgentUploadGate:
     """Admission control for agent uploads in flight (T-PLAT-06), at every body size.
 
-    An upload is weighed by its declared Content-Length and admitted while the process-wide byte
+    An upload is weighed by its declared Content-Length (MAX_AGENT_UPLOAD_BYTES when there is
+    none, e.g. a chunked body) and admitted while the process-wide byte
     budget and its org's share both have room. Each enrollment has at most one in flight (a
     duplicate is refused at once). Anything else waits up to AGENT_UPLOAD_WAIT_SECONDS for room,
     then gets 503. One event loop, no locks: every check-and-reserve runs without an await, and
