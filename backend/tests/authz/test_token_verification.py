@@ -1,13 +1,16 @@
 """T-AUTH-07: forged, expired, revoked and otherwise invalid ID tokens are rejected (401)."""
 
+import logging
 import secrets
 import time
 
+import jwt
+import pytest
 from sqlalchemy import select
 
 from app.db.engine import AsyncSessionLocal
 from app.db.user import User
-from tests.authz._issuer import KID, SigningKey, mint_id_token
+from tests.authz._issuer import KID, SigningKey, mint_hs256_with_cert_pem, mint_id_token
 
 ME = "/api/v1/auth/me"
 AGENT_SCAN_CREATE = "/api/v1/inventory/scans"
@@ -20,11 +23,20 @@ async def _user_exists(uid: str) -> bool:
         return result.first() is not None
 
 
-async def _assert_rejected(authz_client, token: str, uid: str) -> None:
+async def _assert_rejected(
+    authz_client, token: str, uid: str, *, reason: str | None = None, caplog=None
+) -> None:
+    """401 and no account created; with `reason`+`caplog`, also the logged failure cause."""
     client = await authz_client(token)
+    if caplog is not None:
+        caplog.set_level(logging.WARNING, logger="app.api.routes.v1.auth")
     response = await client.get(ME)
     assert response.status_code == 401
     assert not await _user_exists(uid), "a rejected token must not auto-create an account"
+    if reason is not None:
+        assert caplog is not None
+        logged = [r.getMessage() for r in caplog.records if "verification failed" in r.getMessage()]
+        assert any(reason.lower() in message.lower() for message in logged), logged
 
 
 async def test_forged_signature_rejected(authz_client, new_user):
@@ -55,10 +67,43 @@ async def test_wrong_issuer_rejected(authz_client, new_user, signing_key):
     await _assert_rejected(authz_client, token, uid)
 
 
-async def test_hs256_token_rejected(authz_client, new_user):
+async def test_hs256_token_rejected(authz_client, new_user, signing_key, caplog):
+    """Algorithm confusion: HMAC keyed on the served cert PEM must not verify as RS256."""
     uid, email = new_user()
-    token = mint_id_token(None, uid=uid, email=email, alg="HS256", hs_secret="x" * 32)
-    await _assert_rejected(authz_client, token, uid)
+    token = mint_hs256_with_cert_pem(signing_key.cert_pem, uid=uid, email=email)
+    assert jwt.get_unverified_header(token)["alg"] == "HS256"
+    await _assert_rejected(authz_client, token, uid, reason="algorithm", caplog=caplog)
+
+
+@pytest.mark.parametrize(
+    ("case", "reason"),
+    [
+        ("kid_missing", "kid"),
+        ("kid_unknown", "kid"),
+        ("sub_empty", "sub"),
+        ("sub_too_long", "128"),
+        ("iat_in_future", "early"),
+    ],
+)
+async def test_structurally_invalid_claims_rejected(
+    authz_client, new_user, signing_key, case, reason, caplog
+):
+    uid, email = new_user()
+    overrides: dict = {}
+    if case == "kid_missing":
+        overrides = {"kid": None}
+    elif case == "kid_unknown":
+        overrides = {"kid": "not-a-served-kid"}
+    elif case == "sub_empty":
+        uid = ""
+    elif case == "sub_too_long":
+        uid = "u" * 129
+    elif case == "iat_in_future":
+        # Beyond the 10 s clock-skew allowance in auth.py.
+        future = int(time.time()) + 300
+        overrides = {"iat": future, "exp": future + 3600}
+    token = mint_id_token(signing_key, uid=uid, email=email, **overrides)
+    await _assert_rejected(authz_client, token, uid, reason=reason, caplog=caplog)
 
 
 async def test_alg_none_token_rejected(authz_client, new_user):

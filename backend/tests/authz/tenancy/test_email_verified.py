@@ -115,7 +115,7 @@ async def test_auto_create_refused_when_claim_missing(
     accounts, signing_key, authz_client, identity
 ):
     accounts.add(identity.uid, identity.email, email_verified=False)
-    await _refused_create(authz_client, signing_key, identity, omit=("email_verified",))
+    await _refused_create(authz_client, signing_key, identity, drop_claims=("email_verified",))
 
 
 async def test_auto_create_refused_when_claim_is_string(
@@ -213,7 +213,9 @@ async def test_accept_invite_refused_when_claim_not_boolean(
 ):
     accounts.add(invitee.uid, invitee.email, email_verified=False)
     kwargs = (
-        {"omit": ("email_verified",)} if claim is None else {"extra": {"email_verified": claim}}
+        {"drop_claims": ("email_verified",)}
+        if claim is None
+        else {"extra": {"email_verified": claim}}
     )
     token = mint_id_token(signing_key, uid=invitee.uid, email=invitee.email, **kwargs)
     before = await snapshot_org(fresh_world.a.org_id, fresh_world.upload_dir)

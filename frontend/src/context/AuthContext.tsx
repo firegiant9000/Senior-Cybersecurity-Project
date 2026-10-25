@@ -100,6 +100,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       if (firebaseUser) {
         setOrgLoading(true);
+        // A previous user's verify screen must not survive into this user's fetch outcome.
+        // Not in fetchProfile: confirmVerification refetches for the same user and must keep it.
+        setEmailUnverified(false);
         fetchProfile(firebaseUser);
       } else {
         setOrgId(null);
