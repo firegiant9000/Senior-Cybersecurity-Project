@@ -2,8 +2,11 @@
 
 This is the user-facing summary of how Hacker Tracker handles your data. The
 authoritative technical inventory lives in [pii_inventory.md](pii_inventory.md);
-this doc says the same thing in plain language and is mirrored on the in-app
-`/privacy` page.
+this doc says the same thing in plain language. The in-app `/privacy` page is
+meant to mirror it but currently lags behind: it doesn't yet list the AI and
+lookup providers below, and shows an older hosting region. This doc is the
+current one; the fix is tracked in the
+[roadmap](../PRODUCT_VIABILITY_ROADMAP.md#s3-privacy-page-follow-up).
 
 ---
 
@@ -14,8 +17,9 @@ this doc says the same thing in plain language and is mirrored on the in-app
 - **Organization profile:** the company name, domains, and tech stack you
   enter during onboarding. We use this to match threat intelligence to your
   actual environment.
-- **Activity:** anonymized request logs and audit entries — which API your
-  account called, when, and whether it succeeded. Kept for 12 months.
+- **Activity:** request logs (which include client or proxy IPs (unverified)) and audit entries —
+  which API your account called, when, and whether it succeeded. Audit entries
+  are kept for 12 months.
 - **Host inventory (optional agent):** if *you* choose to install and enroll
   the read-only host scanner (see below), it sends installed-package
   names/versions, running service names, OS/hostname/arch, and — only when you
@@ -42,7 +46,7 @@ You can review exactly what would be sent with `scan --print` **before** any
 upload. Per-host enrollment tokens are stored hashed (never recoverable) and can
 be rotated or revoked from the dashboard at any time. Full field-by-field
 disclosure and the enrollment/revocation flow live in
-[agent_enrollment.md](agent_enrollment.md) and [../agent/README.md](../../agent/README.md).
+[agent_enrollment.md](agent_enrollment.md) and [agent/README.md](../../agent/README.md).
 
 ## What we do *not* collect
 
@@ -58,22 +62,41 @@ disclosure and the enrollment/revocation flow live in
 | Provider          | Role                                       | Region                |
 |-------------------|--------------------------------------------|-----------------------|
 | Firebase Auth     | Authentication                             | Google global         |
-| Render            | Backend + managed PostgreSQL               | US East (Ohio)        |
+| Render            | Backend + managed PostgreSQL               | US (backend pinned to Oregon; database region not yet pinned) |
 | Firebase Hosting  | Static frontend assets                     | Google global         |
 | Sentry            | Error reports (scrubbed)                   | US                    |
+| Google Gemini API | AI summary (org-level fields and findings only, no user identifiers) | Google global |
+| HIBP, Shodan, AlienVault OTX, crt.sh | External domain checks (the org's domain name or its public address only) | Each provider's own |
 
-We do not transfer data outside the United States except where the provider
-operates a global CDN for static assets only.
+Organization and application data is stored in our PostgreSQL database, which
+is expected to be in the United States (Oregon) alongside the web service. The
+database region is not yet pinned in `render.yaml` (roadmap S3 follow-up).
+Sign-in identities are held by Firebase Auth, which operates
+globally. Some other providers above also process data globally: the CDN for
+static assets, Google Gemini for the AI summary, and the domain-lookup
+services, which receive only your organization's domain name or its public
+address.
 
 ## Your rights
 
-- **Export.** An admin in your organization can call
-  `GET /api/v1/organizations/{id}/export` to retrieve a JSON dump of every
-  row we hold about your org.
-- **Delete.** An admin can call `DELETE /api/v1/organizations/{id}` to purge
-  the organization. The deletion iterates every table explicitly — no orphan
-  rows. The deletion event itself is logged for audit, then ages out after 12
-  months.
+- **Export.** Ask the operator. A platform administrator can call
+  `GET /api/v1/organizations/{id}/export` to retrieve a JSON dump of your
+  organization record and its main tables (assets and their software, domains,
+  vendors, uploads, memberships and invites, scan runs, findings snapshots and
+  statuses, normalization logs, AI summaries and feedback, and assessment
+  submissions). Invites are exported as stored, including any unexpired invite
+  tokens, so treat the file as a credential. It does not include asset
+  findings, agent enrollments, integration credentials, activation events,
+  OAuth states or agent scan nonces. Organization admins and
+  owners can't call it.
+- **Delete.** Ask the operator. A platform administrator can call
+  `DELETE /api/v1/organizations/{id}` to purge the organization. The main
+  tables are deleted explicitly; the tables the export leaves out are removed
+  by database foreign-key cascade when the organization row is deleted. User
+  accounts are detached from the organization, not deleted. Audit log rows are
+  kept, with their organization reference set to null. The deletion event
+  itself is logged for audit, with the organization's name and original id and
+  the per-table row counts, then ages out after 12 months.
 - **Correct.** Edit your org profile from the in-app settings page.
 
 If you need help exercising these rights, email the project owner
