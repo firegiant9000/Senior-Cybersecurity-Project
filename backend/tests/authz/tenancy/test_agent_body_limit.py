@@ -1,9 +1,10 @@
 """Agent scan upload: authenticated before its body is read, size-capped, and bounded in flight.
 
 Real token verification throughout (T-PLAT-06). The only patches are lowered limits and budgets
-through `settings`, and occupying or resetting the upload gate. Every upload must declare a
-Content-Length (411 otherwise); it is admitted against a process-wide byte budget and a per-org
-share, waits a bounded time for room, and no DB connection is held while it waits or reads.
+through `settings`, and occupying or resetting the upload gate. An upload is weighed by its
+declared Content-Length (a body without one counts as a maximal upload) and admitted against a
+process-wide byte budget and a per-org share; it waits a bounded time for room, and no DB
+connection is held while it waits or reads.
 """
 
 import asyncio
@@ -15,7 +16,6 @@ import pytest
 
 from app.api.routes.v1.inventory import (
     AGENT_UPLOAD_BUSY,
-    AGENT_UPLOAD_LENGTH_REQUIRED,
     AGENT_UPLOAD_TIMEOUT,
     _agent_gate,
     _agent_uploads_in_flight,
@@ -104,8 +104,9 @@ def _free(held: list[tuple[int, int]]) -> None:
 class _Held:
     """A body that announces its first read, then waits to be released."""
 
-    def __init__(self, body: bytes) -> None:
+    def __init__(self, body: bytes, *, declare: bool = True) -> None:
         self.body = body
+        self.declare = declare
         self.started = asyncio.Event()
         self.release = asyncio.Event()
 
@@ -116,7 +117,13 @@ class _Held:
 
     def post(self, client):
         return asyncio.create_task(
-            client.post(UPLOAD[1], content=self.stream(), headers=_headers(self.body))
+            client.post(
+                UPLOAD[1],
+                content=self.stream(),
+                headers=_headers(self.body)
+                if self.declare
+                else {"content-type": "application/json"},
+            )
         )
 
 
@@ -152,21 +159,77 @@ async def test_agent_upload_without_token_is_401_before_body_read(world, authz_c
     assert await snapshot_org(world.a.org_id, world.upload_dir) == before
 
 
-async def test_agent_upload_without_content_length_is_411_unread(world, authz_client):
+async def test_chunked_upload_without_content_length_is_admitted_when_idle(world, authz_client):
+    client = await authz_client((await issue_agent(world.a)).raw_token)
+    yielded: list[int] = []
+    body = _body(world.a)
+
+    resp = await client.post(
+        UPLOAD[1],
+        content=_stream([body], yielded),  # an async iterator: sent chunked, no Content-Length
+        headers={"content-type": "application/json"},
+    )
+
+    assert resp.status_code == ACCEPTED[UPLOAD], resp.text
+    assert sum(yielded) == len(body)
+    _assert_slots_free()
+
+
+async def test_body_without_content_length_is_weighted_as_a_maximal_upload(
+    world, authz_client, monkeypatch
+):
+    _small_budgets(monkeypatch, total=64 * KIB, org=64 * KIB, wait=5.0)
+    chunked = await authz_client((await issue_agent(world.a)).raw_token)
+    declared = await authz_client((await issue_agent(world.b)).raw_token)
+    first = _Held(_body(world.a), declare=False)
+    task_1 = first.post(chunked)
+    await asyncio.wait_for(first.started.wait(), 5)
+    small = _Held(_body(world.b))  # a few hundred bytes, but the chunked one counts as 64 KiB
+    task_2 = small.post(declared)
+
+    await asyncio.sleep(0.4)
+    assert not small.started.is_set()  # waits for the chunked upload
+    first.release.set()
+    assert (await task_1).status_code == ACCEPTED[UPLOAD]
+    await asyncio.wait_for(small.started.wait(), 5)
+    small.release.set()
+    assert (await task_2).status_code == ACCEPTED[UPLOAD]
+
+    # And the other way round: a maximal declared upload makes a chunked one wait.
+    big = _Held(_body(world.b, 64 * KIB))
+    task_3 = big.post(declared)
+    await asyncio.wait_for(big.started.wait(), 5)
+    late = _Held(_body(world.a), declare=False)
+    task_4 = late.post(chunked)
+    await asyncio.sleep(0.4)
+    assert not late.started.is_set()
+    big.release.set()
+    assert (await task_3).status_code == ACCEPTED[UPLOAD]
+    await asyncio.wait_for(late.started.wait(), 5)
+    late.release.set()
+    assert (await task_4).status_code == ACCEPTED[UPLOAD]
+    _assert_slots_free()
+
+
+async def test_chunked_upload_over_the_maximum_is_413_and_releases_its_slot(
+    world, authz_client, monkeypatch
+):
+    monkeypatch.setattr(settings, "MAX_AGENT_UPLOAD_BYTES", 64 * KIB)
     client = await authz_client((await issue_agent(world.a)).raw_token)
     await _warm(client, world)
     before = await snapshot_org(world.a.org_id, world.upload_dir)
     yielded: list[int] = []
+    head = _body(world.a).rstrip()[:-1]
 
     resp = await client.post(
         UPLOAD[1],
-        content=_stream([_body(world.a)], yielded),  # an async iterator: sent chunked
+        content=_stream([head], yielded, filler=b" ", filler_chunk=16 * KIB, total=MIB),
         headers={"content-type": "application/json"},
     )
 
-    assert resp.status_code == 411, resp.text
-    assert resp.json() == {"detail": AGENT_UPLOAD_LENGTH_REQUIRED}
-    assert sum(yielded) == 0
+    assert resp.status_code == 413, resp.text
+    assert resp.json() == {"detail": REQUEST_TOO_LARGE}
+    assert sum(yielded) <= 64 * KIB + 16 * KIB
     assert await snapshot_org(world.a.org_id, world.upload_dir) == before
     _assert_slots_free()
 

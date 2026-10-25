@@ -197,7 +197,7 @@ flowchart LR
   by default, 10 MB per uploaded file (checked before the file is loaded into
   memory; multipart bodies are still spooled before authentication), and 24 MiB
   for the agent upload, derived from its per-list caps. The agent upload is
-  authenticated before its body is read, must declare a Content-Length, holds no
+  authenticated before its body is read, is weighed by its declared Content-Length (a body without one counts as a maximal upload), holds no
   database connection while it waits or reads, and is admitted against a byte
   budget (process-wide and per org, one per enrollment; a request that doesn't
   fit waits up to 10 s, then gets 503).

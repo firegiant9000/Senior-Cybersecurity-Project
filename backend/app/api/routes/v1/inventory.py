@@ -449,7 +449,6 @@ async def _audit_agent(
 
 AGENT_UPLOAD_BUSY = "Agent upload busy; retry shortly"
 AGENT_UPLOAD_TIMEOUT = "Agent upload timed out"
-AGENT_UPLOAD_LENGTH_REQUIRED = "Content-Length required"
 
 
 class _AgentUploadGate:
@@ -536,10 +535,11 @@ def _agent_uploads_in_flight() -> int:
     return _gate.in_flight()
 
 
-def _declared_length(request: Request) -> int:
+def _declared_length(request: Request) -> int | None:
+    """The declared Content-Length, or None when it is absent or invalid (e.g. chunked)."""
     raw = request.headers.get("content-length", "")
     if not (raw.isascii() and raw.isdigit()):
-        raise HTTPException(status_code=411, detail=AGENT_UPLOAD_LENGTH_REQUIRED)
+        return None
     return int(raw)
 
 
@@ -547,14 +547,15 @@ async def agent_upload_slot(
     request: Request,
     enrollment: AgentEnrollment = Depends(get_agent_from_token),
     session: AsyncSession = Depends(get_session),
-) -> AsyncGenerator[int, None]:
+) -> AsyncGenerator[int | None, None]:
     """Admit the upload by its declared length, or refuse without reading the body.
 
-    A missing or invalid Content-Length (chunked) is 411. The token check leaves the session's
+    A body without a valid Content-Length (chunked) is weighed as a maximal upload
+    (``MAX_AGENT_UPLOAD_BYTES``); the body-limit middleware still caps the streamed bytes. The token check leaves the session's
     transaction open (inside the last-used debounce nothing commits), which would pin a pooled
     connection through the wait and the body read. End it first; ``expire_on_commit=False`` keeps
     the loaded enrollment usable and the session starts a new transaction when the handler next
-    needs it. Yields the declared length.
+    needs it. Yields the declared length, or None.
     """
     declared = _declared_length(request)
     # Read these now: after a later rollback the enrollment is expired and touching it would
@@ -562,29 +563,30 @@ async def agent_upload_slot(
     enrollment_id, org_id = enrollment.id, enrollment.org_id
     await session.commit()
     gate = _gate  # captured: a test reset may replace the global while we hold a reservation
-    await gate.acquire(enrollment_id, org_id, declared)
+    weight = settings.MAX_AGENT_UPLOAD_BYTES if declared is None else declared
+    await gate.acquire(enrollment_id, org_id, weight)
     try:
         yield declared
     finally:
-        gate.release(enrollment_id, org_id, declared)
+        gate.release(enrollment_id, org_id, weight)
 
 
 async def read_agent_payload(
     request: Request,
-    declared: int = Depends(agent_upload_slot),
+    declared: int | None = Depends(agent_upload_slot),
 ) -> AgentScanPayload:
     """Read and validate the scan body after the token check, under the slot and the deadline.
 
     The slot depends on the token, so an unauthenticated request never takes a slot or has its
     body read. The body is streamed into a local buffer rather than ``request.body()``, so it is
-    not cached on the Request and is freed once parsed; it may not outrun its declared length.
+    not cached on the Request and is freed once parsed; if it declared a length it may not outrun it.
     """
     buffer = bytearray()
     try:
         async with asyncio.timeout(settings.AGENT_UPLOAD_READ_TIMEOUT_SECONDS):
             async for chunk in request.stream():
                 buffer.extend(chunk)
-                if len(buffer) > declared:
+                if declared is not None and len(buffer) > declared:
                     raise HTTPException(status_code=413, detail=REQUEST_TOO_LARGE)
     except TimeoutError:
         raise HTTPException(status_code=408, detail=AGENT_UPLOAD_TIMEOUT) from None
