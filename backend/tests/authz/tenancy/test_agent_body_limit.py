@@ -1,8 +1,9 @@
 """Agent scan upload: authenticated before its body is read, size-capped, and bounded in flight.
 
-Real token verification throughout (T-PLAT-06). The only patches are lowered limits through
-`settings`, and holding or resetting the upload slots. Every body size takes a slot (a process-wide
-cap plus one in flight per enrollment), and no DB connection is held while the body is read.
+Real token verification throughout (T-PLAT-06). The only patches are lowered limits and budgets
+through `settings`, and occupying or resetting the upload gate. Every upload must declare a
+Content-Length (411 otherwise); it is admitted against a process-wide byte budget and a per-org
+share, waits a bounded time for room, and no DB connection is held while it waits or reads.
 """
 
 import asyncio
@@ -14,20 +15,21 @@ import pytest
 
 from app.api.routes.v1.inventory import (
     AGENT_UPLOAD_BUSY,
+    AGENT_UPLOAD_LENGTH_REQUIRED,
     AGENT_UPLOAD_TIMEOUT,
-    _acquire_agent_upload,
+    _agent_gate,
     _agent_uploads_in_flight,
-    _release_agent_upload,
     _reset_agent_upload_slots,
 )
 from app.core.body_limit import REQUEST_TOO_LARGE
-from app.core.config import settings
+from app.core.config import Settings, settings
 from app.db.engine import engine
 from app.main import app
 from tests.authz.tenancy._agents import ACCEPTED, STATUS, UPLOAD, issue_agent, scan_payload
 from tests.authz.tenancy._world import snapshot_org
 
 MIB = 1024 * 1024
+KIB = 1024
 
 
 @pytest.fixture(autouse=True)
@@ -41,12 +43,16 @@ def _assert_slots_free() -> None:
     assert _agent_uploads_in_flight() == 0
 
 
-def _body(world, size: int | None = None) -> bytes:
-    raw = json.dumps(scan_payload(world.a), separators=(",", ":")).encode()
+def _body(org, size: int | None = None) -> bytes:
+    raw = json.dumps(scan_payload(org), separators=(",", ":")).encode()
     if size is None:
         return raw
     assert len(raw) <= size
     return raw + b" " * (size - len(raw))
+
+
+def _headers(body: bytes) -> dict[str, str]:
+    return {"content-type": "application/json", "content-length": str(len(body))}
 
 
 async def _stream(
@@ -76,17 +82,23 @@ async def _warm(client, world) -> None:
     assert resp.status_code == 200, resp.text
 
 
-def _fill_global_cap() -> list[int]:
-    """Occupy every process-wide slot with made-up enrollment ids; release with `_free`."""
-    keys = [-(i + 1) for i in range(settings.AGENT_MAX_CONCURRENT_UPLOADS)]
-    for key in keys:
-        _acquire_agent_upload(key)
-    return keys
+async def _fill_budget() -> list[tuple[int, int]]:
+    """Occupy the whole process-wide budget with made-up orgs; release with `_free`."""
+    held: list[tuple[int, int]] = []
+    remaining = settings.AGENT_UPLOAD_BUDGET_BYTES
+    fake = -1
+    while remaining > 0:
+        size = min(remaining, settings.AGENT_UPLOAD_ORG_BUDGET_BYTES)
+        await _agent_gate().acquire(fake, fake, size)
+        held.append((fake, size))
+        remaining -= size
+        fake -= 1
+    return held
 
 
-def _free(keys: list[int]) -> None:
-    for key in keys:
-        _release_agent_upload(key)
+def _free(held: list[tuple[int, int]]) -> None:
+    for fake, size in held:
+        _agent_gate().release(fake, fake, size)
 
 
 class _Held:
@@ -104,15 +116,24 @@ class _Held:
 
     def post(self, client):
         return asyncio.create_task(
-            client.post(
-                UPLOAD[1],
-                content=self.stream(),
-                headers={
-                    "content-type": "application/json",
-                    "content-length": str(len(self.body)),
-                },
-            )
+            client.post(UPLOAD[1], content=self.stream(), headers=_headers(self.body))
         )
+
+
+def _small_budgets(monkeypatch, *, total: int, org: int, limit: int = 64 * KIB, wait: float = 0.3):
+    monkeypatch.setattr(settings, "MAX_AGENT_UPLOAD_BYTES", limit)
+    monkeypatch.setattr(settings, "AGENT_UPLOAD_BUDGET_BYTES", total)
+    monkeypatch.setattr(settings, "AGENT_UPLOAD_ORG_BUDGET_BYTES", org)
+    monkeypatch.setattr(settings, "AGENT_UPLOAD_WAIT_SECONDS", wait)
+
+
+def test_budgets_below_the_agent_limit_are_rejected_at_startup():
+    with pytest.raises(ValueError, match="at least MAX_AGENT_UPLOAD_BYTES"):
+        Settings(AGENT_UPLOAD_BUDGET_BYTES=settings.MAX_AGENT_UPLOAD_BYTES - 1)
+    with pytest.raises(ValueError, match="at least MAX_AGENT_UPLOAD_BYTES"):
+        Settings(AGENT_UPLOAD_ORG_BUDGET_BYTES=settings.MAX_AGENT_UPLOAD_BYTES - 1)
+    assert settings.AGENT_UPLOAD_BUDGET_BYTES >= settings.MAX_AGENT_UPLOAD_BYTES
+    assert settings.AGENT_UPLOAD_ORG_BUDGET_BYTES >= settings.MAX_AGENT_UPLOAD_BYTES
 
 
 async def test_agent_upload_without_token_is_401_before_body_read(world, authz_client):
@@ -131,90 +152,109 @@ async def test_agent_upload_without_token_is_401_before_body_read(world, authz_c
     assert await snapshot_org(world.a.org_id, world.upload_dir) == before
 
 
-async def test_agent_upload_over_limit_is_413(world, authz_client, monkeypatch):
-    monkeypatch.setattr(settings, "MAX_AGENT_UPLOAD_BYTES", 64 * 1024)
-    client = await authz_client((await issue_agent(world.a)).raw_token)
-    await _warm(client, world)
-    before = await snapshot_org(world.a.org_id, world.upload_dir)
-
-    resp = await client.post(
-        UPLOAD[1], content=_body(world, 64 * 1024 + 1), headers={"content-type": "application/json"}
-    )
-
-    assert resp.status_code == 413, resp.text
-    assert resp.json() == {"detail": REQUEST_TOO_LARGE}
-    assert await snapshot_org(world.a.org_id, world.upload_dir) == before
-    _assert_slots_free()
-
-
-async def test_chunked_agent_upload_over_limit_is_413(world, authz_client, monkeypatch):
-    monkeypatch.setattr(settings, "MAX_AGENT_UPLOAD_BYTES", 64 * 1024)
+async def test_agent_upload_without_content_length_is_411_unread(world, authz_client):
     client = await authz_client((await issue_agent(world.a)).raw_token)
     await _warm(client, world)
     before = await snapshot_org(world.a.org_id, world.upload_dir)
     yielded: list[int] = []
-    head = _body(world).rstrip()[:-1]  # the JSON minus its closing brace
 
     resp = await client.post(
         UPLOAD[1],
-        content=_stream([head], yielded, filler=b" ", filler_chunk=16 * 1024, total=MIB),
+        content=_stream([_body(world.a)], yielded),  # an async iterator: sent chunked
+        headers={"content-type": "application/json"},
+    )
+
+    assert resp.status_code == 411, resp.text
+    assert resp.json() == {"detail": AGENT_UPLOAD_LENGTH_REQUIRED}
+    assert sum(yielded) == 0
+    assert await snapshot_org(world.a.org_id, world.upload_dir) == before
+    _assert_slots_free()
+
+
+async def test_agent_upload_over_limit_is_413(world, authz_client, monkeypatch):
+    monkeypatch.setattr(settings, "MAX_AGENT_UPLOAD_BYTES", 64 * KIB)
+    client = await authz_client((await issue_agent(world.a)).raw_token)
+    await _warm(client, world)
+    before = await snapshot_org(world.a.org_id, world.upload_dir)
+
+    resp = await client.post(
+        UPLOAD[1],
+        content=_body(world.a, 64 * KIB + 1),
         headers={"content-type": "application/json"},
     )
 
     assert resp.status_code == 413, resp.text
     assert resp.json() == {"detail": REQUEST_TOO_LARGE}
-    assert sum(yielded) <= 64 * 1024 + 16 * 1024
     assert await snapshot_org(world.a.org_id, world.upload_dir) == before
     _assert_slots_free()
 
 
-async def test_agent_upload_busy_is_503_unread_at_every_size(world, authz_client):
-    """A full process-wide cap refuses a small upload with a Content-Length too, body unread."""
+@pytest.mark.parametrize("declared", [64 * KIB, KIB], ids=["at-the-limit", "below-the-limit"])
+async def test_agent_upload_streaming_past_its_length_is_413(
+    world, authz_client, monkeypatch, declared
+):
+    """A body that outruns its declared length stops at 413 (limit by middleware, length by route)."""
+    monkeypatch.setattr(settings, "MAX_AGENT_UPLOAD_BYTES", 64 * KIB)
     client = await authz_client((await issue_agent(world.a)).raw_token)
     await _warm(client, world)
     before = await snapshot_org(world.a.org_id, world.upload_dir)
     yielded: list[int] = []
-    body = _body(world)
-    keys = _fill_global_cap()
+    head = _body(world.a).rstrip()[:-1]  # the JSON minus its closing brace
+
+    resp = await client.post(
+        UPLOAD[1],
+        content=_stream([head], yielded, filler=b" ", filler_chunk=16 * KIB, total=MIB),
+        headers={"content-type": "application/json", "content-length": str(declared)},
+    )
+
+    assert resp.status_code == 413, resp.text
+    assert resp.json() == {"detail": REQUEST_TOO_LARGE}
+    assert sum(yielded) <= 64 * KIB + 16 * KIB
+    assert await snapshot_org(world.a.org_id, world.upload_dir) == before
+    _assert_slots_free()
+
+
+async def test_agent_upload_busy_is_503_unread_at_every_size(world, authz_client, monkeypatch):
+    """A full budget refuses a small upload (with a Content-Length) after the wait, body unread."""
+    monkeypatch.setattr(settings, "AGENT_UPLOAD_WAIT_SECONDS", 0.2)
+    client = await authz_client((await issue_agent(world.a)).raw_token)
+    await _warm(client, world)
+    before = await snapshot_org(world.a.org_id, world.upload_dir)
+    yielded: list[int] = []
+    body = _body(world.a)
+    held = await _fill_budget()
     try:
+        started = time.monotonic()
         resp = await client.post(
-            UPLOAD[1],
-            content=_stream([body], yielded),
-            headers={"content-type": "application/json", "content-length": str(len(body))},
+            UPLOAD[1], content=_stream([body], yielded), headers=_headers(body)
         )
+        assert time.monotonic() - started >= 0.15  # it waited before refusing
         assert resp.status_code == 503, resp.text
         assert resp.json() == {"detail": AGENT_UPLOAD_BUSY}
         assert resp.headers["retry-after"] == "5"
         assert sum(yielded) == 0
         assert await snapshot_org(world.a.org_id, world.upload_dir) == before
     finally:
-        _free(keys)
+        _free(held)
 
-    again = await client.post(
-        UPLOAD[1],
-        content=_stream([_body(world)], []),
-        headers={"content-type": "application/json"},
-    )
+    again = await client.post(UPLOAD[1], content=_body(world.a), headers=_headers(_body(world.a)))
     assert again.status_code == ACCEPTED[UPLOAD], again.text
     _assert_slots_free()
 
 
-async def test_second_upload_for_one_token_is_refused_while_the_first_is_in_flight(
-    world, authz_client
-):
+async def test_second_upload_for_one_token_is_refused_at_once(world, authz_client):
     client = await authz_client((await issue_agent(world.a)).raw_token)
     await _warm(client, world)
-    first = _Held(_body(world))
+    first = _Held(_body(world.a))
     task = first.post(client)
     await asyncio.wait_for(first.started.wait(), 5)
     yielded: list[int] = []
+    body = _body(world.a)
 
-    resp = await client.post(
-        UPLOAD[1],
-        content=_stream([_body(world)], yielded),
-        headers={"content-type": "application/json"},
-    )
+    started = time.monotonic()
+    resp = await client.post(UPLOAD[1], content=_stream([body], yielded), headers=_headers(body))
 
+    assert time.monotonic() - started < 2  # no wait: the default is 10 s
     assert resp.status_code == 503, resp.text
     assert resp.json() == {"detail": AGENT_UPLOAD_BUSY}
     assert resp.headers["retry-after"] == "5"
@@ -224,34 +264,88 @@ async def test_second_upload_for_one_token_is_refused_while_the_first_is_in_flig
     _assert_slots_free()
 
 
-async def test_global_cap_refuses_another_token_but_not_when_there_is_room(
+async def test_many_small_uploads_from_different_enrollments_all_succeed(world, authz_client):
+    """More than four at once, total well under the budget: none is refused or kept waiting."""
+    clients = [await authz_client((await issue_agent(world.a)).raw_token) for _ in range(8)]
+    helds = [_Held(_body(world.a)) for _ in clients]
+    tasks = [held.post(client) for held, client in zip(helds, clients, strict=True)]
+    await asyncio.wait_for(asyncio.gather(*(h.started.wait() for h in helds)), 5)
+    assert _agent_uploads_in_flight() > 8  # eight enrollments plus their reserved bytes
+
+    for held in helds:
+        held.release.set()
+    results = await asyncio.gather(*tasks)
+
+    assert [r.status_code for r in results] == [ACCEPTED[UPLOAD]] * 8, [r.text for r in results]
+    _assert_slots_free()
+
+
+async def test_maximal_uploads_serialize_and_the_second_waits_for_the_first(
     world, authz_client, monkeypatch
 ):
-    monkeypatch.setattr(settings, "AGENT_MAX_CONCURRENT_UPLOADS", 1)
-    client_a = await authz_client((await issue_agent(world.a)).raw_token)
-    client_b = await authz_client((await issue_agent(world.b)).raw_token)
-    await _warm(client_a, world)
-    first = _Held(_body(world))
-    task = first.post(client_a)
+    _small_budgets(monkeypatch, total=64 * KIB, org=64 * KIB, wait=5.0)
+    client_1 = await authz_client((await issue_agent(world.a)).raw_token)
+    client_2 = await authz_client((await issue_agent(world.a)).raw_token)
+    first = _Held(_body(world.a, 64 * KIB))
+    second = _Held(_body(world.a, 64 * KIB))
+    task_1 = first.post(client_1)
+    await asyncio.wait_for(first.started.wait(), 5)
+    task_2 = second.post(client_2)
+
+    await asyncio.sleep(0.4)
+    assert not second.started.is_set()  # still waiting; its body has not been read
+    assert not task_2.done()
+
+    first.release.set()
+    assert (await task_1).status_code == ACCEPTED[UPLOAD]
+    await asyncio.wait_for(second.started.wait(), 5)  # woken by the release
+    second.release.set()
+    assert (await task_2).status_code == ACCEPTED[UPLOAD]
+    _assert_slots_free()
+
+
+async def test_org_share_stops_one_org_from_starving_another(world, authz_client, monkeypatch):
+    _small_budgets(monkeypatch, total=128 * KIB, org=64 * KIB, wait=0.3)
+    a_1 = await authz_client((await issue_agent(world.a)).raw_token)
+    a_2 = await authz_client((await issue_agent(world.a)).raw_token)
+    b_1 = await authz_client((await issue_agent(world.b)).raw_token)
+    first = _Held(_body(world.a, 64 * KIB))
+    task = first.post(a_1)
     await asyncio.wait_for(first.started.wait(), 5)
 
-    refused = await client_b.post(
-        UPLOAD[1], json=scan_payload(world.b), headers={"content-type": "application/json"}
+    # Org A has used its whole share, though half the process budget is free.
+    refused = await a_2.post(
+        UPLOAD[1], content=_body(world.a, 64 * KIB), headers=_headers(_body(world.a, 64 * KIB))
     )
+    other_body = _body(world.b, 64 * KIB)
+    other = await b_1.post(UPLOAD[1], content=other_body, headers=_headers(other_body))
 
     assert refused.status_code == 503, refused.text
     assert refused.json() == {"detail": AGENT_UPLOAD_BUSY}
-    assert refused.headers["retry-after"] == "5"
+    assert other.status_code == ACCEPTED[UPLOAD], other.text
     first.release.set()
     assert (await task).status_code == ACCEPTED[UPLOAD]
-    monkeypatch.setattr(settings, "AGENT_MAX_CONCURRENT_UPLOADS", 2)
-    second = _Held(json.dumps(scan_payload(world.b), separators=(",", ":")).encode())
-    task_b = second.post(client_b)
-    await asyncio.wait_for(second.started.wait(), 5)
-    other = await client_a.post(UPLOAD[1], json=scan_payload(world.a))
-    assert other.status_code == ACCEPTED[UPLOAD], other.text
-    second.release.set()
-    assert (await task_b).status_code == ACCEPTED[UPLOAD]
+    _assert_slots_free()
+
+
+async def test_waiting_for_room_holds_no_pool_connection(world, authz_client, monkeypatch):
+    monkeypatch.setattr(settings, "AGENT_UPLOAD_WAIT_SECONDS", 5.0)
+    client = await authz_client((await issue_agent(world.a)).raw_token)
+    await _warm(client, world)  # inside the last-used debounce: verify() commits nothing
+    held_budget = await _fill_budget()
+    baseline = engine.pool.checkedout()
+    held = _Held(_body(world.a))
+    task = held.post(client)
+    await asyncio.sleep(0.3)
+
+    assert not task.done()
+    assert not held.started.is_set()  # still queued, nothing read
+    assert engine.pool.checkedout() == baseline
+
+    _free(held_budget)
+    await asyncio.wait_for(held.started.wait(), 5)
+    held.release.set()
+    assert (await task).status_code == ACCEPTED[UPLOAD]
     _assert_slots_free()
 
 
@@ -260,7 +354,7 @@ async def test_slow_small_upload_does_not_hold_a_pool_connection(world, authz_cl
     client = await authz_client((await issue_agent(world.a)).raw_token)
     await _warm(client, world)  # inside the last-used debounce: verify() commits nothing
     baseline = engine.pool.checkedout()
-    held = _Held(_body(world))
+    held = _Held(_body(world.a))
     task = held.post(client)
     await asyncio.wait_for(held.started.wait(), 5)
     await asyncio.sleep(0.2)
@@ -272,18 +366,33 @@ async def test_slow_small_upload_does_not_hold_a_pool_connection(world, authz_cl
     assert engine.pool.checkedout() == baseline
 
 
+async def test_cancelled_waiter_releases_its_reservation(monkeypatch):
+    monkeypatch.setattr(settings, "AGENT_UPLOAD_WAIT_SECONDS", 5.0)
+    held = await _fill_budget()
+    waiter = asyncio.create_task(_agent_gate().acquire(-100, -100, 1))
+    await asyncio.sleep(0.1)
+    assert not waiter.done()
+
+    waiter.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await waiter
+    _free(held)
+
+    _assert_slots_free()
+
+
 async def test_agent_upload_without_token_takes_no_slot(world, authz_client):
     client = await authz_client(None)
     before = await snapshot_org(world.a.org_id, world.upload_dir)
-    keys = _fill_global_cap()
+    held = await _fill_budget()
     try:
         resp = await client.post(
             UPLOAD[1],
-            content=_stream([_body(world)], []),
+            content=_stream([_body(world.a)], []),
             headers={"content-type": "application/json"},
         )
     finally:
-        _free(keys)
+        _free(held)
     assert resp.status_code == 401, resp.text
     assert await snapshot_org(world.a.org_id, world.upload_dir) == before
     _assert_slots_free()
@@ -296,13 +405,15 @@ async def test_stalled_agent_upload_times_out_and_frees_the_slot(world, authz_cl
     before = await snapshot_org(world.a.org_id, world.upload_dir)
 
     async def stalled() -> AsyncIterator[bytes]:
-        yield b" " * 1024
+        yield b" " * KIB
         await asyncio.sleep(5)
         yield b" "
 
     started = time.monotonic()
     resp = await client.post(
-        UPLOAD[1], content=stalled(), headers={"content-type": "application/json"}
+        UPLOAD[1],
+        content=stalled(),
+        headers={"content-type": "application/json", "content-length": str(2 * KIB)},
     )
 
     assert time.monotonic() - started < 2
@@ -311,11 +422,8 @@ async def test_stalled_agent_upload_times_out_and_frees_the_slot(world, authz_cl
     assert await snapshot_org(world.a.org_id, world.upload_dir) == before
     _assert_slots_free()
 
-    again = await client.post(
-        UPLOAD[1],
-        content=_stream([_body(world)], []),
-        headers={"content-type": "application/json"},
-    )
+    body = _body(world.a)
+    again = await client.post(UPLOAD[1], content=body, headers=_headers(body))
     assert again.status_code == ACCEPTED[UPLOAD], again.text
 
 
@@ -345,6 +453,7 @@ async def test_agent_upload_client_disconnect_is_400(world, authz_client):
             (b"host", b"test"),
             (b"authorization", f"Bearer {issued.raw_token}".encode()),
             (b"content-type", b"application/json"),
+            (b"content-length", b"2048"),
         ],
         "client": ("127.0.0.1", 1234),
         "server": ("test", 80),
@@ -358,10 +467,10 @@ async def test_agent_upload_client_disconnect_is_400(world, authz_client):
 
 
 async def test_agent_upload_at_limit_is_accepted(world, authz_client, monkeypatch):
-    monkeypatch.setattr(settings, "MAX_AGENT_UPLOAD_BYTES", 64 * 1024)
+    monkeypatch.setattr(settings, "MAX_AGENT_UPLOAD_BYTES", 64 * KIB)
     client = await authz_client((await issue_agent(world.a)).raw_token)
-    body = _body(world, 64 * 1024)
-    assert len(body) == 64 * 1024
+    body = _body(world.a, 64 * KIB)
+    assert len(body) == 64 * KIB
 
     resp = await client.post(UPLOAD[1], content=body, headers={"content-type": "application/json"})
 
@@ -381,6 +490,7 @@ async def test_agent_upload_invalid_body_keeps_422_shape(world, authz_client):
     assert detail
     assert all(item["loc"][0] == "body" for item in detail)
     assert await snapshot_org(world.a.org_id, world.upload_dir) == before
+    _assert_slots_free()
 
 
 @pytest.mark.parametrize(

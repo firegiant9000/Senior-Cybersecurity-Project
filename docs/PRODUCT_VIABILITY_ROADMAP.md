@@ -273,7 +273,8 @@ Threat-model rows: T-PLAT-06, T-ENR-04, T-UPL-09, T-TOK-07, T-TOK-08, T-AUTH-04,
 - Org-role checks on the destructive routes that only check membership (T-TEN-05) (done, S4-C).
 - Decide and enforce owner-only admin grants (T-TEN-07) (done, S4-C).
 - Close the gap where the analytics event route doesn't bind events to the caller's org (T-TEN-10) (done, S4-B).
-- HTTPS-only check on the agent's `--server` URL, with HSTS from the headers work (T-UPL-09) (done, S4-E).
+- HTTPS-only check on the agent's `--server` URL, and no redirects (T-UPL-09) (done, S4-E). HSTS protects browsers only.
+- **Next agent release (with T-UPL-09):** a bounded retry that honours `Retry-After` on a 503 from the upload route. The backend now queues an upload up to 10 s for room and then answers 503, and today's agent does not retry, so an upload that loses the wait is lost until the next run (T-PLAT-06 residual).
 - Egress guard regression tests: pin the real HTTP client's `follow_redirects=False`, and test a redirect to a non-default port (T-DOM-09) (done, S4-E).
 
 **Progress.** Stage A (harness, real verification, route table: 128 routes: public 11, authenticated-global 29, organization-scoped 76, agent 2, administrator 10; 5 behind the M365 flag) — PR #226. Stage B (cross-tenant sweep over 76 organization-scoped routes; T-TEN-10 fixed) — PR #227. Stage C (role rules: owner-only admin management, org admin on 7 destructive routes, verified email for sign-up and invites) — PR #228. Stage D (agent-token lifecycle: end-to-end token tests on both agent routes, chain revocation, active-only rotation) — PR #229. Stage E (platform hardening: API and SPA security headers, request-body limits, database-backed `/health`, HTTPS-only agent, egress regression tests) — this PR. S4 is done.
