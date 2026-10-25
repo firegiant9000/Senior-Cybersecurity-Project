@@ -143,6 +143,29 @@ describe("AuthContext profile fetch", () => {
     expect(screen.getByTestId("emailUnverified")).toHaveTextContent("false");
   });
 
+  it("confirmVerification on a still-unverified user keeps the verify screen while in flight", async () => {
+    mockFetch.mockResolvedValueOnce(response(403, { detail: "Email address not verified" }));
+
+    renderProvider();
+    await waitFor(() => {
+      expect(screen.getByTestId("emailUnverified")).toHaveTextContent("true");
+    });
+
+    let release: (r: unknown) => void = () => {};
+    mockFetch.mockReturnValueOnce(new Promise((resolve) => (release = resolve)));
+    fireEvent.click(screen.getByText("confirm"));
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.getByTestId("emailUnverified")).toHaveTextContent("true");
+
+    release(response(403, { detail: "Email address not verified" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("confirmResult")).toHaveTextContent("false");
+    });
+    expect(screen.getByTestId("emailUnverified")).toHaveTextContent("true");
+  });
+
   it("confirmVerification resolves false while the server still refuses, true once it accepts", async () => {
     mockFetch
       .mockResolvedValueOnce(response(403, { detail: "Email address not verified" }))

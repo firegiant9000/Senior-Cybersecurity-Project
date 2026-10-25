@@ -388,10 +388,10 @@ async def _active_owner_count(org_id: int) -> int:
 
 
 async def test_last_owner_count_is_taken_under_lock(fresh_world, as_user, extra_member):
-    """Two owners; one is mid-demotion (uncommitted) when the other demotes the first."""
+    """Two owners; the second is mid-demotion (uncommitted) when the first demotes itself."""
     a = fresh_world.a
     second = _extra_world_user(fresh_world, 1, await extra_member("owner"))
-    client = await as_user(second)
+    client = await as_user(a.owner)
     url = f"{_ORG.format(a=a.org_id)}/members/{a.owner.user_id}"
 
     async with AsyncSessionLocal() as other:
@@ -402,12 +402,48 @@ async def test_last_owner_count_is_taken_under_lock(fresh_world, as_user, extra_
         )
         task = asyncio.ensure_future(client.patch(url, json={"org_role": "admin"}))
         await asyncio.sleep(1.0)
+        assert not task.done()
         await other.commit()
     resp = await asyncio.wait_for(task, timeout=15)
 
     assert resp.status_code == 400, f"{resp.status_code}: {resp.text}"
-    assert resp.json()["detail"] == "Cannot demote the last organization owner"
+    assert resp.json()["detail"] == "Cannot demote yourself as the last organization owner"
     assert await _active_owner_count(a.org_id) == 1
+
+
+@pytest.mark.parametrize(
+    ("caller", "body", "detail"),
+    [
+        ("admin", {"org_role": "member"}, ROLE_DENIED),
+        ("owner", {"org_role": "admin"}, OWNER_REQUIRED),
+    ],
+)
+async def test_caller_role_is_rechecked_under_lock(
+    fresh_world, as_user, extra_member, caller, body, detail
+):
+    """The caller is demoted (uncommitted) while its request is in flight: judged on the new role."""
+    a = fresh_world.a
+    await extra_member("owner")  # keep a second owner so the owner case isn't a last-owner case
+    who = getattr(a, caller)
+    new_role = "member" if caller == "admin" else "admin"
+    client = await as_user(who)
+    url = f"{_ORG.format(a=a.org_id)}/members/{a.member.user_id}"
+
+    async with AsyncSessionLocal() as other:
+        await other.execute(
+            update(Membership)
+            .where(Membership.user_id == who.user_id, Membership.org_id == a.org_id)
+            .values(role=new_role)
+        )
+        task = asyncio.ensure_future(client.patch(url, json=body))
+        await asyncio.sleep(1.0)
+        assert not task.done()
+        await other.commit()
+    resp = await asyncio.wait_for(task, timeout=15)
+
+    assert resp.status_code == 403, f"{resp.status_code}: {resp.text}"
+    assert resp.json()["detail"] == detail
+    assert await _membership_rows(a.org_id, a.member.user_id) == [("member", "active")]
 
 
 @pytest.mark.parametrize("op", ["patch", "delete"])
@@ -430,6 +466,7 @@ async def test_target_role_is_rechecked_under_lock(fresh_world, as_user, op):
         )
         task = asyncio.ensure_future(request)
         await asyncio.sleep(1.0)
+        assert not task.done()
         await other.commit()
     resp = await asyncio.wait_for(task, timeout=15)
 

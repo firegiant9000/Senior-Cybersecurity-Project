@@ -50,8 +50,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = useCallback(async (firebaseUser: User, maxRetries = 1) => {
     setProfileError(false);
-    // A previous user's verify screen must not survive into this fetch's outcome.
-    setEmailUnverified(false);
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         // Force-refresh on retry to avoid using a stale cached token.
@@ -102,6 +100,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       if (firebaseUser) {
         setOrgLoading(true);
+        // A previous user's verify screen must not survive into this user's fetch outcome.
+        // Not in fetchProfile: confirmVerification refetches for the same user and must keep it.
+        setEmailUnverified(false);
         fetchProfile(firebaseUser);
       } else {
         setOrgId(null);

@@ -21,6 +21,7 @@ from app.api.routes.v1.auth import (
 )
 from app.core.config import settings
 from app.core.dependencies import (
+    _ORG_ROLE_LEVELS,
     require_membership_role,
     require_same_org_membership,
 )
@@ -52,6 +53,20 @@ def _require_owner(membership: Membership) -> None:
     """Refuse unless the caller is exactly an owner (a non-standard role fails closed)."""
     if membership.role != OrgRole.OWNER:
         raise HTTPException(status_code=403, detail=_OWNER_REQUIRED)
+
+
+def _judge_caller(dependency_membership: Membership, locked: Membership | None) -> Membership:
+    """The caller's membership as read under the lock, held to the admin floor again.
+
+    The dependency read happened before the lock, so a caller demoted or removed in between
+    would otherwise act on a stale role. A legacy-only caller has no row (the dependency
+    synthesised one with no id) and keeps that.
+    """
+    if dependency_membership.id is None:
+        return dependency_membership
+    if locked is None or _ORG_ROLE_LEVELS.get(locked.role, -1) < _ORG_ROLE_LEVELS["admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient organization role")
+    return locked
 
 
 # ── Invite endpoints ──────────────────────────────────────────────────────────
@@ -321,7 +336,8 @@ async def update_member_role(
         )
     # The target row and the org's owner rows are locked until the commit below, so the role
     # rule and the last-owner count are decided on rows no concurrent request can change.
-    member, owners = await repo.lock_target_and_owners(org_id, user_id)
+    member, owners, caller = await repo.lock_target_and_owners(org_id, user_id, current_user.id)
+    current_membership = _judge_caller(current_membership, caller)
     if member is None:
         raise HTTPException(status_code=404, detail="Member not found")
     # Allowlist: only a plain member staying a plain member is admin-level. Anything else,
@@ -379,7 +395,8 @@ async def remove_member(
     Requires org admin for plain members; admins and owners can only be removed by an owner.
     Last-owner protections apply.
     """
-    member, owners = await repo.lock_target_and_owners(org_id, user_id)
+    member, owners, caller = await repo.lock_target_and_owners(org_id, user_id, current_user.id)
+    current_membership = _judge_caller(current_membership, caller)
     if member is None:
         raise HTTPException(status_code=404, detail="Member not found")
     if member.role != OrgRole.MEMBER:
