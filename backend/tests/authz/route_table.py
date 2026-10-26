@@ -79,12 +79,14 @@ _ORG_MEMBER_HANDLER = RouteSpec(
 # Path-org routes guarded by the require_same_org_membership dependency.
 _ORG_MEMBER_MEMBERSHIP = RouteSpec("organization-scoped", min_role="org:member", org_from="path")
 _ORG_ADMIN_PATH = RouteSpec("organization-scoped", min_role="org:admin", org_from="path")
+_T_TEN_07_NOTE = "T-TEN-07: admins manage members; admins and owners are owner-only"
 _ORG_MEMBER_CALLER = RouteSpec("organization-scoped", min_role="org:member", org_from="caller")
 _ORG_ADMIN_CALLER = RouteSpec("organization-scoped", min_role="org:admin", org_from="caller")
-_T_TEN_05 = "T-TEN-05: intent org:admin"
+_T_TEN_05 = "T-TEN-05: destructive, org admin"
+# Destructive path-org routes: check_org_access() then check_org_role("admin") in the handler.
 _DESTRUCTIVE_HANDLER = RouteSpec(
     "organization-scoped",
-    min_role="org:member",
+    min_role="org:admin",
     org_from="path",
     in_handler=True,
     note=_T_TEN_05,
@@ -94,7 +96,7 @@ _DESTRUCTIVE_HANDLER = RouteSpec(
 def _m365(note: str = "", *, destructive: bool = False) -> RouteSpec:
     return RouteSpec(
         "organization-scoped",
-        min_role="org:member",
+        min_role="org:admin" if destructive else "org:member",
         org_from="path",
         in_handler=True,
         flag=_M365,
@@ -113,7 +115,11 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
         ("GET", "/redoc", RouteSpec("public", note="T-PLAT-08 accepted")),
         ("GET", "/openapi.json", RouteSpec("public", note="T-PLAT-08 accepted")),
         # --- auth / public data -----------------------------------------------------
-        ("GET", f"{_V1}/auth/me", RouteSpec("authenticated-global", note="creates the User row")),
+        (
+            "GET",
+            f"{_V1}/auth/me",
+            RouteSpec("authenticated-global", note="creates the User row (verified email only)"),
+        ),
         ("GET", f"{_V1}/public/stats", RouteSpec("public", note="aggregate counts, rate limited")),
         ("GET", f"{_V1}/data-status", RouteSpec("public", note="static source registry")),
         # --- global feeds behind require_role("viewer") (router-level) ---------------
@@ -264,7 +270,7 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
             f"{_V1}/assessments/{{assessment_id}}",
             RouteSpec(
                 "organization-scoped",
-                min_role="org:member",
+                min_role="org:admin",
                 org_from="resource",
                 in_handler=True,
                 note=f"{_T_TEN_05}; T-TEN-11",
@@ -315,7 +321,7 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
         ),
         # --- M365 integration (feature flagged; org id is a query parameter) ----------
         ("GET", f"{_V1}/integrations/m365", _m365("flag off returns a static disabled response")),
-        ("POST", f"{_V1}/integrations/m365/consent", _m365()),
+        ("POST", f"{_V1}/integrations/m365/consent", _m365(destructive=True)),
         (
             "GET",
             f"{_V1}/integrations/m365/callback",
@@ -348,14 +354,20 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
             "POST",
             f"{_ORGS}/{{org_id}}/invites",
             RouteSpec(
-                "organization-scoped", min_role="org:admin", org_from="path", note="T-TEN-07"
+                "organization-scoped",
+                min_role="org:admin",
+                org_from="path",
+                note=_T_TEN_07_NOTE,
             ),
         ),
         (
             "POST",
             f"{_V1}/orgs/{{org_id}}/invites",
             RouteSpec(
-                "organization-scoped", min_role="org:admin", org_from="path", note="T-TEN-07"
+                "organization-scoped",
+                min_role="org:admin",
+                org_from="path",
+                note=_T_TEN_07_NOTE,
             ),
         ),
         ("GET", f"{_ORGS}/{{org_id}}/invites", _ORG_ADMIN_PATH),
@@ -373,7 +385,10 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
         (
             "POST",
             f"{_V1}/invites/{{token}}/accept",
-            RouteSpec("authenticated-global", note="invite token plus email match; T-AUTH-04"),
+            RouteSpec(
+                "authenticated-global",
+                note="invite token plus email match; verified email required (T-AUTH-04)",
+            ),
         ),
         ("GET", f"{_ORGS}/{{org_id}}/members", _ORG_MEMBER_MEMBERSHIP),
         ("GET", f"{_V1}/orgs/{{org_id}}/members", _ORG_MEMBER_MEMBERSHIP),
@@ -384,7 +399,7 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
                 "organization-scoped",
                 min_role="org:admin",
                 org_from="path",
-                note="T-TEN-06, T-TEN-07",
+                note=f"T-TEN-06; {_T_TEN_07_NOTE}",
             ),
         ),
         (
@@ -394,7 +409,7 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
                 "organization-scoped",
                 min_role="org:admin",
                 org_from="path",
-                note="T-TEN-06, T-TEN-07",
+                note=f"T-TEN-06; {_T_TEN_07_NOTE}",
             ),
         ),
         (
@@ -404,7 +419,7 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
                 "organization-scoped",
                 min_role="org:admin",
                 org_from="path",
-                note="T-TEN-06, T-TEN-07",
+                note=f"T-TEN-06; {_T_TEN_07_NOTE}",
             ),
         ),
         (
@@ -414,11 +429,29 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
                 "organization-scoped",
                 min_role="org:admin",
                 org_from="path",
-                note="T-TEN-06, T-TEN-07",
+                note=f"T-TEN-06; {_T_TEN_07_NOTE}",
             ),
         ),
-        ("DELETE", f"{_ORGS}/{{org_id}}/members/{{user_id}}", _ORG_ADMIN_PATH),
-        ("DELETE", f"{_V1}/orgs/{{org_id}}/members/{{user_id}}", _ORG_ADMIN_PATH),
+        (
+            "DELETE",
+            f"{_ORGS}/{{org_id}}/members/{{user_id}}",
+            RouteSpec(
+                "organization-scoped",
+                min_role="org:admin",
+                org_from="path",
+                note=_T_TEN_07_NOTE,
+            ),
+        ),
+        (
+            "DELETE",
+            f"{_V1}/orgs/{{org_id}}/members/{{user_id}}",
+            RouteSpec(
+                "organization-scoped",
+                min_role="org:admin",
+                org_from="path",
+                note=_T_TEN_07_NOTE,
+            ),
+        ),
         # --- ingest ------------------------------------------------------------------
         (
             "GET",

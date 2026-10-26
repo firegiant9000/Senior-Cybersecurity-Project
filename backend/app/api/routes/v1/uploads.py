@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.routes.v1.auth import get_current_user
 from app.core.config import settings
-from app.core.dependencies import check_org_access
+from app.core.dependencies import check_org_access, check_org_role
 from app.core.limiter import limiter
 from app.db.engine import get_session
 from app.db.user import User
@@ -94,8 +94,9 @@ async def delete_upload(
     repo: SqlOrgUploadRepository = Depends(get_upload_repo),
     session: AsyncSession = Depends(get_session),
 ):
-    """Delete an uploaded file and its record."""
+    """Delete an uploaded file and its record. Requires org admin."""
     await check_org_access(current_user, org_id, session)
+    check_org_role(current_user, "admin")
     try:
         upload = await repo.get_by_id(upload_id, org_id)
     except SQLAlchemyError:

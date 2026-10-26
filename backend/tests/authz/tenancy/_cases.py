@@ -62,7 +62,7 @@ _AB = frozenset({"A", "B"})
 
 _ACCESS_DENIED = "Access denied"
 _MEMBERSHIP_DENIED = "Access denied for this organization"
-_T_TEN_05 = "T-TEN-05: intent org:admin, any org member passes today"
+_T_TEN_05 = "T-TEN-05: destructive, org admin (legacy org role)"
 _T_TEN_14 = "T-TEN-14: membership and legacy org disagree for the split user"
 
 

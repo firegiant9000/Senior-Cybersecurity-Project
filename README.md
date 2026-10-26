@@ -159,7 +159,7 @@ flowchart LR
 ## Security design
 
 - **Threat model.** [docs/security/threat_model.md](docs/security/threat_model.md)
-  is a STRIDE model of 113 threats (39 controlled, 26 tested, 18 accepted, 30
+  is a STRIDE model of 114 threats (39 controlled, 29 tested, 18 accepted, 28
   open and scheduled for S4/S5 or owner action). CI checks that every row has
   one classification and that its evidence exists.
 - **Authentication.** Users sign in through Firebase Authentication. The API
@@ -167,8 +167,9 @@ flowchart LR
   user's global role (`viewer` / `member` / `admin`) and organization role
   (`member` / `admin` / `owner`). An existing account is linked to a new
   Firebase sign-in only when the email is verified and the account has no
-  Firebase identity yet (`email_verified` is enforced for linking only, not yet
-  at first sign-in: T-AUTH-04); revoked and disabled tokens are rejected.
+  Firebase identity yet (`email_verified` is required for linking, for first
+  sign-in and for invite acceptance: T-AUTH-04); revoked and disabled tokens are
+  rejected.
 - **Authorization and data isolation.** Organization-scoped routes check the
   caller's organization, either from the path via `check_org_access` or from the
   caller's own row via `get_current_org`, and repositories filter by it. Global

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
@@ -35,6 +35,9 @@ class _FakeSession:
     async def commit(self):
         return None
 
+    async def execute(self, _stmt):  # noqa: ANN001
+        return None
+
 
 async def _user_for_email(email: str, user_id: int = 101):
     return SimpleNamespace(id=user_id, email=email, org_id=None, org_role=None)
@@ -46,6 +49,82 @@ async def _fake_member_user():
 
 async def _fake_outsider_user():
     return await _user_for_email("outsider@example.com")
+
+
+def _claims(email: str, *, verified: bool = True) -> dict:
+    return {
+        "uid": "fake-uid",
+        "email": email,
+        "email_verified": verified,
+        "firebase": {"sign_in_provider": "password"},
+    }
+
+
+def _invite_repo(email: str) -> MagicMock:
+    repo = MagicMock()
+    repo.get_by_token_for_update = AsyncMock(
+        return_value=SimpleNamespace(
+            status="pending",
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
+            email=email,
+            org_id=1,
+            role="member",
+        )
+    )
+    repo.get_active_membership = AsyncMock(return_value=None)
+    repo.create_membership = AsyncMock()
+    repo.mark_accepted = AsyncMock()
+    return repo
+
+
+@pytest.mark.asyncio
+async def test_accept_invite_token_email_mismatch_forbidden(client: AsyncClient):
+    """A verified token for another address than the account's is refused before any lookup."""
+    repo = _invite_repo("member@example.com")
+    app.dependency_overrides[get_invite_repo] = lambda: repo
+    app.dependency_overrides[get_session] = lambda: _FakeSession()
+    app.dependency_overrides[get_current_user] = _fake_member_user
+    try:
+        with patch(
+            "firebase_admin.auth.verify_id_token",
+            return_value=_claims("someone-else@example.com"),
+        ):
+            resp = await client.post("/api/v1/invites/fake-token/accept")
+    finally:
+        app.dependency_overrides.pop(get_invite_repo, None)
+        app.dependency_overrides.pop(get_session, None)
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Signed-in email does not match this account"
+    assert "WWW-Authenticate" not in resp.headers
+    repo.get_by_token_for_update.assert_not_awaited()
+    repo.create_membership.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_accept_invite_unverified_forbidden(client: AsyncClient):
+    """An unverified token cannot accept an invite, even for the account's own address."""
+    repo = _invite_repo("member@example.com")
+    app.dependency_overrides[get_invite_repo] = lambda: repo
+    app.dependency_overrides[get_session] = lambda: _FakeSession()
+    app.dependency_overrides[get_current_user] = _fake_member_user
+    try:
+        with patch(
+            "firebase_admin.auth.verify_id_token",
+            return_value=_claims("member@example.com", verified=False),
+        ):
+            resp = await client.post("/api/v1/invites/fake-token/accept")
+    finally:
+        app.dependency_overrides.pop(get_invite_repo, None)
+        app.dependency_overrides.pop(get_session, None)
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Email address not verified"
+    assert "WWW-Authenticate" not in resp.headers
+    repo.get_by_token_for_update.assert_not_awaited()
+    repo.create_membership.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -60,15 +139,19 @@ async def test_accept_invite_with_fake_user_success(client: AsyncClient):
             role="member",
         )
     )
-    repo.get_active_membership = AsyncMock(return_value=None)
-    repo.create_membership = AsyncMock()
+    repo.get_membership_for_update = AsyncMock(return_value=None)
+    repo.activate_membership = AsyncMock()
     repo.mark_accepted = AsyncMock()
 
     app.dependency_overrides[get_invite_repo] = lambda: repo
     app.dependency_overrides[get_session] = lambda: _FakeSession()
     app.dependency_overrides[get_current_user] = _fake_member_user
     try:
-        resp = await client.post("/api/v1/invites/fake-token/accept")
+        with patch(
+            "firebase_admin.auth.verify_id_token",
+            return_value=_claims("member@example.com"),
+        ):
+            resp = await client.post("/api/v1/invites/fake-token/accept")
     finally:
         app.dependency_overrides.pop(get_invite_repo, None)
         app.dependency_overrides.pop(get_session, None)
@@ -76,7 +159,7 @@ async def test_accept_invite_with_fake_user_success(client: AsyncClient):
 
     assert resp.status_code == 200
     assert resp.json()["detail"] == "Invite accepted"
-    repo.create_membership.assert_awaited_once()
+    repo.activate_membership.assert_awaited_once()
     repo.mark_accepted.assert_awaited_once()
 
 
@@ -100,13 +183,18 @@ async def test_accept_invite_with_different_user_email_forbidden(client: AsyncCl
     app.dependency_overrides[get_session] = lambda: _FakeSession()
     app.dependency_overrides[get_current_user] = _fake_outsider_user
     try:
-        resp = await client.post("/api/v1/invites/fake-token/accept")
+        with patch(
+            "firebase_admin.auth.verify_id_token",
+            return_value=_claims("outsider@example.com"),
+        ):
+            resp = await client.post("/api/v1/invites/fake-token/accept")
     finally:
         app.dependency_overrides.pop(get_invite_repo, None)
         app.dependency_overrides.pop(get_session, None)
         app.dependency_overrides.pop(get_current_user, None)
 
     assert resp.status_code == 403
+    assert resp.json()["detail"] == "This invite was sent to a different email address"
     repo.create_membership.assert_not_awaited()
     repo.mark_accepted.assert_not_awaited()
 

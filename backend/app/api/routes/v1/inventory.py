@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.routes.v1.auth import get_current_user
 from app.core.config import settings
-from app.core.dependencies import check_org_access, get_agent_from_token
+from app.core.dependencies import check_org_access, check_org_role, get_agent_from_token
 from app.core.limiter import agent_token_key, limiter
 from app.db.agent_enrollment import AgentEnrollment
 from app.db.audit_log import AuditLog
@@ -1130,7 +1130,7 @@ async def rollback_scan_run(
     """Undo an inventory upload.
 
     Deletes assets + asset_software whose ``created_by_scan_run_id`` matches
-    the given run, then marks the scan_run ``status='rolled_back'``.
+    the given run, then marks the scan_run ``status='rolled_back'``. Requires org admin.
     """
     from sqlalchemy import delete
 
@@ -1138,6 +1138,7 @@ async def rollback_scan_run(
     from app.db.asset_software import AssetSoftware
 
     await check_org_access(current_user, org_id, session)
+    check_org_role(current_user, "admin")
     run = await scan_repo.get_by_id(scan_run_id, org_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Scan run not found")

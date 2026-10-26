@@ -1,17 +1,27 @@
-"""Organization member and invite routes — v1."""
+"""Organization member and invite routes — v1.
+
+Admins manage plain members; granting, changing or removing the admin and owner roles is
+owner-only.
+"""
 
 import logging
 from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.routes.v1.auth import get_current_user
+from app.api.routes.v1.auth import (
+    EMAIL_MISMATCH,
+    EMAIL_NOT_VERIFIED,
+    get_current_user,
+    get_token_claims,
+)
 from app.core.config import settings
 from app.core.dependencies import (
+    _ORG_ROLE_LEVELS,
     require_membership_role,
     require_same_org_membership,
 )
@@ -36,6 +46,28 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+_OWNER_REQUIRED = "Owner role required"
+
+
+def _require_owner(membership: Membership) -> None:
+    """Refuse unless the caller is exactly an owner (a non-standard role fails closed)."""
+    if membership.role != OrgRole.OWNER:
+        raise HTTPException(status_code=403, detail=_OWNER_REQUIRED)
+
+
+def _judge_caller(dependency_membership: Membership, locked: Membership | None) -> Membership:
+    """The caller's membership as read under the lock, held to the admin floor again.
+
+    The dependency read happened before the lock, so a caller demoted or removed in between
+    would otherwise act on a stale role. A legacy-only caller has no row (the dependency
+    synthesised one with no id) and keeps that.
+    """
+    if dependency_membership.id is None:
+        return dependency_membership
+    if locked is None or _ORG_ROLE_LEVELS.get(locked.role, -1) < _ORG_ROLE_LEVELS["admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient organization role")
+    return locked
+
 
 # ── Invite endpoints ──────────────────────────────────────────────────────────
 
@@ -48,16 +80,18 @@ async def create_invite(
     org_id: int,
     body: InviteCreate,
     current_user: User = Depends(get_current_user),
-    _membership: Membership = Depends(require_membership_role("admin")),
+    current_membership: Membership = Depends(require_membership_role("admin")),
     repo: SqlOrgInviteRepository = Depends(get_invite_repo),
     session: AsyncSession = Depends(get_session),
 ):
     """Create a pending invite for the given email.
 
-    Requires org admin/owner role. Owner role needed to invite as admin.
+    Requires org admin; inviting as admin requires owner.
     """
     if body.role == OrgRole.OWNER:
         raise HTTPException(status_code=400, detail="Cannot invite as owner")
+    if body.role == OrgRole.ADMIN:
+        _require_owner(current_membership)
 
     await repo.expire_stale()
     existing = await repo.get_active_membership_by_email(org_id=org_id, email=str(body.email))
@@ -128,7 +162,7 @@ async def revoke_invite(
     repo: SqlOrgInviteRepository = Depends(get_invite_repo),
     session: AsyncSession = Depends(get_session),  # noqa: ARG001
 ):
-    """Revoke a pending invite. Requires org admin/owner."""
+    """Revoke a pending invite. Requires org admin; admins may revoke any pending invite."""
     revoked = await repo.revoke(invite_id, org_id)
     if not revoked:
         raise HTTPException(status_code=404, detail="Invite not found or already used")
@@ -171,13 +205,24 @@ async def accept_invite(
     request: Request,  # noqa: ARG001
     token: str,
     current_user: User = Depends(get_current_user),
+    claims: dict = Depends(get_token_claims),
     repo: SqlOrgInviteRepository = Depends(get_invite_repo),
     session: AsyncSession = Depends(get_session),
 ):
     """Accept a pending invite and join the organization.
 
-    The authenticated user's email must match the invite and be pending.
+    The token's email must be verified and equal the account's email, and the
+    account's email must match the invite, which must be pending.
     """
+    if claims.get("email_verified") is not True:
+        raise HTTPException(status_code=403, detail=EMAIL_NOT_VERIFIED)
+    token_email = claims.get("email") or ""
+    account_email = current_user.email or ""
+    if not token_email or token_email.lower() != account_email.lower():
+        raise HTTPException(status_code=403, detail=EMAIL_MISMATCH)
+    # get_current_user's lookups already began a transaction on this session; end it so the
+    # explicit begin() below can open the one that holds the invite row lock.
+    await session.commit()
     async with session.begin():
         invite = await repo.get_by_token_for_update(token)
         if invite is None or invite.status != "pending":
@@ -189,16 +234,22 @@ async def accept_invite(
                 status_code=403, detail="This invite was sent to a different email address"
             )
 
-        existing_membership = await repo.get_active_membership(current_user.id, invite.org_id)
-        if existing_membership is not None:
+        # Any status: a removed member keeps an inactive row (UNIQUE user/org), which is
+        # reactivated with the invite's role, never the role it had before removal.
+        existing_membership = await repo.get_membership_for_update(current_user.id, invite.org_id)
+        if existing_membership is not None and existing_membership.status == "active":
             raise HTTPException(status_code=409, detail="You are already a member of this org")
 
-        await repo.create_membership(current_user.id, invite.org_id, invite.role)
-        # Keep legacy single-org fields in sync for existing endpoints.
-        if current_user.org_id is None:
-            current_user.org_id = invite.org_id
-            current_user.org_role = invite.role
-            session.add(current_user)
+        await repo.activate_membership(
+            existing_membership, current_user.id, invite.org_id, invite.role
+        )
+        # Keep legacy single-org fields in sync for existing endpoints. Conditional on the
+        # stored value, so a concurrent accept elsewhere cannot be overwritten from a stale copy.
+        await session.execute(
+            update(User)
+            .where(User.id == current_user.id, User.org_id.is_(None))
+            .values(org_id=invite.org_id, org_role=invite.role)
+        )
         await repo.mark_accepted(invite)
 
     return {"detail": "Invite accepted", "org_id": invite.org_id}
@@ -273,17 +324,27 @@ async def update_member_role(
     repo: SqlOrgInviteRepository = Depends(get_invite_repo),
     session: AsyncSession = Depends(get_session),  # noqa: ARG001
 ):
-    """Update a member's org role. Requires admin/owner role."""
+    """Update a member's org role.
+
+    Requires org admin for plain members; admins and owners can only be changed by an owner.
+    Last-owner protections apply.
+    """
 
     if body.role == OrgRole.OWNER:
         raise HTTPException(
             status_code=400, detail="Cannot assign owner role through this endpoint"
         )
-    member = await repo.get_member(user_id, org_id)
+    # The target row and the org's owner rows are locked until the commit below, so the role
+    # rule and the last-owner count are decided on rows no concurrent request can change.
+    member, owners, caller = await repo.lock_target_and_owners(org_id, user_id, current_user.id)
+    current_membership = _judge_caller(current_membership, caller)
     if member is None:
         raise HTTPException(status_code=404, detail="Member not found")
+    # Allowlist: only a plain member staying a plain member is admin-level. Anything else,
+    # including a non-standard stored role, needs an owner.
+    if not (member.role == OrgRole.MEMBER and body.role == OrgRole.MEMBER):
+        _require_owner(current_membership)
     if member.role == OrgRole.OWNER and body.role != OrgRole.OWNER:
-        owners = await repo.count_active_owners(org_id)
         if owners <= 1:
             if user_id == current_user.id and current_membership.role == OrgRole.OWNER:
                 raise HTTPException(
@@ -295,12 +356,12 @@ async def update_member_role(
                 detail="Cannot demote the last organization owner",
             )
 
-    updated = await repo.update_member_role(member, str(body.role))
-    user = await repo.get_user(updated.user_id)
+    # Legacy field changes ride the same transaction (and lock) as the role change.
+    user = await repo.get_user(member.user_id)
     if user is not None and user.org_id == org_id:
-        user.org_role = updated.role
+        user.org_role = str(body.role)
         session.add(user)
-        await session.commit()
+    updated = await repo.update_member_role(member, str(body.role))
     return MemberRead(
         user_id=updated.user_id,
         email=user.email if user else "",
@@ -325,27 +386,31 @@ async def remove_member(
     org_id: int,
     user_id: int,
     current_user: User = Depends(get_current_user),
-    _membership: Membership = Depends(require_membership_role("admin")),
+    current_membership: Membership = Depends(require_membership_role("admin")),
     repo: SqlOrgInviteRepository = Depends(get_invite_repo),
     session: AsyncSession = Depends(get_session),  # noqa: ARG001
 ):
-    """Remove a member from the organization. Requires admin/owner."""
-    member = await repo.get_member(user_id, org_id)
+    """Remove a member from the organization.
+
+    Requires org admin for plain members; admins and owners can only be removed by an owner.
+    Last-owner protections apply.
+    """
+    member, owners, caller = await repo.lock_target_and_owners(org_id, user_id, current_user.id)
+    current_membership = _judge_caller(current_membership, caller)
     if member is None:
         raise HTTPException(status_code=404, detail="Member not found")
-    if member.role == OrgRole.OWNER:
-        owners = await repo.count_active_owners(org_id)
-        if owners <= 1:
-            raise HTTPException(
-                status_code=400,
-                detail="Cannot remove the last organization owner",
-            )
+    if member.role != OrgRole.MEMBER:
+        _require_owner(current_membership)
+    if member.role == OrgRole.OWNER and owners <= 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot remove the last organization owner",
+        )
 
-    await repo.remove_member(member)
     user = await repo.get_user(member.user_id)
     if user is not None and user.org_id == org_id:
         user.org_id = None
         user.org_role = None
         session.add(user)
-        await session.commit()
+    await repo.remove_member(member)
     return None
