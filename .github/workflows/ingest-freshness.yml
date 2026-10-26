@@ -1,0 +1,111 @@
+# Daily external check that production ingest data is fresh.
+#
+# Polls the public /api/v1/ingest/health endpoint and fails if NVD, CISA KEV or
+# EPSS has not succeeded within its threshold. It polls for up to 30 minutes so
+# the app's own startup catch-up (and a cold Render instance) can heal a stale
+# source before this check gives up.
+#
+# The top-level "healthy" flag is deliberately ignored until PR 2 changes what
+# it means; only per-source last_success_hours_ago is evaluated here.
+#
+# The thresholds below mirror INGEST_STALE_HOURS_* in the backend settings and
+# must be changed together with them.
+#
+# GitHub disables scheduled workflows after 60 days without repository
+# activity; re-enable it from the Actions tab if that happens.
+name: Ingest freshness
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ingest-freshness
+  cancel-in-progress: false
+
+jobs:
+  check-freshness:
+    name: Check NVD, KEV and EPSS freshness
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Poll ingest health until sources are fresh
+        env:
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${BACKEND_URL:-}" ]; then
+            echo "::error::BACKEND_URL secret is not set"
+            exit 1
+          fi
+
+          declare -A THRESHOLDS=([nvd]=25 [cisa_kev]=25 [epss]=49)
+          SOURCES=(nvd cisa_kev epss)
+          URL="$BACKEND_URL/api/v1/ingest/health"
+          BODY_FILE="$(mktemp)"
+          DEADLINE=$((SECONDS + 1800))
+          ATTEMPT=0
+          CODE="000"
+          STALE=()
+
+          # Sets STALE to the sources that are stale or unreadable in $BODY_FILE.
+          evaluate() {
+            STALE=()
+            local s hours t
+            for s in "${SOURCES[@]}"; do
+              t="${THRESHOLDS[$s]}"
+              hours=$(jq -r --arg s "$s" '.sources[$s].last_success_hours_ago // "null"' "$BODY_FILE" 2>/dev/null) || hours="null"
+              if [ -z "$hours" ] || [ "$hours" = "null" ]; then
+                STALE+=("$s")
+              elif [ "$(jq -n --argjson h "$hours" --argjson t "$t" 'if $h > $t then 1 else 0 end' 2>/dev/null || echo 1)" = "1" ]; then
+                STALE+=("$s")
+              fi
+            done
+          }
+
+          print_table() {
+            local s hours fails
+            printf '%-10s %-12s %-10s %s\n' source hours_ago threshold consecutive_failures
+            for s in "${SOURCES[@]}"; do
+              hours=$(jq -r --arg s "$s" '.sources[$s].last_success_hours_ago // "null"' "$BODY_FILE" 2>/dev/null) || hours="n/a"
+              fails=$(jq -r --arg s "$s" '.sources[$s].consecutive_failures // "n/a"' "$BODY_FILE" 2>/dev/null) || fails="n/a"
+              printf '%-10s %-12s %-10s %s\n' "$s" "${hours:-n/a}" "${THRESHOLDS[$s]}" "${fails:-n/a}"
+            done
+          }
+
+          while true; do
+            ATTEMPT=$((ATTEMPT + 1))
+            : > "$BODY_FILE"
+            CODE=$(curl -sS --max-time 60 -o "$BODY_FILE" -w '%{http_code}' "$URL" 2>/dev/null) || CODE="000"
+
+            if [ "$CODE" = "200" ] && jq -e '.sources | type == "object"' "$BODY_FILE" >/dev/null 2>&1; then
+              evaluate
+              if [ "${#STALE[@]}" -eq 0 ]; then
+                echo "Attempt $ATTEMPT: 200, all sources fresh"
+                print_table
+                exit 0
+              fi
+              echo "Attempt $ATTEMPT: $CODE, stale: ${STALE[*]}"
+            else
+              STALE=()
+              echo "Attempt $ATTEMPT: $CODE, no usable ingest health body"
+            fi
+
+            if [ "$SECONDS" -ge "$DEADLINE" ]; then
+              break
+            fi
+            sleep 120
+          done
+
+          if [ "$CODE" = "200" ] && [ "${#STALE[@]}" -gt 0 ]; then
+            print_table
+            echo "::error::Stale ingest sources after 30 minutes: ${STALE[*]}"
+          else
+            echo "::error::Ingest health unavailable after 30 minutes (last HTTP code: $CODE)"
+          fi
+          exit 1
