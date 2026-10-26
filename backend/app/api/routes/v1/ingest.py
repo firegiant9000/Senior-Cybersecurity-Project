@@ -216,9 +216,12 @@ async def _run_ingestion(
     session's commits hand its connection back to the pool and must not be
     used for the lock.
 
-    Never hold one pooled connection while waiting on another: the session work
-    that precedes the lock is committed first, and a run that loses the lock
-    returns the lock connection to the pool before it writes the skipped row.
+    Pool usage: the session work that precedes the lock is committed first.  On
+    the skip path the lock connection is released back to the pool before the
+    session is used again.  On the acquired path two pooled connections are held
+    by design (the lock connection for the whole run, plus the session's own);
+    that is bounded (at most one extra connection per source, 5 sources) and not
+    a deadlock.
     """
     from app.services.ingest_lock import expire_stale_runs, try_acquire_lock
 
@@ -242,7 +245,7 @@ async def _run_ingestion(
         if trigger in _CATCHUP_TRIGGERS:
             # Catch-up is redundant by design; a "skipped" row would count as a
             # failure in _compute_consecutive_failures, so don't record one.
-            logger.info(
+            logger.warning(
                 "Catch-up ingestion not started — lock held",
                 extra={"source": source, "trigger": trigger},
             )
@@ -278,6 +281,8 @@ async def _run_locked(
     Everything after the lock was acquired lives inside the ``try`` whose
     ``finally`` releases it, so no failure (run-row commit, scheduler lookup,
     rollback/re-fetch) can return the connection to the pool still locked.
+    Once the running row exists, a failure before or during the ingestor marks
+    it failed and follows the same retry rule.
     """
     from app.services.ingest_lock import release_or_invalidate
 
@@ -295,11 +300,14 @@ async def _run_locked(
         # the id and re-fetch the row after any rollback.
         run_id = run.id
 
-        # [2B] Populate next_scheduled_at from APScheduler at run creation time.
-        run = await _record_next_scheduled(db, run, source)
-
         _start = datetime.datetime.utcnow()
+        # The running row is committed, so any failure from here on (including
+        # the scheduler lookup's rollback/re-fetch) must mark it failed rather
+        # than leave a phantom "running" row until expire_stale_runs.
         try:
+            # [2B] Populate next_scheduled_at from APScheduler at run creation time.
+            run = await _record_next_scheduled(db, run, source)
+
             count = await _dispatch_ingestor(source, db)
 
             elapsed = (datetime.datetime.utcnow() - _start).total_seconds()

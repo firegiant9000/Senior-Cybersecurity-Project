@@ -100,15 +100,15 @@ async def try_acquire_lock(conn: AsyncConnection | AsyncSession, source: str) ->
     its commit returns the connection to the pool.)
     """
     key = _lock_key(source)
-    result = await conn.execute(text("SELECT pg_try_advisory_lock(:key)"), {"key": key})
-    acquired: bool = result.scalar()  # type: ignore[assignment]
     try:
+        result = await conn.execute(text("SELECT pg_try_advisory_lock(:key)"), {"key": key})
+        acquired: bool = result.scalar()  # type: ignore[assignment]
         await conn.commit()
     except BaseException:
-        # The statement succeeded, so the session-level lock may already be held
-        # even though we are about to raise and the caller will never release it.
-        # Kill the connection (which frees the lock) rather than let it go back
-        # to the pool still locked.
+        # The server may already have granted the session-level lock (even if we
+        # were cancelled before seeing the result) and we are about to raise, so
+        # the caller will never release it.  Kill the connection (which frees the
+        # lock) rather than let it go back to the pool still locked.
         try:
             await conn.invalidate()
         except Exception:  # noqa: BLE001
@@ -141,11 +141,14 @@ async def release_or_invalidate(lock_conn: AsyncConnection, source: str) -> None
     The lock is bound to this physical connection, and a pooled connection is
     only ROLLBACKed on return, which does not release advisory locks.  If the
     unlock fails, invalidate so the connection is closed (releasing the lock)
-    instead of being returned to the pool still locked.
+    instead of being returned to the pool still locked.  This also applies to
+    cancellation (CancelledError/KeyboardInterrupt): the connection is
+    invalidated best-effort and the BaseException is re-raised.  Ordinary
+    exceptions are swallowed after logging.
     """
     try:
         await release_lock(lock_conn, source)
-    except Exception:  # noqa: BLE001
+    except BaseException as exc:
         logger.warning(
             "release_lock failed — invalidating lock connection to free the lock",
             extra={"source": source},
@@ -155,3 +158,5 @@ async def release_or_invalidate(lock_conn: AsyncConnection, source: str) -> None
             await lock_conn.invalidate()
         except Exception:  # noqa: BLE001
             logger.exception("Could not invalidate lock connection", extra={"source": source})
+        if not isinstance(exc, Exception):
+            raise

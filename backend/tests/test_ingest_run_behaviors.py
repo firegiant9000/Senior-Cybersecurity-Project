@@ -149,6 +149,25 @@ async def test_run_ingestion_catchup_skip_writes_no_skipped_row(trigger):
 
 
 @pytest.mark.asyncio
+async def test_run_ingestion_catchup_skip_logs_warning(caplog):
+    fake_session = _FakeAsyncSession()
+    with (
+        patch(
+            "app.api.routes.v1.ingest.AsyncSessionLocal", return_value=_FakeSessionCtx(fake_session)
+        ),
+        patch("app.api.routes.v1.ingest.engine", new=_FakeEngine()),
+        patch("app.services.ingest_lock.expire_stale_runs", new=AsyncMock()),
+        patch("app.services.ingest_lock.try_acquire_lock", new=AsyncMock(return_value=False)),
+        caplog.at_level("INFO", logger="app.api.routes.v1.ingest"),
+    ):
+        await _run_ingestion("nvd", trigger="catchup")
+
+    records = [r for r in caplog.records if "Catch-up ingestion not started" in r.getMessage()]
+    assert len(records) == 1
+    assert records[0].levelname == "WARNING"
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("trigger", ["manual", "scheduled"])
 async def test_run_ingestion_manual_and_scheduled_skip_still_write_skipped_row(trigger):
     fake_session = _FakeAsyncSession()
@@ -230,6 +249,9 @@ async def test_run_ingestion_releases_lock_on_lock_conn_and_invalidates_on_failu
     fake_session = _FakeAsyncSession()
     fake_engine = _FakeEngine()
     release = AsyncMock(side_effect=RuntimeError("conn gone"))
+    events: list[str] = []
+    fake_engine.conn.invalidate.side_effect = lambda *_a, **_k: events.append("invalidate")
+    fake_engine.conn.close.side_effect = lambda *_a, **_k: events.append("close")
     with (
         patch(
             "app.api.routes.v1.ingest.AsyncSessionLocal", return_value=_FakeSessionCtx(fake_session)
@@ -244,3 +266,5 @@ async def test_run_ingestion_releases_lock_on_lock_conn_and_invalidates_on_failu
 
     release.assert_awaited_once_with(fake_engine.conn, "nvd")
     fake_engine.conn.invalidate.assert_awaited_once()
+    # invalidate happens before the connection is closed/returned.
+    assert events == ["invalidate", "close"]

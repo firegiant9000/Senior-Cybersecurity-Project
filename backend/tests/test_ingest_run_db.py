@@ -162,16 +162,38 @@ async def test_running_row_commit_failure_releases_lock():
 
 
 @pytest.mark.asyncio
-async def test_next_scheduled_refetch_failure_releases_lock(paused_scheduler):
+async def test_next_scheduled_refetch_failure_marks_failed_and_releases_lock(
+    paused_scheduler, monkeypatch
+):
+    monkeypatch.setattr(settings, "INGEST_MAX_RETRIES", 2)
+    original_get = AsyncSession.get
+    calls = {"n": 0}
+
+    async def _get(self, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
+        calls["n"] += 1
+        if calls["n"] == 1:  # the re-fetch in _record_next_scheduled
+            raise RuntimeError("refetch failed")
+        return await original_get(self, *args, **kwargs)
+
+    def _close_coro(coro):  # noqa: ANN001
+        coro.close()
+        return MagicMock()
+
+    fake_asyncio = MagicMock()
+    fake_asyncio.create_task.side_effect = _close_coro
     with (
         _fail_commit_once(_storing_next_scheduled),
-        patch.object(AsyncSession, "get", AsyncMock(side_effect=RuntimeError("refetch failed"))),
+        patch.object(AsyncSession, "get", _get),
         patch("app.api.routes.v1.ingest._dispatch_ingestor", new=AsyncMock(return_value=1)) as d,
-        pytest.raises(RuntimeError, match="refetch failed"),
+        patch("app.api.routes.v1.ingest.asyncio", new=fake_asyncio),
     ):
         await _run_ingestion(SOURCE, trigger="scheduled")
 
     d.assert_not_called()
+    run = await _latest_run()
+    assert run.status == "failed"
+    assert "refetch failed" in (run.error_message or "")
+    fake_asyncio.create_task.assert_called_once()
     assert await _advisory_lock_holders(SOURCE) == 0
 
 
