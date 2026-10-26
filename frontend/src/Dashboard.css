@@ -730,6 +730,12 @@
     border-color: var(--border);
 }
 
+.freshness-item.freshness-static {
+    background: var(--table-head-bg);
+    color: var(--text-muted);
+    border-color: var(--border);
+}
+
 [data-theme="dark"] .freshness-item {
     background: #14532d;
     color: #86efac;
@@ -741,8 +747,14 @@
 [data-theme="dark"] .freshness-item.freshness-failed,
 [data-theme="dark"] .freshness-item.freshness-error,
 [data-theme="dark"] .freshness-item.freshness-stale,
-[data-theme="dark"] .freshness-item.freshness-unknown {
+[data-theme="dark"] .freshness-item.freshness-unknown,
+[data-theme="dark"] .freshness-item.freshness-static {
     color: #e2e8f0;
+}
+
+[data-theme="dark"] .freshness-item.freshness-static {
+    background: var(--table-head-bg);
+    border-color: var(--border);
 }
 
 /* Overview toolbar + partial errors → components/dashboard/OverviewTab.css */

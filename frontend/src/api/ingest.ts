@@ -1,5 +1,7 @@
 import { API_BASE_URL, fetchWithAuth, getJsonAuth } from "./fetchWithAuth";
 
+export type RefreshPolicy = 'scheduled' | 'static'
+
 export interface SourceFreshness {
   source: string
   last_run_at: string | null
@@ -12,6 +14,8 @@ export interface SourceFreshness {
   trigger: string | null
   retry_count: number
   skipped_reason: string | null
+  refresh_policy: RefreshPolicy
+  stale: boolean
 }
 
 export interface FreshnessResponse {
