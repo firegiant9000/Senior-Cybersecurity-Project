@@ -132,9 +132,60 @@ async def test_census_ingest_failure_log_omits_key(caplog, monkeypatch):
             raise _status_error(CENSUS_URL, 429)
 
     monkeypatch.setattr(econ.httpx, "AsyncClient", _Client)
-    with caplog.at_level(logging.DEBUG):
+    with caplog.at_level(logging.DEBUG), pytest.raises(RuntimeError) as exc_info:
         await econ.ingest_region_economics_from_census(MagicMock())
-    fallback.assert_awaited_once()
+    fallback.assert_not_awaited()
+    assert FAKE_KEY not in str(exc_info.value)
     assert FAKE_KEY not in caplog.text
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+    assert "HTTPStatusError" in str(exc_info.value)
+    assert "429" in str(exc_info.value)
     assert "HTTPStatusError" in caplog.text
     assert "429" in caplog.text
+
+
+def _json_client(body):
+    class _Client:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        async def get(self, *args, **kwargs):
+            return httpx.Response(200, json=body, request=httpx.Request("GET", CENSUS_URL))
+
+    return _Client
+
+
+async def test_census_non_list_body_raises(monkeypatch):
+    monkeypatch.setattr(get_settings(), "CENSUS_API_KEY", FAKE_KEY)
+    monkeypatch.setattr(econ.httpx, "AsyncClient", _json_client({"error": "nope"}))
+    upsert = AsyncMock()
+    monkeypatch.setattr(econ, "_upsert_economic_indicator", upsert)
+    db = MagicMock()
+    db.commit = AsyncMock()
+    with pytest.raises(RuntimeError, match="not a list"):
+        await econ.ingest_region_economics_from_census(db)
+    upsert.assert_not_awaited()
+    db.commit.assert_not_awaited()
+
+
+async def test_census_missing_state_raises_and_writes_nothing(monkeypatch):
+    monkeypatch.setattr(get_settings(), "CENSUS_API_KEY", FAKE_KEY)
+    # One state only: every other expected state is missing.
+    body = [["ESTAB", "NAME", "state"], ["1000", "Alabama", "01"]]
+    monkeypatch.setattr(econ.httpx, "AsyncClient", _json_client(body))
+    upsert = AsyncMock()
+    monkeypatch.setattr(econ, "_upsert_economic_indicator", upsert)
+    db = MagicMock()
+    db.commit = AsyncMock()
+    with pytest.raises(RuntimeError, match=r"\d+ of \d+ states missing") as exc_info:
+        await econ.ingest_region_economics_from_census(db)
+    assert FAKE_KEY not in str(exc_info.value)
+    upsert.assert_not_awaited()
+    db.commit.assert_not_awaited()
