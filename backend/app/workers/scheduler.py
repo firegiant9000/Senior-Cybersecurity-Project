@@ -1,15 +1,17 @@
 """APScheduler-based background scheduler for periodic data ingestion.
 
-Jobs are registered at startup for any source that has a cron expression
-configured via environment variables (INGEST_SCHEDULE_NVD, etc.).  Empty
-expressions mean the source is not scheduled.
+Jobs are registered at startup for any source that has a cron expression.
+Schedules default in code (config.py); environment variables
+(INGEST_SCHEDULE_NVD, etc.) override them and an empty expression means the
+source is not scheduled.
 
 The scheduler is in-process (AsyncIOScheduler) and shares the uvicorn event
 loop.  Advisory locks in _run_ingestion prevent duplicate execution if the
 app is ever scaled to multiple instances.
 
-Set SCHEDULER_ENABLED=false to disable the scheduler entirely — useful when
-running multiple Render instances where only one should fire scheduled jobs.
+Set SCHEDULER_ENABLED=false to disable the scheduler entirely — the local-dev
+opt-out, and useful when running multiple Render instances where only one
+should fire scheduled jobs.
 """
 
 import logging
@@ -82,8 +84,8 @@ def init_scheduler() -> None:  # noqa: C901 — flat per-source registration loo
             args=[source],
             id=f"ingest_{source}",
             replace_existing=True,
-            # Allow up to 5 minutes of latency before a misfired job is skipped.
-            misfire_grace_time=300,
+            # Busy event loop across the top of the hour can delay a firing.
+            misfire_grace_time=3600,
             coalesce=True,  # If multiple firings were missed, run only once.
         )
         registered.append(f"{source} ({cron_expr})")

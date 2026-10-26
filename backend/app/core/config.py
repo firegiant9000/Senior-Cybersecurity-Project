@@ -114,13 +114,15 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     # Ingestion
     FORCE_SEED: bool = False
 
-    # Ingestion scheduling — cron expressions (standard 5-field format, empty = disabled)
-    # Examples: "0 */6 * * *" = every 6 hours, "0 2 * * 0" = weekly Sunday 2am
-    INGEST_SCHEDULE_NVD: str = ""
-    INGEST_SCHEDULE_KEV: str = ""
+    # Ingestion scheduling — cron expressions (standard 5-field format, UTC).
+    # Schedules are code defaults on purpose, so production refreshes itself without
+    # per-environment config. Env overrides still work; an empty value disables a job.
+    # Nightly order: NVD 01:00, KEV 01:15, EPSS 02:00 (after NVD so scores cover the
+    # freshest CVE set), matcher 02:30, CPE backfill 04:00, retention 05:00.
+    INGEST_SCHEDULE_NVD: str = "0 1 * * *"
+    INGEST_SCHEDULE_KEV: str = "15 1 * * *"
     INGEST_SCHEDULE_IC3: str = ""
     INGEST_SCHEDULE_ECONOMICS: str = ""
-    # EPSS runs daily by default, after NVD (02:00 UTC) so scores cover the freshest CVE set.
     INGEST_SCHEDULE_EPSS: str = "0 2 * * *"
     # Month 3 Phase 4: background CPE-matcher sweep. Runs after the EPSS refresh
     # so recomputed findings pick up the freshest scores. The inline triggers on
