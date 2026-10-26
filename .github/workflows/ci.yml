@@ -358,6 +358,7 @@ jobs:
         env:
           BACKEND_URL: ${{ secrets.BACKEND_URL }}
           GITHUB_SHA_FULL: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           EXPECTED="${GITHUB_SHA_FULL:0:12}"
           LIVE="missing"
@@ -369,8 +370,17 @@ jobs:
             if [ -z "$LIVE" ]; then LIVE="missing"; fi
             echo "Attempt $i: live=$LIVE"
             if [ "$LIVE" = "$EXPECTED" ]; then exit 0; fi
+            # Render deploys the branch head, so a newer push may already be live.
+            # Pass if LIVE is a descendant of EXPECTED; any API error means "not a descendant".
+            if printf '%s' "$LIVE" | grep -Eq '^[0-9a-f]{12}$'; then
+              CMP=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${EXPECTED}...${LIVE}" --jq .status 2>/dev/null) || CMP=""
+              if [ "$CMP" = "ahead" ] || [ "$CMP" = "identical" ]; then
+                echo "live is newer (descendant); a later push superseded this one"
+                exit 0
+              fi
+            fi
             if [ "$i" -lt 30 ]; then sleep 20; fi
           done
-          echo "::error::Production serves commit '$LIVE' but expected '$EXPECTED' after 10 minutes"
-          echo "'unknown' means RENDER_GIT_COMMIT is not set on the service; a different SHA means Render did not deploy this commit (check the Render deploy log)."
+          echo "::error::Production serves commit '$LIVE' but expected '$EXPECTED' (or a descendant of it) after 10 minutes"
+          echo "'unknown' means RENDER_GIT_COMMIT is not set on the service; a different SHA that is not a descendant of this commit means Render did not deploy this commit (check the Render deploy log)."
           exit 1
