@@ -75,6 +75,14 @@ export async function rotateAgent(
   return resp.json();
 }
 
+export async function endAgentGrace(agentId: number): Promise<void> {
+  const resp = await fetchWithAuth(
+    `${API_BASE_URL}/api/v1/agents/${agentId}/end-grace`,
+    { method: "POST" },
+  );
+  if (!resp.ok) await detailOrThrow(resp, "Failed to end the grace window");
+}
+
 export async function revokeAgent(agentId: number): Promise<void> {
   const resp = await fetchWithAuth(
     `${API_BASE_URL}/api/v1/agents/${agentId}`,

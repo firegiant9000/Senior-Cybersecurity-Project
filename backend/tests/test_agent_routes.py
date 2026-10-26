@@ -16,6 +16,7 @@ import pytest
 from fastapi import HTTPException
 from httpx import AsyncClient
 
+from app.api.routes.v1 import agents as agents_routes
 from app.api.routes.v1.auth import get_current_user
 from app.core.dependencies import get_current_org, require_org_role
 from app.db.engine import get_session
@@ -139,10 +140,31 @@ async def test_rotate_issues_new_token(client: AsyncClient, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_rotate_inactive_409(client: AsyncClient, monkeypatch):
+    repo = MagicMock()
+    repo.get_by_id = AsyncMock(return_value=_enrollment())
+    monkeypatch.setattr(
+        agent_token, "rotate", AsyncMock(side_effect=agent_token.AgentNotActiveError())
+    )
+    audit_mock = AsyncMock()
+    monkeypatch.setattr(agents_routes, "_audit", audit_mock)
+
+    _override_admin(repo)
+    try:
+        resp = await client.post("/api/v1/agents/1/rotate")
+    finally:
+        _clear_overrides()
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == agents_routes.NOT_ACTIVE_DETAIL
+    audit_mock.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_revoke_returns_204(client: AsyncClient, monkeypatch):
     repo = MagicMock()
     repo.get_by_id = AsyncMock(return_value=_enrollment())
-    revoke_mock = AsyncMock(return_value=_enrollment(revoked_at=datetime.now(UTC)))
+    revoke_mock = AsyncMock(return_value=[1])
     monkeypatch.setattr(agent_token, "revoke", revoke_mock)
 
     _override_admin(repo)

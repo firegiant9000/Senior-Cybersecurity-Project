@@ -191,7 +191,7 @@ def test_agent_routes_are_agent_only():
 def test_route_counts_cover_all():
     counts = Counter(s.cls for s in ROUTES.values())
     assert sum(counts[c] for c in get_args(RouteClass)) == len(enumerate_routes(app))
-    assert len(enumerate_routes(app)) == 128
+    assert len(enumerate_routes(app)) == 129
 
 
 def _tiny_app() -> FastAPI:

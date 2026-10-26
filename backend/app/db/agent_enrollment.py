@@ -12,6 +12,8 @@ this table enforces:
   ``now`` (rejected immediately); a rotation sets the *old* row's ``revoked_at``
   to ``now + grace`` so its token keeps working for the grace window. A token is
   valid only while ``revoked_at`` is null or still in the future.
+* ``chain_root_id`` links a rotation's successors to the chain's original row, so a revoke
+  covers the whole chain.
 """
 
 from __future__ import annotations
@@ -48,3 +50,11 @@ class AgentEnrollment(Base):
     # Null = active. <= now = revoked. > now = rotation grace window still open.
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Rotation chain: NULL on an original row; every successor stores the chain's original row id.
+    chain_root_id: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            "agent_enrollments.id", ondelete="SET NULL", name="fk_agent_enrollments_chain_root_id"
+        ),
+        nullable=True,
+        index=True,
+    )

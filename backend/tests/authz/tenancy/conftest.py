@@ -6,6 +6,7 @@ Everything here runs under stage A's real token verification. Never use the glob
 
 import importlib
 from collections.abc import AsyncGenerator, Awaitable, Callable
+from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
@@ -14,6 +15,7 @@ from httpx import AsyncClient
 
 from app.core.config import settings
 from app.integrations import m365 as graph
+from app.services import agent_token
 from tests.authz._issuer import mint_id_token
 from tests.authz.tenancy._world import (
     _TEST_FERNET_KEY,
@@ -121,6 +123,16 @@ def _no_egress(monkeypatch):
     for module_name, attr in EGRESS_SITES:
         module = importlib.import_module(module_name)
         monkeypatch.setattr(module, attr, _STUBS[attr])
+
+
+@pytest.fixture
+def clock(monkeypatch) -> Callable[[datetime], None]:
+    """Freeze the agent-token service's clock (`agent_token._utcnow`); call again to move it."""
+
+    def set_now(instant: datetime) -> None:
+        monkeypatch.setattr(agent_token, "_utcnow", lambda: instant)
+
+    return set_now
 
 
 @pytest_asyncio.fixture(scope="module")

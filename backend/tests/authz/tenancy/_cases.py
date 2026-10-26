@@ -601,6 +601,15 @@ CASES: dict[tuple[str, str], Case] = {
         "Agent not found",
         belongs_to=lambda body, t: body["agent"]["org_id"] == t.org_id,
     ),
+    # The seeded agent is active, so the owner's positive control is the 409 that proves the
+    # route and role gate were passed; the in-grace success is covered in test_agent_end_grace.
+    ("POST", f"{_V1}/agents/{{agent_id}}/end-grace"): _caller_id(
+        lambda _w, t: Req("POST", f"{_V1}/agents/{t.ids['agent_id']}/end-grace"),
+        409,
+        "Agent not found",
+        allowed_detail="Only an agent in its grace window can be ended",
+        note="seeded agent is active, so 409 is the positive control; success is in test_agent_end_grace",
+    ),
     ("DELETE", f"{_V1}/agents/{{agent_id}}"): _caller_id(
         lambda _w, t: Req("DELETE", f"{_V1}/agents/{t.ids['agent_id']}"), 204, "Agent not found"
     ),
