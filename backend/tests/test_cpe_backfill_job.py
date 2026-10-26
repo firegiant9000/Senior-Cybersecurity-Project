@@ -24,30 +24,50 @@ def _fake_session_factory():
     return _factory, db
 
 
+def _fake_engine():
+    """Return (engine, lock_conn) where engine.connect() yields the lock conn."""
+    conn = MagicMock()
+
+    @asynccontextmanager
+    async def _connect():
+        yield conn
+
+    engine = MagicMock()
+    engine.connect = _connect
+    return engine, conn
+
+
 @pytest.mark.asyncio
 async def test_skips_when_lock_held():
     factory, _db = _fake_session_factory()
+    engine, conn = _fake_engine()
     with (
         patch.object(cpe_backfill_job, "AsyncSessionLocal", factory),
-        patch.object(cpe_backfill_job, "try_acquire_lock", AsyncMock(return_value=False)),
-        patch.object(cpe_backfill_job, "release_lock", AsyncMock()) as release,
+        patch.object(cpe_backfill_job, "engine", engine),
+        patch.object(
+            cpe_backfill_job, "try_acquire_lock", AsyncMock(return_value=False)
+        ) as acquire,
+        patch.object(cpe_backfill_job, "release_or_invalidate", AsyncMock()) as release,
         patch.object(cpe_backfill_job, "backfill_cpe_configurations", AsyncMock()) as backfill,
     ):
         result = await cpe_backfill_job.run_cpe_backfill_sweep()
 
     assert result == {}
     backfill.assert_not_called()
+    acquire.assert_awaited_once_with(conn, "cpe_backfill")
     release.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_runs_with_configured_limit_and_releases():
+async def test_runs_with_configured_limit_and_releases_on_lock_conn():
     factory, db = _fake_session_factory()
+    engine, conn = _fake_engine()
     counts = {"checked": 10, "persisted": 7, "criteria": 30, "missing_upstream": 1}
     with (
         patch.object(cpe_backfill_job, "AsyncSessionLocal", factory),
-        patch.object(cpe_backfill_job, "try_acquire_lock", AsyncMock(return_value=True)),
-        patch.object(cpe_backfill_job, "release_lock", AsyncMock()) as release,
+        patch.object(cpe_backfill_job, "engine", engine),
+        patch.object(cpe_backfill_job, "try_acquire_lock", AsyncMock(return_value=True)) as acquire,
+        patch.object(cpe_backfill_job, "release_or_invalidate", AsyncMock()) as release,
         patch.object(
             cpe_backfill_job, "backfill_cpe_configurations", AsyncMock(return_value=counts)
         ) as backfill,
@@ -61,16 +81,20 @@ async def test_runs_with_configured_limit_and_releases():
     # The per-run cap from settings is passed through as the limit.
     assert backfill.await_args.kwargs["limit"] == 250
     assert backfill.await_args.args[0] is db
-    release.assert_awaited_once()
+    # Lock is taken and released on the dedicated connection, never the ORM session.
+    acquire.assert_awaited_once_with(conn, "cpe_backfill")
+    release.assert_awaited_once_with(conn, "cpe_backfill")
 
 
 @pytest.mark.asyncio
 async def test_releases_on_error():
     factory, _db = _fake_session_factory()
+    engine, conn = _fake_engine()
     with (
         patch.object(cpe_backfill_job, "AsyncSessionLocal", factory),
+        patch.object(cpe_backfill_job, "engine", engine),
         patch.object(cpe_backfill_job, "try_acquire_lock", AsyncMock(return_value=True)),
-        patch.object(cpe_backfill_job, "release_lock", AsyncMock()) as release,
+        patch.object(cpe_backfill_job, "release_or_invalidate", AsyncMock()) as release,
         patch.object(
             cpe_backfill_job,
             "backfill_cpe_configurations",
@@ -83,4 +107,4 @@ async def test_releases_on_error():
         await cpe_backfill_job.run_cpe_backfill_sweep()
 
     # Lock must still be released when the backfill blows up.
-    release.assert_awaited_once()
+    release.assert_awaited_once_with(conn, "cpe_backfill")
