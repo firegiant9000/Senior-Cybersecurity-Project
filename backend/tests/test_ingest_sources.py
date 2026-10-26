@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import delete
 
-from app.core.config import Settings
+from app.core.config import Settings, settings
 from app.db.engine import AsyncSessionLocal
 from app.models.ingest_run import IngestRun
 from app.services.ingest_catchup import source_is_stale
@@ -105,7 +105,10 @@ async def test_health_static_source_ignored_for_healthy(anon_client):
 
 
 @pytest.mark.asyncio
-async def test_freshness_reports_policy_and_stale(client):
+async def test_freshness_reports_policy_and_stale(client, monkeypatch):
+    # Other tests leave newer nvd successes behind; a zero threshold makes any past success stale.
+    monkeypatch.setattr(settings, "INGEST_STALE_HOURS_NVD", 0)
+
     async def check():
         resp = await client.get("/api/v1/ingest/freshness")
         if resp.status_code != 200:
