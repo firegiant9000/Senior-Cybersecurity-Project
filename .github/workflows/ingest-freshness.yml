@@ -56,13 +56,13 @@ jobs:
           # Sets STALE to the sources that are stale or unreadable in $BODY_FILE.
           evaluate() {
             STALE=()
-            local s hours t
+            local s verdict t
             for s in "${SOURCES[@]}"; do
               t="${THRESHOLDS[$s]}"
-              hours=$(jq -r --arg s "$s" '.sources[$s].last_success_hours_ago // "null"' "$BODY_FILE" 2>/dev/null) || hours="null"
-              if [ -z "$hours" ] || [ "$hours" = "null" ]; then
-                STALE+=("$s")
-              elif [ "$(jq -n --argjson h "$hours" --argjson t "$t" 'if $h > $t then 1 else 0 end' 2>/dev/null || echo 1)" = "1" ]; then
+              # Fresh only when the value is a JSON number at or under the threshold;
+              # null, missing, bool, string, object or any jq error counts as stale.
+              verdict=$(jq -r --arg s "$s" --argjson t "$t" '.sources[$s].last_success_hours_ago as $h | if ($h | type) == "number" and $h <= $t then "fresh" else "stale" end' "$BODY_FILE" 2>/dev/null) || verdict="stale"
+              if [ "$verdict" != "fresh" ]; then
                 STALE+=("$s")
               fi
             done

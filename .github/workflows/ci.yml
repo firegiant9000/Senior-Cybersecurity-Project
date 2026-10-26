@@ -365,9 +365,11 @@ jobs:
             BODY=$(curl -sS --max-time 30 "$BACKEND_URL/health" 2>/dev/null) || BODY=""
             LIVE=$(printf '%s' "$BODY" | jq -r '.git_commit // "missing"' 2>/dev/null) || LIVE="missing"
             if [ -z "$LIVE" ]; then LIVE="missing"; fi
+            LIVE=$(printf '%s' "$LIVE" | tr -cd 'A-Za-z0-9' | cut -c1-40)
+            if [ -z "$LIVE" ]; then LIVE="missing"; fi
             echo "Attempt $i: live=$LIVE"
             if [ "$LIVE" = "$EXPECTED" ]; then exit 0; fi
-            sleep 20
+            if [ "$i" -lt 30 ]; then sleep 20; fi
           done
           echo "::error::Production serves commit '$LIVE' but expected '$EXPECTED' after 10 minutes"
           echo "'unknown' means RENDER_GIT_COMMIT is not set on the service; a different SHA means Render did not deploy this commit (check the Render deploy log)."
