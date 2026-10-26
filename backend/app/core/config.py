@@ -137,10 +137,11 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     # per-environment config. Env overrides still work; an empty value disables a job.
     # Nightly order: NVD 01:00, KEV 01:15, EPSS 02:00 (after NVD so scores cover the
     # freshest CVE set), matcher 02:30, CPE backfill 04:00, retention 05:00.
+    # Economics runs monthly at 03:00 UTC on the 1st (Census ACS updates annually).
     INGEST_SCHEDULE_NVD: str = "0 1 * * *"
     INGEST_SCHEDULE_KEV: str = "15 1 * * *"
     INGEST_SCHEDULE_IC3: str = ""
-    INGEST_SCHEDULE_ECONOMICS: str = ""
+    INGEST_SCHEDULE_ECONOMICS: str = "0 3 1 * *"
     INGEST_SCHEDULE_EPSS: str = "0 2 * * *"
     # Month 3 Phase 4: background CPE-matcher sweep. Runs after the EPSS refresh
     # so recomputed findings pick up the freshest scores. The inline triggers on
@@ -173,7 +174,7 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     INGEST_STALE_HOURS_NVD: int = 25
     INGEST_STALE_HOURS_KEV: int = 25
     INGEST_STALE_HOURS_IC3: int = 168
-    INGEST_STALE_HOURS_ECON: int = 168
+    INGEST_STALE_HOURS_ECON: int = 840
     INGEST_STALE_HOURS_EPSS: int = 49
 
     # Rate limiting

@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.db.models import CVE, KEV, IC3Incident
 from app.models.ingest_run import IngestRun
+from app.services.ingest_sources import refresh_policy
 
 # Fixed catch-up order: the CVE/KEV tables feed the others.
 CATCHUP_ORDER: tuple[str, ...] = ("nvd", "cisa_kev", "epss", "ic3", "economics")
@@ -61,6 +62,19 @@ def is_stale(hours_ago: float | None, threshold_hours: int) -> bool:
     return hours_ago is None or hours_ago > threshold_hours
 
 
+def source_is_stale(source: str, hours_ago: float | None, thresholds: Mapping[str, int]) -> bool:
+    """Staleness of one source: never for a static source, else against its threshold.
+
+    A scheduled source with no configured threshold counts as stale.
+    """
+    if refresh_policy(source) == "static":
+        return False
+    threshold = thresholds.get(source)
+    if threshold is None:
+        return True
+    return is_stale(hours_ago, threshold)
+
+
 def select_sources(
     states: Iterable[SourceState],
     thresholds: Mapping[str, int],
@@ -68,16 +82,19 @@ def select_sources(
 ) -> list[str]:
     """Return the sources to ingest, in ``CATCHUP_ORDER``.
 
-    A source is due when its table is empty (seed), or when it is scheduled and
-    stale. Either way it is skipped if attempted within ``RECENT_ATTEMPT_GUARD``.
+    A source is due when its table is empty (seed), or when it is scheduled,
+    not static, and stale. Static sources are seeded but never re-run for age.
+    Either way it is skipped if attempted within ``RECENT_ATTEMPT_GUARD``.
     """
     due: set[str] = set()
     for state in states:
         if state.source not in CATCHUP_ORDER:
             continue
         seed = state.has_rows is False
-        stale = state.scheduled and is_stale(
-            hours_since(state.last_success_at, now), thresholds[state.source]
+        stale = (
+            state.scheduled
+            and refresh_policy(state.source) != "static"
+            and is_stale(hours_since(state.last_success_at, now), thresholds[state.source])
         )
         if not (seed or stale):
             continue

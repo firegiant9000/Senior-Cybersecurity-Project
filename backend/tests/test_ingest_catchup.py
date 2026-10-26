@@ -82,6 +82,16 @@ def test_unscheduled_sources_only_seed():
     assert select_sources(states, THRESHOLDS, NOW) == ["nvd"]
 
 
+def test_static_source_never_caught_up_when_stale():
+    states = [_s("ic3", scheduled=True, has_rows=True, success_h=210 * 24)]
+    assert select_sources(states, THRESHOLDS, NOW) == []
+
+
+def test_static_source_still_seeds_when_empty():
+    states = [_s("ic3", scheduled=True, has_rows=False)]
+    assert select_sources(states, THRESHOLDS, NOW) == ["ic3"]
+
+
 def test_scheduled_empty_table_selected_even_if_fresh():
     states = [_s("nvd", has_rows=False, success_h=1)]
     assert select_sources(states, THRESHOLDS, NOW) == ["nvd"]

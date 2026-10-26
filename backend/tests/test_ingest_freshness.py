@@ -22,7 +22,8 @@ async def test_ingest_health_marks_never_run_source_stale(anon_client: AsyncClie
     sources = resp.json()["sources"]
     assert set(sources) == {"nvd", "cisa_kev", "epss", "ic3", "economics"}
     for item in sources.values():
-        if item["last_success_hours_ago"] is None:
+        # Static sources (IC3) are never stale, even if they never ran.
+        if item["last_success_hours_ago"] is None and item["refresh_policy"] == "scheduled":
             assert item["stale"] is True
 
 
