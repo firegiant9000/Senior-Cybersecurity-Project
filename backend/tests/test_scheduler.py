@@ -155,7 +155,7 @@ def test_production_defaults_register_nvd_kev_epss_in_order(mock_scheduler):
     assert (fire["ingest_nvd"].hour, fire["ingest_nvd"].minute) == (1, 0)
 
 
-def test_production_defaults_register_economics_monthly(mock_scheduler):
+def test_production_defaults_register_economics_daily(mock_scheduler):
     with (
         patch("app.workers.scheduler.settings") as mock_settings,
         patch("app.workers.scheduler._SOURCE_SCHEDULE_MAP", _default_map()),
@@ -169,11 +169,11 @@ def test_production_defaults_register_economics_monthly(mock_scheduler):
     triggers = {c.kwargs["id"]: c.kwargs["trigger"] for c in mock_scheduler.add_job.call_args_list}
     assert "ingest_economics" in triggers
     fields = {f.name: str(f) for f in triggers["ingest_economics"].fields}
-    assert (fields["day"], fields["hour"], fields["minute"]) == ("1", "3", "0")
+    assert (fields["day"], fields["hour"], fields["minute"]) == ("*", "3", "0")
     assert fields["month"] == "*"
-    t0 = datetime(2026, 1, 2, 0, 0, tzinfo=UTC)
+    t0 = datetime(2026, 1, 2, 4, 0, tzinfo=UTC)
     nxt = triggers["ingest_economics"].get_next_fire_time(None, t0)
-    assert (nxt.month, nxt.day, nxt.hour, nxt.minute) == (2, 1, 3, 0)
+    assert (nxt.month, nxt.day, nxt.hour, nxt.minute) == (1, 3, 3, 0)
 
 
 def test_ingest_jobs_have_one_hour_misfire_grace(mock_scheduler):

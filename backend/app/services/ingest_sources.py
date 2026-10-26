@@ -4,6 +4,10 @@
 ``static`` sources are never re-run for age: IC3 is static because its data is
 the 2021-2025 annual-report seed, so there is nothing newer to fetch. A static
 source is still seeded when its table is empty.
+``disabled`` is never in the registry: it is the effective policy of a
+``scheduled`` source whose cron is empty (see ``ingest_catchup.effective_policy``).
+Static and disabled sources are never stale by age, but one that has never
+succeeded is stale.
 
 This module must not import from ``ingest_catchup`` (which imports it).
 """
@@ -11,7 +15,7 @@ This module must not import from ``ingest_catchup`` (which imports it).
 from collections.abc import Mapping
 from typing import Literal
 
-RefreshPolicy = Literal["scheduled", "static"]
+RefreshPolicy = Literal["scheduled", "static", "disabled"]
 
 REFRESH_POLICIES: Mapping[str, RefreshPolicy] = {
     "nvd": "scheduled",

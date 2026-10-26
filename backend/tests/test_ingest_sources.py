@@ -9,7 +9,7 @@ from sqlalchemy import delete
 from app.core.config import Settings, settings
 from app.db.engine import AsyncSessionLocal
 from app.models.ingest_run import IngestRun
-from app.services.ingest_catchup import source_is_stale
+from app.services.ingest_catchup import effective_policy, source_is_stale
 from app.services.ingest_sources import REFRESH_POLICIES, refresh_policy
 
 
@@ -28,9 +28,25 @@ def test_unknown_source_is_scheduled():
     assert refresh_policy("ic3") == "static"
 
 
-def test_source_is_stale_static_never_stale():
+def test_source_is_stale_static_never_stale_by_age():
     assert source_is_stale("ic3", 5040.0, {"ic3": 168}) is False
-    assert source_is_stale("ic3", None, {"ic3": 168}) is False
+    # A static source that has never succeeded is stale (nothing was ever loaded).
+    assert source_is_stale("ic3", None, {"ic3": 168}) is True
+
+
+def test_source_is_stale_disabled_follows_static_rule():
+    thresholds = {"economics": 840}
+    assert source_is_stale("economics", 99999.0, thresholds, "disabled") is False
+    assert source_is_stale("economics", None, thresholds, "disabled") is True
+
+
+def test_effective_policy():
+    on = {"nvd": True, "economics": False, "ic3": False}
+    assert effective_policy("nvd", on) == "scheduled"
+    assert effective_policy("economics", on) == "disabled"
+    # A static source stays static even without a schedule.
+    assert effective_policy("ic3", on) == "static"
+    assert effective_policy("economics", {"economics": True}) == "scheduled"
 
 
 def test_source_is_stale_scheduled_uses_threshold():
@@ -45,7 +61,7 @@ def test_source_is_stale_without_threshold_is_stale():
 
 
 def test_economics_defaults():
-    assert Settings.model_fields["INGEST_SCHEDULE_ECONOMICS"].default == "0 3 1 * *"
+    assert Settings.model_fields["INGEST_SCHEDULE_ECONOMICS"].default == "0 3 * * *"
     assert Settings.model_fields["INGEST_STALE_HOURS_ECON"].default == 840
 
 
@@ -120,3 +136,52 @@ async def test_freshness_reports_policy_and_stale(client, monkeypatch):
         assert by_source["nvd"]["stale"] is True
 
     await _with_runs(_seed_runs(30), check)
+
+
+@pytest.mark.asyncio
+async def test_empty_economics_schedule_reports_disabled(anon_client, client, monkeypatch):
+    monkeypatch.setattr(settings, "INGEST_SCHEDULE_ECONOMICS", "")
+
+    async def check():
+        resp = await anon_client.get("/api/v1/ingest/health")
+        if resp.status_code != 200:
+            pytest.skip(f"ingest health unavailable: {resp.status_code}")
+        body = resp.json()
+        assert body["sources"]["economics"]["refresh_policy"] == "disabled"
+        assert body["sources"]["economics"]["stale"] is False
+        assert body["healthy"] is True
+
+        fresh = await client.get("/api/v1/ingest/freshness")
+        if fresh.status_code != 200:
+            pytest.skip(f"ingest freshness unavailable: {fresh.status_code}")
+        by_source = {s["source"]: s for s in fresh.json()["sources"]}
+        assert by_source["economics"]["refresh_policy"] == "disabled"
+        assert by_source["economics"]["stale"] is False
+
+    # An old economics success would be stale if the source were still scheduled.
+    runs = _seed_runs(1)
+    runs = [r for r in runs if r.source != "economics"]
+    runs.append(_run("economics", "completed", 5000, datetime.utcnow()))
+    await _with_runs(runs, check)
+
+
+@pytest.mark.asyncio
+async def test_static_source_never_succeeded_is_stale_and_unhealthy(anon_client):
+    runs = [r for r in _seed_runs(1) if not (r.source == "ic3" and r.status == "completed")]
+    assert any(r.source == "ic3" and r.status == "failed" for r in runs)
+
+    async def check():
+        resp = await anon_client.get("/api/v1/ingest/health")
+        if resp.status_code != 200:
+            pytest.skip(f"ingest health unavailable: {resp.status_code}")
+        body = resp.json()
+        assert body["sources"]["ic3"]["refresh_policy"] == "static"
+        assert body["sources"]["ic3"]["stale"] is True
+        assert body["sources"]["ic3"]["last_success_hours_ago"] is None
+        assert body["healthy"] is False
+
+    async with AsyncSessionLocal() as db:
+        # Earlier tests may have left an ic3 success behind, which would mask this case.
+        await db.execute(delete(IngestRun).where(IngestRun.source == "ic3"))
+        await db.commit()
+    await _with_runs(runs, check)

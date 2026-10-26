@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.db.models import CVE, KEV, IC3Incident
 from app.models.ingest_run import IngestRun
-from app.services.ingest_sources import refresh_policy
+from app.services.ingest_sources import RefreshPolicy, refresh_policy
 
 # Fixed catch-up order: the CVE/KEV tables feed the others.
 CATCHUP_ORDER: tuple[str, ...] = ("nvd", "cisa_kev", "epss", "ic3", "economics")
@@ -62,13 +62,34 @@ def is_stale(hours_ago: float | None, threshold_hours: int) -> bool:
     return hours_ago is None or hours_ago > threshold_hours
 
 
-def source_is_stale(source: str, hours_ago: float | None, thresholds: Mapping[str, int]) -> bool:
-    """Staleness of one source: never for a static source, else against its threshold.
+def effective_policy(source: str, scheduled: Mapping[str, bool]) -> RefreshPolicy:
+    """Registry policy, with a scheduled source that has no live schedule as ``disabled``.
 
-    A scheduled source with no configured threshold counts as stale.
+    ``scheduled`` comes from ``scheduled_sources()``. When the scheduler is off
+    every scheduled source reads ``disabled``: nothing will refresh it.
     """
-    if refresh_policy(source) == "static":
-        return False
+    policy = refresh_policy(source)
+    if policy == "scheduled" and not scheduled.get(source, False):
+        return "disabled"
+    return policy
+
+
+def source_is_stale(
+    source: str,
+    hours_ago: float | None,
+    thresholds: Mapping[str, int],
+    policy: RefreshPolicy | None = None,
+) -> bool:
+    """Staleness of one source.
+
+    A static or disabled source is never stale by age, but is stale if it has
+    never succeeded. A scheduled source is judged against its threshold; one with
+    no configured threshold counts as stale. ``policy`` defaults to the registry's.
+    """
+    if policy is None:
+        policy = refresh_policy(source)
+    if policy in ("static", "disabled"):
+        return hours_ago is None
     threshold = thresholds.get(source)
     if threshold is None:
         return True

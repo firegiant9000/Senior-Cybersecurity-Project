@@ -19,8 +19,14 @@ from app.db.engine import AsyncSessionLocal, get_session
 from app.db.models import CVE, KEV, IC3Incident
 from app.db.user import User
 from app.models.ingest_run import IngestRun
-from app.services.ingest_catchup import hours_since, source_is_stale, stale_thresholds
-from app.services.ingest_sources import RefreshPolicy, refresh_policy
+from app.services.ingest_catchup import (
+    effective_policy,
+    hours_since,
+    scheduled_sources,
+    source_is_stale,
+    stale_thresholds,
+)
+from app.services.ingest_sources import RefreshPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -295,6 +301,7 @@ async def get_ingest_health(
     all_healthy = True
 
     thresholds = stale_thresholds()
+    scheduled = scheduled_sources()
     for source in thresholds:
         runs = source_runs.get(source, [])
 
@@ -302,11 +309,15 @@ async def get_ingest_health(
         hours_ago = hours_since(last_success.finished_at if last_success else None, now)
 
         consec_fails = _compute_consecutive_failures(runs)
-        stale = source_is_stale(source, hours_ago, thresholds)
-        policy = refresh_policy(source)
+        policy = effective_policy(source, scheduled)
+        stale = source_is_stale(source, hours_ago, thresholds, policy)
 
-        # Static sources are reported but never make the service unhealthy.
-        if policy != "static" and (stale or consec_fails >= 2):
+        # Static and disabled sources only make the service unhealthy if they have
+        # never succeeded; their failures and age are reported but ignored.
+        if policy == "scheduled":
+            if stale or consec_fails >= 2:
+                all_healthy = False
+        elif stale:
             all_healthy = False
 
         sources_health[source] = SourceHealthItem(
@@ -349,6 +360,7 @@ async def get_ingest_freshness(
             total_counts[src_name] = int(count_result.scalar_one())
 
         thresholds = stale_thresholds()
+        scheduled = scheduled_sources()
         now = datetime.datetime.utcnow()
         sources = []
         for source, group in source_groups.items():
@@ -366,6 +378,7 @@ async def get_ingest_freshness(
             consec_fails = _compute_consecutive_failures(group)
 
             hours_ago = hours_since(last_success.finished_at if last_success else None, now)
+            policy = effective_policy(source, scheduled)
 
             sources.append(
                 SourceFreshness(
@@ -386,8 +399,8 @@ async def get_ingest_freshness(
                     trigger=getattr(latest, "trigger", None),
                     retry_count=getattr(latest, "retry_count", 0),
                     skipped_reason=getattr(latest, "skipped_reason", None),
-                    refresh_policy=refresh_policy(source),
-                    stale=source_is_stale(source, hours_ago, thresholds),
+                    refresh_policy=policy,
+                    stale=source_is_stale(source, hours_ago, thresholds, policy),
                 )
             )
         return FreshnessResponse(sources=sources)

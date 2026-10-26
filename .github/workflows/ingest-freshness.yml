@@ -2,8 +2,8 @@
 #
 # Polls the public /api/v1/ingest/health endpoint and fails if any source is
 # stale. The server decides staleness per source: each entry carries a
-# refresh_policy ("scheduled" or "static") and a boolean stale flag. Sources
-# with refresh_policy "static" are skipped; every other source must report
+# refresh_policy ("scheduled", "static" or "disabled") and a boolean stale flag.
+# Sources with refresh_policy "static" or "disabled" are skipped; every other source must report
 # stale == false. This workflow keeps no source list or thresholds of its own.
 # It polls for up to 30 minutes so the app's own startup catch-up (and a cold
 # Render instance) can heal a stale source before this check gives up.
@@ -70,8 +70,8 @@ jobs:
             jq -r --arg s "$1" --arg f "$2" '.sources[$s][$f] as $v | if ($v | type) == "string" or ($v | type) == "number" or ($v | type) == "boolean" then ($v | tostring) else "null" end' "$BODY_FILE" 2>/dev/null || printf 'n/a'
           }
 
-          # Sets STALE to the non-static sources that are stale, unreadable or
-          # misnamed, and CHECKED to the number of non-static sources seen.
+          # Sets STALE to the scheduled sources that are stale, unreadable or
+          # misnamed, and CHECKED to the number of judged (not static/disabled) sources seen.
           evaluate() {
             STALE=()
             CHECKED=0
@@ -82,10 +82,10 @@ jobs:
                 STALE+=("invalid-source")
                 continue
               fi
-              # Static sources are skipped. Everything else is fresh only when
+              # Static and disabled sources are skipped. Everything else is fresh only when
               # stale is the JSON boolean false; null, missing or any other value
               # (and any jq error) counts as stale.
-              verdict=$(jq -r --arg s "$s" '.sources[$s] as $x | if ($x | type) == "object" and $x.refresh_policy == "static" then "skip" elif ($x | type) == "object" and $x.stale == false then "fresh" else "stale" end' "$BODY_FILE" 2>/dev/null) || verdict="stale"
+              verdict=$(jq -r --arg s "$s" '.sources[$s] as $x | if ($x | type) == "object" and ($x.refresh_policy == "static" or $x.refresh_policy == "disabled") then "skip" elif ($x | type) == "object" and $x.stale == false then "fresh" else "stale" end' "$BODY_FILE" 2>/dev/null) || verdict="stale"
               case "$verdict" in
                 skip) ;;
                 fresh) CHECKED=$((CHECKED + 1)) ;;
