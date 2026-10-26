@@ -10,7 +10,7 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 from app.core.config import settings
 from app.core.dependencies import require_role
@@ -24,6 +24,9 @@ from app.services.ingest_catchup import hours_since, is_stale, stale_thresholds
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Triggers whose runs are redundant when another run already holds the lock.
+_CATCHUP_TRIGGERS = frozenset({"startup", "catchup"})
 
 
 # ---------------------------------------------------------------------------
@@ -212,33 +215,73 @@ async def _run_ingestion(
     held for the whole run and released on that same connection; the ORM
     session's commits hand its connection back to the pool and must not be
     used for the lock.
+
+    Never hold one pooled connection while waiting on another: the session work
+    that precedes the lock is committed first, and a run that loses the lock
+    returns the lock connection to the pool before it writes the skipped row.
     """
-    from app.services.ingest_lock import expire_stale_runs, release_or_invalidate, try_acquire_lock
+    from app.services.ingest_lock import expire_stale_runs, try_acquire_lock
 
-    async with engine.connect() as lock_conn, AsyncSessionLocal() as db:
-        # Clean up any runs that timed out without updating their status.
+    async with AsyncSessionLocal() as db:
+        # Clean up any runs that timed out without updating their status, and
+        # commit so the session gives its connection back before we take another.
         await expire_stale_runs(db, source)
+        await db.commit()
 
-        # Attempt non-blocking advisory lock.
-        if not await try_acquire_lock(lock_conn, source):
-            skipped_run = IngestRun(
-                source=source,
-                status="skipped",
-                trigger=trigger,
-                retry_count=retry_count,
-                skipped_reason="Lock held by a concurrent run",
-                started_at=datetime.datetime.utcnow(),
-                finished_at=datetime.datetime.utcnow(),
-                records_ingested=0,
-            )
-            db.add(skipped_run)
-            await db.commit()
+        lock_conn = await engine.connect()
+        try:
+            acquired = await try_acquire_lock(lock_conn, source)
+            if acquired:
+                await _run_locked(db, lock_conn, source, trigger, retry_count)
+        finally:
+            await lock_conn.close()
+
+        if acquired:
+            return
+
+        if trigger in _CATCHUP_TRIGGERS:
+            # Catch-up is redundant by design; a "skipped" row would count as a
+            # failure in _compute_consecutive_failures, so don't record one.
             logger.info(
-                "Skipped ingestion — lock held",
+                "Catch-up ingestion not started — lock held",
                 extra={"source": source, "trigger": trigger},
             )
             return
 
+        skipped_run = IngestRun(
+            source=source,
+            status="skipped",
+            trigger=trigger,
+            retry_count=retry_count,
+            skipped_reason="Lock held by a concurrent run",
+            started_at=datetime.datetime.utcnow(),
+            finished_at=datetime.datetime.utcnow(),
+            records_ingested=0,
+        )
+        db.add(skipped_run)
+        await db.commit()
+        logger.info(
+            "Skipped ingestion — lock held",
+            extra={"source": source, "trigger": trigger},
+        )
+
+
+async def _run_locked(
+    db: AsyncSession,
+    lock_conn: AsyncConnection,
+    source: str,
+    trigger: str,
+    retry_count: int,
+) -> None:
+    """Run one ingestion while holding the advisory lock on *lock_conn*.
+
+    Everything after the lock was acquired lives inside the ``try`` whose
+    ``finally`` releases it, so no failure (run-row commit, scheduler lookup,
+    rollback/re-fetch) can return the connection to the pool still locked.
+    """
+    from app.services.ingest_lock import release_or_invalidate
+
+    try:
         run = IngestRun(
             source=source,
             status="running",
@@ -290,9 +333,8 @@ async def _run_ingestion(
                 },
             )
             _schedule_retry(source, trigger, retry_count)
-
-        finally:
-            await release_or_invalidate(lock_conn, source)
+    finally:
+        await release_or_invalidate(lock_conn, source)
 
 
 def _compute_consecutive_failures(runs: list[IngestRun]) -> int:

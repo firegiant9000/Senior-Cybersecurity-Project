@@ -102,7 +102,18 @@ async def try_acquire_lock(conn: AsyncConnection | AsyncSession, source: str) ->
     key = _lock_key(source)
     result = await conn.execute(text("SELECT pg_try_advisory_lock(:key)"), {"key": key})
     acquired: bool = result.scalar()  # type: ignore[assignment]
-    await conn.commit()
+    try:
+        await conn.commit()
+    except BaseException:
+        # The statement succeeded, so the session-level lock may already be held
+        # even though we are about to raise and the caller will never release it.
+        # Kill the connection (which frees the lock) rather than let it go back
+        # to the pool still locked.
+        try:
+            await conn.invalidate()
+        except Exception:  # noqa: BLE001
+            logger.exception("Could not invalidate lock connection", extra={"source": source})
+        raise
     if not acquired:
         logger.info(
             "Ingest lock already held — skipping run",

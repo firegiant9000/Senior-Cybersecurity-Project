@@ -55,6 +55,21 @@ async def test_acquire_lock_contention():
     assert result is False
 
 
+@pytest.mark.asyncio
+async def test_acquire_lock_invalidates_connection_when_commit_fails():
+    """The lock may be held once execute succeeded, so a failed commit must kill the connection."""
+    mock_result = MagicMock()
+    mock_result.scalar.return_value = True
+    conn = AsyncMock()
+    conn.execute = AsyncMock(return_value=mock_result)
+    conn.commit = AsyncMock(side_effect=RuntimeError("commit failed"))
+
+    with pytest.raises(RuntimeError, match="commit failed"):
+        await try_acquire_lock(conn, "nvd")
+
+    conn.invalidate.assert_awaited_once()
+
+
 # ── release_lock ───────────────────────────────────────────────────────────────
 
 

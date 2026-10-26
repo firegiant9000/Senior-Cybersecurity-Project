@@ -35,14 +35,16 @@ class _FakeLockConn:
 
     def __init__(self) -> None:
         self.invalidate = AsyncMock()
+        self.close = AsyncMock()
 
 
 class _FakeEngine:
     def __init__(self, conn: _FakeLockConn | None = None) -> None:
         self.conn = conn or _FakeLockConn()
 
-    def connect(self) -> _FakeSessionCtx:
-        return _FakeSessionCtx(self.conn)  # type: ignore[arg-type]
+    async def connect(self) -> _FakeLockConn:
+        # Real ``engine.connect()`` returns an awaitable AsyncConnection.
+        return self.conn
 
 
 @pytest.mark.asyncio
@@ -92,6 +94,76 @@ async def test_run_ingestion_skips_when_lock_held():
     skipped_run = fake_session.add.call_args.args[0]
     assert skipped_run.status == "skipped"
     assert skipped_run.skipped_reason == "Lock held by a concurrent run"
+
+
+@pytest.mark.asyncio
+async def test_run_ingestion_skip_path_closes_lock_conn_before_writing_skipped_row():
+    """The lock connection must go back to the pool before the session is used again
+    for the skipped row, so a burst of skipped triggers never holds one connection
+    while waiting for a second."""
+    events: list[str] = []
+    fake_session = _FakeAsyncSession()
+    fake_session.add.side_effect = lambda *_a, **_k: events.append("add")
+    fake_session.commit.side_effect = lambda *_a, **_k: events.append("commit")
+    fake_engine = _FakeEngine()
+    fake_engine.conn.close.side_effect = lambda *_a, **_k: events.append("lock_closed")
+
+    async def _acquire(*_a, **_k):  # noqa: ANN002, ANN003
+        events.append("acquire")
+        return False
+
+    with (
+        patch(
+            "app.api.routes.v1.ingest.AsyncSessionLocal", return_value=_FakeSessionCtx(fake_session)
+        ),
+        patch("app.api.routes.v1.ingest.engine", new=fake_engine),
+        patch("app.services.ingest_lock.expire_stale_runs", new=AsyncMock()),
+        patch("app.services.ingest_lock.try_acquire_lock", new=_acquire),
+        patch("app.api.routes.v1.ingest._dispatch_ingestor", new=AsyncMock()),
+    ):
+        await _run_ingestion("nvd", trigger="manual")
+
+    # expire_stale_runs' session work is committed before the lock connection opens.
+    assert events == ["commit", "acquire", "lock_closed", "add", "commit"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("trigger", ["startup", "catchup"])
+async def test_run_ingestion_catchup_skip_writes_no_skipped_row(trigger):
+    fake_session = _FakeAsyncSession()
+    fake_engine = _FakeEngine()
+    with (
+        patch(
+            "app.api.routes.v1.ingest.AsyncSessionLocal", return_value=_FakeSessionCtx(fake_session)
+        ),
+        patch("app.api.routes.v1.ingest.engine", new=fake_engine),
+        patch("app.services.ingest_lock.expire_stale_runs", new=AsyncMock()),
+        patch("app.services.ingest_lock.try_acquire_lock", new=AsyncMock(return_value=False)),
+        patch("app.api.routes.v1.ingest._dispatch_ingestor", new=AsyncMock()) as dispatch,
+    ):
+        await _run_ingestion("nvd", trigger=trigger)
+
+    fake_session.add.assert_not_called()
+    dispatch.assert_not_called()
+    fake_engine.conn.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("trigger", ["manual", "scheduled"])
+async def test_run_ingestion_manual_and_scheduled_skip_still_write_skipped_row(trigger):
+    fake_session = _FakeAsyncSession()
+    with (
+        patch(
+            "app.api.routes.v1.ingest.AsyncSessionLocal", return_value=_FakeSessionCtx(fake_session)
+        ),
+        patch("app.api.routes.v1.ingest.engine", new=_FakeEngine()),
+        patch("app.services.ingest_lock.expire_stale_runs", new=AsyncMock()),
+        patch("app.services.ingest_lock.try_acquire_lock", new=AsyncMock(return_value=False)),
+    ):
+        await _run_ingestion("nvd", trigger=trigger)
+
+    fake_session.add.assert_called_once()
+    assert fake_session.add.call_args.args[0].status == "skipped"
 
 
 @pytest.mark.asyncio

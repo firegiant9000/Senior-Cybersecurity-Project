@@ -3,7 +3,9 @@ failure recovery after a DB-level error, and advisory-lock release under a pool.
 
 from __future__ import annotations
 
+import datetime
 from collections.abc import AsyncIterator
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -11,6 +13,7 @@ import pytest_asyncio
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.routes.v1.ingest import _run_ingestion
 from app.core.config import settings
@@ -86,6 +89,90 @@ async def test_scheduled_run_stores_naive_next_scheduled_at(paused_scheduler):
     assert run.records_ingested == 5
     assert run.next_scheduled_at is not None
     assert run.next_scheduled_at.tzinfo is None
+
+
+@pytest.mark.asyncio
+async def test_non_utc_next_run_time_is_converted_to_naive_utc():
+    job = SimpleNamespace(
+        next_run_time=datetime.datetime(
+            2030, 1, 1, 3, 0, tzinfo=datetime.timezone(datetime.timedelta(hours=2))
+        )
+    )
+    with (
+        patch.object(scheduler, "get_job", return_value=job),
+        patch("app.api.routes.v1.ingest._dispatch_ingestor", new=AsyncMock(return_value=1)),
+    ):
+        await _run_ingestion(SOURCE, trigger="scheduled")
+
+    run = await _latest_run()
+    assert run.status == "completed"
+    assert run.next_scheduled_at == datetime.datetime(2030, 1, 1, 1, 0)
+
+
+def _fail_commit_once(predicate):  # noqa: ANN001, ANN202
+    """Patch ``AsyncSession.commit`` to raise once when *predicate(session)* holds."""
+    original = AsyncSession.commit
+    fired = {"done": False}
+
+    async def _commit(self):  # noqa: ANN001
+        if not fired["done"] and predicate(self):
+            fired["done"] = True
+            raise RuntimeError("injected commit failure")
+        await original(self)
+
+    return patch.object(AsyncSession, "commit", _commit)
+
+
+def _adding_running_row(session: AsyncSession) -> bool:
+    return any(isinstance(o, IngestRun) and o.status == "running" for o in session.new)
+
+
+def _storing_next_scheduled(session: AsyncSession) -> bool:
+    return any(
+        isinstance(o, IngestRun) and o.status == "running" and o.next_scheduled_at is not None
+        for o in session.dirty
+    )
+
+
+@pytest.mark.asyncio
+async def test_next_scheduled_commit_failure_still_completes_and_releases_lock(paused_scheduler):
+    with (
+        _fail_commit_once(_storing_next_scheduled),
+        patch("app.api.routes.v1.ingest._dispatch_ingestor", new=AsyncMock(return_value=3)),
+    ):
+        await _run_ingestion(SOURCE, trigger="scheduled")
+
+    run = await _latest_run()
+    assert run.status == "completed"
+    assert run.records_ingested == 3
+    assert await _advisory_lock_holders(SOURCE) == 0
+
+
+@pytest.mark.asyncio
+async def test_running_row_commit_failure_releases_lock():
+    with (
+        _fail_commit_once(_adding_running_row),
+        patch("app.api.routes.v1.ingest._dispatch_ingestor", new=AsyncMock(return_value=1)) as d,
+        pytest.raises(RuntimeError, match="injected commit failure"),
+    ):
+        await _run_ingestion(SOURCE, trigger="manual")
+
+    d.assert_not_called()
+    assert await _advisory_lock_holders(SOURCE) == 0
+
+
+@pytest.mark.asyncio
+async def test_next_scheduled_refetch_failure_releases_lock(paused_scheduler):
+    with (
+        _fail_commit_once(_storing_next_scheduled),
+        patch.object(AsyncSession, "get", AsyncMock(side_effect=RuntimeError("refetch failed"))),
+        patch("app.api.routes.v1.ingest._dispatch_ingestor", new=AsyncMock(return_value=1)) as d,
+        pytest.raises(RuntimeError, match="refetch failed"),
+    ):
+        await _run_ingestion(SOURCE, trigger="scheduled")
+
+    d.assert_not_called()
+    assert await _advisory_lock_holders(SOURCE) == 0
 
 
 @pytest.mark.asyncio
