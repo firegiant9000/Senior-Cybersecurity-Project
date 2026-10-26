@@ -46,6 +46,12 @@ services:
         sync: false          # set manually in dashboard; backend error tracking (no-op if blank)
       - key: SENTRY_ENVIRONMENT
         value: production
+      # Ingest schedules are code defaults in backend/app/core/config.py
+      # (NVD 01:00, KEV 01:15, EPSS 02:00 UTC). Set INGEST_SCHEDULE_* here only to
+      # override them; an empty value disables that source.
+      # INGEST_CATCHUP_ON_STARTUP defaults on: a restart re-runs any stale scheduled source.
+      # SCHEDULER_ENABLED=false is the local-dev opt-out. Do not set it on this service,
+      # or no scheduled ingest runs in production.
 
 databases:
   - name: hacker-tracker-db
