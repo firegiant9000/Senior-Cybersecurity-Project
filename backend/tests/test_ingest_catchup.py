@@ -1,11 +1,14 @@
 """Tests for catch-up source selection."""
 
+import asyncio
 from datetime import datetime, timedelta
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import delete
 
+import app.main as app_main
 from app.core.config import settings
 from app.db.engine import AsyncSessionLocal
 from app.models.ingest_run import IngestRun
@@ -164,3 +167,93 @@ async def test_load_source_states_reads_runs():
             await db.rollback()
             await db.execute(delete(IngestRun).where(IngestRun.id.in_(run_ids)))
             await db.commit()
+
+
+class _DummySession:
+    async def __aenter__(self):
+        return object()
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+@pytest.fixture
+def startup(monkeypatch):
+    """Patch app.main so _auto_ingest runs without a DB or real ingestors."""
+    app_main._background_tasks.clear()
+    runner = AsyncMock()
+    monkeypatch.setattr(app_main, "_run_sequential_ingest", runner)
+    monkeypatch.setattr(app_main, "AsyncSessionLocal", lambda: _DummySession())
+    monkeypatch.setattr(app_main.settings, "FORCE_SEED", False)
+    monkeypatch.setattr(app_main.settings, "INGEST_CATCHUP_ON_STARTUP", True)
+    yield runner
+    app_main._background_tasks.clear()
+
+
+def _patch_states(monkeypatch, build):
+    """Patch load_source_states; ``build(scheduled)`` returns the states."""
+    seen: list[dict[str, bool]] = []
+
+    async def fake(db, scheduled):
+        seen.append(dict(scheduled))
+        return build(scheduled)
+
+    monkeypatch.setattr(app_main, "load_source_states", fake)
+    monkeypatch.setattr(app_main, "scheduled_sources", lambda: dict.fromkeys(THRESHOLDS, True))
+    monkeypatch.setattr(app_main, "stale_thresholds", lambda: THRESHOLDS)
+    return seen
+
+
+async def test_auto_ingest_runs_selected_sources_in_order(startup, monkeypatch):
+    _patch_states(
+        monkeypatch,
+        lambda sched: [
+            _s("nvd", success_h=30),
+            _s("cisa_kev", success_h=1),
+            _s("epss", has_rows=None, success_h=None),
+        ],
+    )
+    await app_main._auto_ingest()
+    await asyncio.gather(*app_main._background_tasks)
+    startup.assert_awaited_once_with(["nvd", "epss"])
+
+
+async def test_auto_ingest_catchup_disabled_seeds_only(startup, monkeypatch):
+    monkeypatch.setattr(app_main.settings, "INGEST_CATCHUP_ON_STARTUP", False)
+    seen = _patch_states(
+        monkeypatch,
+        lambda sched: [
+            _s("nvd", scheduled=sched.get("nvd", False), success_h=30),
+            _s("ic3", scheduled=sched.get("ic3", False), has_rows=False),
+        ],
+    )
+    await app_main._auto_ingest()
+    await asyncio.gather(*app_main._background_tasks)
+    assert not any(seen[0].values())
+    startup.assert_awaited_once_with(["ic3"])
+
+
+async def test_auto_ingest_nothing_due_creates_no_task(startup, monkeypatch):
+    _patch_states(monkeypatch, lambda sched: [_s("nvd", success_h=1), _s("cisa_kev", success_h=1)])
+    await app_main._auto_ingest()
+    startup.assert_not_awaited()
+    assert not app_main._background_tasks
+
+
+async def test_force_seed_unchanged(startup, monkeypatch):
+    monkeypatch.setattr(app_main.settings, "FORCE_SEED", True)
+    seen = _patch_states(monkeypatch, lambda sched: [])
+    await app_main._auto_ingest()
+    await asyncio.gather(*app_main._background_tasks)
+    startup.assert_awaited_once_with(["nvd", "cisa_kev", "ic3"])
+    assert seen == []
+
+
+async def test_run_sequential_ingest_uses_startup_trigger_and_continues(monkeypatch):
+    import app.api.routes.v1.ingest as ingest_routes
+
+    run = AsyncMock(side_effect=[RuntimeError("boom"), None])
+    monkeypatch.setattr(ingest_routes, "_run_ingestion", run)
+    await app_main._run_sequential_ingest(["nvd", "epss"])
+    assert [c.args[0] for c in run.await_args_list] == ["nvd", "epss"]
+    assert all(c.kwargs == {"trigger": "startup"} for c in run.await_args_list)

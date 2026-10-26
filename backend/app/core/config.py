@@ -113,6 +113,7 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
 
     # Ingestion
     FORCE_SEED: bool = False
+    INGEST_CATCHUP_ON_STARTUP: bool = True  # re-run stale scheduled sources on process start
 
     # Ingestion scheduling — cron expressions (standard 5-field format, UTC).
     # Schedules are code defaults on purpose, so production refreshes itself without

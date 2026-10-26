@@ -1,6 +1,7 @@
 """Application main entry point."""
 
 import asyncio
+import datetime
 import logging
 import os
 from collections.abc import AsyncGenerator
@@ -11,7 +12,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-from sqlalchemy import func, select
 
 from app.api.routes import health, v1
 from app.core.config import settings
@@ -20,8 +20,13 @@ from app.core.limiter import limiter
 from app.core.logging import setup_logging
 from app.core.observability import RequestContextMiddleware, init_sentry
 from app.db.engine import AsyncSessionLocal, init_db
-from app.db.models import CVE, KEV, IC3Incident
 from app.integrations.cve_org import aclose_http_client
+from app.services.ingest_catchup import (
+    load_source_states,
+    scheduled_sources,
+    select_sources,
+    stale_thresholds,
+)
 from app.workers import init_scheduler, scheduler
 
 _log = logging.getLogger(__name__)
@@ -60,41 +65,43 @@ async def _run_sequential_ingest(sources: list[str]) -> None:
             pass
 
 
-async def _auto_ingest() -> None:
-    """Seed data sources on startup.
+# asyncio keeps only weak references to tasks; hold them until they finish.
+_background_tasks: set[asyncio.Task[None]] = set()
 
-    - Default: only ingest sources with no rows in the database.
+
+def _start_background_ingest(sources: list[str]) -> None:
+    task = asyncio.create_task(_run_sequential_ingest(sources))
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
+
+async def _auto_ingest() -> None:
+    """Seed and catch up data sources on startup.
+
+    - Default: ingest sources with no rows, and (INGEST_CATCHUP_ON_STARTUP)
+      scheduled sources whose last success is older than their stale threshold.
     - FORCE_SEED=true: re-ingest all sources regardless of existing data.
 
-    Runs sequentially (NVD → CISA KEV → IC3) in a background task
+    Runs sequentially (NVD → KEV → EPSS → IC3) in a background task
     to avoid duplicate key conflicts between NVD and CISA KEV.
     """
-    all_sources = ["nvd", "cisa_kev", "ic3"]
-
     if settings.FORCE_SEED:
+        all_sources = ["nvd", "cisa_kev", "ic3"]
         _log.info("FORCE_SEED=true — re-ingesting all sources: %s", all_sources)
-        asyncio.create_task(_run_sequential_ingest(all_sources))
+        _start_background_ingest(all_sources)
         return
 
+    scheduled = scheduled_sources() if settings.INGEST_CATCHUP_ON_STARTUP else {}
     async with AsyncSessionLocal() as db:  # type: ignore[arg-type]
-        nvd_count = (await db.execute(select(func.count()).select_from(CVE))).scalar() or 0
-        kev_count = (await db.execute(select(func.count()).select_from(KEV))).scalar() or 0
-        ic3_count = (await db.execute(select(func.count()).select_from(IC3Incident))).scalar() or 0
+        states = await load_source_states(db, scheduled)
+    selected = select_sources(states, stale_thresholds(), datetime.datetime.utcnow())
 
-    sources_to_ingest: list[str] = []
-    if nvd_count == 0:
-        sources_to_ingest.append("nvd")
-    if kev_count == 0:
-        sources_to_ingest.append("cisa_kev")
-    if ic3_count == 0:
-        sources_to_ingest.append("ic3")
-
-    if not sources_to_ingest:
-        _log.info("All data sources already populated — skipping auto-ingest")
+    if not selected:
+        _log.info("All data sources populated and fresh — skipping auto-ingest")
         return
 
-    _log.info("Auto-ingesting empty sources on startup: %s", sources_to_ingest)
-    asyncio.create_task(_run_sequential_ingest(sources_to_ingest))
+    _log.info("Auto-ingesting on startup (empty or stale): %s", selected)
+    _start_background_ingest(selected)
 
 
 def _ensure_firebase_credentials() -> None:
