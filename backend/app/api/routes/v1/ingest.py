@@ -19,6 +19,7 @@ from app.db.engine import AsyncSessionLocal, get_session
 from app.db.models import CVE, KEV, IC3Incident
 from app.db.user import User
 from app.models.ingest_run import IngestRun
+from app.services.ingest_catchup import hours_since, is_stale, stale_thresholds
 
 logger = logging.getLogger(__name__)
 
@@ -277,14 +278,6 @@ async def get_ingest_health(
     Reads from DB only, not APScheduler memory, so it is accurate on
     multi-instance deployments.
     """
-    stale_thresholds = {
-        "nvd": settings.INGEST_STALE_HOURS_NVD,
-        "cisa_kev": settings.INGEST_STALE_HOURS_KEV,
-        "ic3": settings.INGEST_STALE_HOURS_IC3,
-        "economics": settings.INGEST_STALE_HOURS_ECON,
-        "epss": settings.INGEST_STALE_HOURS_EPSS,
-    }
-
     stmt = select(IngestRun).order_by(IngestRun.source, IngestRun.started_at.desc())
     result = await db.execute(stmt)
     all_runs = result.scalars().all()
@@ -297,16 +290,14 @@ async def get_ingest_health(
     sources_health: dict[str, SourceHealthItem] = {}
     all_healthy = True
 
-    for source, stale_hours in stale_thresholds.items():
+    for source, stale_hours in stale_thresholds().items():
         runs = source_runs.get(source, [])
 
         last_success = next((r for r in runs if r.status == "completed"), None)
-        hours_ago: float | None = None
-        if last_success and last_success.finished_at:
-            hours_ago = (now - last_success.finished_at).total_seconds() / 3600
+        hours_ago = hours_since(last_success.finished_at if last_success else None, now)
 
         consec_fails = _compute_consecutive_failures(runs)
-        stale = hours_ago is None or hours_ago > stale_hours
+        stale = is_stale(hours_ago, stale_hours)
 
         if stale or consec_fails >= 2:
             all_healthy = False

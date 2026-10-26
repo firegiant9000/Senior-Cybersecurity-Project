@@ -15,6 +15,18 @@ async def test_freshness_endpoint(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_ingest_health_marks_never_run_source_stale(anon_client: AsyncClient):
+    resp = await anon_client.get("/api/v1/ingest/health")
+    if resp.status_code != 200:
+        pytest.skip("DB unavailable")
+    sources = resp.json()["sources"]
+    assert set(sources) == {"nvd", "cisa_kev", "epss", "ic3", "economics"}
+    for item in sources.values():
+        if item["last_success_hours_ago"] is None:
+            assert item["stale"] is True
+
+
+@pytest.mark.asyncio
 async def test_freshness_source_structure(client: AsyncClient):
     resp = await client.get("/api/v1/ingest/freshness")
     if resp.status_code != 200:
