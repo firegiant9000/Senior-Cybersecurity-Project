@@ -83,7 +83,7 @@ describe('DataFreshness', () => {
     mockFetch.mockResolvedValue({
       sources: [item({
         source: 'ic3', refresh_policy: 'static', stale: false,
-        consecutive_failures: 2, status: 'failed',
+        consecutive_failures: 0, status: 'completed',
       })],
     });
     await renderBadge();
@@ -92,6 +92,48 @@ describe('DataFreshness', () => {
     expect(el).toHaveClass('freshness-static');
     expect(el.textContent).not.toContain('⚠');
     expect(el.textContent).not.toContain('○');
+  });
+
+  it('flags a failing static source with the warning glyph and error class', async () => {
+    mockFetch.mockResolvedValue({
+      sources: [item({
+        source: 'ic3', refresh_policy: 'static', stale: true,
+        consecutive_failures: 2, status: 'failed',
+      })],
+    });
+    await renderBadge();
+    const el = screen.getByText(/IC3:/);
+    expect(el.textContent).toContain('IC3: static (2021–2025 annual reports)');
+    expect(el.textContent).toContain('⚠');
+    expect(el).toHaveClass('freshness-error');
+    expect(el).not.toHaveClass('freshness-static');
+  });
+
+  it('renders a disabled source label', async () => {
+    mockFetch.mockResolvedValue({
+      sources: [item({
+        source: 'economics', refresh_policy: 'disabled', stale: false,
+        last_run_at: ago(40 * 86_400_000),
+      })],
+    });
+    await renderBadge();
+    const el = screen.getByText(/Economics:/);
+    expect(el.textContent).toBe('Economics: disabled');
+    expect(el).toHaveClass('freshness-static');
+    expect(el.textContent).not.toContain('⚠');
+  });
+
+  it('flags a failing disabled source', async () => {
+    mockFetch.mockResolvedValue({
+      sources: [item({
+        source: 'economics', refresh_policy: 'disabled', stale: false,
+        consecutive_failures: 1, status: 'failed',
+      })],
+    });
+    await renderBadge();
+    const el = screen.getByText(/Economics:/);
+    expect(el.textContent).toBe('Economics: disabled ⚠');
+    expect(el).toHaveClass('freshness-error');
   });
 
   it('uses server stale flag', async () => {

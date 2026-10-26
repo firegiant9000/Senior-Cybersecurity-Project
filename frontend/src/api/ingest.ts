@@ -1,6 +1,6 @@
 import { API_BASE_URL, fetchWithAuth, getJsonAuth } from "./fetchWithAuth";
 
-export type RefreshPolicy = 'scheduled' | 'static'
+export type RefreshPolicy = 'scheduled' | 'static' | 'disabled'
 
 export interface SourceFreshness {
   source: string

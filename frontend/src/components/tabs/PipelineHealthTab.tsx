@@ -188,6 +188,9 @@ const PipelineHealthTab: React.FC = () => {
             setTriggerMsg(res.message ?? 'Ingestion triggered.');
             refreshTimerRef.current = window.setTimeout(() => {
                 fetchData(1, sourceFilter);
+                // The tab's own cards must see `running` too; its poll and the
+                // running -> idle path then take over.
+                refreshFreshness(new AbortController().signal);
                 requestFreshnessRefresh();
             }, 2000);
         } catch (err) {
@@ -196,7 +199,7 @@ const PipelineHealthTab: React.FC = () => {
         } finally {
             setTriggering(false);
         }
-    }, [triggerSource, sourceFilter, fetchData]);
+    }, [triggerSource, sourceFilter, fetchData, refreshFreshness]);
 
     const handleRetry = useCallback(async (source: string) => {
         // Find latest failed run for this source in current runs state

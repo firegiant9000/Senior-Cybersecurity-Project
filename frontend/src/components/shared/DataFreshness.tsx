@@ -28,9 +28,19 @@ function fmtAge(isoDate: string | null): string {
   return `${days}d ago`;
 }
 
+function isFixedPolicy(s: SourceFreshness): boolean {
+  return s.refresh_policy === 'static' || s.refresh_policy === 'disabled';
+}
+
+function fixedLabel(s: SourceFreshness): string {
+  if (s.refresh_policy === 'disabled') return 'disabled';
+  return STATIC_LABELS[s.source] ?? 'static';
+}
+
 function getDisplayStatus(s: SourceFreshness): string {
-  if (s.refresh_policy === 'static') return 'static';
+  // Failures are shown for every policy, so a broken static source is not hidden.
   if (s.status === 'failed' || s.consecutive_failures > 0) return 'error';
+  if (isFixedPolicy(s)) return 'static';
   if (s.status === 'running') return 'running';
   if (s.stale) return 'stale';
   return s.status ?? 'unknown';
@@ -106,9 +116,7 @@ const DataFreshness: React.FC = () => {
           >
             {SOURCE_LABELS[s.source] ?? s.source}
             {': '}
-            {displayStatus === 'static'
-              ? (STATIC_LABELS[s.source] ?? 'static')
-              : fmtAge(s.last_run_at)}
+            {isFixedPolicy(s) ? fixedLabel(s) : fmtAge(s.last_run_at)}
             {displayStatus === 'error' && ' ⚠'}
             {displayStatus === 'stale' && ' ○'}
           </span>
