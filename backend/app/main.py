@@ -23,7 +23,7 @@ from app.core.observability import RequestContextMiddleware, init_sentry
 from app.core.security_headers import SecurityHeadersMiddleware, internal_error_response
 from app.db.engine import init_db
 from app.integrations.cve_org import aclose_http_client
-from app.services.ingest_catchup import run_catchup, run_sequential_ingest
+from app.services.ingest_catchup import run_catchup, run_forced_seed
 from app.workers import init_scheduler, scheduler
 
 _log = logging.getLogger(__name__)
@@ -52,10 +52,20 @@ def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JS
 _background_tasks: set[asyncio.Task[None]] = set()
 
 
+def _log_startup_failure(task: asyncio.Task[None]) -> None:
+    """Retrieve and log a startup task's exception (else asyncio drops it unlogged)."""
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        _log.error("Startup catch-up failed", exc_info=exc)
+
+
 def _start_background(coro: Coroutine[Any, Any, Any]) -> None:
     task = asyncio.create_task(coro)
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
+    task.add_done_callback(_log_startup_failure)
 
 
 async def _auto_ingest() -> None:
@@ -65,10 +75,11 @@ async def _auto_ingest() -> None:
       (INGEST_CATCHUP_ON_STARTUP) scheduled sources that missed a cron firing
       since their last success, e.g. a run killed by a deploy. Each source is
       re-checked just before it runs. The hourly ``catchup_sweep`` job re-applies
-      the same rule, so a startup blocked by the 1 h recent-attempt guard
-      recovers without another restart.
+      the same rule (single-flight: it does nothing while this catch-up runs), so
+      a startup blocked by the recent-attempt guard recovers without another
+      restart. A failure in the task is logged by ``_log_startup_failure``.
     - FORCE_SEED=true: re-ingest all sources regardless of existing data, with
-      no re-check.
+      no re-check, holding the same catch-up lock.
 
     Sources run sequentially (NVD → KEV → EPSS → IC3) to avoid duplicate key
     conflicts between NVD and CISA KEV.
@@ -76,7 +87,7 @@ async def _auto_ingest() -> None:
     if settings.FORCE_SEED:
         all_sources = ["nvd", "cisa_kev", "ic3"]
         _log.info("FORCE_SEED=true — re-ingesting all sources: %s", all_sources)
-        _start_background(run_sequential_ingest(all_sources, trigger="startup", recheck=False))
+        _start_background(run_forced_seed(all_sources))
         return
 
     _start_background(run_catchup("startup"))

@@ -47,7 +47,9 @@ async def _catchup_sweep() -> None:
 
     Covers a startup catch-up that the 1 h recent-attempt guard blocked (for
     example behind an orphaned ``running`` row) without waiting for another
-    restart. Runs in the job itself so ``max_instances=1`` prevents overlap.
+    restart. ``max_instances=1`` stops the sweep overlapping itself; the
+    catch-up lock in ``run_catchup`` stops it overlapping the startup catch-up
+    or FORCE_SEED (it returns immediately when one is running).
     """
     from app.services.ingest_catchup import run_catchup
 

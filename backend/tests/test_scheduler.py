@@ -47,6 +47,7 @@ def test_jobs_added_when_enabled(mock_scheduler):
         patch("app.workers.scheduler.source_cron_exprs", return_value=source_map),
     ):
         mock_settings.SCHEDULER_ENABLED = True
+        mock_settings.INGEST_CATCHUP_SCHEDULE = ""
         mock_settings.MATCHER_SCHEDULE = ""
         init_scheduler()
 
@@ -63,6 +64,7 @@ def test_empty_cron_skipped(mock_scheduler):
         patch("app.workers.scheduler.source_cron_exprs", return_value=source_map),
     ):
         mock_settings.SCHEDULER_ENABLED = True
+        mock_settings.INGEST_CATCHUP_SCHEDULE = ""
         mock_settings.MATCHER_SCHEDULE = ""
         init_scheduler()
     mock_scheduler.add_job.assert_not_called()
@@ -75,6 +77,7 @@ def test_invalid_cron_skipped(mock_scheduler):
         patch("app.workers.scheduler.source_cron_exprs", return_value=source_map),
     ):
         mock_settings.SCHEDULER_ENABLED = True
+        mock_settings.INGEST_CATCHUP_SCHEDULE = ""
         mock_settings.MATCHER_SCHEDULE = ""
         init_scheduler()
     mock_scheduler.add_job.assert_not_called()
@@ -87,6 +90,7 @@ def test_matcher_sweep_job_registered(mock_scheduler):
         patch("app.workers.scheduler.source_cron_exprs", return_value=source_map),
     ):
         mock_settings.SCHEDULER_ENABLED = True
+        mock_settings.INGEST_CATCHUP_SCHEDULE = ""
         mock_settings.MATCHER_SCHEDULE = "30 2 * * *"
         init_scheduler()
 
@@ -101,6 +105,7 @@ def test_matcher_sweep_invalid_cron_skipped(mock_scheduler):
         patch("app.workers.scheduler.source_cron_exprs", return_value=source_map),
     ):
         mock_settings.SCHEDULER_ENABLED = True
+        mock_settings.INGEST_CATCHUP_SCHEDULE = ""
         mock_settings.MATCHER_SCHEDULE = "not-a-cron"
         init_scheduler()
     mock_scheduler.add_job.assert_not_called()
@@ -113,6 +118,7 @@ def test_retention_sweep_job_registered(mock_scheduler):
         patch("app.workers.scheduler.source_cron_exprs", return_value=source_map),
     ):
         mock_settings.SCHEDULER_ENABLED = True
+        mock_settings.INGEST_CATCHUP_SCHEDULE = ""
         mock_settings.MATCHER_SCHEDULE = ""
         mock_settings.NVD_CPE_BACKFILL_SCHEDULE = ""
         mock_settings.RETENTION_SWEEP_SCHEDULE = "0 5 * * *"
@@ -129,6 +135,7 @@ def test_retention_sweep_invalid_cron_skipped(mock_scheduler):
         patch("app.workers.scheduler.source_cron_exprs", return_value=source_map),
     ):
         mock_settings.SCHEDULER_ENABLED = True
+        mock_settings.INGEST_CATCHUP_SCHEDULE = ""
         mock_settings.MATCHER_SCHEDULE = ""
         mock_settings.NVD_CPE_BACKFILL_SCHEDULE = ""
         mock_settings.RETENTION_SWEEP_SCHEDULE = "not-a-cron"
@@ -142,6 +149,7 @@ def test_production_defaults_register_nvd_kev_epss_in_order(mock_scheduler):
         patch("app.workers.scheduler.source_cron_exprs", return_value=_default_map()),
     ):
         mock_settings.SCHEDULER_ENABLED = True
+        mock_settings.INGEST_CATCHUP_SCHEDULE = ""
         mock_settings.MATCHER_SCHEDULE = ""
         mock_settings.NVD_CPE_BACKFILL_SCHEDULE = ""
         mock_settings.RETENTION_SWEEP_SCHEDULE = ""
@@ -221,6 +229,7 @@ def test_ingest_jobs_have_one_hour_misfire_grace(mock_scheduler):
         patch("app.workers.scheduler.source_cron_exprs", return_value=_default_map()),
     ):
         mock_settings.SCHEDULER_ENABLED = True
+        mock_settings.INGEST_CATCHUP_SCHEDULE = ""
         mock_settings.MATCHER_SCHEDULE = "30 2 * * *"
         mock_settings.NVD_CPE_BACKFILL_SCHEDULE = "0 4 * * *"
         mock_settings.RETENTION_SWEEP_SCHEDULE = "0 5 * * *"
