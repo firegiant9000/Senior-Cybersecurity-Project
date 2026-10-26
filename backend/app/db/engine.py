@@ -5,7 +5,12 @@ from collections.abc import AsyncGenerator
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import DBAPIError
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -103,6 +108,22 @@ engine = create_async_engine(
     max_overflow=20,
 )
 
+# Dedicated one-connection engine for /health, so a saturated app pool can't
+# turn into a failing health check. pre_ping replaces a connection the server killed.
+health_engine = create_async_engine(
+    settings.DATABASE_URL,
+    pool_size=1,
+    max_overflow=0,
+    pool_timeout=1,
+    pool_pre_ping=True,
+)
+
+
+def get_health_engine() -> AsyncEngine:
+    """Dependency returning the dedicated health-check engine."""
+    return health_engine
+
+
 # Session factory
 AsyncSessionLocal = async_sessionmaker(
     engine,
@@ -198,4 +219,5 @@ async def init_db() -> None:
 async def close_db() -> None:
     """Close database connection."""
     await engine.dispose()
+    await health_engine.dispose()
     logger.info("Database connection closed")

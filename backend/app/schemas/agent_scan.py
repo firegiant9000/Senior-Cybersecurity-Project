@@ -81,9 +81,11 @@ class AgentScanPayload(BaseModel):
         min_length=1, max_length=32, description='Scanner build, semver "major.minor.patch".'
     )
     host: ScanHost
-    software: list[ScanSoftware] = Field(default_factory=list, max_length=50_000)
-    services: list[ScanService] = Field(default_factory=list, max_length=50_000)
-    ports: list[ScanPort] = Field(default_factory=list, max_length=50_000)
+    # List caps bound the body: MAX_AGENT_UPLOAD_BYTES is derived from them
+    # (tests/test_body_limit.py::test_maximal_agent_payload_fits_limit).
+    software: list[ScanSoftware] = Field(default_factory=list, max_length=20_000)
+    services: list[ScanService] = Field(default_factory=list, max_length=5_000)
+    ports: list[ScanPort] = Field(default_factory=list, max_length=5_000)
 
 
 class ScanUploadAccepted(BaseModel):

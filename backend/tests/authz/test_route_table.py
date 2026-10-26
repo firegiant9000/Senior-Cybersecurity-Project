@@ -167,11 +167,9 @@ def test_new_org_route_without_min_role_is_caught():
 
 
 def test_body_org_routes_carry_no_path_claim():
-    for key in (
-        ("POST", "/api/v1/assessments/"),
-        ("POST", "/api/v1/analytics/events"),
-    ):
-        assert ROUTES[key].org_from == "body"
+    assert ROUTES[("POST", "/api/v1/assessments/")].org_from == "body"
+    # T-TEN-10 fix (S4-B): analytics binds the org to the caller, not the body.
+    assert ROUTES[("POST", "/api/v1/analytics/events")].org_from == "caller"
     assert ROUTES[("POST", "/api/v1/analytics/events")].min_role is None
     assert ROUTES[("POST", "/api/v1/organizations/mine/intake-preview")].min_role is None
 
@@ -193,7 +191,7 @@ def test_agent_routes_are_agent_only():
 def test_route_counts_cover_all():
     counts = Counter(s.cls for s in ROUTES.values())
     assert sum(counts[c] for c in get_args(RouteClass)) == len(enumerate_routes(app))
-    assert len(enumerate_routes(app)) == 128
+    assert len(enumerate_routes(app)) == 129
 
 
 def _tiny_app() -> FastAPI:

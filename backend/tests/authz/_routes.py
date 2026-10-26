@@ -12,7 +12,7 @@ from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute
 from starlette.routing import BaseRoute, Route
 
-from app.api.routes.v1.auth import get_current_user
+from app.api.routes.v1.auth import get_current_user, get_token_claims
 from app.core.dependencies import (
     get_agent_from_token,
     get_current_org,
@@ -301,12 +301,13 @@ def check_table(app: FastAPI, table: dict[tuple[str, str], RouteSpec]) -> list[s
             continue
         calls = dependency_calls(route)
         has_user = get_current_user in calls
+        has_auth = has_user or get_token_claims in calls
         has_agent = get_agent_from_token in calls
         if (spec.cls == "organization-scoped") != (spec.org_from is not None):
             problems.append(f"org_from must be set iff organization-scoped: {label}")
-        if spec.cls == "public" and (has_user or has_agent):
+        if spec.cls == "public" and (has_auth or has_agent):
             problems.append(f"labelled public but has an auth dependency: {label}")
-        if spec.cls == "agent" and not (has_agent and not has_user):
+        if spec.cls == "agent" and not (has_agent and not has_auth):
             problems.append(f"labelled agent but agent auth missing or user auth present: {label}")
         if spec.cls in {"authenticated-global", "organization-scoped", "administrator"} and (
             not has_user

@@ -71,6 +71,7 @@ async def test_health_includes_deploy_fields(anon_client: AsyncClient, path: str
         "service",
         "version",
         "environment",
+        "database",
         "git_commit",
         "scheduler_enabled",
         "scheduled_jobs",

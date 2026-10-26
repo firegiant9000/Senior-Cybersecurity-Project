@@ -174,6 +174,22 @@ async def check_org_access(current_user: User, org_id: int, session: AsyncSessio
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
 
 
+def check_org_role(current_user: User, minimum_role: str) -> None:
+    """Raise 403 if the user's legacy org role is below ``minimum_role``.
+
+    Same hierarchy and global-admin bypass as ``require_org_role``, for handlers that already
+    resolve the target org themselves. Call it right after the org access check.
+    """
+    if current_user.role == "admin":
+        return
+    user_level = _ORG_ROLE_LEVELS.get(current_user.org_role or "", -1)
+    if user_level < _ORG_ROLE_LEVELS[minimum_role]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient organization role",
+        )
+
+
 def require_org_or_admin():
     """Return a dependency that resolves the user's org or allows global admins through.
 
@@ -223,26 +239,27 @@ async def require_same_org_membership(
         select(Membership).where(
             Membership.user_id == current_user.id,
             Membership.org_id == org_id,
-            Membership.status == "active",
         )
     )
-    membership = membership_result.scalar_one_or_none()
-    if membership is None:
-        # Fallback for users who predate the memberships table: if the legacy
-        # users.org_id matches, synthesise a membership from the legacy fields
-        # so that existing accounts aren't locked out after the migration.
-        if current_user.org_id != org_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied for this organization",
-            )
-        membership = Membership(
-            user_id=current_user.id,
-            org_id=org_id,
-            role=current_user.org_role or "member",
-            status="active",
+    row = membership_result.scalar_one_or_none()
+    if row is not None and row.status == "active":
+        return row
+    # Fallback for users who predate the memberships table: if the legacy users.org_id matches
+    # AND no membership row of any status exists for this org, synthesise a membership from the
+    # legacy fields so that existing accounts aren't locked out after the migration. A non-active
+    # row (e.g. a removed member) means access was withdrawn, so the legacy fields must not
+    # restore it.
+    if row is not None or current_user.org_id != org_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied for this organization",
         )
-    return membership
+    return Membership(
+        user_id=current_user.id,
+        org_id=org_id,
+        role=current_user.org_role or "member",
+        status="active",
+    )
 
 
 @functools.cache

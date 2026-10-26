@@ -37,6 +37,10 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     # Database
     DATABASE_URL: str
 
+    # /health: bound on the SELECT 1 and how long a result is shared between callers.
+    HEALTH_DB_TIMEOUT_SECONDS: float = 2.0
+    HEALTH_CACHE_SECONDS: float = 2.0
+
     @model_validator(mode="after")
     def _normalize_database_url(self) -> "Settings":
         """Render (and some other hosts) provide postgres:// which SQLAlchemy
@@ -78,6 +82,19 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
                     f"but APP_ENV={self.APP_ENV!r}. "
                     "Set CORS_ORIGINS to production domains only."
                 )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_agent_upload_budgets(self) -> "Settings":
+        """A maximal agent upload must always fit the budgets, or it could never be admitted."""
+        if (
+            self.AGENT_UPLOAD_BUDGET_BYTES < self.MAX_AGENT_UPLOAD_BYTES
+            or self.AGENT_UPLOAD_ORG_BUDGET_BYTES < self.MAX_AGENT_UPLOAD_BYTES
+        ):
+            raise ValueError(
+                "AGENT_UPLOAD_BUDGET_BYTES and AGENT_UPLOAD_ORG_BUDGET_BYTES must each be "
+                "at least MAX_AGENT_UPLOAD_BYTES"
+            )
         return self
 
     # Auth (Firebase — service account key path is set via GOOGLE_APPLICATION_CREDENTIALS env var)
@@ -194,6 +211,19 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     # File uploads
     UPLOAD_DIR: str = "./uploads"
     MAX_UPLOAD_SIZE_BYTES: int = 10 * 1024 * 1024  # 10 MB
+    # Request-body caps, enforced before the body is read (app/core/body_limit.py).
+    MAX_JSON_BODY_BYTES: int = 1024 * 1024  # 1 MiB: every route without its own limit
+    # 24 MiB: the largest legal scan is 19,311,014 bytes (20k software, 5k services, 5k ports)
+    MAX_AGENT_UPLOAD_BYTES: int = 24 * 1024 * 1024
+    # Agent uploads in flight (body read through ingest) are admitted by declared Content-Length
+    # (MAX_AGENT_UPLOAD_BYTES when absent, e.g. chunked) against a process-wide byte budget and a
+    # per-org share; each enrollment also has at most one.
+    # A request that doesn't fit waits up to AGENT_UPLOAD_WAIT_SECONDS, then gets 503 + Retry-After.
+    # Both budgets must be at least MAX_AGENT_UPLOAD_BYTES so one maximal upload is always admissible.
+    AGENT_UPLOAD_BUDGET_BYTES: int = 32 * 1024 * 1024
+    AGENT_UPLOAD_ORG_BUDGET_BYTES: int = 24 * 1024 * 1024
+    AGENT_UPLOAD_WAIT_SECONDS: float = 10.0
+    AGENT_UPLOAD_READ_TIMEOUT_SECONDS: float = 60.0
     ALLOWED_UPLOAD_TYPES: list[str] = [
         "text/csv",
         "application/pdf",

@@ -7,6 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.routes.v1.auth import get_current_user
 from app.core.config import settings
+from app.core.dependencies import check_org_role
 from app.core.limiter import limiter
 from app.db.user import User
 from app.repositories.assessment_submission import (
@@ -114,11 +115,12 @@ async def delete_assessment(
     current_user: User = Depends(get_current_user),
     repo: SqlAssessmentSubmissionRepository = Depends(get_assessment_repo),
 ):
-    """Soft delete a specific assessment version."""
+    """Soft delete a specific assessment version. Requires org admin."""
     existing = await repo.get_by_id(assessment_id)
     if existing is None:
         raise HTTPException(status_code=404, detail="Assessment not found")
     _ensure_org_access(current_user, existing.organization_id)
+    check_org_role(current_user, "admin")
     try:
         deleted = await repo.soft_delete(assessment_id)
     except SQLAlchemyError as exc:

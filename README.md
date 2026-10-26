@@ -16,9 +16,11 @@ plain-English executive report.
 >
 > **Direction (2026-09):** Hacker Tracker is developed as an application-security
 > and DevSecOps reference implementation, not as a startup. The next work is
-> assurance of the product itself: a threat model, a route-enumerating
-> authorization suite, blocking SAST/SCA/DAST gates, an attested agent release
-> with an SBOM, and matcher accuracy measured against Trivy on real images. See
+> assurance of the product itself. The threat model, the route-enumerating
+> authorization suite and the attested agent release with an SBOM are done
+> (S3, S4 and S1 respectively). The SAST/SCA gates are in place (S2) and become blocking once the
+> owner applies T-CI-05. The next work is DAST and a manual AppSec pass (S5) and
+> matcher accuracy measured against Trivy on real images (S6). See
 > [docs/PRODUCT_VIABILITY_ROADMAP.md](docs/PRODUCT_VIABILITY_ROADMAP.md) and
 > [docs/roadmap-review-2026-09.md](docs/roadmap-review-2026-09.md).
 
@@ -159,23 +161,25 @@ flowchart LR
 ## Security design
 
 - **Threat model.** [docs/security/threat_model.md](docs/security/threat_model.md)
-  is a STRIDE model of 110 threats (39 controlled, 24 tested, 18 accepted, 29
-  open and scheduled for S4/S5 or owner action). CI checks that every row has
+  is a STRIDE model of 115 threats (37 controlled, 40 tested, 18 accepted, 20
+  open and scheduled for S5 or owner action). CI checks that every row has
   one classification and that its evidence exists.
 - **Authentication.** Users sign in through Firebase Authentication. The API
   verifies the ID token on every request with the Admin SDK and resolves the
   user's global role (`viewer` / `member` / `admin`) and organization role
   (`member` / `admin` / `owner`). An existing account is linked to a new
   Firebase sign-in only when the email is verified and the account has no
-  Firebase identity yet (`email_verified` is enforced for linking only, not yet
-  at first sign-in: T-AUTH-04); revoked and disabled tokens are rejected.
+  Firebase identity yet (`email_verified` is required for linking, for first
+  sign-in and for invite acceptance: T-AUTH-04); revoked and disabled tokens are
+  rejected.
 - **Authorization and data isolation.** Organization-scoped routes check the
   caller's organization, either from the path via `check_org_access` or from the
   caller's own row via `get_current_org`, and repositories filter by it. Global
   admins can read, change, export and delete any organization by design; this
-  is an operator role granted only by a database change (T-TEN-08). This is enforced by convention
-  in each handler, not by a route-enumerating test yet; that suite is roadmap
-  milestone S4. Demo organizations are flagged
+  is an operator role granted only by a database change (T-TEN-08). This is enforced per
+  handler and verified by the route-enumerating cross-tenant suite in
+  `backend/tests/authz/tenancy/` (every organization-scoped route has a case).
+  Demo organizations are flagged
   and segregated. Data lifecycle endpoints allow per-org export and deletion,
   and a retention job prunes old scan runs and audit rows per org.
 - **Agent tokens and replay protection.** Described above; the enrollment,
@@ -189,10 +193,16 @@ flowchart LR
   production with the default `SECRET_KEY` or a `localhost` CORS origin. The
   Firebase Admin key is read from `GOOGLE_APPLICATION_CREDENTIALS` or the
   `FIREBASE_SERVICE_ACCOUNT_JSON` variable and is gitignored.
-- **Input boundaries.** General file uploads are capped at 10 MB, checked
-  after reading, and filename-sanitized. Inventory CSV imports are capped by row
-  count. The agent payload is capped per list but has no request-size limit yet
-  (T-PLAT-06, roadmap S4); it is a versioned schema validated with
+- **Input boundaries.** Request bodies are capped before they're read: 1 MiB
+  by default, 10 MB per uploaded file (checked before the file is loaded into
+  memory; multipart bodies are still spooled before authentication), and 24 MiB
+  for the agent upload, derived from its per-list caps. The agent upload is
+  authenticated before its body is read, is weighed by its declared Content-Length (a body without one counts as a maximal upload), holds no
+  database connection while it waits or reads, and is admitted against a byte
+  budget (process-wide and per org, one per enrollment; a request that doesn't
+  fit waits up to 10 s, then gets 503).
+  Uploaded files are filename-sanitized. Inventory CSV imports are capped by row
+  count. The agent payload is a versioned schema validated with
   Pydantic; AI prompts receive organization and finding data only inside a
   JSON data block (above), and a deterministic CI corpus of injection strings
   checks that structure

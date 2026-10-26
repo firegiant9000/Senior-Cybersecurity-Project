@@ -20,6 +20,7 @@ import {
   listAgents,
   enrollAgent,
   rotateAgent,
+  endAgentGrace,
   revokeAgent,
 } from "../api/agents";
 import "../Dashboard.css";
@@ -174,7 +175,35 @@ export default function SettingsPage() {
     }
   };
 
+  const handleEndGrace = async (agentId: number) => {
+    if (
+      !window.confirm(
+        "The old token stops working now. Has the host switched to the new token?",
+      )
+    ) {
+      return;
+    }
+    setAgentsError("");
+    setAgentsMsg("");
+    try {
+      await endAgentGrace(agentId);
+      setAgentsMsg("Grace ended. The old token no longer works.");
+      loadAgents();
+    } catch (err) {
+      setAgentsError(
+        err instanceof Error ? err.message : "Failed to end the grace window",
+      );
+    }
+  };
+
   const handleRevokeAgent = async (agentId: number) => {
+    if (
+      !window.confirm(
+        "Revoke this agent? This also revokes every token rotated from this agent, and the host will need to be re-enrolled.",
+      )
+    ) {
+      return;
+    }
     setAgentsError("");
     try {
       await revokeAgent(agentId);
@@ -660,8 +689,11 @@ export default function SettingsPage() {
                     Enroll read-only host scanner agents. Each agent gets its
                     own bearer token shown only once at enrollment — store it
                     securely and re-enroll if it is lost. Rotate to replace a
-                    token (the old one keeps working for 24 hours); revoke to
-                    disable a host immediately.
+                    token (the old one keeps working for 24 hours; rotate the
+                    new one, not the old). If the old token may have leaked,
+                    use &ldquo;End grace now&rdquo; to cut off only that token.
+                    Revoke cuts off the agent and every token rotated from it
+                    (tokens rotated before this update may not be linked).
                   </p>
 
                   {agentsMsg && (
@@ -789,7 +821,8 @@ export default function SettingsPage() {
                             </td>
                             <td style={{ whiteSpace: "nowrap" }}>
                               {a.status !== "revoked" &&
-                                a.status !== "expired" && (
+                                a.status !== "expired" &&
+                                a.status !== "grace" && (
                                   <button
                                     className="action-btn"
                                     onClick={() => handleRotateAgent(a.id)}
@@ -798,6 +831,15 @@ export default function SettingsPage() {
                                     Rotate
                                   </button>
                                 )}
+                              {a.status === "grace" && (
+                                <button
+                                  className="action-btn"
+                                  onClick={() => handleEndGrace(a.id)}
+                                  title="End grace now"
+                                >
+                                  End grace now
+                                </button>
+                              )}
                               {a.status !== "revoked" && (
                                 <button
                                   className="vendor-delete-btn"

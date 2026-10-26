@@ -5,7 +5,9 @@ get a scan_run back. The same scan_run model is reused by the
 M365 spike (Phase E) and the future agent path.
 """
 
+import asyncio
 import logging
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
@@ -17,13 +19,16 @@ from fastapi import (
     Request,
     UploadFile,
 )
-from pydantic import BaseModel
+from fastapi.exceptions import RequestValidationError
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.requests import ClientDisconnect
 
 from app.api.routes.v1.auth import get_current_user
+from app.core.body_limit import REQUEST_TOO_LARGE
 from app.core.config import settings
-from app.core.dependencies import check_org_access, get_agent_from_token
+from app.core.dependencies import check_org_access, check_org_role, get_agent_from_token
 from app.core.limiter import agent_token_key, limiter
 from app.db.agent_enrollment import AgentEnrollment
 from app.db.audit_log import AuditLog
@@ -54,6 +59,7 @@ from app.schemas.scan_run import (
     ScanRunUpdate,
 )
 from app.services import agent_scan
+from app.services.file_upload import ensure_upload_size
 from app.services.inventory_import import (
     MAX_CSV_ROWS,
     commit_inventory,
@@ -176,6 +182,7 @@ async def _read_csv(file: UploadFile) -> str:
         "application/octet-stream",
     ):
         raise HTTPException(status_code=400, detail="File must be a CSV")
+    ensure_upload_size(file)
     raw = await file.read()
     try:
         return raw.decode("utf-8-sig")
@@ -302,11 +309,13 @@ async def import_inventory_csv(
             },
         ),
     )
+    # Read the id now: a rollback expires the ORM object, and an async lazy refresh then fails.
+    scan_run_id = scan_run.id
 
     try:
-        await scan_repo.update(scan_run.id, org_id, ScanRunUpdate(status="running"))
+        await scan_repo.update(scan_run_id, org_id, ScanRunUpdate(status="running"))
         asset_count, software_count = await commit_inventory(
-            session, org_id=org_id, rows=parsed.rows, scan_run_id=scan_run.id
+            session, org_id=org_id, rows=parsed.rows, scan_run_id=scan_run_id
         )
         kev_matches = await count_kev_matches(session, org_id)
         await session.commit()
@@ -314,7 +323,7 @@ async def import_inventory_csv(
         await session.rollback()
         logger.exception("inventory import failed for org %s", org_id)
         await scan_repo.update(
-            scan_run.id,
+            scan_run_id,
             org_id,
             ScanRunUpdate(
                 status="failed",
@@ -325,7 +334,7 @@ async def import_inventory_csv(
         raise HTTPException(status_code=500, detail="Failed to import inventory") from exc
 
     final = await scan_repo.update(
-        scan_run.id,
+        scan_run_id,
         org_id,
         ScanRunUpdate(
             status="succeeded",
@@ -340,6 +349,8 @@ async def import_inventory_csv(
             },
         ),
     )
+    # Build the response before the audit write: a rollback there expires the ORM objects.
+    result = ScanRunRead.model_validate(final or scan_run, from_attributes=True)
     # Audit trail — separate transaction is fine; the import already
     # committed and an audit failure should not roll the data back.
     try:
@@ -349,7 +360,7 @@ async def import_inventory_csv(
             org_id=org_id,
             action="inventory.csv_import",
             payload={
-                "scan_run_id": scan_run.id,
+                "scan_run_id": scan_run_id,
                 "asset_count": asset_count,
                 "software_count": software_count,
                 "kev_matches": kev_matches,
@@ -359,7 +370,7 @@ async def import_inventory_csv(
         await session.commit()
     except SQLAlchemyError:
         await session.rollback()
-        logger.exception("audit log failed for scan_run %s", scan_run.id)
+        logger.exception("audit log failed for scan_run %s", scan_run_id)
 
     # Month 3 Phase 4: kick off version-aware matching off the request path so
     # the new inventory auto-populates asset_findings without a manual refresh.
@@ -369,7 +380,7 @@ async def import_inventory_csv(
 
     trigger_matcher_async(org_id, trigger="csv_import")
 
-    return final or scan_run
+    return result
 
 
 # ---- Scan runs ----------------------------------------------------------
@@ -436,11 +447,183 @@ async def _audit_agent(
     await session.flush()
 
 
-@router.post("/inventory/scans", response_model=ScanUploadAccepted, status_code=201)
+AGENT_UPLOAD_BUSY = "Agent upload busy; retry shortly"
+AGENT_UPLOAD_TIMEOUT = "Agent upload timed out"
+
+
+class _AgentUploadGate:
+    """Admission control for agent uploads in flight (T-PLAT-06), at every body size.
+
+    An upload is weighed by its declared Content-Length (MAX_AGENT_UPLOAD_BYTES when there is
+    none, e.g. a chunked body) and admitted while the process-wide byte
+    budget and its org's share both have room. Each enrollment has at most one in flight (a
+    duplicate is refused at once). Anything else waits up to AGENT_UPLOAD_WAIT_SECONDS for room,
+    then gets 503. One event loop, no locks: every check-and-reserve runs without an await, and
+    ``release`` is synchronous so it is safe in a ``finally`` even while being cancelled.
+    """
+
+    def __init__(self) -> None:
+        self.enrollments: set[int] = set()
+        self.total = 0
+        self.by_org: dict[int, int] = {}
+        self.waiters: list[asyncio.Future[None]] = []
+
+    def _fits(self, org_id: int, size: int) -> bool:
+        return (
+            self.total + size <= settings.AGENT_UPLOAD_BUDGET_BYTES
+            and self.by_org.get(org_id, 0) + size <= settings.AGENT_UPLOAD_ORG_BUDGET_BYTES
+        )
+
+    @staticmethod
+    def _busy() -> HTTPException:
+        return HTTPException(
+            status_code=503, detail=AGENT_UPLOAD_BUSY, headers={"Retry-After": "5"}
+        )
+
+    async def acquire(self, enrollment_id: int, org_id: int, size: int) -> None:
+        if enrollment_id in self.enrollments:
+            raise self._busy()
+        self.enrollments.add(enrollment_id)  # reserved while waiting, so a duplicate is immediate
+        try:
+            async with asyncio.timeout(settings.AGENT_UPLOAD_WAIT_SECONDS):
+                while not self._fits(org_id, size):
+                    waiter: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+                    self.waiters.append(waiter)
+                    try:
+                        await waiter
+                    finally:
+                        if waiter in self.waiters:
+                            self.waiters.remove(waiter)
+        except BaseException as exc:
+            self.enrollments.discard(enrollment_id)
+            if isinstance(exc, TimeoutError):
+                raise self._busy() from None
+            raise
+        self.total += size
+        self.by_org[org_id] = self.by_org.get(org_id, 0) + size
+
+    def release(self, enrollment_id: int, org_id: int, size: int) -> None:
+        self.enrollments.discard(enrollment_id)
+        self.total -= size
+        remaining = self.by_org.get(org_id, 0) - size
+        if remaining > 0:
+            self.by_org[org_id] = remaining
+        else:
+            self.by_org.pop(org_id, None)
+        for waiter in self.waiters:
+            if not waiter.done():
+                waiter.set_result(None)
+        self.waiters.clear()
+
+    def in_flight(self) -> int:
+        return len(self.enrollments) + self.total + len(self.by_org) + len(self.waiters)
+
+
+_gate = _AgentUploadGate()
+
+
+def _agent_gate() -> _AgentUploadGate:
+    return _gate
+
+
+def _reset_agent_upload_slots() -> None:
+    """Tests only: forget every reservation and waiter."""
+    global _gate  # noqa: PLW0603
+    _gate = _AgentUploadGate()
+
+
+def _agent_uploads_in_flight() -> int:
+    return _gate.in_flight()
+
+
+def _declared_length(request: Request) -> int | None:
+    """The declared Content-Length, or None when it is absent or invalid (e.g. chunked)."""
+    raw = request.headers.get("content-length", "")
+    if not (raw.isascii() and raw.isdigit()):
+        return None
+    return int(raw)
+
+
+async def agent_upload_slot(
+    request: Request,
+    enrollment: AgentEnrollment = Depends(get_agent_from_token),
+    session: AsyncSession = Depends(get_session),
+) -> AsyncGenerator[int | None, None]:
+    """Admit the upload by its declared length, or refuse without reading the body.
+
+    A body without a valid Content-Length (chunked) is weighed as a maximal upload
+    (``MAX_AGENT_UPLOAD_BYTES``); the body-limit middleware still caps the streamed bytes. The token check leaves the session's
+    transaction open (inside the last-used debounce nothing commits), which would pin a pooled
+    connection through the wait and the body read. End it first; ``expire_on_commit=False`` keeps
+    the loaded enrollment usable and the session starts a new transaction when the handler next
+    needs it. Yields the declared length, or None.
+    """
+    declared = _declared_length(request)
+    # Read these now: after a later rollback the enrollment is expired and touching it would
+    # reload it (IO) during teardown.
+    enrollment_id, org_id = enrollment.id, enrollment.org_id
+    await session.commit()
+    gate = _gate  # captured: a test reset may replace the global while we hold a reservation
+    weight = settings.MAX_AGENT_UPLOAD_BYTES if declared is None else declared
+    await gate.acquire(enrollment_id, org_id, weight)
+    try:
+        yield declared
+    finally:
+        gate.release(enrollment_id, org_id, weight)
+
+
+async def read_agent_payload(
+    request: Request,
+    declared: int | None = Depends(agent_upload_slot),
+) -> AgentScanPayload:
+    """Read and validate the scan body after the token check, under the slot and the deadline.
+
+    The slot depends on the token, so an unauthenticated request never takes a slot or has its
+    body read. The body is streamed into a local buffer rather than ``request.body()``, so it is
+    not cached on the Request and is freed once parsed; if it declared a length it may not outrun it.
+    """
+    buffer = bytearray()
+    try:
+        async with asyncio.timeout(settings.AGENT_UPLOAD_READ_TIMEOUT_SECONDS):
+            async for chunk in request.stream():
+                buffer.extend(chunk)
+                if declared is not None and len(buffer) > declared:
+                    raise HTTPException(status_code=413, detail=REQUEST_TOO_LARGE)
+    except TimeoutError:
+        raise HTTPException(status_code=408, detail=AGENT_UPLOAD_TIMEOUT) from None
+    except ClientDisconnect:
+        raise HTTPException(status_code=400, detail="Client disconnected") from None
+    try:
+        return AgentScanPayload.model_validate_json(buffer)
+    except ValidationError as exc:
+        errors = []
+        for err in exc.errors(include_url=False):
+            # `input` can be the whole parsed body (or list); never echo it back.
+            err.pop("input", None)
+            err["loc"] = ("body", *err["loc"])
+            errors.append(err)
+        raise RequestValidationError(errors) from exc
+
+
+@router.post(
+    "/inventory/scans",
+    response_model=ScanUploadAccepted,
+    status_code=201,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "description": (
+                "AgentScanPayload: see backend/app/schemas/agent_scan.py "
+                "and tests/fixtures/agent_scan_v1.json"
+            ),
+            "content": {"application/json": {}},
+        }
+    },
+)
 @limiter.limit(settings.RATE_LIMIT_AGENT_UPLOAD, key_func=agent_token_key)
 async def upload_agent_scan(
     request: Request,  # noqa: ARG001 — required by limiter
-    payload: AgentScanPayload,
+    payload: AgentScanPayload = Depends(read_agent_payload),
     enrollment: AgentEnrollment = Depends(get_agent_from_token),
     session: AsyncSession = Depends(get_session),
     scan_repo: SqlScanRunRepository = Depends(get_scan_run_repo),
@@ -488,9 +671,11 @@ async def upload_agent_scan(
         org_id,
         ScanRunCreate(source="agent", triggered_by_user_id=None, metadata=base_meta),
     )
+    # Read the id now: a rollback expires the ORM object, and an async lazy refresh then fails.
+    scan_run_id = scan_run.id
 
     try:
-        await scan_repo.update(scan_run.id, org_id, ScanRunUpdate(status="running"))
+        await scan_repo.update(scan_run_id, org_id, ScanRunUpdate(status="running"))
         # Record the replay marker in the same transaction as the import so a
         # failed import frees the (scan_id, nonce) for a legit retry.
         await nonce_repo.record(
@@ -500,7 +685,7 @@ async def upload_agent_scan(
             nonce=payload.nonce,
         )
         asset_count, software_count = await commit_inventory(
-            session, org_id=org_id, rows=rows, scan_run_id=scan_run.id, source="agent"
+            session, org_id=org_id, rows=rows, scan_run_id=scan_run_id, source="agent"
         )
         # Persist the host's services/ports snapshot onto its asset. The agent
         # reports exactly one host per payload, so resolve that single asset and
@@ -518,7 +703,7 @@ async def upload_agent_scan(
         # Lost the race to the unique (scan_id, nonce) constraint → replay.
         await session.rollback()
         await scan_repo.update(
-            scan_run.id,
+            scan_run_id,
             org_id,
             ScanRunUpdate(
                 status="failed",
@@ -533,7 +718,7 @@ async def upload_agent_scan(
         await session.rollback()
         logger.exception("agent scan import failed for org %s", org_id)
         await scan_repo.update(
-            scan_run.id,
+            scan_run_id,
             org_id,
             ScanRunUpdate(
                 status="failed", error_message=str(exc)[:1900], finished_at=datetime.now(UTC)
@@ -542,7 +727,7 @@ async def upload_agent_scan(
         raise HTTPException(status_code=500, detail="Failed to import scan") from exc
 
     final = await scan_repo.update(
-        scan_run.id,
+        scan_run_id,
         org_id,
         ScanRunUpdate(
             status="succeeded",
@@ -552,6 +737,8 @@ async def upload_agent_scan(
             metadata={**base_meta, "asset_count": asset_count, "software_count": software_count},
         ),
     )
+    # Read before the audit write: a rollback there expires the ORM objects.
+    final_status = (final or scan_run).status
 
     try:
         await _audit_agent(
@@ -559,7 +746,7 @@ async def upload_agent_scan(
             org_id=org_id,
             action="inventory.agent_scan",
             payload={
-                "scan_run_id": scan_run.id,
+                "scan_run_id": scan_run_id,
                 "agent_enrollment_id": enrollment.id,
                 "asset_count": asset_count,
                 "software_count": software_count,
@@ -569,7 +756,7 @@ async def upload_agent_scan(
         await session.commit()
     except SQLAlchemyError:
         await session.rollback()
-        logger.exception("audit log failed for agent scan_run %s", scan_run.id)
+        logger.exception("audit log failed for agent scan_run %s", scan_run_id)
 
     # Reuse the Month 3 matcher off the request path, same as CSV import.
     from app.workers.matcher_job import trigger_matcher_async
@@ -577,8 +764,8 @@ async def upload_agent_scan(
     trigger_matcher_async(org_id, trigger="agent_scan")
 
     return ScanUploadAccepted(
-        scan_run_id=scan_run.id,
-        status=(final or scan_run).status,
+        scan_run_id=scan_run_id,
+        status=final_status,
         asset_count=asset_count,
         software_count=software_count,
     )
@@ -854,6 +1041,8 @@ async def patch_asset_finding_status(
     )
     if updated is None:
         raise HTTPException(status_code=404, detail="Finding not found")
+    # Read before any rollback below: a rollback expires the ORM object.
+    updated_status = updated.status
 
     try:
         await _audit(
@@ -872,7 +1061,7 @@ async def patch_asset_finding_status(
         await session.rollback()
         logger.exception("audit log failed for asset_finding.status_updated %s", finding_id)
 
-    return FindingStatusResponse(finding_id=finding_id, status=updated.status)
+    return FindingStatusResponse(finding_id=finding_id, status=updated_status)
 
 
 @router.get(
@@ -993,6 +1182,8 @@ async def set_asset_tags(
     updated = await asset_repo.set_tags(asset_id, org_id, body.tags)
     if updated is None:
         raise HTTPException(status_code=404, detail="Asset not found")
+    # Build the response before any rollback below: a rollback expires the ORM object.
+    result = AssetRead.model_validate(updated, from_attributes=True)
     try:
         await _audit(
             session,
@@ -1005,7 +1196,7 @@ async def set_asset_tags(
     except SQLAlchemyError:
         await session.rollback()
         logger.exception("audit log failed for asset.tags_updated %s", asset_id)
-    return AssetRead.model_validate(updated, from_attributes=True)
+    return result
 
 
 # ---- N3: Inventory diff between scan_runs -------------------------------
@@ -1130,7 +1321,7 @@ async def rollback_scan_run(
     """Undo an inventory upload.
 
     Deletes assets + asset_software whose ``created_by_scan_run_id`` matches
-    the given run, then marks the scan_run ``status='rolled_back'``.
+    the given run, then marks the scan_run ``status='rolled_back'``. Requires org admin.
     """
     from sqlalchemy import delete
 
@@ -1138,6 +1329,7 @@ async def rollback_scan_run(
     from app.db.asset_software import AssetSoftware
 
     await check_org_access(current_user, org_id, session)
+    check_org_role(current_user, "admin")
     run = await scan_repo.get_by_id(scan_run_id, org_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Scan run not found")
