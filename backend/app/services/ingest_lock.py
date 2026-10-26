@@ -2,9 +2,14 @@
 
 Each data source gets a deterministic int64 lock key derived from its name.
 pg_try_advisory_lock is non-blocking — it returns False immediately if the
-lock is already held rather than waiting.  Advisory locks are session-scoped:
-they are automatically released when the database connection closes, so a
-crashed process cannot leave a lock dangling indefinitely.
+lock is already held rather than waiting.  Advisory locks are scoped to the
+physical database connection (session-level): they survive COMMIT and are
+released only by pg_advisory_unlock or when the connection closes, so a
+crashed process cannot leave a lock dangling indefinitely.  A connection
+returned to the SQLAlchemy pool is only ROLLBACKed, which does NOT release
+advisory locks, so callers must acquire and release on one dedicated
+``AsyncConnection`` held for the whole run, and ``invalidate()`` it if the
+release fails.
 
 Stale-run protection (separate from locking):
     If a run has been in status="running" for longer than
@@ -17,7 +22,7 @@ import datetime
 import logging
 
 from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 from app.core.config import settings
 from app.models.ingest_run import IngestRun
@@ -82,15 +87,22 @@ async def expire_stale_runs(session: AsyncSession, source: str) -> None:
         await session.commit()
 
 
-async def try_acquire_lock(session: AsyncSession, source: str) -> bool:
+async def try_acquire_lock(conn: AsyncConnection | AsyncSession, source: str) -> bool:
     """Attempt to acquire a PG advisory lock for *source*.
 
     Returns True if the lock was acquired, False if already held by another
     session (i.e. a concurrent ingestion is running).
+
+    Pass a dedicated ``AsyncConnection`` that the caller holds for the whole
+    run and also hands to ``release_lock``.  On a connection the statement is
+    committed so no transaction stays open; the session-level lock survives
+    the commit.  (Passing an ORM session works but is unsafe under a pool:
+    its commit returns the connection to the pool.)
     """
     key = _lock_key(source)
-    result = await session.execute(text("SELECT pg_try_advisory_lock(:key)"), {"key": key})
+    result = await conn.execute(text("SELECT pg_try_advisory_lock(:key)"), {"key": key})
     acquired: bool = result.scalar()  # type: ignore[assignment]
+    await conn.commit()
     if not acquired:
         logger.info(
             "Ingest lock already held — skipping run",
@@ -99,13 +111,14 @@ async def try_acquire_lock(session: AsyncSession, source: str) -> bool:
     return acquired
 
 
-async def release_lock(session: AsyncSession, source: str) -> None:
+async def release_lock(conn: AsyncConnection | AsyncSession, source: str) -> None:
     """Release the PG advisory lock for *source*.
 
-    Safe to call even if the lock is not held (pg_advisory_unlock returns
-    False silently in that case).  We commit after the unlock to ensure the
-    statement is flushed to the server before the session closes.
+    Must run on the *same* connection that acquired the lock, otherwise
+    pg_advisory_unlock silently returns False and the lock leaks.  Safe to
+    call when the lock is not held.  Commits so no transaction is left open.
+    Callers should ``invalidate()`` the connection if this raises.
     """
     key = _lock_key(source)
-    await session.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": key})
-    await session.commit()
+    await conn.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": key})
+    await conn.commit()
