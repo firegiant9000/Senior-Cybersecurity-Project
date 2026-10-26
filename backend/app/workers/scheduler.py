@@ -26,14 +26,35 @@ logger = logging.getLogger(__name__)
 # Module-level scheduler instance — started/stopped in app lifespan.
 scheduler = AsyncIOScheduler(timezone="UTC")
 
-# Mapping from source name to its schedule config key.
-_SOURCE_SCHEDULE_MAP: dict[str, str] = {
-    "nvd": settings.INGEST_SCHEDULE_NVD,
-    "cisa_kev": settings.INGEST_SCHEDULE_KEV,
-    "ic3": settings.INGEST_SCHEDULE_IC3,
-    "economics": settings.INGEST_SCHEDULE_ECONOMICS,
-    "epss": settings.INGEST_SCHEDULE_EPSS,
-}
+
+def source_cron_exprs() -> dict[str, str]:
+    """Cron expression per ingest source, read from settings at call time.
+
+    The single source of truth for both ``init_scheduler`` and the catch-up
+    selection, so they cannot disagree about which sources are scheduled.
+    """
+    return {
+        "nvd": settings.INGEST_SCHEDULE_NVD,
+        "cisa_kev": settings.INGEST_SCHEDULE_KEV,
+        "ic3": settings.INGEST_SCHEDULE_IC3,
+        "economics": settings.INGEST_SCHEDULE_ECONOMICS,
+        "epss": settings.INGEST_SCHEDULE_EPSS,
+    }
+
+
+async def _catchup_sweep() -> None:
+    """Hourly re-check: ingest any source that missed a firing, sequentially.
+
+    Covers a startup catch-up that the 1 h recent-attempt guard blocked (for
+    example behind an orphaned ``running`` row) without waiting for another
+    restart. Runs in the job itself so ``max_instances=1`` prevents overlap.
+    """
+    from app.services.ingest_catchup import run_catchup
+
+    try:
+        await run_catchup("catchup")
+    except Exception:  # noqa: BLE001
+        logger.exception("Catch-up sweep failed")
 
 
 async def _scheduled_ingest(source: str) -> None:
@@ -64,7 +85,7 @@ def init_scheduler() -> None:  # noqa: C901 — flat per-source registration loo
         return
 
     registered: list[str] = []
-    for source, cron_expr in _SOURCE_SCHEDULE_MAP.items():
+    for source, cron_expr in source_cron_exprs().items():
         if not cron_expr:
             continue
         try:
@@ -90,6 +111,31 @@ def init_scheduler() -> None:  # noqa: C901 — flat per-source registration loo
         )
         registered.append(f"{source} ({cron_expr})")
         logger.info("Scheduled ingest job registered: %s @ %s", source, cron_expr)
+
+    # Hourly catch-up sweep: re-runs sources that missed a cron firing. Governed
+    # by INGEST_CATCHUP_ON_STARTUP as well, so turning catch-up off turns it off.
+    catchup_cron = settings.INGEST_CATCHUP_SCHEDULE
+    if catchup_cron and settings.INGEST_CATCHUP_ON_STARTUP:
+        try:
+            catchup_trigger = CronTrigger.from_crontab(catchup_cron, timezone="UTC")
+        except (ValueError, TypeError) as exc:
+            logger.error(
+                "Invalid INGEST_CATCHUP_SCHEDULE cron (%r): %s — catch-up sweep not scheduled",
+                catchup_cron,
+                exc,
+            )
+        else:
+            scheduler.add_job(
+                _catchup_sweep,
+                trigger=catchup_trigger,
+                id="catchup_sweep",
+                replace_existing=True,
+                misfire_grace_time=300,
+                coalesce=True,
+                max_instances=1,
+            )
+            registered.append(f"catchup_sweep ({catchup_cron})")
+            logger.info("Catch-up sweep registered @ %s", catchup_cron)
 
     # Month 3 Phase 4: background CPE-matcher sweep (separate job function from
     # the ingestors, so it is registered outside the source loop).

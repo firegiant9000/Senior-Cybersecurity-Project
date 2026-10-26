@@ -22,7 +22,7 @@ class HealthResponse(BaseModel):
     database: str
     git_commit: str
     scheduler_enabled: bool
-    scheduled_jobs: int
+    scheduled_jobs: int  # registered ingest_<source> jobs only (not sweeps/matcher/retention)
 
 
 @router.get("/health", response_model=HealthResponse)

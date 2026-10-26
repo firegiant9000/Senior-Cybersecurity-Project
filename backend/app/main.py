@@ -1,11 +1,11 @@
 """Application main entry point."""
 
 import asyncio
-import datetime
 import logging
 import os
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Coroutine
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,14 +21,9 @@ from app.core.limiter import limiter
 from app.core.logging import setup_logging
 from app.core.observability import RequestContextMiddleware, init_sentry
 from app.core.security_headers import SecurityHeadersMiddleware, internal_error_response
-from app.db.engine import AsyncSessionLocal, init_db
+from app.db.engine import init_db
 from app.integrations.cve_org import aclose_http_client
-from app.services.ingest_catchup import (
-    load_source_states,
-    scheduled_sources,
-    select_sources,
-    stale_thresholds,
-)
+from app.services.ingest_catchup import run_catchup, run_sequential_ingest
 from app.workers import init_scheduler, scheduler
 
 _log = logging.getLogger(__name__)
@@ -53,57 +48,38 @@ def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JS
     return response
 
 
-async def _run_sequential_ingest(sources: list[str]) -> None:
-    """Run ingestion for each source one at a time to avoid DB conflicts."""
-    from app.api.routes.v1.ingest import _run_ingestion
-
-    for src in sources:
-        _log.info("Starting %s ingestion...", src)
-        try:
-            await _run_ingestion(src, trigger="startup")
-        except Exception:  # noqa: BLE001
-            # Errors are already logged and persisted by _run_ingestion; continue
-            # to the next source rather than aborting the whole startup sequence.
-            pass
-
-
 # asyncio keeps only weak references to tasks; hold them until they finish.
 _background_tasks: set[asyncio.Task[None]] = set()
 
 
-def _start_background_ingest(sources: list[str]) -> None:
-    task = asyncio.create_task(_run_sequential_ingest(sources))
+def _start_background(coro: Coroutine[Any, Any, Any]) -> None:
+    task = asyncio.create_task(coro)
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
 
 
 async def _auto_ingest() -> None:
-    """Seed and catch up data sources on startup.
+    """Seed and catch up data sources on startup, in a background task.
 
-    - Default: ingest sources with no rows, and (INGEST_CATCHUP_ON_STARTUP)
-      scheduled sources whose last success is older than their stale threshold.
-    - FORCE_SEED=true: re-ingest all sources regardless of existing data.
+    - Default: ``run_catchup("startup")`` ingests sources with no rows and
+      (INGEST_CATCHUP_ON_STARTUP) scheduled sources that missed a cron firing
+      since their last success, e.g. a run killed by a deploy. Each source is
+      re-checked just before it runs. The hourly ``catchup_sweep`` job re-applies
+      the same rule, so a startup blocked by the 1 h recent-attempt guard
+      recovers without another restart.
+    - FORCE_SEED=true: re-ingest all sources regardless of existing data, with
+      no re-check.
 
-    Runs sequentially (NVD → KEV → EPSS → IC3) in a background task
-    to avoid duplicate key conflicts between NVD and CISA KEV.
+    Sources run sequentially (NVD → KEV → EPSS → IC3) to avoid duplicate key
+    conflicts between NVD and CISA KEV.
     """
     if settings.FORCE_SEED:
         all_sources = ["nvd", "cisa_kev", "ic3"]
         _log.info("FORCE_SEED=true — re-ingesting all sources: %s", all_sources)
-        _start_background_ingest(all_sources)
+        _start_background(run_sequential_ingest(all_sources, trigger="startup", recheck=False))
         return
 
-    scheduled = scheduled_sources() if settings.INGEST_CATCHUP_ON_STARTUP else {}
-    async with AsyncSessionLocal() as db:  # type: ignore[arg-type]
-        states = await load_source_states(db, scheduled)
-    selected = select_sources(states, stale_thresholds(), datetime.datetime.utcnow())
-
-    if not selected:
-        _log.info("All data sources populated and fresh — skipping auto-ingest")
-        return
-
-    _log.info("Auto-ingesting on startup (empty or stale): %s", selected)
-    _start_background_ingest(selected)
+    _start_background(run_catchup("startup"))
 
 
 def _ensure_firebase_credentials() -> None:

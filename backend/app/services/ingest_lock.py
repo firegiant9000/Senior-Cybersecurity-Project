@@ -122,3 +122,25 @@ async def release_lock(conn: AsyncConnection | AsyncSession, source: str) -> Non
     key = _lock_key(source)
     await conn.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": key})
     await conn.commit()
+
+
+async def release_or_invalidate(lock_conn: AsyncConnection, source: str) -> None:
+    """Release the advisory lock on its own connection, or kill that connection.
+
+    The lock is bound to this physical connection, and a pooled connection is
+    only ROLLBACKed on return, which does not release advisory locks.  If the
+    unlock fails, invalidate so the connection is closed (releasing the lock)
+    instead of being returned to the pool still locked.
+    """
+    try:
+        await release_lock(lock_conn, source)
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "release_lock failed — invalidating lock connection to free the lock",
+            extra={"source": source},
+            exc_info=True,
+        )
+        try:
+            await lock_conn.invalidate()
+        except Exception:  # noqa: BLE001
+            logger.exception("Could not invalidate lock connection", extra={"source": source})

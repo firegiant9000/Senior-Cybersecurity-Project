@@ -11,6 +11,7 @@ from app.services.ingest_lock import (
     _lock_key,
     expire_stale_runs,
     release_lock,
+    release_or_invalidate,
     try_acquire_lock,
 )
 
@@ -63,6 +64,30 @@ async def test_release_lock_calls_unlock():
     await release_lock(session, "nvd")
     session.execute.assert_called_once()
     session.commit.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_release_or_invalidate_releases_without_invalidating():
+    conn = AsyncMock()
+    await release_or_invalidate(conn, "nvd")
+    conn.execute.assert_awaited_once()
+    conn.invalidate.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_release_or_invalidate_invalidates_when_release_fails():
+    conn = AsyncMock()
+    conn.execute.side_effect = RuntimeError("conn gone")
+    await release_or_invalidate(conn, "nvd")
+    conn.invalidate.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_release_or_invalidate_swallows_invalidate_failure():
+    conn = AsyncMock()
+    conn.execute.side_effect = RuntimeError("conn gone")
+    conn.invalidate.side_effect = RuntimeError("still gone")
+    await release_or_invalidate(conn, "nvd")
 
 
 # ── expire_stale_runs ──────────────────────────────────────────────────────────

@@ -10,7 +10,7 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.dependencies import require_role
@@ -213,7 +213,7 @@ async def _run_ingestion(
     session's commits hand its connection back to the pool and must not be
     used for the lock.
     """
-    from app.services.ingest_lock import expire_stale_runs, try_acquire_lock
+    from app.services.ingest_lock import expire_stale_runs, release_or_invalidate, try_acquire_lock
 
     async with engine.connect() as lock_conn, AsyncSessionLocal() as db:
         # Clean up any runs that timed out without updating their status.
@@ -292,31 +292,7 @@ async def _run_ingestion(
             _schedule_retry(source, trigger, retry_count)
 
         finally:
-            await _release_or_invalidate(lock_conn, source)
-
-
-async def _release_or_invalidate(lock_conn: AsyncConnection, source: str) -> None:
-    """Release the advisory lock on its own connection, or kill that connection.
-
-    The lock is bound to this physical connection, and a pooled connection is
-    only ROLLBACKed on return, which does not release advisory locks.  If the
-    unlock fails, invalidate so the connection is closed (releasing the lock)
-    instead of being returned to the pool still locked.
-    """
-    from app.services.ingest_lock import release_lock
-
-    try:
-        await release_lock(lock_conn, source)
-    except Exception:  # noqa: BLE001
-        logger.warning(
-            "release_lock failed — invalidating lock connection to free the lock",
-            extra={"source": source},
-            exc_info=True,
-        )
-        try:
-            await lock_conn.invalidate()
-        except Exception:  # noqa: BLE001
-            logger.exception("Could not invalidate lock connection", extra={"source": source})
+            await release_or_invalidate(lock_conn, source)
 
 
 def _compute_consecutive_failures(runs: list[IngestRun]) -> int:
