@@ -283,7 +283,7 @@ Threat-model rows: T-PLAT-06, T-ENR-04, T-UPL-09, T-TOK-07, T-TOK-08, T-AUTH-04,
 
 **Evidence produced.** The suite, the classification table, a CI run showing the route count.
 
-**Resume potential.** "Built a route-enumerating authorization suite over 128 API endpoints that fails CI on any unclassified route and verifies cross-tenant isolation with real token verification; found and fixed 20 mis-scoped or unclassified routes and added security headers and an upload body limit."
+**Resume potential.** "Built a route-enumerating authorization suite over 129 API endpoints that fails CI on any unclassified route and verifies cross-tenant isolation with real token verification; found and fixed 20 mis-scoped or unclassified routes and added security headers and an upload body limit."
 
 **Interview questions.**
 - How does the suite guarantee a new route cannot ship unclassified?
