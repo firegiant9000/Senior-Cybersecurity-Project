@@ -193,15 +193,67 @@ class SqlOrgInviteRepository:
         owners = sum(1 for m in rows if m.role == "owner")
         return target, owners, caller
 
-    async def update_member_role(self, membership: Membership, new_role: str) -> Membership:
+    async def update_member_role(
+        self, membership: Membership, new_role: str, user: User | None = None
+    ) -> Membership:
+        """Change the membership role and mirror it to the legacy role, in ONE commit.
+
+        The legacy role is only written when the user's legacy org is this org. If the commit
+        fails, neither store changes.
+        """
         membership.role = new_role
+        if user is not None and user.org_id == membership.org_id:
+            user.org_role = new_role
+            self._session.add(user)
         await self._session.commit()
         await self._session.refresh(membership)
         return membership
 
-    async def remove_member(self, membership: Membership) -> None:
+    async def remove_member(self, membership: Membership, user: User | None) -> None:
+        """Deactivate the membership, detach the user's legacy org and revoke the user's pending
+        invites for this org, in ONE commit.
+
+        The legacy fields are only cleared when they point at this org (a user whose legacy org
+        is another one keeps it). If the commit fails, no store changes.
+        """
+        # Statements first: they autoflush, and the object changes should stay pending until
+        # the single commit.
+        await self._revoke_pending_invites(membership.org_id, membership.user_id, user)
         membership.status = "inactive"
+        self._clear_legacy_org(user, membership.org_id)
         await self._session.commit()
+
+    async def detach_legacy_member(self, user: User, org_id: int) -> None:
+        """Remove a user whose access comes only from the legacy fields (no membership row)."""
+        await self._revoke_pending_invites(org_id, user.id, user)
+        self._clear_legacy_org(user, org_id)
+        await self._session.commit()
+
+    async def _revoke_pending_invites(self, org_id: int, user_id: int, user: User | None) -> None:
+        """Revoke pending invites to the user's address and ones the user created (no commit)."""
+        match = [Invitation.inviter_id == user_id]
+        if user is not None and user.email:
+            match.append(func.lower(Invitation.email) == user.email.lower())
+        await self._session.execute(
+            update(Invitation)
+            .where(Invitation.org_id == org_id, Invitation.status == "pending", or_(*match))
+            .values(status="revoked")
+        )
+
+    def _clear_legacy_org(self, user: User | None, org_id: int) -> None:
+        if user is not None and user.org_id == org_id:
+            user.org_id = None
+            user.org_role = None
+            self._session.add(user)
+
+    async def has_membership_row(self, user_id: int, org_id: int) -> bool:
+        """True if a membership row of any status exists for (user, org)."""
+        result = await self._session.execute(
+            select(func.count(Membership.id)).where(
+                Membership.user_id == user_id, Membership.org_id == org_id
+            )
+        )
+        return int(result.scalar_one()) > 0
 
     async def count_active_owners(self, org_id: int) -> int:
         result = await self._session.execute(
