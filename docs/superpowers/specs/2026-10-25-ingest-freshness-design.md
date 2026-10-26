@@ -41,7 +41,13 @@ Facts gathered from the public endpoints and the repo; nothing here needed the R
    facts: `SCHEDULER_ENABLED=false` set in the Render environment, or the service is on Render's
    free plan and spins down after 15 idle minutes (the pilot has been "idle since June" per the
    Obsidian index), so the in-process APScheduler is not alive at 02:00 UTC. A cold-start
-   latency probe is in progress to test the second theory.
+   probe (2026-10-25, 18 idle minutes, then `/health` in 0.38 s) found no spin-down, so the
+   sleep theory is unlikely unless other traffic kept it warm. The leading explanation is now a
+   dashboard `SCHEDULER_ENABLED=false` override, or the live build failing to register jobs at
+   startup (visible in the Render log as `SCHEDULER_ENABLED=false — skipping scheduler init`
+   or the absence of `Scheduled ingest job registered:`). Either way, 1b and 1c still apply:
+   catch-up covers restarts and deploy timing, and the daily check (1d) catches a disabled
+   scheduler within a day.
 
 4. **Consequence for #170.** Adding `INGEST_SCHEDULE_NVD/KEV` to `render.yaml` only helps if
    (a) the service is blueprint-synced so the env change applies, (b) a deploy actually lands,
