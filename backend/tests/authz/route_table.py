@@ -25,6 +25,9 @@ Classes:
   comes from: the request path/query ("path"), the caller's own org ("caller"), a looked-up
   resource ("resource") or the request body ("body"). `min_role` is the org role enforced today
   ("org:member" = membership only); None where no membership is enforced at all.
+  `tests/authz/tenancy/` proves the org/tenancy check of these routes, not `check_table`.
+  Role floors (`min_role`) are not proven by the tenancy suite; the role-matrix tests arrive in
+  stage C (#228).
 - agent: authenticated by agent bearer token only.
 - administrator: requires the global admin role.
 """
@@ -331,8 +334,8 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
             RouteSpec(
                 "organization-scoped",
                 min_role=None,
-                org_from="body",
-                note="T-TEN-10: body.org_id is not bound to the caller; write-only",
+                org_from="caller",
+                note="T-TEN-10 fixed: org bound to the caller; a differing body org is refused",
             ),
         ),
         # --- domains -----------------------------------------------------------------

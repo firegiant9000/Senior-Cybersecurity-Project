@@ -159,7 +159,7 @@ flowchart LR
 ## Security design
 
 - **Threat model.** [docs/security/threat_model.md](docs/security/threat_model.md)
-  is a STRIDE model of 110 threats (39 controlled, 24 tested, 18 accepted, 29
+  is a STRIDE model of 113 threats (39 controlled, 26 tested, 18 accepted, 30
   open and scheduled for S4/S5 or owner action). CI checks that every row has
   one classification and that its evidence exists.
 - **Authentication.** Users sign in through Firebase Authentication. The API
@@ -173,9 +173,10 @@ flowchart LR
   caller's organization, either from the path via `check_org_access` or from the
   caller's own row via `get_current_org`, and repositories filter by it. Global
   admins can read, change, export and delete any organization by design; this
-  is an operator role granted only by a database change (T-TEN-08). This is enforced by convention
-  in each handler, not by a route-enumerating test yet; that suite is roadmap
-  milestone S4. Demo organizations are flagged
+  is an operator role granted only by a database change (T-TEN-08). This is enforced per
+  handler and verified by the route-enumerating cross-tenant suite in
+  `backend/tests/authz/tenancy/` (every organization-scoped route has a case);
+  the rest of roadmap milestone S4 is still in progress. Demo organizations are flagged
   and segregated. Data lifecycle endpoints allow per-org export and deletion,
   and a retention job prunes old scan runs and audit rows per org.
 - **Agent tokens and replay protection.** Described above; the enrollment,
