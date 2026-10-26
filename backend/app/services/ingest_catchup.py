@@ -11,7 +11,7 @@ catches a run killed by a deploy or crash shortly after its slot, which a
 "older than N hours" threshold would miss for most of a day. A source attempted
 within its guard is never re-run, so a crash-looping process cannot hammer an
 upstream API. The guard is ``RECENT_ATTEMPT_GUARD`` (1 h) doubled per
-consecutive failed run since the last success, capped at ``MAX_ATTEMPT_GUARD``
+consecutive failed attempt since the last success (a retry chain counts once), capped at ``MAX_ATTEMPT_GUARD``
 (24 h). A source whose latest run is still ``running`` and younger than
 ``INGEST_LOCK_TIMEOUT_SECONDS`` is skipped, so a live run is never expired.
 Catch-up attempts do not schedule ``_run_ingestion`` retries; the next catch-up
@@ -71,7 +71,8 @@ class SourceState:
     has_rows: bool | None  # None: no seed table for this source
     last_success_at: datetime.datetime | None
     last_attempt_at: datetime.datetime | None
-    # Failed runs since the last completed run (0 when none); drives the backoff.
+    # Failed attempts (retry chain counted once) since the last completed run;
+    # drives the backoff.
     consecutive_failures: int = 0
     # Status and start time of the most recent run, to spot one still in progress.
     latest_status: str | None = None
@@ -185,24 +186,34 @@ async def load_source_states(
     sources: Iterable[str] = CATCHUP_ORDER,
 ) -> list[SourceState]:
     """Read run history (last success/attempt, consecutive failures, latest run)
-    and table emptiness for the given sources."""
+    and table emptiness for the given sources.
+
+    The run-history queries are restricted to ``sources``. Consecutive failures
+    count failed attempts, not rows: only chain heads (``retry_count == 0``), since
+    one scheduled firing writes up to ``INGEST_MAX_RETRIES + 1`` failed rows.
+    """
+    sources = list(sources)
     success_rows = await db.execute(
         select(IngestRun.source, func.max(IngestRun.finished_at))
         .where(IngestRun.status == "completed")
+        .where(IngestRun.source.in_(sources))
         .group_by(IngestRun.source)
     )
     last_success = dict(success_rows.all())
 
     attempt_rows = await db.execute(
-        select(IngestRun.source, func.max(IngestRun.started_at)).group_by(IngestRun.source)
+        select(IngestRun.source, func.max(IngestRun.started_at))
+        .where(IngestRun.source.in_(sources))
+        .group_by(IngestRun.source)
     )
     last_attempt = dict(attempt_rows.all())
 
-    # Failed runs started after the source's last completed run (all of them when
-    # it never completed): the exponent of the retry backoff.
+    # Failed attempts started after the source's last completed run (all of them
+    # when it never completed): the exponent of the retry backoff.
     last_completed = (
         select(IngestRun.source, func.max(IngestRun.started_at).label("started_at"))
         .where(IngestRun.status == "completed")
+        .where(IngestRun.source.in_(sources))
         .group_by(IngestRun.source)
         .subquery()
     )
@@ -211,6 +222,8 @@ async def load_source_states(
         .select_from(IngestRun)
         .outerjoin(last_completed, last_completed.c.source == IngestRun.source)
         .where(IngestRun.status == "failed")
+        .where(IngestRun.retry_count == 0)
+        .where(IngestRun.source.in_(sources))
         .where(
             or_(
                 last_completed.c.started_at.is_(None),
@@ -223,6 +236,7 @@ async def load_source_states(
 
     latest_rows = await db.execute(
         select(IngestRun.source, IngestRun.status, IngestRun.started_at)
+        .where(IngestRun.source.in_(sources))
         .distinct(IngestRun.source)
         .order_by(IngestRun.source, IngestRun.started_at.desc())
     )
@@ -272,18 +286,19 @@ async def run_sequential_ingest(sources: list[str], *, trigger: str, recheck: bo
     if it is no longer due, since earlier sources can take a long time and the
     scheduler (or another instance) may have run it meanwhile. FORCE_SEED passes
     ``recheck=False`` to force every source and keeps ``_run_ingestion``'s retry
-    chain. Re-checked catch-up runs (``startup``/``catchup``) pass the maximum
-    retry count so no retry is scheduled: the next catch-up, under the failure
-    backoff, is the retry.
+    chain. Re-checked catch-up runs (``startup``/``catchup``) pass
+    ``schedule_retry=False``: the run is recorded as a first attempt
+    (``retry_count`` 0) and no retry is scheduled, since the next catch-up, under
+    the failure backoff, is the retry.
 
     Errors from the re-check or the ingestion are logged and the sequence
     continues with the next source.
     """
     from app.api.routes.v1.ingest import _run_ingestion
 
-    kwargs: dict[str, str | int] = {"trigger": trigger}
+    kwargs: dict[str, str | bool] = {"trigger": trigger}
     if recheck and trigger in _CATCHUP_TRIGGERS:
-        kwargs["retry_count"] = settings.INGEST_MAX_RETRIES
+        kwargs["schedule_retry"] = False
 
     for src in sources:
         try:

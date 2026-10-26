@@ -245,6 +245,36 @@ async def test_run_ingestion_failure_exhausted_retries_does_not_schedule():
 
 
 @pytest.mark.asyncio
+async def test_run_ingestion_schedule_retry_false_schedules_nothing(caplog):
+    """Catch-up passes schedule_retry=False: the row keeps retry_count 0 and no
+    retry task or "exhausted retries" error appears."""
+    fake_session = _FakeAsyncSession()
+    with (
+        patch(
+            "app.api.routes.v1.ingest.AsyncSessionLocal", return_value=_FakeSessionCtx(fake_session)
+        ),
+        patch("app.api.routes.v1.ingest.engine", new=_FakeEngine()),
+        patch("app.services.ingest_lock.expire_stale_runs", new=AsyncMock()),
+        patch("app.services.ingest_lock.try_acquire_lock", new=AsyncMock(return_value=True)),
+        patch("app.services.ingest_lock.release_lock", new=AsyncMock()),
+        patch(
+            "app.api.routes.v1.ingest._dispatch_ingestor",
+            new=AsyncMock(side_effect=RuntimeError("source unreachable")),
+        ),
+        patch("app.api.routes.v1.ingest.asyncio.create_task") as create_task,
+        caplog.at_level("INFO", logger="app.api.routes.v1.ingest"),
+    ):
+        await _run_ingestion("nvd", trigger="catchup", schedule_retry=False)
+
+    run_obj = fake_session.add.call_args.args[0]
+    assert run_obj.status == "failed"
+    assert run_obj.retry_count == 0
+    create_task.assert_not_called()
+    assert not any("exhausted retries" in r.getMessage() for r in caplog.records)
+    assert any("does not retry" in r.getMessage() and r.levelname == "INFO" for r in caplog.records)
+
+
+@pytest.mark.asyncio
 async def test_run_ingestion_releases_lock_on_lock_conn_and_invalidates_on_failure():
     fake_session = _FakeAsyncSession()
     fake_engine = _FakeEngine()

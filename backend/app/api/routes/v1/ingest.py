@@ -206,8 +206,14 @@ async def _run_ingestion(
     source: str,
     trigger: str = "manual",
     retry_count: int = 0,
+    *,
+    schedule_retry: bool = True,
 ) -> None:
     """Run an ingestion job and record the result in ingest_runs.
+
+    ``schedule_retry=False`` (catch-up) records a failure without scheduling the
+    retry chain; ``retry_count`` stays the attempt number (0 for a first attempt)
+    so ``/freshness`` and ``/runs`` show only retries that happened.
 
     Acquires a PostgreSQL advisory lock before running so that concurrent
     calls for the same source are safely skipped rather than racing.  The
@@ -235,7 +241,9 @@ async def _run_ingestion(
         try:
             acquired = await try_acquire_lock(lock_conn, source)
             if acquired:
-                await _run_locked(db, lock_conn, source, trigger, retry_count)
+                await _run_locked(
+                    db, lock_conn, source, trigger, retry_count, schedule_retry=schedule_retry
+                )
         finally:
             await lock_conn.close()
 
@@ -275,6 +283,8 @@ async def _run_locked(
     source: str,
     trigger: str,
     retry_count: int,
+    *,
+    schedule_retry: bool = True,
 ) -> None:
     """Run one ingestion while holding the advisory lock on *lock_conn*.
 
@@ -282,7 +292,8 @@ async def _run_locked(
     ``finally`` releases it, so no failure (run-row commit, scheduler lookup,
     rollback/re-fetch) can return the connection to the pool still locked.
     Once the running row exists, a failure before or during the ingestor marks
-    it failed and follows the same retry rule.
+    it failed and follows the same retry rule: ``_schedule_retry``, unless
+    ``schedule_retry`` is False (catch-up), which only logs.
     """
     from app.services.ingest_lock import release_or_invalidate
 
@@ -340,7 +351,13 @@ async def _run_locked(
                     "retry_count": retry_count,
                 },
             )
-            _schedule_retry(source, trigger, retry_count)
+            if schedule_retry:
+                _schedule_retry(source, trigger, retry_count)
+            else:
+                logger.info(
+                    "Catch-up does not retry a failed run; the next catch-up is the retry",
+                    extra={"source": source, "trigger": trigger},
+                )
     finally:
         await release_or_invalidate(lock_conn, source)
 

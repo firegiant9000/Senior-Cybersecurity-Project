@@ -302,6 +302,94 @@ async def test_load_source_states_counts_consecutive_failures_and_latest_row():
             await db.commit()
 
 
+@pytest.mark.asyncio
+async def test_failed_retry_chain_counts_as_one_attempt():
+    now = datetime.utcnow().replace(microsecond=0)
+
+    def run(hours_ago, status, retry_count=0):
+        started = now - timedelta(hours=hours_ago)
+        return IngestRun(
+            id=uuid4(),
+            source="epss",
+            started_at=started,
+            finished_at=started + timedelta(seconds=30),
+            status=status,
+            retry_count=retry_count,
+        )
+
+    rows = [
+        run(9, "failed"),  # before the last success: not counted
+        run(8, "completed"),
+        # One scheduled firing: the chain head plus its two retries.
+        run(3, "failed", 0),
+        run(2.99, "failed", 1),
+        run(2.98, "failed", 2),
+    ]
+    run_ids = [r.id for r in rows]
+    async with AsyncSessionLocal() as db:
+        try:
+            db.add_all(rows)
+            await db.commit()
+            states = await load_source_states(db, {}, ["epss"])
+            assert states[0].consecutive_failures == 1
+        finally:
+            await db.rollback()
+            await db.execute(delete(IngestRun).where(IngestRun.id.in_(run_ids)))
+            await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_load_source_states_only_reads_requested_sources():
+    now = datetime.utcnow().replace(microsecond=0)
+
+    def run(source, hours_ago, status):
+        started = now - timedelta(hours=hours_ago)
+        return IngestRun(
+            id=uuid4(),
+            source=source,
+            started_at=started,
+            finished_at=started + timedelta(minutes=1),
+            status=status,
+        )
+
+    rows = [
+        run("epss", 5, "completed"),
+        run("epss", 2, "failed"),
+        run("economics", 4, "completed"),
+        run("economics", 1, "failed"),
+    ]
+    run_ids = [r.id for r in rows]
+    async with AsyncSessionLocal() as db:
+        try:
+            db.add_all(rows)
+            await db.commit()
+            statements: list[str] = []
+            real_execute = db.execute
+
+            async def spy(stmt, *args, **kwargs):
+                statements.append(str(stmt))
+                return await real_execute(stmt, *args, **kwargs)
+
+            db.execute = spy  # type: ignore[method-assign]
+            try:
+                states = await load_source_states(db, {}, ["epss"])
+            finally:
+                db.execute = real_execute  # type: ignore[method-assign]
+            # Every run-history query is restricted to the requested sources.
+            assert len(statements) == 4
+            assert all("ingest_runs.source IN" in s for s in statements)
+            assert [s.source for s in states] == ["epss"]
+            assert states[0].last_success_at == now - timedelta(hours=5) + timedelta(minutes=1)
+            assert states[0].last_attempt_at == now - timedelta(hours=2)
+            assert states[0].consecutive_failures == 1
+            assert states[0].latest_status == "failed"
+            assert states[0].latest_started_at == now - timedelta(hours=2)
+        finally:
+            await db.rollback()
+            await db.execute(delete(IngestRun).where(IngestRun.id.in_(run_ids)))
+            await db.commit()
+
+
 class _DummySession:
     async def __aenter__(self):
         return object()
@@ -403,10 +491,7 @@ async def test_recheck_skips_source_that_became_fresh(no_db, monkeypatch):
     assert selected == ["nvd", "epss"]
     assert calls == [list(catchup.CATCHUP_ORDER), ["nvd"], ["epss"]]
     assert [c.args[0] for c in run.await_args_list] == ["nvd"]
-    assert run.await_args_list[0].kwargs == {
-        "trigger": "catchup",
-        "retry_count": settings.INGEST_MAX_RETRIES,
-    }
+    assert run.await_args_list[0].kwargs == {"trigger": "catchup", "schedule_retry": False}
 
 
 async def test_recheck_skips_source_started_within_guard(no_db, monkeypatch):
@@ -435,13 +520,13 @@ async def test_run_sequential_ingest_uses_trigger_and_continues(monkeypatch):
 @pytest.mark.parametrize("trigger", ["startup", "catchup"])
 async def test_catchup_runs_do_not_schedule_retries(no_db, monkeypatch, trigger):
     _fake_loader(monkeypatch, lambda i, s: [_s(src, success_h=30) for src in s])
-    monkeypatch.setattr(catchup.settings, "INGEST_MAX_RETRIES", 3)
     run = AsyncMock()
     monkeypatch.setattr(ingest_routes, "_run_ingestion", run)
 
     await run_sequential_ingest(["nvd"], trigger=trigger, recheck=True)
 
-    assert run.await_args_list[0].kwargs == {"trigger": trigger, "retry_count": 3}
+    # retry_count stays at its default (0): the row must not claim a retry happened.
+    assert run.await_args_list[0].kwargs == {"trigger": trigger, "schedule_retry": False}
 
 
 async def test_force_seed_keeps_retry_chain(monkeypatch):
@@ -514,6 +599,56 @@ async def test_run_sequential_ingest_without_recheck_forces_all(monkeypatch):
 
     assert [c.args[0] for c in run.await_args_list] == ["nvd", "cisa_kev", "ic3"]
     still_due.assert_not_awaited()
+
+
+async def test_run_catchup_releases_lock_when_state_load_raises(no_db, monkeypatch):
+    async def boom(db, triggers, sources=catchup.CATCHUP_ORDER):
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(catchup, "load_source_states", boom)
+
+    with pytest.raises(RuntimeError, match="db down"):
+        await run_catchup("catchup")
+
+    assert not catchup._catchup_lock.locked()
+    # The next sweep is not blocked by the failed one.
+    _fake_loader(monkeypatch, lambda i, s: [_s("nvd", success_h=1)])
+    assert await run_catchup("catchup") == []
+
+
+async def test_run_catchup_releases_lock_when_sequence_raises(no_db, monkeypatch):
+    _fake_loader(monkeypatch, lambda i, s: [_s("nvd", success_h=30)])
+    monkeypatch.setattr(catchup, "run_sequential_ingest", AsyncMock(side_effect=RuntimeError("x")))
+
+    with pytest.raises(RuntimeError):
+        await run_catchup("catchup")
+
+    assert not catchup._catchup_lock.locked()
+
+
+async def test_run_forced_seed_releases_lock_when_it_raises(monkeypatch):
+    monkeypatch.setattr(catchup, "run_sequential_ingest", AsyncMock(side_effect=RuntimeError("x")))
+
+    with pytest.raises(RuntimeError):
+        await catchup.run_forced_seed(["nvd"])
+
+    assert not catchup._catchup_lock.locked()
+
+
+async def test_log_startup_failure_tolerates_cancelled_task(caplog):
+    async def forever():
+        await asyncio.sleep(3600)
+
+    task = asyncio.create_task(forever())
+    await asyncio.sleep(0)
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+    assert task.cancelled()
+
+    with caplog.at_level("ERROR", logger="app.main"):
+        app_main._log_startup_failure(task)
+
+    assert not [r for r in caplog.records if r.levelname == "ERROR"]
 
 
 @pytest.fixture
