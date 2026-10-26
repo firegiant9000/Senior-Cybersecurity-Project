@@ -201,6 +201,12 @@ def _patch_states(monkeypatch, build):
     monkeypatch.setattr(app_main, "load_source_states", fake)
     monkeypatch.setattr(app_main, "scheduled_sources", lambda: dict.fromkeys(THRESHOLDS, True))
     monkeypatch.setattr(app_main, "stale_thresholds", lambda: THRESHOLDS)
+    # States are built relative to the fixed NOW, so judge them at NOW, not the wall clock.
+    monkeypatch.setattr(
+        app_main,
+        "select_sources",
+        lambda states, thresholds, _now: select_sources(states, thresholds, NOW),
+    )
     return seen
 
 
