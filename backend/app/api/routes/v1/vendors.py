@@ -27,6 +27,7 @@ from app.schemas.org_vendor import (
     OrgVendorRead,
     OrgVendorUpdate,
 )
+from app.services.file_upload import ensure_upload_size
 
 logger = logging.getLogger(__name__)
 
@@ -328,6 +329,7 @@ async def preview_vendor_csv(
     ):
         raise HTTPException(status_code=400, detail="File must be a CSV")
 
+    ensure_upload_size(file)
     try:
         raw = await file.read()
         text = raw.decode("utf-8-sig")
@@ -376,6 +378,7 @@ async def import_vendors_csv(
     ):
         raise HTTPException(status_code=400, detail="File must be a CSV")
 
+    ensure_upload_size(file)
     try:
         raw = await file.read()
         text = raw.decode("utf-8-sig")  # handles BOM

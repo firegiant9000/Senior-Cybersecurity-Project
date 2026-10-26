@@ -48,6 +48,20 @@ def generate_stored_name(original: str) -> str:
     return f"{uuid.uuid4().hex}_{sanitize_filename(original)}"
 
 
+def _too_large() -> HTTPException:
+    max_mb = settings.MAX_UPLOAD_SIZE_BYTES / (1024 * 1024)
+    return HTTPException(status_code=413, detail=f"File exceeds maximum size of {max_mb:.0f} MB")
+
+
+def ensure_upload_size(file: UploadFile) -> None:
+    """Refuse an oversize file from the size Starlette recorded while spooling the part.
+
+    Reads no content. ``size`` can be None, so callers keep a post-read length check too.
+    """
+    if file.size is not None and file.size > settings.MAX_UPLOAD_SIZE_BYTES:
+        raise _too_large()
+
+
 async def save_upload(
     org_id: int,
     file: UploadFile,
@@ -65,14 +79,11 @@ async def save_upload(
             f"Accepted: {', '.join(settings.ALLOWED_UPLOAD_TYPES)}",
         )
 
-    # Read and check size
+    # Check the recorded size before reading, then again after (size can be None).
+    ensure_upload_size(file)
     content = await file.read()
     if len(content) > settings.MAX_UPLOAD_SIZE_BYTES:
-        max_mb = settings.MAX_UPLOAD_SIZE_BYTES / (1024 * 1024)
-        raise HTTPException(
-            status_code=413,
-            detail=f"File exceeds maximum size of {max_mb:.0f} MB",
-        )
+        raise _too_large()
 
     # Verify file content matches the declared content type.
     if not _content_matches_type(content, file.content_type):

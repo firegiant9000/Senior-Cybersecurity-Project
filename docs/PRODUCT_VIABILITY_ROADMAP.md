@@ -260,27 +260,30 @@ Settings the owner applies; none is a code change. Rows from the S3 threat model
 - T-CI-04: `persist-credentials: false` on the remaining checkouts.
 - T-CI-05: required Security, CodeQL and Secret-scan checks, required approvals, and Dependabot security updates.
 
-#### S4. Authorization assurance
+#### S4. Authorization assurance — DONE 2026-10-24 (PRs #226–#230)
+
+Delivered: a route-enumerating authorization suite over 129 routes, all classified (public 11, authenticated-global 29, organization-scoped 77, agent 2, administrator 10), with real token verification instead of the auth mock; a cross-tenant sweep over the 76 organization-scoped routes; and 20 routes whose authorization changed (`[K]`). All 14 S4 threat-model rows are TEST. Stage E added the platform work: security headers on the API and the SPA, request-body limits with the agent upload authenticated before its body is read, a `/health` that checks the database, an HTTPS-only agent, and egress regression tests. T-UPL-09 reaches operators only with the next agent release.
 
 Work: a **route-enumerating authorization suite**. A test walks the FastAPI router, requires every route to appear in a classification table (`public`, `authenticated-global`, `organization-scoped`, `agent`, `administrator`), and fails CI on any unclassified route. For organization-scoped routes it issues requests as a member of org B against org A's resources and expects 403 or 404 (never 200, never 500). It also tests member vs admin on admin-only routes, a revoked agent token, an expired rotated token past its grace, a replayed upload, and the public endpoint boundary. These tests use **real token verification**: Firebase emulator or a locally signed test key with the real verification code path, not the autouse mock. Add security headers middleware (and a `headers` block in `firebase.json`), a body-size limit on the agent upload route, and a `/health` that checks the database.
 
 Threat-model rows: T-PLAT-06, T-ENR-04, T-UPL-09, T-TOK-07, T-TOK-08, T-AUTH-04, T-AUTH-07, T-TEN-05, T-TEN-07, T-TEN-10, T-TEN-12, T-DOM-09, T-PLAT-01, T-PLAT-09. The suite, headers and `/health` above cover T-AUTH-07, T-TEN-12, T-TOK-07, T-PLAT-01 and T-PLAT-09. The rest need their own fixes:
-- A body-size limit on the agent upload route, applied app-wide with a pre-read check on file uploads (T-PLAT-06).
-- Revoked agent token: rotate only active rows; never move `revoked_at` later (T-ENR-04), and revoking an agent covers its rotation chain (T-TOK-08).
-- Require `email_verified` on account auto-create and on invite acceptance (T-AUTH-04).
-- Org-role checks on the destructive routes that only check membership (T-TEN-05).
-- Decide and enforce owner-only admin grants (T-TEN-07).
-- Close the gap where the analytics event route doesn't bind events to the caller's org (T-TEN-10).
-- HTTPS-only check on the agent's `--server` URL, with HSTS from the headers work (T-UPL-09).
-- Egress guard regression tests: pin the real HTTP client's `follow_redirects=False`, and test a redirect to a non-default port (T-DOM-09).
+- A body-size limit on the agent upload route, applied app-wide with a pre-read check on file uploads (T-PLAT-06) (done, S4-E).
+- Revoked agent token: rotate only active rows; never move `revoked_at` later (T-ENR-04), and revoking an agent covers its rotation chain (T-TOK-08) (done, S4-D).
+- Require `email_verified` on account auto-create and on invite acceptance (T-AUTH-04) (done, S4-C).
+- Org-role checks on the destructive routes that only check membership (T-TEN-05) (done, S4-C).
+- Decide and enforce owner-only admin grants (T-TEN-07) (done, S4-C).
+- Close the gap where the analytics event route doesn't bind events to the caller's org (T-TEN-10) (done, S4-B).
+- HTTPS-only check on the agent's `--server` URL, and no redirects (T-UPL-09) (done, S4-E). HSTS protects browsers only.
+- **Next agent release (with T-UPL-09):** a bounded retry that honours `Retry-After` on a 503 from the upload route. The backend now queues an upload up to 10 s for room and then answers 503, and today's agent does not retry, so an upload that loses the wait is lost until the next run (T-PLAT-06 residual).
+- Egress guard regression tests: pin the real HTTP client's `follow_redirects=False`, and test a redirect to a non-default port (T-DOM-09) (done, S4-E).
 
-**Progress.** Stage A (harness, real verification, route table: 128 routes: public 11, authenticated-global 29, organization-scoped 76, agent 2, administrator 10; 5 behind the M365 flag) — PR #226. Stage B (cross-tenant sweep over 76 organization-scoped routes; T-TEN-10 fixed) — PR #227. Stage C (role rules: owner-only admin management, org admin on 7 destructive routes, verified email for sign-up and invites) — PR #228. Stage D (agent-token lifecycle: end-to-end token tests on both agent routes, chain revocation, active-only rotation) — PR #229. S4 is not done.
+**Progress.** Stage A (harness, real verification, route table: 128 routes: public 11, authenticated-global 29, organization-scoped 76, agent 2, administrator 10; 5 behind the M365 flag) — PR #226. Stage B (cross-tenant sweep over 76 organization-scoped routes; T-TEN-10 fixed) — PR #227. Stage C (role rules: owner-only admin management, org admin on 7 destructive routes, verified email for sign-up and invites) — PR #228. Stage D (agent-token lifecycle: end-to-end token tests on both agent routes, chain revocation, active-only rotation) — PR #229. Stage E (platform hardening: API and SPA security headers, request-body limits, database-backed `/health`, HTTPS-only agent, egress regression tests) — this PR. S4 is done.
 
 **Acceptance.** Unclassified routes: 0. Cross-tenant leaks: 0. Routes returning 500 on a denied request: 0. The suite runs with the autouse auth mock disabled. The classification table is committed and counted.
 
 **Evidence produced.** The suite, the classification table, a CI run showing the route count.
 
-**Resume potential.** "Built a route-enumerating authorization suite over [N] API endpoints that fails CI on any unclassified route and verifies cross-tenant isolation with real token verification; found and fixed [K] mis-scoped or unclassified routes and added security headers and an upload body limit."
+**Resume potential.** "Built a route-enumerating authorization suite over 128 API endpoints that fails CI on any unclassified route and verifies cross-tenant isolation with real token verification; found and fixed 20 mis-scoped or unclassified routes and added security headers and an upload body limit."
 
 **Interview questions.**
 - How does the suite guarantee a new route cannot ship unclassified?
@@ -345,7 +348,7 @@ Ingest CycloneDX SBOMs produced by the author's other repositories (FairTix, Pla
 
 ### R5. Do not do (2026-09 revision)
 
-MSP management console, Windows or macOS agent, generic attack-surface platform, additional threat-intelligence feeds, M365 expansion, more economic-data correlation, arbitrary AI features, PDF or email reports, forecasting, SOC 2 scoping, customer interviews, Terraform, OpenTelemetry, load testing (except one optional test of the synchronous agent upload at the 50,000-item cap).
+MSP management console, Windows or macOS agent, generic attack-surface platform, additional threat-intelligence feeds, M365 expansion, more economic-data correlation, arbitrary AI features, PDF or email reports, forecasting, SOC 2 scoping, customer interviews, Terraform, OpenTelemetry, load testing (except one optional test of the synchronous agent upload at the 20,000-item software cap).
 
 ### R6. Non-goals (restated 2026-09-29)
 

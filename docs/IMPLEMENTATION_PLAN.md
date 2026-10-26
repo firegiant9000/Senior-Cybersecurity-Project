@@ -25,7 +25,7 @@ Add these in **GitHub repo > Settings > Secrets and variables > Actions:**
 - Set the backend start command to: `alembic -c app/db/alembic.ini upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000`
 
 ### Post-Deploy Health Check
-- ~~Uncomment the backend health check step~~ Already active (2026-09-29). It only checks for HTTP 200 against a static `/health`; S4 deepens `/health` to check the database.
+- ~~Uncomment the backend health check step~~ Already active (2026-09-29). It only checks for HTTP 200 against a static `/health`; S4 deepened `/health` to check the database (503 when unreachable).
 
 ---
 

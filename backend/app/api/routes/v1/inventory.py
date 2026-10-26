@@ -5,7 +5,9 @@ get a scan_run back. The same scan_run model is reused by the
 M365 spike (Phase E) and the future agent path.
 """
 
+import asyncio
 import logging
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
@@ -17,11 +19,14 @@ from fastapi import (
     Request,
     UploadFile,
 )
-from pydantic import BaseModel
+from fastapi.exceptions import RequestValidationError
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.requests import ClientDisconnect
 
 from app.api.routes.v1.auth import get_current_user
+from app.core.body_limit import REQUEST_TOO_LARGE
 from app.core.config import settings
 from app.core.dependencies import check_org_access, check_org_role, get_agent_from_token
 from app.core.limiter import agent_token_key, limiter
@@ -54,6 +59,7 @@ from app.schemas.scan_run import (
     ScanRunUpdate,
 )
 from app.services import agent_scan
+from app.services.file_upload import ensure_upload_size
 from app.services.inventory_import import (
     MAX_CSV_ROWS,
     commit_inventory,
@@ -176,6 +182,7 @@ async def _read_csv(file: UploadFile) -> str:
         "application/octet-stream",
     ):
         raise HTTPException(status_code=400, detail="File must be a CSV")
+    ensure_upload_size(file)
     raw = await file.read()
     try:
         return raw.decode("utf-8-sig")
@@ -440,11 +447,183 @@ async def _audit_agent(
     await session.flush()
 
 
-@router.post("/inventory/scans", response_model=ScanUploadAccepted, status_code=201)
+AGENT_UPLOAD_BUSY = "Agent upload busy; retry shortly"
+AGENT_UPLOAD_TIMEOUT = "Agent upload timed out"
+
+
+class _AgentUploadGate:
+    """Admission control for agent uploads in flight (T-PLAT-06), at every body size.
+
+    An upload is weighed by its declared Content-Length (MAX_AGENT_UPLOAD_BYTES when there is
+    none, e.g. a chunked body) and admitted while the process-wide byte
+    budget and its org's share both have room. Each enrollment has at most one in flight (a
+    duplicate is refused at once). Anything else waits up to AGENT_UPLOAD_WAIT_SECONDS for room,
+    then gets 503. One event loop, no locks: every check-and-reserve runs without an await, and
+    ``release`` is synchronous so it is safe in a ``finally`` even while being cancelled.
+    """
+
+    def __init__(self) -> None:
+        self.enrollments: set[int] = set()
+        self.total = 0
+        self.by_org: dict[int, int] = {}
+        self.waiters: list[asyncio.Future[None]] = []
+
+    def _fits(self, org_id: int, size: int) -> bool:
+        return (
+            self.total + size <= settings.AGENT_UPLOAD_BUDGET_BYTES
+            and self.by_org.get(org_id, 0) + size <= settings.AGENT_UPLOAD_ORG_BUDGET_BYTES
+        )
+
+    @staticmethod
+    def _busy() -> HTTPException:
+        return HTTPException(
+            status_code=503, detail=AGENT_UPLOAD_BUSY, headers={"Retry-After": "5"}
+        )
+
+    async def acquire(self, enrollment_id: int, org_id: int, size: int) -> None:
+        if enrollment_id in self.enrollments:
+            raise self._busy()
+        self.enrollments.add(enrollment_id)  # reserved while waiting, so a duplicate is immediate
+        try:
+            async with asyncio.timeout(settings.AGENT_UPLOAD_WAIT_SECONDS):
+                while not self._fits(org_id, size):
+                    waiter: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+                    self.waiters.append(waiter)
+                    try:
+                        await waiter
+                    finally:
+                        if waiter in self.waiters:
+                            self.waiters.remove(waiter)
+        except BaseException as exc:
+            self.enrollments.discard(enrollment_id)
+            if isinstance(exc, TimeoutError):
+                raise self._busy() from None
+            raise
+        self.total += size
+        self.by_org[org_id] = self.by_org.get(org_id, 0) + size
+
+    def release(self, enrollment_id: int, org_id: int, size: int) -> None:
+        self.enrollments.discard(enrollment_id)
+        self.total -= size
+        remaining = self.by_org.get(org_id, 0) - size
+        if remaining > 0:
+            self.by_org[org_id] = remaining
+        else:
+            self.by_org.pop(org_id, None)
+        for waiter in self.waiters:
+            if not waiter.done():
+                waiter.set_result(None)
+        self.waiters.clear()
+
+    def in_flight(self) -> int:
+        return len(self.enrollments) + self.total + len(self.by_org) + len(self.waiters)
+
+
+_gate = _AgentUploadGate()
+
+
+def _agent_gate() -> _AgentUploadGate:
+    return _gate
+
+
+def _reset_agent_upload_slots() -> None:
+    """Tests only: forget every reservation and waiter."""
+    global _gate  # noqa: PLW0603
+    _gate = _AgentUploadGate()
+
+
+def _agent_uploads_in_flight() -> int:
+    return _gate.in_flight()
+
+
+def _declared_length(request: Request) -> int | None:
+    """The declared Content-Length, or None when it is absent or invalid (e.g. chunked)."""
+    raw = request.headers.get("content-length", "")
+    if not (raw.isascii() and raw.isdigit()):
+        return None
+    return int(raw)
+
+
+async def agent_upload_slot(
+    request: Request,
+    enrollment: AgentEnrollment = Depends(get_agent_from_token),
+    session: AsyncSession = Depends(get_session),
+) -> AsyncGenerator[int | None, None]:
+    """Admit the upload by its declared length, or refuse without reading the body.
+
+    A body without a valid Content-Length (chunked) is weighed as a maximal upload
+    (``MAX_AGENT_UPLOAD_BYTES``); the body-limit middleware still caps the streamed bytes. The token check leaves the session's
+    transaction open (inside the last-used debounce nothing commits), which would pin a pooled
+    connection through the wait and the body read. End it first; ``expire_on_commit=False`` keeps
+    the loaded enrollment usable and the session starts a new transaction when the handler next
+    needs it. Yields the declared length, or None.
+    """
+    declared = _declared_length(request)
+    # Read these now: after a later rollback the enrollment is expired and touching it would
+    # reload it (IO) during teardown.
+    enrollment_id, org_id = enrollment.id, enrollment.org_id
+    await session.commit()
+    gate = _gate  # captured: a test reset may replace the global while we hold a reservation
+    weight = settings.MAX_AGENT_UPLOAD_BYTES if declared is None else declared
+    await gate.acquire(enrollment_id, org_id, weight)
+    try:
+        yield declared
+    finally:
+        gate.release(enrollment_id, org_id, weight)
+
+
+async def read_agent_payload(
+    request: Request,
+    declared: int | None = Depends(agent_upload_slot),
+) -> AgentScanPayload:
+    """Read and validate the scan body after the token check, under the slot and the deadline.
+
+    The slot depends on the token, so an unauthenticated request never takes a slot or has its
+    body read. The body is streamed into a local buffer rather than ``request.body()``, so it is
+    not cached on the Request and is freed once parsed; if it declared a length it may not outrun it.
+    """
+    buffer = bytearray()
+    try:
+        async with asyncio.timeout(settings.AGENT_UPLOAD_READ_TIMEOUT_SECONDS):
+            async for chunk in request.stream():
+                buffer.extend(chunk)
+                if declared is not None and len(buffer) > declared:
+                    raise HTTPException(status_code=413, detail=REQUEST_TOO_LARGE)
+    except TimeoutError:
+        raise HTTPException(status_code=408, detail=AGENT_UPLOAD_TIMEOUT) from None
+    except ClientDisconnect:
+        raise HTTPException(status_code=400, detail="Client disconnected") from None
+    try:
+        return AgentScanPayload.model_validate_json(buffer)
+    except ValidationError as exc:
+        errors = []
+        for err in exc.errors(include_url=False):
+            # `input` can be the whole parsed body (or list); never echo it back.
+            err.pop("input", None)
+            err["loc"] = ("body", *err["loc"])
+            errors.append(err)
+        raise RequestValidationError(errors) from exc
+
+
+@router.post(
+    "/inventory/scans",
+    response_model=ScanUploadAccepted,
+    status_code=201,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "description": (
+                "AgentScanPayload: see backend/app/schemas/agent_scan.py "
+                "and tests/fixtures/agent_scan_v1.json"
+            ),
+            "content": {"application/json": {}},
+        }
+    },
+)
 @limiter.limit(settings.RATE_LIMIT_AGENT_UPLOAD, key_func=agent_token_key)
 async def upload_agent_scan(
     request: Request,  # noqa: ARG001 — required by limiter
-    payload: AgentScanPayload,
+    payload: AgentScanPayload = Depends(read_agent_payload),
     enrollment: AgentEnrollment = Depends(get_agent_from_token),
     session: AsyncSession = Depends(get_session),
     scan_repo: SqlScanRunRepository = Depends(get_scan_run_repo),

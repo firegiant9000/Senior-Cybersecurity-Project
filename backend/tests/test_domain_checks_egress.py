@@ -281,6 +281,56 @@ async def test_each_redirect_hop_uses_a_fresh_connection(resolve, monkeypatch):
     assert len(clients) == 2
 
 
+async def test_real_http_client_does_not_follow_redirects():
+    async with dc._http_client() as client:
+        assert client.follow_redirects is False
+
+
+async def test_real_client_redirect_is_rechecked_not_followed(resolve, monkeypatch):
+    resolve["ok.example.com"] = [PUBLIC_V4]
+    resolve["internal.example.com"] = ["10.0.0.7"]
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(302, headers={"location": "http://internal.example.com/"})
+
+    real = httpx.AsyncClient
+
+    class _Recording(real):
+        def __init__(self, **kw):
+            kw["transport"] = httpx.MockTransport(handler)
+            super().__init__(**kw)
+
+    monkeypatch.setattr(dc.httpx, "AsyncClient", _Recording)
+
+    result = await dc.check_http_headers("ok.example.com")
+
+    assert len(requests) == 1
+    assert result.error == "internal.example.com does not resolve to a public address"
+    assert all(r.url.host == PUBLIC_V4 for r in requests)
+
+
+async def test_http_check_does_not_follow_a_redirect_to_a_non_default_port(resolve, http):
+    resolve["ok.example.com"] = [PUBLIC_V4]
+    resolve["www.example.com"] = ["1.1.1.1"]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.headers["host"] == "ok.example.com":
+            return httpx.Response(302, headers={"location": "https://www.example.com:8443/"})
+        return httpx.Response(200)
+
+    http["handler"] = handler
+
+    result = await dc.check_http_headers("ok.example.com")
+
+    assert len(http["requests"]) == 1
+    assert http["requests"][0].headers["host"] == "ok.example.com"
+    assert result.error == "redirect to a non-public destination"
+    assert all(r.headers["host"] != "www.example.com" for r in http["requests"])
+    assert all(r.url.port != 8443 for r in http["requests"])
+
+
 async def test_fetched_body_is_capped(resolve, http):
     resolve["big.example.com"] = [PUBLIC_V4]
     http["handler"] = lambda request: httpx.Response(200, content=b"a" * (dc._MAX_BODY_BYTES * 4))

@@ -8,17 +8,19 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy import func, select
 
 from app.api.routes import health, v1
+from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.config import settings
 from app.core.firebase import init_firebase
 from app.core.limiter import limiter
 from app.core.logging import setup_logging
 from app.core.observability import RequestContextMiddleware, init_sentry
+from app.core.security_headers import SecurityHeadersMiddleware, internal_error_response
 from app.db.engine import AsyncSessionLocal, init_db
 from app.db.models import CVE, KEV, IC3Incident
 from app.integrations.cve_org import aclose_http_client
@@ -179,6 +181,10 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # The body cap must be the INNERMOST middleware: add_middleware prepends, so it is added
+    # first. Outside the BaseHTTPMiddlewares below, its 413 would surface as an ExceptionGroup.
+    fastapi_app.add_middleware(BodySizeLimitMiddleware)
+
     # Request-correlation middleware must run before any handler that logs
     # or raises, so request_id is bound for the entire request lifecycle.
     fastapi_app.add_middleware(RequestContextMiddleware)
@@ -205,6 +211,23 @@ def create_app() -> FastAPI:
         allow_headers=allowed_headers,
         expose_headers=["Retry-After"],
     )
+
+    # Outermost (added last): errors, preflights and the 413 all carry the security headers.
+    docs_paths = frozenset(
+        p
+        for p in (
+            fastapi_app.docs_url,
+            fastapi_app.redoc_url,
+            fastapi_app.swagger_ui_oauth2_redirect_url,
+        )
+        if p
+    )
+    fastapi_app.add_middleware(SecurityHeadersMiddleware, docs_paths=docs_paths)
+
+    def _internal_error(request: Request, exc: Exception) -> PlainTextResponse:  # noqa: ARG001
+        return internal_error_response(request, docs_paths)
+
+    fastapi_app.add_exception_handler(Exception, _internal_error)
 
     # Include routers
     fastapi_app.include_router(health.router)
