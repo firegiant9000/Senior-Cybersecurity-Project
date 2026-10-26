@@ -32,7 +32,7 @@ Defaults live in `backend/app/core/config.py`. `INGEST_SCHEDULE_*` overrides a s
 
 ## Startup catch-up
 
-On process start (`INGEST_CATCHUP_ON_STARTUP`, default on), every stale scheduled source is re-run. A source attempted within the last 1 hour (success or failure) is skipped, so restart loops do not hammer upstreams.
+On process start (`INGEST_CATCHUP_ON_STARTUP`, default on), every stale scheduled source is re-run, and any source with an empty table (including static IC3) is seeded. A source attempted within the last 1 hour (success or failure) is skipped, so restart loops do not hammer upstreams.
 
 ## Triggering by hand
 
@@ -49,5 +49,5 @@ On process start (`INGEST_CATCHUP_ON_STARTUP`, default on), every stale schedule
 1. `/health` `git_commit` vs `main`: is the fix actually deployed?
 2. Render deploy log: did `preDeployCommand` (migrations) fail and block the deploy?
 3. Render dashboard: is a `SCHEDULER_ENABLED=false` override set? (`/health` shows `scheduler_enabled: false`.)
-4. Runs table (`GET /api/v1/ingest/runs`, or Pipeline Health): check `consecutive_failures` and `error_message` for the stale source, fix the cause, then trigger it by hand.
+4. For the stale source, read `consecutive_failures` from `/api/v1/ingest/health` (or `/freshness`) and `error_message` from `/api/v1/ingest/runs` or the Pipeline Health tab. Fix the cause, then trigger it by hand.
 5. If the workflow itself stopped running, GitHub disables schedules after 60 days of repo inactivity; re-enable it in the Actions tab.

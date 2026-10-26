@@ -49,7 +49,7 @@ services:
       # Ingest schedules are code defaults in backend/app/core/config.py
       # (NVD 01:00, KEV 01:15, EPSS 02:00 UTC, economics 03:00 UTC on the 1st). Set
       # INGEST_SCHEDULE_* here only to override them; an empty value disables that source.
-      # IC3 is static (annual-report seed): it has no schedule and is never refreshed.
+      # IC3 is static (annual-report seed): it has no schedule and is never refreshed for age (seeded only if its table is empty).
       # See docs/runbooks/ingest-freshness.md.
       # INGEST_CATCHUP_ON_STARTUP defaults on: a restart re-runs any stale scheduled source.
       # SCHEDULER_ENABLED=false is the local-dev opt-out. Do not set it on this service,
