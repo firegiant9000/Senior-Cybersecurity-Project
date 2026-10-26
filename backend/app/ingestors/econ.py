@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.logging import safe_http_error
 from app.db.models import EconomicIndicator
 from app.schemas.validators import EconomicIndicatorValidationSchema
 
@@ -101,6 +102,8 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:  # noqa
             "CENSUS_API_KEY not set. Attempting unauthenticated Census API requests. "
             "If rate-limited, will fall back to CSV."
         )
+
+    use_csv_fallback = False
 
     try:
         # Using 2023 data (most recent complete Census ACS 5-year estimates as of 2026)
@@ -240,7 +243,12 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:  # noqa
         )
 
     except (httpx.HTTPError, ValueError) as e:
-        logger.warning("Census API error: %s. Falling back to CSV file.", e)
+        logger.warning("Census API error: %s. Falling back to CSV file.", safe_http_error(e))
+        use_csv_fallback = True
+
+    # Run outside the except block so a fallback failure does not chain the
+    # original exception (whose text includes the keyed request URL).
+    if use_csv_fallback:
         await ingest_region_economics_from_csv(db)
 
 

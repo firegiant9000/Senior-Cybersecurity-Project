@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.limiter import limiter
+from app.core.logging import safe_http_error
 from app.db.engine import get_session
 from app.db.models import EconomicIndicator
 from app.schemas.economics import (
@@ -202,7 +203,10 @@ async def _load_bea_cache():
         return items
 
     except (httpx.HTTPError, ValueError, TypeError, KeyError) as e:
-        logger.error("Failed to load BEA cache: %s", e)
+        if isinstance(e, httpx.HTTPError):
+            logger.error("Failed to load BEA cache: %s", safe_http_error(e))
+        else:
+            logger.error("Failed to load BEA cache: %s", e)
         _BEA_CACHE_LOADED = True
         _BEA_CACHE = []
         return []
@@ -343,8 +347,8 @@ async def list_economic_indicators(
             items=response_items,
         )
     except httpx.HTTPError as e:
-        logger.error("BEA API HTTP error: %s", e)
-        raise HTTPException(status_code=502, detail=f"BEA API error: {str(e)}") from e
+        logger.error("BEA API HTTP error: %s", safe_http_error(e))
+        raise HTTPException(status_code=502, detail="BEA API request failed") from None
     except ValueError as e:
         logger.error("BEA API JSON parsing error: %s", e)
         raise HTTPException(
