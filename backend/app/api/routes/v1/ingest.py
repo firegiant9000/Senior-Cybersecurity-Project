@@ -22,7 +22,7 @@ from app.models.ingest_run import IngestRun
 from app.services.ingest_catchup import (
     effective_policy,
     hours_since,
-    scheduled_triggers,
+    scheduled_sources,
     source_is_stale,
     stale_thresholds,
 )
@@ -410,7 +410,7 @@ async def get_ingest_health(
     all_healthy = True
 
     thresholds = stale_thresholds()
-    triggers = scheduled_triggers()
+    scheduled = scheduled_sources()
     for source in thresholds:
         runs = source_runs.get(source, [])
 
@@ -418,7 +418,7 @@ async def get_ingest_health(
         hours_ago = hours_since(last_success.finished_at if last_success else None, now)
 
         consec_fails = _compute_consecutive_failures(runs)
-        policy = effective_policy(source, triggers)
+        policy = effective_policy(source, scheduled)
         stale = source_is_stale(source, hours_ago, thresholds, policy)
 
         # Static and disabled sources only make the service unhealthy if they have
@@ -469,7 +469,7 @@ async def get_ingest_freshness(
             total_counts[src_name] = int(count_result.scalar_one())
 
         thresholds = stale_thresholds()
-        triggers = scheduled_triggers()
+        scheduled = scheduled_sources()
         now = datetime.datetime.utcnow()
         sources = []
         for source, group in source_groups.items():
@@ -487,7 +487,7 @@ async def get_ingest_freshness(
             consec_fails = _compute_consecutive_failures(group)
 
             hours_ago = hours_since(last_success.finished_at if last_success else None, now)
-            policy = effective_policy(source, triggers)
+            policy = effective_policy(source, scheduled)
 
             sources.append(
                 SourceFreshness(

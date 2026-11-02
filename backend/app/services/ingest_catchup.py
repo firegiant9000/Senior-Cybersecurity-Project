@@ -112,14 +112,27 @@ def is_stale(hours_ago: float | None, threshold_hours: int) -> bool:
     return hours_ago is None or hours_ago > threshold_hours
 
 
-def effective_policy(source: str, triggers: Mapping[str, CronTrigger | None]) -> RefreshPolicy:
-    """Registry policy, with a scheduled source that has no live schedule as ``disabled``.
+def scheduled_sources() -> dict[str, bool]:
+    """Which sources an operator has scheduled: a non-empty cron with the scheduler on.
 
-    ``triggers`` comes from ``scheduled_triggers()``. When the scheduler is off
+    Deliberately not ``scheduled_triggers()``: a typo'd cron stays ``scheduled``
+    (judged by threshold, so it goes stale and alerts) instead of reading as a
+    deliberate opt-out. No cron is parsed, so nothing is logged per request.
+    """
+    return {
+        source: settings.SCHEDULER_ENABLED and bool(cron)
+        for source, cron in source_cron_exprs().items()
+    }
+
+
+def effective_policy(source: str, scheduled: Mapping[str, bool]) -> RefreshPolicy:
+    """Registry policy, with a scheduled source that has no schedule as ``disabled``.
+
+    ``scheduled`` comes from ``scheduled_sources()``. When the scheduler is off
     every scheduled source reads ``disabled``: nothing will refresh it.
     """
     policy = refresh_policy(source)
-    if policy == "scheduled" and triggers.get(source) is None:
+    if policy == "scheduled" and not scheduled.get(source, False):
         return "disabled"
     return policy
 

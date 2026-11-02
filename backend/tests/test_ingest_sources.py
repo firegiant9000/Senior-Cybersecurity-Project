@@ -4,13 +4,12 @@ from datetime import datetime, timedelta
 from uuid import uuid4
 
 import pytest
-from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import delete
 
 from app.core.config import Settings, settings
 from app.db.engine import AsyncSessionLocal
 from app.models.ingest_run import IngestRun
-from app.services.ingest_catchup import effective_policy, scheduled_triggers, source_is_stale
+from app.services.ingest_catchup import effective_policy, scheduled_sources, source_is_stale
 from app.services.ingest_sources import REFRESH_POLICIES, refresh_policy
 
 
@@ -42,27 +41,28 @@ def test_source_is_stale_disabled_follows_static_rule():
 
 
 def test_effective_policy():
-    daily = CronTrigger.from_crontab("0 3 * * *", timezone="UTC")
-    triggers = {"nvd": daily, "economics": None, "ic3": None}
-    assert effective_policy("nvd", triggers) == "scheduled"
-    assert effective_policy("economics", triggers) == "disabled"
+    on = {"nvd": True, "economics": False, "ic3": False}
+    assert effective_policy("nvd", on) == "scheduled"
+    assert effective_policy("economics", on) == "disabled"
     # A static source stays static even without a schedule.
-    assert effective_policy("ic3", triggers) == "static"
-    assert effective_policy("economics", {"economics": daily}) == "scheduled"
-    # A source missing from the map has no live schedule.
+    assert effective_policy("ic3", on) == "static"
+    assert effective_policy("economics", {"economics": True}) == "scheduled"
+    # A source missing from the map has no schedule.
     assert effective_policy("epss", {}) == "disabled"
 
 
-def test_effective_policy_from_live_triggers(monkeypatch):
+def test_effective_policy_from_settings(monkeypatch):
     monkeypatch.setattr(settings, "SCHEDULER_ENABLED", True)
     monkeypatch.setattr(settings, "INGEST_SCHEDULE_ECONOMICS", "0 3 * * *")
-    assert effective_policy("economics", scheduled_triggers()) == "scheduled"
-    # The scheduler does not register an invalid cron, so nothing refreshes the source.
+    assert effective_policy("economics", scheduled_sources()) == "scheduled"
+    # A typo'd cron is not an opt-out: it stays scheduled so it goes stale and alerts.
     monkeypatch.setattr(settings, "INGEST_SCHEDULE_ECONOMICS", "not-a-cron")
-    assert effective_policy("economics", scheduled_triggers()) == "disabled"
+    assert effective_policy("economics", scheduled_sources()) == "scheduled"
+    monkeypatch.setattr(settings, "INGEST_SCHEDULE_ECONOMICS", "")
+    assert effective_policy("economics", scheduled_sources()) == "disabled"
     monkeypatch.setattr(settings, "INGEST_SCHEDULE_ECONOMICS", "0 3 * * *")
     monkeypatch.setattr(settings, "SCHEDULER_ENABLED", False)
-    assert effective_policy("economics", scheduled_triggers()) == "disabled"
+    assert effective_policy("economics", scheduled_sources()) == "disabled"
 
 
 def test_source_is_stale_scheduled_uses_threshold():
@@ -179,6 +179,26 @@ async def test_empty_economics_schedule_reports_disabled(anon_client, client, mo
     runs = [r for r in runs if r.source != "economics"]
     runs.append(_run("economics", "completed", 5000, datetime.utcnow()))
     await _with_runs(runs, check)
+
+
+@pytest.mark.asyncio
+async def test_invalid_cron_stays_scheduled_and_goes_stale(anon_client, monkeypatch):
+    # A typo'd cron registers no job; health must alert, not report a deliberate opt-out.
+    monkeypatch.setattr(settings, "SCHEDULER_ENABLED", True)
+    monkeypatch.setattr(settings, "INGEST_SCHEDULE_NVD", "0 1 * * * *")
+    # Other tests leave newer nvd successes behind; a zero threshold makes any past success stale.
+    monkeypatch.setattr(settings, "INGEST_STALE_HOURS_NVD", 0)
+
+    async def check():
+        resp = await anon_client.get("/api/v1/ingest/health")
+        if resp.status_code != 200:
+            pytest.skip(f"ingest health unavailable: {resp.status_code}")
+        body = resp.json()
+        assert body["sources"]["nvd"]["refresh_policy"] == "scheduled"
+        assert body["sources"]["nvd"]["stale"] is True
+        assert body["healthy"] is False
+
+    await _with_runs(_seed_runs(30), check)
 
 
 @pytest.mark.asyncio
