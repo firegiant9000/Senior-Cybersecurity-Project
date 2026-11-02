@@ -16,7 +16,7 @@ email-validator==2.3.0
 cachetools==5.3.3
 firebase-admin==6.4.0
 slowapi==0.1.9
-dnspython==2.6.1
+dnspython==2.9.0
 google-genai==2.31.0
 apscheduler==3.10.4
 sentry-sdk[fastapi]==2.56.0
