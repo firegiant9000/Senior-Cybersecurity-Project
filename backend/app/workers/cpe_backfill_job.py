@@ -19,9 +19,9 @@ from __future__ import annotations
 import logging
 
 from app.core.config import get_settings
-from app.db.engine import AsyncSessionLocal
+from app.db.engine import AsyncSessionLocal, engine
 from app.ingestors.nvd_cpe import backfill_cpe_configurations
-from app.services.ingest_lock import release_lock, try_acquire_lock
+from app.services.ingest_lock import release_or_invalidate, try_acquire_lock
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +35,11 @@ async def run_cpe_backfill_sweep(*, trigger: str = "scheduled") -> dict[str, int
     if the lock was already held (another backfill is running — skip, not wait).
     """
     settings = get_settings()
-    async with AsyncSessionLocal() as db:
-        if not await try_acquire_lock(db, _LOCK_SOURCE):
+    # Session-level advisory lock on a dedicated connection held for the whole
+    # run; the ORM session's commits return its connection to the pool, so an
+    # unlock issued through it could hit a different connection and leak the lock.
+    async with engine.connect() as lock_conn, AsyncSessionLocal() as db:
+        if not await try_acquire_lock(lock_conn, _LOCK_SOURCE):
             logger.info("CPE backfill lock held — skipping run", extra={"trigger": trigger})
             return {}
         try:
@@ -49,10 +52,8 @@ async def run_cpe_backfill_sweep(*, trigger: str = "scheduled") -> dict[str, int
             logger.exception("CPE backfill failed", extra={"trigger": trigger})
             raise
         finally:
-            try:
-                await release_lock(db, _LOCK_SOURCE)
-            except Exception:  # noqa: BLE001
-                logger.debug("cpe backfill release_lock failed — self-releases on close")
+            # Unlocks on the same connection, or invalidates it so the lock dies with it.
+            await release_or_invalidate(lock_conn, _LOCK_SOURCE)
 
 
 __all__ = ["run_cpe_backfill_sweep"]

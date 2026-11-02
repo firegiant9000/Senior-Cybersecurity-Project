@@ -4,12 +4,13 @@ from datetime import datetime, timedelta
 from uuid import uuid4
 
 import pytest
+from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import delete
 
 from app.core.config import Settings, settings
 from app.db.engine import AsyncSessionLocal
 from app.models.ingest_run import IngestRun
-from app.services.ingest_catchup import effective_policy, source_is_stale
+from app.services.ingest_catchup import effective_policy, scheduled_triggers, source_is_stale
 from app.services.ingest_sources import REFRESH_POLICIES, refresh_policy
 
 
@@ -41,12 +42,27 @@ def test_source_is_stale_disabled_follows_static_rule():
 
 
 def test_effective_policy():
-    on = {"nvd": True, "economics": False, "ic3": False}
-    assert effective_policy("nvd", on) == "scheduled"
-    assert effective_policy("economics", on) == "disabled"
+    daily = CronTrigger.from_crontab("0 3 * * *", timezone="UTC")
+    triggers = {"nvd": daily, "economics": None, "ic3": None}
+    assert effective_policy("nvd", triggers) == "scheduled"
+    assert effective_policy("economics", triggers) == "disabled"
     # A static source stays static even without a schedule.
-    assert effective_policy("ic3", on) == "static"
-    assert effective_policy("economics", {"economics": True}) == "scheduled"
+    assert effective_policy("ic3", triggers) == "static"
+    assert effective_policy("economics", {"economics": daily}) == "scheduled"
+    # A source missing from the map has no live schedule.
+    assert effective_policy("epss", {}) == "disabled"
+
+
+def test_effective_policy_from_live_triggers(monkeypatch):
+    monkeypatch.setattr(settings, "SCHEDULER_ENABLED", True)
+    monkeypatch.setattr(settings, "INGEST_SCHEDULE_ECONOMICS", "0 3 * * *")
+    assert effective_policy("economics", scheduled_triggers()) == "scheduled"
+    # The scheduler does not register an invalid cron, so nothing refreshes the source.
+    monkeypatch.setattr(settings, "INGEST_SCHEDULE_ECONOMICS", "not-a-cron")
+    assert effective_policy("economics", scheduled_triggers()) == "disabled"
+    monkeypatch.setattr(settings, "INGEST_SCHEDULE_ECONOMICS", "0 3 * * *")
+    monkeypatch.setattr(settings, "SCHEDULER_ENABLED", False)
+    assert effective_policy("economics", scheduled_triggers()) == "disabled"
 
 
 def test_source_is_stale_scheduled_uses_threshold():

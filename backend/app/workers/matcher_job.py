@@ -25,10 +25,10 @@ import logging
 from sqlalchemy import func, select
 
 from app.db.asset_finding import AssetFinding
-from app.db.engine import AsyncSessionLocal
+from app.db.engine import AsyncSessionLocal, engine
 from app.db.scan_run import ScanRun
 from app.services.asset_findings_service import AssetFindingsService
-from app.services.ingest_lock import release_lock, try_acquire_lock
+from app.services.ingest_lock import release_or_invalidate, try_acquire_lock
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +68,12 @@ async def run_matcher_for_org(org_id: int, *, trigger: str = "manual") -> int:
     already held by a concurrent run (which is then skipped, not awaited).
     """
     source = _lock_source(org_id)
-    async with AsyncSessionLocal() as db:
-        if not await try_acquire_lock(db, source):
+    # The advisory lock is session-level, so it lives on a dedicated connection
+    # held for the whole run. The ORM session's commits return its connection to
+    # the pool, so an unlock issued through it could hit a different connection
+    # and leak the lock.
+    async with engine.connect() as lock_conn, AsyncSessionLocal() as db:
+        if not await try_acquire_lock(lock_conn, source):
             logger.info(
                 "Matcher lock held — skipping org",
                 extra={"org_id": org_id, "trigger": trigger},
@@ -89,15 +93,8 @@ async def run_matcher_for_org(org_id: int, *, trigger: str = "manual") -> int:
             )
             raise
         finally:
-            try:
-                await release_lock(db, source)
-            except Exception:  # noqa: BLE001
-                # Session may be broken after a failure; the advisory lock
-                # self-releases when the connection closes.
-                logger.debug(
-                    "matcher release_lock failed — lock will self-release on close",
-                    extra={"org_id": org_id},
-                )
+            # Unlocks on the same connection, or invalidates it so the lock dies with it.
+            await release_or_invalidate(lock_conn, source)
 
 
 async def _orgs_needing_match() -> list[int]:

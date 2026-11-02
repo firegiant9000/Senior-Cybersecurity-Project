@@ -20,7 +20,7 @@ A `scheduled` source whose cron is empty (`INGEST_SCHEDULE_*=""`) reports `disab
 
 - `git_commit`: the deployed commit.
 - `scheduler_enabled`: false means no scheduled ingest runs.
-- `scheduled_jobs`: number of registered jobs.
+- `scheduled_jobs`: number of registered `ingest_<source>` jobs (sweeps, matcher and retention are not counted). With the defaults it is 4: NVD, KEV, EPSS and economics. A disabled source is not counted.
 
 ## Schedules and thresholds
 
@@ -34,9 +34,9 @@ A `scheduled` source whose cron is empty (`INGEST_SCHEDULE_*=""`) reports `disab
 
 Defaults live in `backend/app/core/config.py`. `INGEST_SCHEDULE_*` overrides a schedule; an empty value disables it (the source then reports `disabled`). Economics runs daily so a missed or failed run heals within 24 h, although Census ACS itself updates annually. The Census ingestor fails the run on any API error or incomplete response rather than loading demo data.
 
-## Startup catch-up
+## Catch-up
 
-On process start (`INGEST_CATCHUP_ON_STARTUP`, default on), every stale scheduled source is re-run, and any source with an empty table (including static IC3) is seeded. A source attempted within the last 1 hour (success or failure) is skipped, so restart loops do not hammer upstreams.
+On process start and from the hourly `catchup_sweep` job (`INGEST_CATCHUP_SCHEDULE`, default `:45` past each hour), both governed by `INGEST_CATCHUP_ON_STARTUP` (default on), every scheduled source that missed a cron firing since its last success is re-run, and any source with an empty table (including static IC3) is seeded. A static source is never re-run for age, even if given a cron. A source attempted recently is skipped: the guard is 1 hour, doubling per consecutive failed attempt up to 24 hours, so restart loops and failing upstreams are not hammered. Catch-up does not chain retries; the next catch-up is the retry.
 
 ## Triggering by hand
 

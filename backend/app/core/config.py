@@ -130,7 +130,12 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
 
     # Ingestion
     FORCE_SEED: bool = False
-    INGEST_CATCHUP_ON_STARTUP: bool = True  # re-run stale scheduled sources on process start
+    # Re-run scheduled sources that missed a cron firing, on process start AND from the
+    # hourly catch-up sweep. False limits both to seeding empty tables (and no sweep job).
+    INGEST_CATCHUP_ON_STARTUP: bool = True
+    # Cron for the catch-up sweep (UTC). :45 avoids the :00/:15/:30 jobs. Empty disables
+    # the sweep; it is only registered when INGEST_CATCHUP_ON_STARTUP is true.
+    INGEST_CATCHUP_SCHEDULE: str = "45 * * * *"
 
     # Ingestion scheduling — cron expressions (standard 5-field format, UTC).
     # Schedules are code defaults on purpose, so production refreshes itself without

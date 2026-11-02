@@ -55,9 +55,27 @@ def test_scheduler_state_counts_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "SCHEDULER_ENABLED", True)
     fake = MagicMock()
     fake.running = True
-    fake.get_jobs.return_value = [object(), object(), object()]
+    fake.get_jobs.return_value = [MagicMock(id=f"ingest_{s}") for s in ("nvd", "cisa_kev", "epss")]
     with patch("app.services.deploy_info.scheduler", fake):
         assert scheduler_state() == (True, 3)
+
+
+def test_scheduler_state_counts_ingest_jobs_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "SCHEDULER_ENABLED", True)
+    fake = MagicMock()
+    fake.running = True
+    ids = [
+        "ingest_nvd",
+        "ingest_cisa_kev",
+        "catchup_sweep",
+        "matcher_sweep",
+        "cpe_backfill",
+        "retention_sweep",
+        "ingest_unknown",
+    ]
+    fake.get_jobs.return_value = [MagicMock(id=i) for i in ids]
+    with patch("app.services.deploy_info.scheduler", fake):
+        assert scheduler_state() == (True, 2)
 
 
 @pytest.mark.asyncio

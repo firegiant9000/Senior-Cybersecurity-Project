@@ -285,6 +285,7 @@ This section builds on the S5a case study, [docs/ai/case-study.md](../ai/case-st
 | T-PLAT-14 | R | An organization's deletion or export can't be attributed to the person who did it. | TEST | `backend/tests/test_data_lifecycle.py::test_delete_org_purges_tenant_rows_and_audits`, `backend/tests/test_data_lifecycle.py::test_export_org_streams_json_and_audits` | Each writes an audit row. Delete writes it in the same transaction. |
 | T-PLAT-15 | I | Error reports sent to Sentry carry personal data or secrets. | CONTROL | `backend/app/core/observability.py::_before_send` (L73) | `send_default_pii=False`, plus redaction of sensitive keys and email addresses. |
 | T-PLAT-16 | E | The Microsoft 365 OAuth integration (consent, callback, stored tokens and device sync) isn't modelled. | ACCEPTED | reason: disabled in production (`ENABLE_M365_INTEGRATION` is off, and the consent, callback, sync and disconnect routes refuse requests), so it is not reachable; it must be modelled before the flag is enabled; owner: Arlo; review: 2027-04-22 | See the Maintenance triggers. Requirement before the flag is turned on: the consent callback must re-check that the user who started the consent still holds an org admin role, as the consent start route does. |
+| T-PLAT-17 | I | The unauthenticated `/health` and `/api/v1/health` endpoints publish the deployed `git_commit` (12-character short SHA), `scheduler_enabled` and `scheduled_jobs`. Because the repository is public, anyone can diff the live SHA against `main` and list security fixes that are merged but not yet deployed. | ACCEPTED | reason: ingest-freshness spec 1c (`docs/superpowers/specs/2026-10-25-ingest-freshness-design.md`) wants anyone, including CI, to verify the live commit without dashboard access, and the same information is derivable from public deploy timing; owner: Arlo; review: 2027-04-22 | Mitigation: the CI post-deploy step (`.github/workflows/ci.yml` "Check backend serves this commit") fails a push to `main` whose commit, or a descendant, is not live within 10 minutes, so drift surfaces at the push that causes it. Nothing checks for drift between pushes. Revisit if production regularly lags `main`: gate `git_commit` behind a deploy-check token. |
 
 ## Findings
 
@@ -323,7 +324,7 @@ Every accepted risk is owned by Arlo and is due for review on **2027-04-22**. CI
 - T-DOM-06, T-DOM-07;
 - T-AI-06, T-AI-10;
 - T-REL-05, T-REL-08;
-- T-PLAT-08, T-PLAT-11, T-PLAT-16.
+- T-PLAT-08, T-PLAT-11, T-PLAT-16, T-PLAT-17.
 
 The reasons are in each row.
 

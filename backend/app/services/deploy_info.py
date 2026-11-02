@@ -8,7 +8,7 @@ import os
 import re
 
 from app.core.config import settings
-from app.workers.scheduler import scheduler
+from app.workers.scheduler import scheduler, source_cron_exprs
 
 _SHA_RE = re.compile(r"^[0-9a-fA-F]{7,40}$")
 _COMMIT_ENV_VARS = ("RENDER_GIT_COMMIT", "GIT_COMMIT")
@@ -25,6 +25,13 @@ def deployed_commit() -> str:
 
 
 def scheduler_state() -> tuple[bool, int]:
-    """Return (scheduler enabled by config, number of jobs while running)."""
-    jobs = len(scheduler.get_jobs()) if scheduler.running else 0
+    """Return (scheduler enabled by config, number of ingest jobs while running).
+
+    Only the ``ingest_<source>`` jobs count, so the catch-up sweep, matcher,
+    CPE backfill and retention jobs cannot mask a missing ingest schedule.
+    """
+    if not scheduler.running:
+        return settings.SCHEDULER_ENABLED, 0
+    ingest_ids = {f"ingest_{source}" for source in source_cron_exprs()}
+    jobs = sum(1 for job in scheduler.get_jobs() if job.id in ingest_ids)
     return settings.SCHEDULER_ENABLED, jobs

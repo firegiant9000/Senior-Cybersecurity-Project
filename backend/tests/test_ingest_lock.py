@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -11,6 +12,7 @@ from app.services.ingest_lock import (
     _lock_key,
     expire_stale_runs,
     release_lock,
+    release_or_invalidate,
     try_acquire_lock,
 )
 
@@ -54,6 +56,33 @@ async def test_acquire_lock_contention():
     assert result is False
 
 
+@pytest.mark.asyncio
+async def test_acquire_lock_invalidates_connection_when_commit_fails():
+    """The lock may be held once execute succeeded, so a failed commit must kill the connection."""
+    mock_result = MagicMock()
+    mock_result.scalar.return_value = True
+    conn = AsyncMock()
+    conn.execute = AsyncMock(return_value=mock_result)
+    conn.commit = AsyncMock(side_effect=RuntimeError("commit failed"))
+
+    with pytest.raises(RuntimeError, match="commit failed"):
+        await try_acquire_lock(conn, "nvd")
+
+    conn.invalidate.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_acquire_lock_invalidates_connection_when_execute_cancelled():
+    """Cancellation during the acquire execute may leave a granted lock: kill the connection."""
+    conn = AsyncMock()
+    conn.execute = AsyncMock(side_effect=asyncio.CancelledError())
+
+    with pytest.raises(asyncio.CancelledError):
+        await try_acquire_lock(conn, "nvd")
+
+    conn.invalidate.assert_awaited_once()
+
+
 # ── release_lock ───────────────────────────────────────────────────────────────
 
 
@@ -63,6 +92,48 @@ async def test_release_lock_calls_unlock():
     await release_lock(session, "nvd")
     session.execute.assert_called_once()
     session.commit.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_release_or_invalidate_releases_without_invalidating():
+    conn = AsyncMock()
+    await release_or_invalidate(conn, "nvd")
+    conn.execute.assert_awaited_once()
+    conn.invalidate.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_release_or_invalidate_invalidates_when_release_fails():
+    conn = AsyncMock()
+    conn.execute.side_effect = RuntimeError("conn gone")
+    await release_or_invalidate(conn, "nvd")
+    conn.invalidate.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_release_or_invalidate_invalidates_and_reraises_on_cancellation():
+    conn = AsyncMock()
+    conn.execute.side_effect = asyncio.CancelledError()
+    with pytest.raises(asyncio.CancelledError):
+        await release_or_invalidate(conn, "nvd")
+    conn.invalidate.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_release_or_invalidate_reraises_cancellation_even_if_invalidate_fails():
+    conn = AsyncMock()
+    conn.execute.side_effect = asyncio.CancelledError()
+    conn.invalidate.side_effect = RuntimeError("still gone")
+    with pytest.raises(asyncio.CancelledError):
+        await release_or_invalidate(conn, "nvd")
+
+
+@pytest.mark.asyncio
+async def test_release_or_invalidate_swallows_invalidate_failure():
+    conn = AsyncMock()
+    conn.execute.side_effect = RuntimeError("conn gone")
+    conn.invalidate.side_effect = RuntimeError("still gone")
+    await release_or_invalidate(conn, "nvd")
 
 
 # ── expire_stale_runs ──────────────────────────────────────────────────────────
