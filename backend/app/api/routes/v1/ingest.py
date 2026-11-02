@@ -10,19 +10,23 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 from app.core.config import settings
 from app.core.dependencies import require_role
 from app.core.limiter import limiter
-from app.db.engine import AsyncSessionLocal, get_session
+from app.db.engine import AsyncSessionLocal, engine, get_session
 from app.db.models import CVE, KEV, IC3Incident
 from app.db.user import User
 from app.models.ingest_run import IngestRun
+from app.services.ingest_catchup import hours_since, is_stale, stale_thresholds
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Triggers whose runs are redundant when another run already holds the lock.
+_CATCHUP_TRIGGERS = frozenset({"startup", "catchup"})
 
 
 # ---------------------------------------------------------------------------
@@ -121,42 +125,179 @@ async def _dispatch_ingestor(source: str, db: "AsyncSession") -> int:
     return 0
 
 
+async def _record_next_scheduled(db: AsyncSession, run: IngestRun, source: str) -> IngestRun:
+    """Best-effort: store the APScheduler next-run time on *run*.
+
+    Returns the run to keep using.  On failure the session is rolled back (so
+    the ingestor that follows gets a clean session) and the row is re-fetched,
+    because rollback expires instances and async lazy-loads would raise.
+    """
+    run_id = run.id
+    try:
+        from app.workers.scheduler import scheduler
+
+        job = scheduler.get_job(f"ingest_{source}")
+        if job and job.next_run_time:
+            # APScheduler gives a tz-aware datetime; the column is naive UTC.
+            run.next_scheduled_at = job.next_run_time.astimezone(datetime.UTC).replace(tzinfo=None)
+            await db.commit()
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "Could not record next_scheduled_at",
+            extra={"source": source, "run_id": str(run_id)},
+            exc_info=True,
+        )
+        await db.rollback()
+        refreshed = await db.get(IngestRun, run_id)
+        if refreshed is not None:
+            return refreshed
+    return run
+
+
+async def _mark_failed(db: AsyncSession, run_id: UUID, source: str, exc: Exception) -> None:
+    """Record a failed run.
+
+    The ingestor may have failed at the DB level, leaving the session needing
+    a rollback, so roll back and re-fetch the row first.  Never raises, so the
+    caller still schedules the retry.
+    """
+    try:
+        await db.rollback()
+        failed_run = await db.get(IngestRun, run_id)
+        if failed_run is not None:
+            failed_run.status = "failed"
+            failed_run.error_message = str(exc)[:500]
+            failed_run.finished_at = datetime.datetime.utcnow()
+            await db.commit()
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            "Could not record ingestion failure",
+            extra={"source": source, "run_id": str(run_id)},
+        )
+
+
+def _schedule_retry(source: str, trigger: str, retry_count: int) -> None:
+    """Schedule an automatic retry with exponential back-off, if any remain."""
+    if retry_count >= settings.INGEST_MAX_RETRIES:
+        logger.error(
+            "Ingestion exhausted retries",
+            extra={"source": source, "max_retries": settings.INGEST_MAX_RETRIES},
+        )
+        return
+    # Back-off: 30s for first retry, 120s for second.
+    delay = 30 * (4**retry_count)
+    next_retry_count = retry_count + 1
+    logger.info(
+        "Scheduling retry %d/%d in %ds",
+        next_retry_count,
+        settings.INGEST_MAX_RETRIES,
+        delay,
+        extra={"source": source},
+    )
+
+    async def _retry() -> None:
+        await asyncio.sleep(delay)
+        await _run_ingestion(source, trigger=trigger, retry_count=next_retry_count)
+
+    asyncio.create_task(_retry())
+
+
 async def _run_ingestion(
     source: str,
     trigger: str = "manual",
     retry_count: int = 0,
+    *,
+    schedule_retry: bool = True,
 ) -> None:
     """Run an ingestion job and record the result in ingest_runs.
 
+    ``schedule_retry=False`` (catch-up) records a failure without scheduling the
+    retry chain; ``retry_count`` stays the attempt number (0 for a first attempt)
+    so ``/freshness`` and ``/runs`` show only retries that happened.
+
     Acquires a PostgreSQL advisory lock before running so that concurrent
-    calls for the same source are safely skipped rather than racing.
+    calls for the same source are safely skipped rather than racing.  The
+    lock is session-level, so it is taken on a dedicated connection that is
+    held for the whole run and released on that same connection; the ORM
+    session's commits hand its connection back to the pool and must not be
+    used for the lock.
+
+    Pool usage: the session work that precedes the lock is committed first.  On
+    the skip path the lock connection is released back to the pool before the
+    session is used again.  On the acquired path two pooled connections are held
+    by design (the lock connection for the whole run, plus the session's own);
+    that is bounded (at most one extra connection per source, 5 sources) and not
+    a deadlock.
     """
-    from app.services.ingest_lock import expire_stale_runs, release_lock, try_acquire_lock
+    from app.services.ingest_lock import expire_stale_runs, try_acquire_lock
 
     async with AsyncSessionLocal() as db:
-        # Clean up any runs that timed out without updating their status.
+        # Clean up any runs that timed out without updating their status, and
+        # commit so the session gives its connection back before we take another.
         await expire_stale_runs(db, source)
+        await db.commit()
 
-        # Attempt non-blocking advisory lock.
-        if not await try_acquire_lock(db, source):
-            skipped_run = IngestRun(
-                source=source,
-                status="skipped",
-                trigger=trigger,
-                retry_count=retry_count,
-                skipped_reason="Lock held by a concurrent run",
-                started_at=datetime.datetime.utcnow(),
-                finished_at=datetime.datetime.utcnow(),
-                records_ingested=0,
-            )
-            db.add(skipped_run)
-            await db.commit()
-            logger.info(
-                "Skipped ingestion — lock held",
+        lock_conn = await engine.connect()
+        try:
+            acquired = await try_acquire_lock(lock_conn, source)
+            if acquired:
+                await _run_locked(
+                    db, lock_conn, source, trigger, retry_count, schedule_retry=schedule_retry
+                )
+        finally:
+            await lock_conn.close()
+
+        if acquired:
+            return
+
+        if trigger in _CATCHUP_TRIGGERS:
+            # Catch-up is redundant by design; a "skipped" row would count as a
+            # failure in _compute_consecutive_failures, so don't record one.
+            logger.warning(
+                "Catch-up ingestion not started — lock held",
                 extra={"source": source, "trigger": trigger},
             )
             return
 
+        skipped_run = IngestRun(
+            source=source,
+            status="skipped",
+            trigger=trigger,
+            retry_count=retry_count,
+            skipped_reason="Lock held by a concurrent run",
+            started_at=datetime.datetime.utcnow(),
+            finished_at=datetime.datetime.utcnow(),
+            records_ingested=0,
+        )
+        db.add(skipped_run)
+        await db.commit()
+        logger.info(
+            "Skipped ingestion — lock held",
+            extra={"source": source, "trigger": trigger},
+        )
+
+
+async def _run_locked(
+    db: AsyncSession,
+    lock_conn: AsyncConnection,
+    source: str,
+    trigger: str,
+    retry_count: int,
+    *,
+    schedule_retry: bool = True,
+) -> None:
+    """Run one ingestion while holding the advisory lock on *lock_conn*.
+
+    Everything after the lock was acquired lives inside the ``try`` whose
+    ``finally`` releases it, so no failure (run-row commit, scheduler lookup,
+    rollback/re-fetch) can return the connection to the pool still locked.
+    Once the running row exists, a failure before or during the ingestor marks
+    it failed and follows the same retry rule: ``_schedule_retry``, unless
+    ``schedule_retry`` is False (catch-up), which only logs.
+    """
+    from app.services.ingest_lock import release_or_invalidate
+
+    try:
         run = IngestRun(
             source=source,
             status="running",
@@ -166,20 +307,18 @@ async def _run_ingestion(
         )
         db.add(run)
         await db.commit()
-
-        # [2B] Populate next_scheduled_at from APScheduler at run creation time.
-        try:
-            from app.workers.scheduler import scheduler
-
-            job = scheduler.get_job(f"ingest_{source}")
-            if job and job.next_run_time:
-                run.next_scheduled_at = job.next_run_time
-                await db.commit()
-        except Exception:  # noqa: BLE001
-            pass  # scheduler not available in all environments
+        # A rollback expires ORM instances (and async lazy-loads raise), so keep
+        # the id and re-fetch the row after any rollback.
+        run_id = run.id
 
         _start = datetime.datetime.utcnow()
+        # The running row is committed, so any failure from here on (including
+        # the scheduler lookup's rollback/re-fetch) must mark it failed rather
+        # than leave a phantom "running" row until expire_stale_runs.
         try:
+            # [2B] Populate next_scheduled_at from APScheduler at run creation time.
+            run = await _record_next_scheduled(db, run, source)
+
             count = await _dispatch_ingestor(source, db)
 
             elapsed = (datetime.datetime.utcnow() - _start).total_seconds()
@@ -194,62 +333,33 @@ async def _run_ingestion(
                     "trigger": trigger,
                     "records": count,
                     "duration_s": round(elapsed, 2),
-                    "run_id": str(run.id),
+                    "run_id": str(run_id),
                 },
             )
 
         except Exception as exc:
             elapsed = (datetime.datetime.utcnow() - _start).total_seconds()
-            run.status = "failed"
-            run.error_message = str(exc)[:500]
-            run.finished_at = datetime.datetime.utcnow()
-            await db.commit()
+            await _mark_failed(db, run_id, source, exc)
             logger.exception(
                 "Ingestion failed",
                 extra={
                     "source": source,
                     "trigger": trigger,
                     "duration_s": round(elapsed, 2),
-                    "run_id": str(run.id),
+                    "run_id": str(run_id),
                     "error": str(exc)[:200],
                     "retry_count": retry_count,
                 },
             )
-            # Schedule automatic retry with exponential back-off unless we've
-            # exhausted retries or this was already a retry run.
-            if retry_count < settings.INGEST_MAX_RETRIES:
-                # Back-off: 30s for first retry, 120s for second.
-                delay = 30 * (4**retry_count)  # 30s, 120s
-                next_retry_count = retry_count + 1
-                logger.info(
-                    "Scheduling retry %d/%d in %ds",
-                    next_retry_count,
-                    settings.INGEST_MAX_RETRIES,
-                    delay,
-                    extra={"source": source},
-                )
-
-                async def _retry() -> None:
-                    await asyncio.sleep(delay)
-                    await _run_ingestion(source, trigger=trigger, retry_count=next_retry_count)
-
-                asyncio.create_task(_retry())
+            if schedule_retry:
+                _schedule_retry(source, trigger, retry_count)
             else:
-                logger.error(
-                    "Ingestion exhausted retries",
-                    extra={"source": source, "max_retries": settings.INGEST_MAX_RETRIES},
+                logger.info(
+                    "Catch-up does not retry a failed run; the next catch-up is the retry",
+                    extra={"source": source, "trigger": trigger},
                 )
-
-        finally:
-            try:
-                await release_lock(db, source)
-            except Exception:  # noqa: BLE001
-                # Session may be broken after a DB-level failure; advisory lock
-                # self-releases when the session closes, so this is safe to swallow.
-                logger.debug(
-                    "release_lock failed — lock will self-release on session close",
-                    extra={"source": source},
-                )
+    finally:
+        await release_or_invalidate(lock_conn, source)
 
 
 def _compute_consecutive_failures(runs: list[IngestRun]) -> int:
@@ -277,14 +387,6 @@ async def get_ingest_health(
     Reads from DB only, not APScheduler memory, so it is accurate on
     multi-instance deployments.
     """
-    stale_thresholds = {
-        "nvd": settings.INGEST_STALE_HOURS_NVD,
-        "cisa_kev": settings.INGEST_STALE_HOURS_KEV,
-        "ic3": settings.INGEST_STALE_HOURS_IC3,
-        "economics": settings.INGEST_STALE_HOURS_ECON,
-        "epss": settings.INGEST_STALE_HOURS_EPSS,
-    }
-
     stmt = select(IngestRun).order_by(IngestRun.source, IngestRun.started_at.desc())
     result = await db.execute(stmt)
     all_runs = result.scalars().all()
@@ -297,16 +399,14 @@ async def get_ingest_health(
     sources_health: dict[str, SourceHealthItem] = {}
     all_healthy = True
 
-    for source, stale_hours in stale_thresholds.items():
+    for source, stale_hours in stale_thresholds().items():
         runs = source_runs.get(source, [])
 
         last_success = next((r for r in runs if r.status == "completed"), None)
-        hours_ago: float | None = None
-        if last_success and last_success.finished_at:
-            hours_ago = (now - last_success.finished_at).total_seconds() / 3600
+        hours_ago = hours_since(last_success.finished_at if last_success else None, now)
 
         consec_fails = _compute_consecutive_failures(runs)
-        stale = hours_ago is None or hours_ago > stale_hours
+        stale = is_stale(hours_ago, stale_hours)
 
         if stale or consec_fails >= 2:
             all_healthy = False

@@ -35,6 +35,10 @@ FROM base
 # Copy application
 COPY . .
 
+# Commit shown by /health for local Docker builds (Render injects RENDER_GIT_COMMIT at runtime)
+ARG GIT_COMMIT=unknown
+ENV GIT_COMMIT=${GIT_COMMIT}
+
 # Create uploads directory and non-root user
 RUN mkdir -p /app/uploads \
     && useradd -m -u 1000 appuser \

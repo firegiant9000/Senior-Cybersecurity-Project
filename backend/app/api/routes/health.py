@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.core.config import settings
 from app.db.engine import get_health_engine
+from app.services.deploy_info import deployed_commit, scheduler_state
 from app.services.health import cached_database_reachable
 
 router = APIRouter()
@@ -19,6 +20,9 @@ class HealthResponse(BaseModel):
     version: str
     environment: str
     database: str
+    git_commit: str
+    scheduler_enabled: bool
+    scheduled_jobs: int  # registered ingest_<source> jobs only (not sweeps/matcher/retention)
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -34,10 +38,14 @@ async def health_check(
     if not ok:
         response.status_code = 503
     state = "ok" if ok else "unavailable"
+    scheduler_enabled, scheduled_jobs = scheduler_state()
     return HealthResponse(
         status=state,
         service=settings.APP_NAME,
         version="0.1.0",
         environment=settings.APP_ENV,
         database=state,
+        git_commit=deployed_commit(),
+        scheduler_enabled=scheduler_enabled,
+        scheduled_jobs=scheduled_jobs,
     )
