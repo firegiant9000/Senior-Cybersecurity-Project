@@ -2,8 +2,11 @@ FROM python:3.11-slim@sha256:b7a9e5f6a93d6d4a31f129bbd4bdee69efccb6ded0fb230d78a
 
 WORKDIR /app
 
-# System dependencies
-RUN apt-get update && apt-get install -y \
+# System dependencies. `apt-get upgrade` applies Debian security fixes that the
+# pinned base image predates (e.g. apt 3.0.4, CVE-2026-109518), so the Trivy gate
+# does not wait on an upstream python image rebuild.
+RUN apt-get update && apt-get upgrade -y \
+    && apt-get install -y \
     gcc \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
