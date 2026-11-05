@@ -113,23 +113,24 @@ def is_stale(hours_ago: float | None, threshold_hours: int) -> bool:
 
 
 def scheduled_sources() -> dict[str, bool]:
-    """Which sources an operator has scheduled: a non-empty cron with the scheduler on.
+    """Which sources an operator has scheduled: a non-empty cron.
+
+    Read from the cron strings only, which every instance shares. The serving
+    instance's ``SCHEDULER_ENABLED`` is deliberately ignored: secondaries run with
+    it off, and health they serve must not read every source as ``disabled``. If
+    no instance runs the scheduler, scheduled sources go stale by threshold.
 
     Deliberately not ``scheduled_triggers()``: a typo'd cron stays ``scheduled``
     (judged by threshold, so it goes stale and alerts) instead of reading as a
     deliberate opt-out. No cron is parsed, so nothing is logged per request.
     """
-    return {
-        source: settings.SCHEDULER_ENABLED and bool(cron)
-        for source, cron in source_cron_exprs().items()
-    }
+    return {source: bool(cron) for source, cron in source_cron_exprs().items()}
 
 
 def effective_policy(source: str, scheduled: Mapping[str, bool]) -> RefreshPolicy:
-    """Registry policy, with a scheduled source that has no schedule as ``disabled``.
+    """Registry policy, with a scheduled source whose cron is empty as ``disabled``.
 
-    ``scheduled`` comes from ``scheduled_sources()``. When the scheduler is off
-    every scheduled source reads ``disabled``: nothing will refresh it.
+    ``scheduled`` comes from ``scheduled_sources()``.
     """
     policy = refresh_policy(source)
     if policy == "scheduled" and not scheduled.get(source, False):

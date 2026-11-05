@@ -12,14 +12,14 @@ How to tell whether production ingest data is fresh, and what to do when the dai
 
 IC3 is `static`: it is the 2021-2025 annual-report seed, so there is nothing newer to fetch. It is never refreshed by age and the daily check skips it.
 
-A `scheduled` source whose cron is empty (`INGEST_SCHEDULE_*=""`) reports `disabled`: nothing will refresh it. If `SCHEDULER_ENABLED=false`, every scheduled source reads `disabled`, which is accurate because nothing refreshes, but it also means the daily check skips them all and passes on zero judged sources only if the body is otherwise usable. Check `/health` `scheduler_enabled` first.
+A `scheduled` source whose cron is empty (`INGEST_SCHEDULE_*=""`) reports `disabled`: nothing will refresh it. The policy comes from the cron settings only, not from the serving instance's `SCHEDULER_ENABLED`, so every instance behind one URL reports the same policy (a secondary set to `false` does not turn sources `disabled`). If no instance runs the scheduler, scheduled sources stay `scheduled` and go stale once past their threshold, which turns the daily check red.
 
 `static` and `disabled` sources are never stale by age, but one that has **never succeeded** counts as stale and makes `healthy` false (its failures alone do not). The daily workflow still skips them, so read `/api/v1/ingest/health` directly if a static source shows `stale: true`.
 
 `GET /health` shows what is deployed and whether the scheduler is alive:
 
 - `git_commit`: the deployed commit.
-- `scheduler_enabled`: false means no scheduled ingest runs.
+- `scheduler_enabled`: false means this instance runs no scheduled ingest. It is per instance: with several instances behind one URL, only the one running the scheduler shows true.
 - `scheduled_jobs`: number of registered `ingest_<source>` jobs (sweeps, matcher and retention are not counted). With the defaults it is 4: NVD, KEV, EPSS and economics. A disabled source is not counted.
 
 ## Schedules and thresholds
