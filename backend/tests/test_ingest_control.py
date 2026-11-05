@@ -1,64 +1,12 @@
-"""Tests for ingest retry/cancel endpoints and consecutive_failures helper."""
+"""Tests for ingest retry/cancel endpoints and the public health endpoint."""
 
 from __future__ import annotations
-
-from unittest.mock import MagicMock
 
 import pytest
 from httpx import AsyncClient
 
-# ---------------------------------------------------------------------------
-# _compute_consecutive_failures (pure function — no DB needed)
-# ---------------------------------------------------------------------------
-
-
-def _make_run(status: str, retry_count: int = 0):
-    r = MagicMock()
-    r.status = status
-    r.retry_count = retry_count
-    return r
-
-
-def test_consecutive_failures_all_failed():
-    from app.api.routes.v1.ingest import _compute_consecutive_failures
-
-    runs = [_make_run("failed"), _make_run("failed"), _make_run("failed")]
-    assert _compute_consecutive_failures(runs) == 3
-
-
-def test_consecutive_failures_stops_at_completed():
-    from app.api.routes.v1.ingest import _compute_consecutive_failures
-
-    runs = [_make_run("failed"), _make_run("failed"), _make_run("completed"), _make_run("failed")]
-    assert _compute_consecutive_failures(runs) == 2
-
-
-def test_consecutive_failures_zero_when_last_is_completed():
-    from app.api.routes.v1.ingest import _compute_consecutive_failures
-
-    runs = [_make_run("completed"), _make_run("failed")]
-    assert _compute_consecutive_failures(runs) == 0
-
-
-def test_consecutive_failures_empty_list():
-    from app.api.routes.v1.ingest import _compute_consecutive_failures
-
-    assert _compute_consecutive_failures([]) == 0
-
-
-def test_consecutive_failures_skipped_neither_counts_nor_resets():
-    from app.api.routes.v1.ingest import _compute_consecutive_failures
-
-    runs = [_make_run("failed"), _make_run("skipped"), _make_run("failed"), _make_run("completed")]
-    assert _compute_consecutive_failures(runs) == 2
-
-
-def test_consecutive_failures_counts_retry_chain_once():
-    from app.api.routes.v1.ingest import _compute_consecutive_failures
-
-    # Newest first: one firing's two retries, then its chain head.
-    runs = [_make_run("failed", 2), _make_run("failed", 1), _make_run("failed", 0)]
-    assert _compute_consecutive_failures(runs) == 1
+# consecutive_failures counting is covered over HTTP in test_ingest_sources.py and
+# in the database by test_ingest_catchup.py (consecutive_failure_counts).
 
 
 # ---------------------------------------------------------------------------

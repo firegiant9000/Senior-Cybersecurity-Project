@@ -1,15 +1,23 @@
 """Tests for the per-source refresh policy and its effect on ingest health/freshness."""
 
-from datetime import datetime, timedelta
+from collections import defaultdict
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete
+from sqlalchemy import delete, func, select
 
 from app.core.config import Settings, settings
 from app.db.engine import AsyncSessionLocal
+from app.db.models import CVE, KEV, IC3Incident
 from app.models.ingest_run import IngestRun
-from app.services.ingest_catchup import effective_policy, scheduled_sources, source_is_stale
+from app.services.ingest_catchup import (
+    effective_policy,
+    hours_since,
+    scheduled_sources,
+    source_is_stale,
+    stale_thresholds,
+)
 from app.services.ingest_sources import REFRESH_POLICIES, refresh_policy
 
 
@@ -327,4 +335,157 @@ async def test_static_source_never_succeeded_is_stale_and_unhealthy(anon_client)
         # Earlier tests may have left an ic3 success behind, which would mask this case.
         await db.execute(delete(IngestRun).where(IngestRun.source == "ic3"))
         await db.commit()
+    await _with_runs(runs, check)
+
+
+def _reference_failures(runs: list[IngestRun]) -> int:
+    """Failed chain heads since the last completed run, given runs newest first."""
+    count = 0
+    for run in runs:
+        if run.status == "completed":
+            break
+        if run.status == "failed" and run.retry_count == 0:
+            count += 1
+    return count
+
+
+async def _reference_bodies() -> tuple[dict, dict]:
+    """Health and freshness bodies computed from every run row, newest first per source.
+
+    This is how both endpoints worked before they switched to bounded per-source
+    queries; the new queries must give the same bodies.
+    """
+    from app.api.routes.v1.ingest import (
+        FreshnessResponse,
+        HealthResponse,
+        SourceFreshness,
+        SourceHealthItem,
+    )
+
+    async with AsyncSessionLocal() as db:
+        rows = (
+            (
+                await db.execute(
+                    select(IngestRun).order_by(IngestRun.source, IngestRun.started_at.desc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        totals = {}
+        for name, model in {"nvd": CVE, "cisa_kev": KEV, "ic3": IC3Incident}.items():
+            totals[name] = int(await db.scalar(select(func.count()).select_from(model)))
+
+    groups: dict[str, list[IngestRun]] = defaultdict(list)
+    for run in rows:
+        groups[run.source].append(run)
+
+    def iso(value: datetime | None) -> str | None:
+        return value.replace(tzinfo=UTC).isoformat() if value else None
+
+    now = datetime.utcnow()
+    thresholds = stale_thresholds()
+    scheduled = scheduled_sources()
+
+    health_items = {}
+    healthy = True
+    for source in thresholds:
+        runs = groups.get(source, [])
+        last = next((r for r in runs if r.status == "completed"), None)
+        hours = hours_since(last.finished_at if last else None, now)
+        fails = _reference_failures(runs)
+        policy = effective_policy(source, scheduled)
+        stale = source_is_stale(source, hours, thresholds, policy)
+        if (policy == "scheduled" and (stale or fails >= 2)) or (policy != "scheduled" and stale):
+            healthy = False
+        health_items[source] = SourceHealthItem(
+            stale=stale,
+            refresh_policy=policy,
+            last_success_hours_ago=round(hours, 1) if hours is not None else None,
+            consecutive_failures=fails,
+        )
+
+    fresh_items = []
+    for source, runs in groups.items():
+        latest = runs[0]
+        last = next((r for r in runs if r.status == "completed"), None)
+        hours = hours_since(last.finished_at if last else None, now)
+        policy = effective_policy(source, scheduled)
+        fresh_items.append(
+            SourceFreshness(
+                source=source,
+                last_run_at=iso(latest.finished_at or latest.started_at),
+                last_successful_run_at=iso(last.finished_at) if last else None,
+                consecutive_failures=_reference_failures(runs),
+                status=latest.status,
+                records_ingested=latest.records_ingested,
+                total_records=totals.get(source),
+                error_message=latest.error_message,
+                trigger=latest.trigger,
+                retry_count=latest.retry_count,
+                skipped_reason=latest.skipped_reason,
+                refresh_policy=policy,
+                stale=source_is_stale(source, hours, thresholds, policy),
+            )
+        )
+
+    return (
+        HealthResponse(healthy=healthy, sources=health_items).model_dump(mode="json"),
+        FreshnessResponse(sources=fresh_items).model_dump(mode="json"),
+    )
+
+
+@pytest.mark.asyncio
+async def test_bounded_queries_match_full_history_bodies(anon_client, client):
+    now = datetime.utcnow()
+    runs = [
+        # A source no registry knows still shows in /freshness, in source order.
+        _run("zz_unknown_source", "failed", 4, now),
+        _run("zz_unknown_source", "completed", 3, now),
+        _run("zz_unknown_source", "running", 0.5, now),
+        # Retry chain that ended in success, then a failed firing and a skip.
+        _run("epss", "failed", 30, now, 0),
+        _run("epss", "completed", 29.99, now, 1),
+        *_failed_firing("epss", 10, now),
+        _run("epss", "skipped", 5, now),
+        # Failures before the last success do not count; a running row is the latest.
+        _run("cisa_kev", "failed", 9, now),
+        _run("cisa_kev", "completed", 8, now),
+        _run("cisa_kev", "failed", 2, now),
+        _run("cisa_kev", "running", 0.2, now),
+    ]
+    runs[2].finished_at = None  # still running: last_run_at falls back to started_at
+    runs[-1].finished_at = None
+    # epss's latest row is the skip: its fields must come through as-is.
+    runs[8].skipped_reason = "lock held"
+    runs[8].error_message = "lock held by another run"
+    runs[8].trigger = "scheduled"
+
+    async def check():
+        health = await anon_client.get("/api/v1/ingest/health")
+        fresh = await client.get("/api/v1/ingest/freshness")
+        if health.status_code != 200 or fresh.status_code != 200:
+            pytest.skip(f"ingest endpoints unavailable: {health.status_code}/{fresh.status_code}")
+        want_health, want_fresh = await _reference_bodies()
+        got_health = health.json()
+
+        # last_success_hours_ago is rounded to 0.1 h from "now", which moves between
+        # the request and the reference; allow one rounding step, then compare exactly.
+        for source, item in got_health["sources"].items():
+            got_hours = item["last_success_hours_ago"]
+            want_hours = want_health["sources"][source]["last_success_hours_ago"]
+            assert (got_hours is None) == (want_hours is None), source
+            if got_hours is not None:
+                assert abs(got_hours - want_hours) <= 0.1, source
+            item["last_success_hours_ago"] = want_hours
+
+        # Same keys in the same order, same values.
+        assert list(got_health) == list(want_health)
+        assert list(got_health["sources"]) == list(want_health["sources"])
+        assert got_health == want_health
+        assert [s["source"] for s in fresh.json()["sources"]] == [
+            s["source"] for s in want_fresh["sources"]
+        ]
+        assert fresh.json() == want_fresh
+
     await _with_runs(runs, check)

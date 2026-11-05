@@ -4,7 +4,7 @@ How to tell whether production ingest data is fresh, and what to do when the dai
 
 ## Reading the endpoints
 
-`GET /api/v1/ingest/health` (public) returns `healthy` and a `sources` map. Each source has:
+`GET /api/v1/ingest/health` (public, rate limited to `RATE_LIMIT_DATA`, 60/minute per client IP, like `/ingest/freshness`) returns `healthy` and a `sources` map. Monitors should poll at most every few seconds; the daily workflow polls every 120 s. Each source has:
 
 - `stale`: server-computed against that source's threshold. Clients must not recompute it.
 - `refresh_policy`: the effective policy, one of `scheduled`, `static` or `disabled`.
