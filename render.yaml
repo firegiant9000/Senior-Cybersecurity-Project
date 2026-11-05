@@ -55,6 +55,9 @@ services:
       # INGEST_CATCHUP_ON_STARTUP defaults on: a restart re-runs any stale scheduled source.
       # SCHEDULER_ENABLED=false is the local-dev opt-out. Do not set it on this service,
       # or no scheduled ingest runs in production.
+      # RATE_LIMIT_TRUST_X_FORWARDED_FOR (default false) makes per-IP rate limits key on the
+      # client instead of Render's proxy. Enable it only after the spoof check in
+      # docs/runbooks/ingest-freshness.md ("Rate-limit client IP").
 
 databases:
   - name: hacker-tracker-db

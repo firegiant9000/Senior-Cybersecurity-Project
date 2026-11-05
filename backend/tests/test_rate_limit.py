@@ -5,11 +5,12 @@ from types import SimpleNamespace
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
+from starlette.requests import Request
 
 from app.api.routes.v1.auth import get_current_user
 from app.core.config import settings
 from app.core.dependencies import get_current_org
-from app.core.limiter import limiter
+from app.core.limiter import agent_token_key, client_ip, limiter
 from app.db.engine import get_session
 from app.main import app
 
@@ -50,6 +51,56 @@ async def test_ai_summary_rate_limit_returns_429(limited_client: AsyncClient):
     assert resp.status_code == 429
     assert resp.json() == {"error": "Too Many Requests", "detail": "5 per 1 minute"}
     assert int(resp.headers["Retry-After"]) == 60
+
+
+def _request(peer: str, xff: str | None = None, auth: str | None = None) -> Request:
+    headers = []
+    if xff is not None:
+        headers.append((b"x-forwarded-for", xff.encode()))
+    if auth is not None:
+        headers.append((b"authorization", auth.encode()))
+    return Request({"type": "http", "headers": headers, "client": (peer, 1234)})
+
+
+def test_client_ip_ignores_forwarded_for_by_default(monkeypatch):
+    monkeypatch.setattr(settings, "RATE_LIMIT_TRUST_X_FORWARDED_FOR", False)
+    assert client_ip(_request("10.1.2.3", "203.0.113.9")) == "10.1.2.3"
+
+
+@pytest.mark.parametrize(
+    ("xff", "expected"),
+    [
+        # The proxy appends the address it saw; a client-supplied prefix is ignored.
+        ("198.51.100.7, 203.0.113.9", "203.0.113.9"),
+        ("203.0.113.9", "203.0.113.9"),
+        (" 203.0.113.9 ", "203.0.113.9"),
+        ("1.1.1.1, 2001:db8::1", "2001:db8::1"),
+        # Unusable rightmost entry: fall back to the connecting peer.
+        ("", "10.1.2.3"),
+        ("203.0.113.9, not-an-ip", "10.1.2.3"),
+        ("203.0.113.9,", "10.1.2.3"),
+    ],
+)
+def test_client_ip_uses_rightmost_forwarded_for_when_trusted(monkeypatch, xff, expected):
+    monkeypatch.setattr(settings, "RATE_LIMIT_TRUST_X_FORWARDED_FOR", True)
+    assert client_ip(_request("10.1.2.3", xff)) == expected
+
+
+def test_client_ip_without_header_uses_peer(monkeypatch):
+    monkeypatch.setattr(settings, "RATE_LIMIT_TRUST_X_FORWARDED_FOR", True)
+    assert client_ip(_request("10.1.2.3")) == "10.1.2.3"
+
+
+def test_agent_token_key_falls_back_to_client_ip(monkeypatch):
+    monkeypatch.setattr(settings, "RATE_LIMIT_TRUST_X_FORWARDED_FOR", True)
+    assert agent_token_key(_request("10.1.2.3", "203.0.113.9", "Bearer junk")) == "203.0.113.9"
+    assert agent_token_key(_request("10.1.2.3", "203.0.113.9", "Bearer ht_abc_secret")) == (
+        "agent:abc"
+    )
+
+
+def test_limiter_keys_on_client_ip():
+    assert limiter._key_func is client_ip
 
 
 @pytest.mark.asyncio
