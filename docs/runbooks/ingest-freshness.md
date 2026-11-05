@@ -4,12 +4,12 @@ How to tell whether production ingest data is fresh, and what to do when the dai
 
 ## Reading the endpoints
 
-`GET /api/v1/ingest/health` (public, rate limited to `RATE_LIMIT_DATA`, 60/minute per client IP, like `/ingest/freshness`) returns `healthy` and a `sources` map. Monitors should poll at most every few seconds; the daily workflow polls every 120 s. Each source has:
+`GET /api/v1/ingest/health` (public) returns `healthy` and a `sources` map. It is rate limited to `RATE_LIMIT_DATA` (60/minute), keyed on the connecting IP like every other limited route. Uvicorn is not configured to trust proxy headers, so behind Render's proxy all callers may share one bucket. A 429 makes the daily workflow (which polls every 120 s) retry and, if it persists, fail red, not green. Keep external monitors to one poll a minute or slower. Each source has:
 
 - `stale`: server-computed against that source's threshold. Clients must not recompute it.
 - `refresh_policy`: the effective policy, one of `scheduled`, `static` or `disabled`.
 - `last_success_hours_ago`.
-- `consecutive_failures`: failed attempts since the last completed run. A firing and its automatic retries count once (only chain heads, `retry_count == 0`), the same count catch-up uses for its backoff. Lock-contention `skipped` rows neither count nor reset it. A scheduled source with 2 or more makes `healthy` false, which means two bad firings.
+- `consecutive_failures`: failed attempts since the last completed run. A firing and its automatic retries count once (only chain heads, `retry_count == 0`), the same count catch-up uses for its backoff. Lock-contention `skipped` rows neither count nor reset it. A scheduled source with 2 or more makes `healthy` false. That means two failed attempts, not necessarily two cron firings: a catch-up, startup or manual run also counts once, so one failed firing followed by a failed catch-up (about 2 h later) is enough.
 
 IC3 is `static`: it is the 2021-2025 annual-report seed, so there is nothing newer to fetch. It is never refreshed by age and the daily check skips it.
 
