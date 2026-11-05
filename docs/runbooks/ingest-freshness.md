@@ -4,7 +4,7 @@ How to tell whether production ingest data is fresh, and what to do when the dai
 
 ## Reading the endpoints
 
-`GET /api/v1/ingest/health` (public) returns `healthy` and a `sources` map. It is rate limited to `RATE_LIMIT_DATA` (60/minute), keyed on the connecting IP like every other limited route. Uvicorn is not configured to trust proxy headers, so behind Render's proxy all callers may share one bucket. A 429 makes the daily workflow (which polls every 120 s) retry and, if it persists, fail red, not green. Keep external monitors to one poll a minute or slower. Each source has:
+`GET /api/v1/ingest/health` (public) returns `healthy` and a `sources` map. It is rate limited to `RATE_LIMIT_DATA` (60/minute), keyed on the connecting IP (as `/ingest/freshness` is; agent uploads key on the token prefix instead). Uvicorn is not configured to trust proxy headers, so behind Render's proxy all callers may share one bucket. A 429 makes the daily workflow (which polls every 120 s) retry and, if it persists, fail red, not green. Keep external monitors to one poll a minute or slower. Each source has:
 
 - `stale`: server-computed against that source's threshold. Clients must not recompute it.
 - `refresh_policy`: the effective policy, one of `scheduled`, `static` or `disabled`.
