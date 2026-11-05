@@ -4,7 +4,7 @@ How to tell whether production ingest data is fresh, and what to do when the dai
 
 ## Reading the endpoints
 
-`GET /api/v1/ingest/health` (public) returns `healthy` and a `sources` map. It is rate limited to `RATE_LIMIT_DATA` (60/minute), keyed on the connecting IP (as `/ingest/freshness` is; agent uploads key on the token prefix instead). Uvicorn is not configured to trust proxy headers, so behind Render's proxy all callers may share one bucket. A 429 makes the daily workflow (which polls every 120 s) retry and, if it persists, fail red, not green. Keep external monitors to one poll a minute or slower. Each source has:
+`GET /api/v1/ingest/health` (public) returns `healthy` and a `sources` map. It is rate limited to `RATE_LIMIT_DATA` (60/minute) per client IP, as `/ingest/freshness` is (agent uploads key on the token prefix instead). A 429 makes the daily workflow (which polls every 120 s) retry and, if it persists, fail red, not green. Keep external monitors to one poll a minute or slower. See [Rate-limit client IP](#rate-limit-client-ip) for how the client IP is found behind the proxy. Each source has:
 
 - `stale`: server-computed against that source's threshold. Clients must not recompute it.
 - `refresh_policy`: the effective policy, one of `scheduled`, `static` or `disabled`.
@@ -48,6 +48,19 @@ On process start and from the hourly `catchup_sweep` job (`INGEST_CATCHUP_SCHEDU
 ## Daily workflow
 
 `.github/workflows/ingest-freshness.yml` runs at 06:00 UTC. It polls `/api/v1/ingest/health` on the backend URL for up to 30 minutes (so a cold instance and the startup catch-up can heal), skips `static` and `disabled` sources, and fails if any other source is not `stale == false`. It holds no source list or thresholds of its own.
+
+## Rate-limit client IP
+
+By default every per-IP limit keys on the connecting peer. Behind Render's proxy that is the proxy, so all callers share one bucket per limit. One busy caller can then get everyone 429s, including login and the daily workflow.
+
+`RATE_LIMIT_TRUST_X_FORWARDED_FOR=true` keys on the rightmost `X-Forwarded-For` entry instead: the address the nearest proxy appended. Client-supplied entries to its left are ignored. This is only safe if Render appends to or overwrites that header. Render's docs don't say which, so check it before turning it on, and again if hosting changes:
+
+1. Set `RATE_LIMIT_TRUST_X_FORWARDED_FOR=true` on the service and redeploy.
+2. From one machine, send 61 requests to `/api/v1/ingest/health` within a minute, each with a different fake header: `curl -s -o /dev/null -w '%{http_code}\n' -H "X-Forwarded-For: 198.51.100.$i" "$BACKEND_URL/api/v1/ingest/health"` for `i` in 1..61.
+3. **The 61st returns 429:** the fake entries were ignored and the key is your real address. Keep it on. As a cross-check, a second network (for example a phone hotspot) should still get 200 at the same time.
+4. **None return 429:** the client controls the key. Set it back to `false` at once, or the limits (including login) can be bypassed.
+
+Don't use uvicorn's `--forwarded-allow-ips='*'` for this: uvicorn 0.24 then trusts the leftmost, client-supplied entry. Services on the same Render private network can reach the app without the proxy and set the header themselves. They are our own services, but keep that in mind if the workspace gains others.
 
 ## When it goes red
 
