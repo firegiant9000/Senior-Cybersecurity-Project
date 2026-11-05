@@ -4,22 +4,23 @@ How to tell whether production ingest data is fresh, and what to do when the dai
 
 ## Reading the endpoints
 
-`GET /api/v1/ingest/health` (public) returns `healthy` and a `sources` map. Each source has:
+`GET /api/v1/ingest/health` (public) returns `healthy` and a `sources` map. It is rate limited to `RATE_LIMIT_DATA` (60/minute) per client IP, as `/ingest/freshness` is (agent uploads key on the token prefix instead). A 429 makes the daily workflow (which polls every 120 s) retry and, if it persists, fail red, not green. Keep external monitors to one poll a minute or slower. See [Rate-limit client IP](#rate-limit-client-ip) for how the client IP is found behind the proxy. Each source has:
 
 - `stale`: server-computed against that source's threshold. Clients must not recompute it.
 - `refresh_policy`: the effective policy, one of `scheduled`, `static` or `disabled`.
-- `last_success_hours_ago`, `consecutive_failures`.
+- `last_success_hours_ago`.
+- `consecutive_failures`: failed attempts since the last completed run. A firing and its automatic retries count once (only chain heads, `retry_count == 0`), the same count catch-up uses for its backoff. Lock-contention `skipped` rows neither count nor reset it. A scheduled source with 2 or more makes `healthy` false. That means two failed attempts, not necessarily two cron firings: a catch-up, startup or manual run also counts once, so one failed firing followed by a failed catch-up (about 2 h later) is enough.
 
 IC3 is `static`: it is the 2021-2025 annual-report seed, so there is nothing newer to fetch. It is never refreshed by age and the daily check skips it.
 
-A `scheduled` source whose cron is empty (`INGEST_SCHEDULE_*=""`) reports `disabled`: nothing will refresh it. If `SCHEDULER_ENABLED=false`, every scheduled source reads `disabled`, which is accurate because nothing refreshes, but it also means the daily check skips them all and passes on zero judged sources only if the body is otherwise usable. Check `/health` `scheduler_enabled` first.
+A `scheduled` source whose cron is empty (`INGEST_SCHEDULE_*=""`) reports `disabled`: nothing will refresh it. The policy comes from the cron settings only, not from the serving instance's `SCHEDULER_ENABLED`, so every instance behind one URL reports the same policy (a secondary set to `false` does not turn sources `disabled`). If no instance runs the scheduler, scheduled sources stay `scheduled` and go stale once past their threshold, which turns the daily check red.
 
 `static` and `disabled` sources are never stale by age, but one that has **never succeeded** counts as stale and makes `healthy` false (its failures alone do not). The daily workflow still skips them, so read `/api/v1/ingest/health` directly if a static source shows `stale: true`.
 
 `GET /health` shows what is deployed and whether the scheduler is alive:
 
 - `git_commit`: the deployed commit.
-- `scheduler_enabled`: false means no scheduled ingest runs.
+- `scheduler_enabled`: false means this instance runs no scheduled ingest. It is per instance: with several instances behind one URL, only the one running the scheduler shows true.
 - `scheduled_jobs`: number of registered `ingest_<source>` jobs (sweeps, matcher and retention are not counted). With the defaults it is 4: NVD, KEV, EPSS and economics. A disabled source is not counted.
 
 ## Schedules and thresholds
@@ -47,6 +48,28 @@ On process start and from the hourly `catchup_sweep` job (`INGEST_CATCHUP_SCHEDU
 ## Daily workflow
 
 `.github/workflows/ingest-freshness.yml` runs at 06:00 UTC. It polls `/api/v1/ingest/health` on the backend URL for up to 30 minutes (so a cold instance and the startup catch-up can heal), skips `static` and `disabled` sources, and fails if any other source is not `stale == false`. It holds no source list or thresholds of its own.
+
+## Rate-limit client IP
+
+By default every per-IP limit keys on the connecting peer. Behind Render's proxy that is the proxy, so all callers share one bucket per limit. One busy caller can then get everyone 429s, including login and the daily workflow.
+
+`RATE_LIMIT_TRUST_X_FORWARDED_FOR=true` keys on the rightmost `X-Forwarded-For` entry instead: the address the nearest proxy appended. Client-supplied entries to its left are ignored. This is only safe if Render appends to or overwrites that header. Render's docs don't say which, so check it before turning it on, and again if hosting changes:
+
+1. Set `RATE_LIMIT_TRUST_X_FORWARDED_FOR=true` on the service and redeploy. Wait at least a minute after any earlier run of this check.
+2. **Single fake line.** From one machine, send 61 requests to `/api/v1/ingest/health` within a minute, each with a different fake header: `curl -s -o /dev/null -w '%{http_code}\n' -H "X-Forwarded-For: 198.51.100.$i" "$BACKEND_URL/api/v1/ingest/health"` for `i` in 1..61.
+3. **Second network, same minute.** Right after request 61, from a different network (for example a phone hotspot), request `/api/v1/ingest/health` once.
+4. **Two fake lines.** Wait a minute, then repeat step 2 sending two header lines per request: `-H "X-Forwarded-For: 198.51.100.$i" -H "X-Forwarded-For: 192.0.2.1"`.
+5. Keep it on only if **all** of these hold:
+   - in steps 2 and 4, requests 1 to 60 return 200 and request 61 returns 429 (the fake entries were ignored);
+   - in step 3, the second network gets 200 (callers no longer share one bucket);
+   - the logs show no "X-Forwarded-For rightmost entry is not an IP address" warning (no silent fallback to the proxy).
+6. Otherwise set it back to `false` at once:
+   - no 429 means the client controls the key, so the limits (including login) can be bypassed;
+   - a 429 for the second network means everyone still shares one bucket.
+
+The check assumes one instance and one worker (as `render.yaml` and the Dockerfile run today); with more, the counters split and the check gives a false "turn it off".
+
+Don't use uvicorn's `--forwarded-allow-ips='*'` for this: uvicorn 0.24 then trusts the leftmost, client-supplied entry. Services on the same Render private network can reach the app without the proxy and set the header themselves. They are our own services, but keep that in mind if the workspace gains others.
 
 ## When it goes red
 

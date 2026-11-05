@@ -113,23 +113,24 @@ def is_stale(hours_ago: float | None, threshold_hours: int) -> bool:
 
 
 def scheduled_sources() -> dict[str, bool]:
-    """Which sources an operator has scheduled: a non-empty cron with the scheduler on.
+    """Which sources an operator has scheduled: a non-empty cron.
+
+    Read from the cron strings only, which every instance shares. The serving
+    instance's ``SCHEDULER_ENABLED`` is deliberately ignored: secondaries run with
+    it off, and health they serve must not read every source as ``disabled``. If
+    no instance runs the scheduler, scheduled sources go stale by threshold.
 
     Deliberately not ``scheduled_triggers()``: a typo'd cron stays ``scheduled``
     (judged by threshold, so it goes stale and alerts) instead of reading as a
     deliberate opt-out. No cron is parsed, so nothing is logged per request.
     """
-    return {
-        source: settings.SCHEDULER_ENABLED and bool(cron)
-        for source, cron in source_cron_exprs().items()
-    }
+    return {source: bool(cron) for source, cron in source_cron_exprs().items()}
 
 
 def effective_policy(source: str, scheduled: Mapping[str, bool]) -> RefreshPolicy:
-    """Registry policy, with a scheduled source that has no schedule as ``disabled``.
+    """Registry policy, with a scheduled source whose cron is empty as ``disabled``.
 
-    ``scheduled`` comes from ``scheduled_sources()``. When the scheduler is off
-    every scheduled source reads ``disabled``: nothing will refresh it.
+    ``scheduled`` comes from ``scheduled_sources()``.
     """
     policy = refresh_policy(source)
     if policy == "scheduled" and not scheduled.get(source, False):
@@ -231,6 +232,43 @@ def scheduled_triggers() -> dict[str, CronTrigger | None]:
     return triggers
 
 
+async def consecutive_failure_counts(
+    db: AsyncSession, sources: Iterable[str] | None = None
+) -> dict[str, int]:
+    """Failed attempts per source since its last completed run (all of them when it
+    never completed). Sources with none are absent; ``None`` means every source.
+
+    Counts attempts, not rows: only failed chain heads (``retry_count == 0``),
+    since one firing writes up to ``INGEST_MAX_RETRIES + 1`` failed rows.
+    ``skipped`` and ``running`` rows neither count nor reset the count. Shared by
+    catch-up's backoff and ``/ingest/health`` so both report the same number.
+    """
+    last_completed_q = (
+        select(IngestRun.source, func.max(IngestRun.started_at).label("started_at"))
+        .where(IngestRun.status == "completed")
+        .group_by(IngestRun.source)
+    )
+    failures_q = select(IngestRun.source, func.count()).select_from(IngestRun)
+    if sources is not None:
+        sources = list(sources)
+        last_completed_q = last_completed_q.where(IngestRun.source.in_(sources))
+        failures_q = failures_q.where(IngestRun.source.in_(sources))
+    last_completed = last_completed_q.subquery()
+    rows = await db.execute(
+        failures_q.outerjoin(last_completed, last_completed.c.source == IngestRun.source)
+        .where(IngestRun.status == "failed")
+        .where(IngestRun.retry_count == 0)
+        .where(
+            or_(
+                last_completed.c.started_at.is_(None),
+                IngestRun.started_at > last_completed.c.started_at,
+            )
+        )
+        .group_by(IngestRun.source)
+    )
+    return dict(rows.all())
+
+
 async def load_source_states(
     db: AsyncSession,
     triggers: Mapping[str, CronTrigger | None],
@@ -259,31 +297,8 @@ async def load_source_states(
     )
     last_attempt = dict(attempt_rows.all())
 
-    # Failed attempts started after the source's last completed run (all of them
-    # when it never completed): the exponent of the retry backoff.
-    last_completed = (
-        select(IngestRun.source, func.max(IngestRun.started_at).label("started_at"))
-        .where(IngestRun.status == "completed")
-        .where(IngestRun.source.in_(sources))
-        .group_by(IngestRun.source)
-        .subquery()
-    )
-    failure_rows = await db.execute(
-        select(IngestRun.source, func.count())
-        .select_from(IngestRun)
-        .outerjoin(last_completed, last_completed.c.source == IngestRun.source)
-        .where(IngestRun.status == "failed")
-        .where(IngestRun.retry_count == 0)
-        .where(IngestRun.source.in_(sources))
-        .where(
-            or_(
-                last_completed.c.started_at.is_(None),
-                IngestRun.started_at > last_completed.c.started_at,
-            )
-        )
-        .group_by(IngestRun.source)
-    )
-    failures = dict(failure_rows.all())
+    # The exponent of the retry backoff.
+    failures = await consecutive_failure_counts(db, sources)
 
     latest_rows = await db.execute(
         select(IngestRun.source, IngestRun.status, IngestRun.started_at)
