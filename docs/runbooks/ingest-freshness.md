@@ -55,10 +55,19 @@ By default every per-IP limit keys on the connecting peer. Behind Render's proxy
 
 `RATE_LIMIT_TRUST_X_FORWARDED_FOR=true` keys on the rightmost `X-Forwarded-For` entry instead: the address the nearest proxy appended. Client-supplied entries to its left are ignored. This is only safe if Render appends to or overwrites that header. Render's docs don't say which, so check it before turning it on, and again if hosting changes:
 
-1. Set `RATE_LIMIT_TRUST_X_FORWARDED_FOR=true` on the service and redeploy.
-2. From one machine, send 61 requests to `/api/v1/ingest/health` within a minute, each with a different fake header: `curl -s -o /dev/null -w '%{http_code}\n' -H "X-Forwarded-For: 198.51.100.$i" "$BACKEND_URL/api/v1/ingest/health"` for `i` in 1..61.
-3. **The 61st returns 429:** the fake entries were ignored and the key is your real address. Keep it on. As a cross-check, a second network (for example a phone hotspot) should still get 200 at the same time.
-4. **None return 429:** the client controls the key. Set it back to `false` at once, or the limits (including login) can be bypassed.
+1. Set `RATE_LIMIT_TRUST_X_FORWARDED_FOR=true` on the service and redeploy. Wait at least a minute after any earlier run of this check.
+2. **Single fake line.** From one machine, send 61 requests to `/api/v1/ingest/health` within a minute, each with a different fake header: `curl -s -o /dev/null -w '%{http_code}\n' -H "X-Forwarded-For: 198.51.100.$i" "$BACKEND_URL/api/v1/ingest/health"` for `i` in 1..61.
+3. **Second network, same minute.** Right after request 61, from a different network (for example a phone hotspot), request `/api/v1/ingest/health` once.
+4. **Two fake lines.** Wait a minute, then repeat step 2 sending two header lines per request: `-H "X-Forwarded-For: 198.51.100.$i" -H "X-Forwarded-For: 192.0.2.1"`.
+5. Keep it on only if **all** of these hold:
+   - in steps 2 and 4, requests 1 to 60 return 200 and request 61 returns 429 (the fake entries were ignored);
+   - in step 3, the second network gets 200 (callers no longer share one bucket);
+   - the logs show no "X-Forwarded-For rightmost entry is not an IP address" warning (no silent fallback to the proxy).
+6. Otherwise set it back to `false` at once:
+   - no 429 means the client controls the key, so the limits (including login) can be bypassed;
+   - a 429 for the second network means everyone still shares one bucket.
+
+The check assumes one instance and one worker (as `render.yaml` and the Dockerfile run today); with more, the counters split and the check gives a false "turn it off".
 
 Don't use uvicorn's `--forwarded-allow-ips='*'` for this: uvicorn 0.24 then trusts the leftmost, client-supplied entry. Services on the same Render private network can reach the app without the proxy and set the header themselves. They are our own services, but keep that in mind if the workspace gains others.
 
