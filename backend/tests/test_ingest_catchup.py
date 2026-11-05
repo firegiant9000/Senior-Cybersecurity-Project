@@ -18,6 +18,7 @@ from app.models.ingest_run import IngestRun
 from app.services.ingest_catchup import (
     SourceState,
     attempt_guard,
+    consecutive_failure_counts,
     hours_since,
     is_stale,
     load_source_states,
@@ -343,6 +344,8 @@ async def test_failed_retry_chain_counts_as_one_attempt():
             await db.commit()
             states = await load_source_states(db, {}, ["epss"])
             assert states[0].consecutive_failures == 1
+            # /ingest/health and /freshness use the same count, over every source.
+            assert (await consecutive_failure_counts(db))["epss"] == 1
         finally:
             await db.rollback()
             await db.execute(delete(IngestRun).where(IngestRun.id.in_(run_ids)))

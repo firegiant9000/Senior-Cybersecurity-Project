@@ -50,3 +50,19 @@ async def test_ai_summary_rate_limit_returns_429(limited_client: AsyncClient):
     assert resp.status_code == 429
     assert resp.json() == {"error": "Too Many Requests", "detail": "5 per 1 minute"}
     assert int(resp.headers["Retry-After"]) == 60
+
+
+@pytest.mark.asyncio
+async def test_public_ingest_health_is_rate_limited(anon_client: AsyncClient):
+    # Public, unauthenticated and DB-backed, so it shares RATE_LIMIT_DATA (60/minute).
+    # The daily freshness workflow polls it every 120 s, far below the limit.
+    limiter.reset()
+    try:
+        for _ in range(60):
+            resp = await anon_client.get("/api/v1/ingest/health")
+            assert resp.status_code == 200
+        resp = await anon_client.get("/api/v1/ingest/health")
+        assert resp.status_code == 429
+        assert resp.json() == {"error": "Too Many Requests", "detail": "60 per 1 minute"}
+    finally:
+        limiter.reset()

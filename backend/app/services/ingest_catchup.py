@@ -232,6 +232,43 @@ def scheduled_triggers() -> dict[str, CronTrigger | None]:
     return triggers
 
 
+async def consecutive_failure_counts(
+    db: AsyncSession, sources: Iterable[str] | None = None
+) -> dict[str, int]:
+    """Failed attempts per source since its last completed run (all of them when it
+    never completed). Sources with none are absent; ``None`` means every source.
+
+    Counts attempts, not rows: only failed chain heads (``retry_count == 0``),
+    since one firing writes up to ``INGEST_MAX_RETRIES + 1`` failed rows.
+    ``skipped`` and ``running`` rows neither count nor reset the count. Shared by
+    catch-up's backoff and ``/ingest/health`` so both report the same number.
+    """
+    last_completed_q = (
+        select(IngestRun.source, func.max(IngestRun.started_at).label("started_at"))
+        .where(IngestRun.status == "completed")
+        .group_by(IngestRun.source)
+    )
+    failures_q = select(IngestRun.source, func.count()).select_from(IngestRun)
+    if sources is not None:
+        sources = list(sources)
+        last_completed_q = last_completed_q.where(IngestRun.source.in_(sources))
+        failures_q = failures_q.where(IngestRun.source.in_(sources))
+    last_completed = last_completed_q.subquery()
+    rows = await db.execute(
+        failures_q.outerjoin(last_completed, last_completed.c.source == IngestRun.source)
+        .where(IngestRun.status == "failed")
+        .where(IngestRun.retry_count == 0)
+        .where(
+            or_(
+                last_completed.c.started_at.is_(None),
+                IngestRun.started_at > last_completed.c.started_at,
+            )
+        )
+        .group_by(IngestRun.source)
+    )
+    return dict(rows.all())
+
+
 async def load_source_states(
     db: AsyncSession,
     triggers: Mapping[str, CronTrigger | None],
@@ -260,31 +297,8 @@ async def load_source_states(
     )
     last_attempt = dict(attempt_rows.all())
 
-    # Failed attempts started after the source's last completed run (all of them
-    # when it never completed): the exponent of the retry backoff.
-    last_completed = (
-        select(IngestRun.source, func.max(IngestRun.started_at).label("started_at"))
-        .where(IngestRun.status == "completed")
-        .where(IngestRun.source.in_(sources))
-        .group_by(IngestRun.source)
-        .subquery()
-    )
-    failure_rows = await db.execute(
-        select(IngestRun.source, func.count())
-        .select_from(IngestRun)
-        .outerjoin(last_completed, last_completed.c.source == IngestRun.source)
-        .where(IngestRun.status == "failed")
-        .where(IngestRun.retry_count == 0)
-        .where(IngestRun.source.in_(sources))
-        .where(
-            or_(
-                last_completed.c.started_at.is_(None),
-                IngestRun.started_at > last_completed.c.started_at,
-            )
-        )
-        .group_by(IngestRun.source)
-    )
-    failures = dict(failure_rows.all())
+    # The exponent of the retry backoff.
+    failures = await consecutive_failure_counts(db, sources)
 
     latest_rows = await db.execute(
         select(IngestRun.source, IngestRun.status, IngestRun.started_at)
