@@ -7,6 +7,7 @@ import pytest_asyncio
 from httpx import AsyncClient
 from starlette.requests import Request
 
+import app.core.limiter as limiter_module
 from app.api.routes.v1.auth import get_current_user
 from app.core.config import settings
 from app.core.dependencies import get_current_org
@@ -53,10 +54,10 @@ async def test_ai_summary_rate_limit_returns_429(limited_client: AsyncClient):
     assert int(resp.headers["Retry-After"]) == 60
 
 
-def _request(peer: str, xff: str | None = None, auth: str | None = None) -> Request:
+def _request(peer: str, xff: str | list[str] | None = None, auth: str | None = None) -> Request:
     headers = []
-    if xff is not None:
-        headers.append((b"x-forwarded-for", xff.encode()))
+    for line in [xff] if isinstance(xff, str) else xff or []:
+        headers.append((b"x-forwarded-for", line.encode()))
     if auth is not None:
         headers.append((b"authorization", auth.encode()))
     return Request({"type": "http", "headers": headers, "client": (peer, 1234)})
@@ -74,8 +75,17 @@ def test_client_ip_ignores_forwarded_for_by_default(monkeypatch):
         ("198.51.100.7, 203.0.113.9", "203.0.113.9"),
         ("203.0.113.9", "203.0.113.9"),
         (" 203.0.113.9 ", "203.0.113.9"),
-        ("1.1.1.1, 2001:db8::1", "2001:db8::1"),
+        # A client-sent first header line cannot pick the key; the last line's
+        # rightmost entry (what the proxy added) wins.
+        (["198.51.100.7", "203.0.113.9"], "203.0.113.9"),
+        (["198.51.100.7", "1.1.1.1, 203.0.113.9"], "203.0.113.9"),
+        # IPv6 keys on the /64, so rotating addresses inside one allocation does not
+        # get new buckets; IPv4-mapped addresses key as plain IPv4.
+        ("1.1.1.1, 2001:db8::1", "2001:db8::/64"),
+        ("2001:db8::2", "2001:db8::/64"),
+        ("::ffff:203.0.113.9", "203.0.113.9"),
         # Unusable rightmost entry: fall back to the connecting peer.
+        ("203.0.113.9:443", "10.1.2.3"),
         ("", "10.1.2.3"),
         ("203.0.113.9, not-an-ip", "10.1.2.3"),
         ("203.0.113.9,", "10.1.2.3"),
@@ -84,6 +94,18 @@ def test_client_ip_ignores_forwarded_for_by_default(monkeypatch):
 def test_client_ip_uses_rightmost_forwarded_for_when_trusted(monkeypatch, xff, expected):
     monkeypatch.setattr(settings, "RATE_LIMIT_TRUST_X_FORWARDED_FOR", True)
     assert client_ip(_request("10.1.2.3", xff)) == expected
+
+
+def test_client_ip_warns_once_on_unparseable_entry(monkeypatch, caplog):
+    monkeypatch.setattr(settings, "RATE_LIMIT_TRUST_X_FORWARDED_FOR", True)
+    monkeypatch.setattr(limiter_module, "_warned_unparseable", False)
+    with caplog.at_level("WARNING", logger="app.core.limiter"):
+        client_ip(_request("10.1.2.3", "203.0.113.9, 198.51.100.7:443"))
+        client_ip(_request("10.1.2.3", "203.0.113.9, 198.51.100.7:443"))
+    warnings = [r for r in caplog.records if r.name == "app.core.limiter"]
+    assert len(warnings) == 1
+    # Count only: no address from the header reaches the log.
+    assert "198.51.100.7" not in caplog.text and "203.0.113.9" not in caplog.text
 
 
 def test_client_ip_without_header_uses_peer(monkeypatch):

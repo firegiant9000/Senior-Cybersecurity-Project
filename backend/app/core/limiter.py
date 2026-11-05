@@ -1,12 +1,16 @@
 """Shared rate-limiter instance used across all routers."""
 
 import ipaddress
+import logging
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from starlette.requests import Request
 
 from app.core.config import settings
+
+_log = logging.getLogger(__name__)
+_warned_unparseable = False
 
 
 def client_ip(request: Request) -> str:
@@ -20,16 +24,34 @@ def client_ip(request: Request) -> str:
     ``--forwarded-allow-ips='*'``, which trusts the leftmost entry.) Turn it on
     only where every request reaches the app through a proxy that appends to or
     overwrites the header. An empty or malformed rightmost entry falls back to
-    the peer.
+    the peer (warned once per process).
+
+    Repeated header lines are joined in order, so a client-sent first line cannot
+    stand in for the proxy's entry. IPv6 keys on the /64, since one client
+    usually holds a whole /64; IPv4-mapped IPv6 keys as plain IPv4.
     """
+    global _warned_unparseable
     if settings.RATE_LIMIT_TRUST_X_FORWARDED_FOR:
-        forwarded = request.headers.get("x-forwarded-for")
+        forwarded = ",".join(request.headers.getlist("x-forwarded-for"))
         if forwarded:
-            candidate = forwarded.rsplit(",", 1)[-1].strip()
+            entries = forwarded.split(",")
             try:
-                return str(ipaddress.ip_address(candidate))
+                addr = ipaddress.ip_address(entries[-1].strip())
             except ValueError:
-                pass
+                if not _warned_unparseable:
+                    _warned_unparseable = True
+                    # Entry count only: header contents are client-controlled.
+                    _log.warning(
+                        "X-Forwarded-For rightmost entry is not an IP address (%d entries); "
+                        "rate limits key on the connecting peer",
+                        len(entries),
+                    )
+            else:
+                if isinstance(addr, ipaddress.IPv6Address):
+                    if addr.ipv4_mapped is not None:
+                        return str(addr.ipv4_mapped)
+                    return str(ipaddress.ip_network(f"{addr}/64", strict=False))
+                return str(addr)
     return get_remote_address(request)
 
 
