@@ -394,8 +394,9 @@ async def get_ingest_health(
 ) -> HealthResponse:
     """Return ingest health status — no auth required (for external monitors).
 
-    Reads from DB only, not APScheduler memory, so it is accurate on
-    multi-instance deployments.
+    Reads run history from the DB and policy from the shared cron settings, not
+    APScheduler memory or this instance's ``SCHEDULER_ENABLED``, so every instance
+    behind one URL gives the same answer.
     """
     stmt = select(IngestRun).order_by(IngestRun.source, IngestRun.started_at.desc())
     result = await db.execute(stmt)
