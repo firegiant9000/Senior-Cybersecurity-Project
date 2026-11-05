@@ -310,9 +310,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [backend-lint, backend-test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    concurrency:
-      group: deploy-backend
-      cancel-in-progress: true
+    # No concurrency group. Job-level cancel-in-progress orders by queue time, not
+    # commit order, so a slower run for an older commit cancelled the newest run's
+    # job after its hook had already fired, and the commit check below never ran.
+    # The hook is idempotent (Render deploys the branch head) and takes seconds.
     steps:
       - name: Trigger Render deploy
         env:
@@ -325,12 +326,15 @@ jobs:
     name: Post-Deploy Health Check
     runs-on: ubuntu-latest
     needs: [deploy-frontend, deploy-backend]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    concurrency:
-      group: post-deploy-healthcheck
-      cancel-in-progress: true
+    # Every run whose hook fired must verify the backend, even when a newer run's
+    # deploy-frontend cancelled this run's one (that newer run checks the frontend).
+    # No concurrency group, for the same reason as deploy-backend.
+    if: >-
+      always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+      && needs.deploy-backend.result == 'success'
     steps:
       - name: Check frontend is reachable
+        if: needs.deploy-frontend.result == 'success'
         run: |
           for i in $(seq 1 20); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://hacker-tracker-75f91.web.app/)
