@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import delete, func, select
 
 from app.core.config import Settings, settings
+from app.core.limiter import limiter
 from app.db.engine import AsyncSessionLocal
 from app.db.models import CVE, KEV, IC3Incident
 from app.models.ingest_run import IngestRun
@@ -353,7 +354,8 @@ async def _reference_bodies() -> tuple[dict, dict]:
     """Health and freshness bodies computed from every run row, newest first per source.
 
     This is how both endpoints worked before they switched to bounded per-source
-    queries; the new queries must give the same bodies.
+    queries (with the attempt-based failure count); the new queries must give the
+    same bodies.
     """
     from app.api.routes.v1.ingest import (
         FreshnessResponse,
@@ -462,10 +464,11 @@ async def test_bounded_queries_match_full_history_bodies(anon_client, client):
     runs[8].trigger = "scheduled"
 
     async def check():
+        # This pins the bounded queries; a 429 from earlier tests must not skip it.
+        limiter.reset()
         health = await anon_client.get("/api/v1/ingest/health")
         fresh = await client.get("/api/v1/ingest/freshness")
-        if health.status_code != 200 or fresh.status_code != 200:
-            pytest.skip(f"ingest endpoints unavailable: {health.status_code}/{fresh.status_code}")
+        assert (health.status_code, fresh.status_code) == (200, 200)
         want_health, want_fresh = await _reference_bodies()
         got_health = health.json()
 

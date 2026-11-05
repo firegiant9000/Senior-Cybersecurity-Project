@@ -38,10 +38,12 @@ function fixedLabel(s: SourceFreshness): string {
 }
 
 function getDisplayStatus(s: SourceFreshness): string {
+  // A run in flight (often the retry or catch-up after a failure) reads as running;
+  // consecutive_failures does not reset until a run completes.
+  if (s.status === 'running') return isFixedPolicy(s) ? 'static' : 'running';
   // Failures are shown for every policy, so a broken static source is not hidden.
   if (s.status === 'failed' || s.consecutive_failures > 0) return 'error';
   if (isFixedPolicy(s)) return 'static';
-  if (s.status === 'running') return 'running';
   if (s.stale) return 'stale';
   return s.status ?? 'unknown';
 }

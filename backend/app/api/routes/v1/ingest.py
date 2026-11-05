@@ -377,7 +377,7 @@ async def _last_success_finished_at(
 ) -> dict[str, datetime.datetime | None]:
     """``finished_at`` of each source's most recently started completed run.
 
-    One row per source (``DISTINCT ON``), so the cost does not grow with history.
+    One row per source (``DISTINCT ON``), so the rows returned do not grow with history.
     ``None`` means every source.
     """
     stmt = (
@@ -452,7 +452,7 @@ async def get_ingest_freshness(
 ) -> FreshnessResponse:
     """Return the latest ingest run info for each data source."""
     try:
-        # One latest row per source, ordered by source; the cost does not grow with history.
+        # One latest row per source, ordered by source; rows returned do not grow with history.
         stmt = (
             select(IngestRun)
             .distinct(IngestRun.source)
