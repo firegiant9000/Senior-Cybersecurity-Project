@@ -261,8 +261,8 @@ async def _run_ingestion(
             return
 
         if trigger in _CATCHUP_TRIGGERS:
-            # Catch-up is redundant by design; a "skipped" row would count as a
-            # failure in _compute_consecutive_failures, so don't record one.
+            # Catch-up is redundant by design; a "skipped" row would only clutter
+            # the run history, so don't record one.
             logger.warning(
                 "Catch-up ingestion not started — lock held",
                 extra={"source": source, "trigger": trigger},
@@ -373,13 +373,19 @@ async def _run_locked(
 
 
 def _compute_consecutive_failures(runs: list[IngestRun]) -> int:
-    """Count consecutive terminal failures from most-recent backward."""
+    """Failed attempts since the last completed run, given runs newest first.
+
+    Counts attempts the way catch-up's backoff does (``load_source_states``): only
+    failed chain heads (``retry_count == 0``), since one firing writes up to
+    ``INGEST_MAX_RETRIES + 1`` failed rows. ``skipped`` and ``running`` rows
+    neither count nor reset the count.
+    """
     count = 0
     for run in runs:
-        if run.status in {"failed", "skipped"}:
-            count += 1
-        else:
+        if run.status == "completed":
             break
+        if run.status == "failed" and not run.retry_count:
+            count += 1
     return count
 
 

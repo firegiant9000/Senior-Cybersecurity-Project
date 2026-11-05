@@ -8,7 +8,8 @@ How to tell whether production ingest data is fresh, and what to do when the dai
 
 - `stale`: server-computed against that source's threshold. Clients must not recompute it.
 - `refresh_policy`: the effective policy, one of `scheduled`, `static` or `disabled`.
-- `last_success_hours_ago`, `consecutive_failures`.
+- `last_success_hours_ago`.
+- `consecutive_failures`: failed attempts since the last completed run. A firing and its automatic retries count once (only chain heads, `retry_count == 0`), the same count catch-up uses for its backoff. Lock-contention `skipped` rows neither count nor reset it. A scheduled source with 2 or more makes `healthy` false, which means two bad firings.
 
 IC3 is `static`: it is the 2021-2025 annual-report seed, so there is nothing newer to fetch. It is never refreshed by age and the daily check skips it.
 
