@@ -12,9 +12,10 @@ from httpx import AsyncClient
 # ---------------------------------------------------------------------------
 
 
-def _make_run(status: str):
+def _make_run(status: str, retry_count: int = 0):
     r = MagicMock()
     r.status = status
+    r.retry_count = retry_count
     return r
 
 
@@ -45,11 +46,19 @@ def test_consecutive_failures_empty_list():
     assert _compute_consecutive_failures([]) == 0
 
 
-def test_consecutive_failures_skipped_counts_as_non_completed():
+def test_consecutive_failures_skipped_neither_counts_nor_resets():
     from app.api.routes.v1.ingest import _compute_consecutive_failures
 
-    runs = [_make_run("skipped"), _make_run("failed"), _make_run("completed")]
+    runs = [_make_run("failed"), _make_run("skipped"), _make_run("failed"), _make_run("completed")]
     assert _compute_consecutive_failures(runs) == 2
+
+
+def test_consecutive_failures_counts_retry_chain_once():
+    from app.api.routes.v1.ingest import _compute_consecutive_failures
+
+    # Newest first: one firing's two retries, then its chain head.
+    runs = [_make_run("failed", 2), _make_run("failed", 1), _make_run("failed", 0)]
+    assert _compute_consecutive_failures(runs) == 1
 
 
 # ---------------------------------------------------------------------------

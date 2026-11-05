@@ -83,7 +83,9 @@ def test_economics_defaults():
     assert Settings.model_fields["INGEST_STALE_HOURS_ECON"].default == 840
 
 
-def _run(source: str, status: str, age_hours: float, now: datetime) -> IngestRun:
+def _run(
+    source: str, status: str, age_hours: float, now: datetime, retry_count: int = 0
+) -> IngestRun:
     finished = now - timedelta(hours=age_hours)
     return IngestRun(
         id=uuid4(),
@@ -91,6 +93,7 @@ def _run(source: str, status: str, age_hours: float, now: datetime) -> IngestRun
         started_at=finished - timedelta(minutes=1),
         finished_at=finished,
         status=status,
+        retry_count=retry_count,
     )
 
 
@@ -221,6 +224,88 @@ async def test_scheduler_disabled_instance_still_judges_scheduled_sources(anon_c
         assert body["healthy"] is False
 
     await _with_runs(_seed_runs(30), check)
+
+
+def _failed_firing(source: str, age_hours: float, now: datetime) -> list[IngestRun]:
+    """One scheduled firing that failed: the chain head plus INGEST_MAX_RETRIES=2 retries."""
+    return [
+        _run(source, "failed", age_hours, now, 0),
+        _run(source, "failed", age_hours - 0.01, now, 1),
+        _run(source, "failed", age_hours - 0.02, now, 2),
+    ]
+
+
+async def _economics_failures(anon_client, client) -> tuple[dict, int]:
+    """Health body and the economics consecutive_failures from /freshness."""
+    resp = await anon_client.get("/api/v1/ingest/health")
+    if resp.status_code != 200:
+        pytest.skip(f"ingest health unavailable: {resp.status_code}")
+    fresh = await client.get("/api/v1/ingest/freshness")
+    if fresh.status_code != 200:
+        pytest.skip(f"ingest freshness unavailable: {fresh.status_code}")
+    by_source = {s["source"]: s for s in fresh.json()["sources"]}
+    return resp.json(), by_source["economics"]["consecutive_failures"]
+
+
+async def _clear_economics_runs() -> None:
+    async with AsyncSessionLocal() as db:
+        # Earlier tests may have left economics runs behind, which would skew the count.
+        await db.execute(delete(IngestRun).where(IngestRun.source == "economics"))
+        await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_retry_chain_counts_as_one_failure(anon_client, client):
+    now = datetime.utcnow()
+    runs = [r for r in _seed_runs(1) if r.source != "economics"]
+    runs.append(_run("economics", "completed", 5, now))
+    runs += _failed_firing("economics", 3, now)
+
+    async def check():
+        body, freshness_count = await _economics_failures(anon_client, client)
+        # One bad firing is one failure, not three rows' worth, and does not flip healthy.
+        assert body["sources"]["economics"]["consecutive_failures"] == 1
+        assert freshness_count == 1
+        assert body["healthy"] is True
+
+    await _clear_economics_runs()
+    await _with_runs(runs, check)
+
+
+@pytest.mark.asyncio
+async def test_two_failed_firings_flip_healthy_and_skipped_is_ignored(anon_client, client):
+    now = datetime.utcnow()
+    runs = [r for r in _seed_runs(1) if r.source != "economics"]
+    runs.append(_run("economics", "completed", 30, now))
+    runs += _failed_firing("economics", 27, now)
+    # A lock-contention skip between the firings neither counts nor resets the count.
+    runs.append(_run("economics", "skipped", 20, now))
+    runs += _failed_firing("economics", 3, now)
+
+    async def check():
+        body, freshness_count = await _economics_failures(anon_client, client)
+        assert body["sources"]["economics"]["consecutive_failures"] == 2
+        assert freshness_count == 2
+        assert body["healthy"] is False
+
+    await _clear_economics_runs()
+    await _with_runs(runs, check)
+
+
+@pytest.mark.asyncio
+async def test_retry_that_succeeds_resets_failures(anon_client, client):
+    now = datetime.utcnow()
+    runs = [r for r in _seed_runs(1) if r.source != "economics"]
+    runs += _failed_firing("economics", 27, now)
+    runs += [_run("economics", "failed", 3, now, 0), _run("economics", "completed", 2.99, now, 1)]
+
+    async def check():
+        body, freshness_count = await _economics_failures(anon_client, client)
+        assert body["sources"]["economics"]["consecutive_failures"] == 0
+        assert freshness_count == 0
+
+    await _clear_economics_runs()
+    await _with_runs(runs, check)
 
 
 @pytest.mark.asyncio
