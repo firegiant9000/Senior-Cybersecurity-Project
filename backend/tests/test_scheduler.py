@@ -156,11 +156,33 @@ def test_production_defaults_register_nvd_kev_epss_in_order(mock_scheduler):
         init_scheduler()
 
     triggers = {c.kwargs["id"]: c.kwargs["trigger"] for c in mock_scheduler.add_job.call_args_list}
-    assert set(triggers) == {"ingest_nvd", "ingest_cisa_kev", "ingest_epss"}
+    assert set(triggers) == {"ingest_nvd", "ingest_cisa_kev", "ingest_epss", "ingest_economics"}
     t0 = datetime(2026, 1, 1, 0, 0, tzinfo=UTC)
     fire = {k: v.get_next_fire_time(None, t0) for k, v in triggers.items()}
     assert fire["ingest_nvd"] < fire["ingest_cisa_kev"] < fire["ingest_epss"]
     assert (fire["ingest_nvd"].hour, fire["ingest_nvd"].minute) == (1, 0)
+
+
+def test_production_defaults_register_economics_daily(mock_scheduler):
+    with (
+        patch("app.workers.scheduler.settings") as mock_settings,
+        patch("app.workers.scheduler.source_cron_exprs", return_value=_default_map()),
+    ):
+        mock_settings.SCHEDULER_ENABLED = True
+        mock_settings.INGEST_CATCHUP_SCHEDULE = ""
+        mock_settings.MATCHER_SCHEDULE = ""
+        mock_settings.NVD_CPE_BACKFILL_SCHEDULE = ""
+        mock_settings.RETENTION_SWEEP_SCHEDULE = ""
+        init_scheduler()
+
+    triggers = {c.kwargs["id"]: c.kwargs["trigger"] for c in mock_scheduler.add_job.call_args_list}
+    assert "ingest_economics" in triggers
+    fields = {f.name: str(f) for f in triggers["ingest_economics"].fields}
+    assert (fields["day"], fields["hour"], fields["minute"]) == ("*", "3", "0")
+    assert fields["month"] == "*"
+    t0 = datetime(2026, 1, 2, 4, 0, tzinfo=UTC)
+    nxt = triggers["ingest_economics"].get_next_fire_time(None, t0)
+    assert (nxt.month, nxt.day, nxt.hour, nxt.minute) == (1, 3, 3, 0)
 
 
 def _catchup_jobs(mock_scheduler, *, schedule, on_startup=True):

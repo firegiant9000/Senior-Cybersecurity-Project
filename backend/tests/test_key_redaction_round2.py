@@ -196,10 +196,9 @@ async def test_census_csv_fallback_failure_does_not_chain_keyed_url(monkeypatch)
             )
 
     monkeypatch.setattr(econ.httpx, "AsyncClient", _Client)
-    monkeypatch.setattr(
-        econ, "ingest_region_economics_from_csv", AsyncMock(side_effect=OSError("csv"))
-    )
-    with pytest.raises(OSError) as info:
+    csv_loader = AsyncMock()
+    monkeypatch.setattr(econ, "ingest_region_economics_from_csv", csv_loader)
+    with pytest.raises(RuntimeError) as info:
         await econ.ingest_region_economics_from_census(MagicMock())
     text = "".join(
         logging.Formatter().formatException(
@@ -207,6 +206,8 @@ async def test_census_csv_fallback_failure_does_not_chain_keyed_url(monkeypatch)
         )
     )
     assert KEY not in text
+    assert KEY not in str(info.value)
+    csv_loader.assert_not_awaited()
 
 
 # --- 5: ReDoS ---------------------------------------------------------------------------------

@@ -112,6 +112,17 @@ def test_unscheduled_sources_only_seed():
     assert select_sources(states, NOW) == ["nvd"]
 
 
+def test_static_source_never_caught_up_when_stale():
+    # Even with a cron set (INGEST_SCHEDULE_IC3), a static source is not re-run for age.
+    states = [_s("ic3", scheduled=True, has_rows=True, success_h=210 * 24)]
+    assert select_sources(states, NOW) == []
+
+
+def test_static_source_still_seeds_when_empty():
+    states = [_s("ic3", scheduled=True, has_rows=False)]
+    assert select_sources(states, NOW) == ["ic3"]
+
+
 def test_scheduled_empty_table_selected_even_if_fresh():
     states = [_s("nvd", has_rows=False, success_h=1)]
     assert select_sources(states, NOW) == ["nvd"]
@@ -438,6 +449,33 @@ async def test_run_catchup_runs_selected_sources_in_order(no_db, monkeypatch):
 
     assert selected == ["nvd", "epss"]
     runner.assert_awaited_once_with(["nvd", "epss"], trigger="catchup", recheck=True)
+
+
+async def test_sweep_skips_static_and_disabled_sources_by_age(no_db, monkeypatch):
+    # no_db gives every source a cron, so IC3 counts as scheduled here (INGEST_SCHEDULE_IC3 set).
+    seven_months = 7 * 30 * 24
+    _fake_loader(
+        monkeypatch,
+        lambda i, sources: [
+            _s("nvd", success_h=30),
+            _s("ic3", has_rows=True, success_h=seven_months),
+            _s("economics", scheduled=False, has_rows=None, success_h=seven_months),
+        ],
+    )
+    runner = AsyncMock()
+    monkeypatch.setattr(catchup, "run_sequential_ingest", runner)
+
+    assert await run_catchup("catchup") == ["nvd"]
+    runner.assert_awaited_once_with(["nvd"], trigger="catchup", recheck=True)
+
+
+async def test_sweep_still_seeds_empty_static_source(no_db, monkeypatch):
+    _fake_loader(monkeypatch, lambda i, sources: [_s("ic3", has_rows=False)])
+    runner = AsyncMock()
+    monkeypatch.setattr(catchup, "run_sequential_ingest", runner)
+
+    assert await run_catchup("catchup") == ["ic3"]
+    runner.assert_awaited_once_with(["ic3"], trigger="catchup", recheck=True)
 
 
 async def test_run_catchup_disabled_seeds_only(no_db, monkeypatch):

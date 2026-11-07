@@ -37,6 +37,7 @@ from app.core.config import settings
 from app.db.engine import AsyncSessionLocal
 from app.db.models import CVE, KEV, IC3Incident
 from app.models.ingest_run import IngestRun
+from app.services.ingest_sources import RefreshPolicy, refresh_policy
 from app.workers.scheduler import source_cron_exprs
 
 _log = logging.getLogger(__name__)
@@ -111,6 +112,53 @@ def is_stale(hours_ago: float | None, threshold_hours: int) -> bool:
     return hours_ago is None or hours_ago > threshold_hours
 
 
+def scheduled_sources() -> dict[str, bool]:
+    """Which sources an operator has scheduled: a non-empty cron with the scheduler on.
+
+    Deliberately not ``scheduled_triggers()``: a typo'd cron stays ``scheduled``
+    (judged by threshold, so it goes stale and alerts) instead of reading as a
+    deliberate opt-out. No cron is parsed, so nothing is logged per request.
+    """
+    return {
+        source: settings.SCHEDULER_ENABLED and bool(cron)
+        for source, cron in source_cron_exprs().items()
+    }
+
+
+def effective_policy(source: str, scheduled: Mapping[str, bool]) -> RefreshPolicy:
+    """Registry policy, with a scheduled source that has no schedule as ``disabled``.
+
+    ``scheduled`` comes from ``scheduled_sources()``. When the scheduler is off
+    every scheduled source reads ``disabled``: nothing will refresh it.
+    """
+    policy = refresh_policy(source)
+    if policy == "scheduled" and not scheduled.get(source, False):
+        return "disabled"
+    return policy
+
+
+def source_is_stale(
+    source: str,
+    hours_ago: float | None,
+    thresholds: Mapping[str, int],
+    policy: RefreshPolicy | None = None,
+) -> bool:
+    """Staleness of one source.
+
+    A static or disabled source is never stale by age, but is stale if it has
+    never succeeded. A scheduled source is judged against its threshold; one with
+    no configured threshold counts as stale. ``policy`` defaults to the registry's.
+    """
+    if policy is None:
+        policy = refresh_policy(source)
+    if policy in ("static", "disabled"):
+        return hours_ago is None
+    threshold = thresholds.get(source)
+    if threshold is None:
+        return True
+    return is_stale(hours_ago, threshold)
+
+
 def _missed_firing(
     trigger: CronTrigger, last_success_at: datetime.datetime | None, now: datetime.datetime
 ) -> bool:
@@ -131,9 +179,10 @@ def select_sources(
 ) -> list[str]:
     """Return the sources to ingest, in ``CATCHUP_ORDER``.
 
-    A source is due when its table is empty (seed), or when it is scheduled and
-    has missed a cron firing. Either way it is skipped if attempted within its
-    backoff guard (``attempt_guard``), or if its latest run is ``running`` and
+    A source is due when its table is empty (seed), or when it is scheduled, not
+    static, and has missed a cron firing. Static sources are seeded but never
+    re-run for age, even if given a cron. Either way it is skipped if attempted
+    within its backoff guard (``attempt_guard``), or if its latest run is ``running`` and
     younger than ``running_timeout`` (default ``INGEST_LOCK_TIMEOUT_SECONDS``,
     after which ``_run_ingestion`` treats a running row as stale).
     """
@@ -144,8 +193,10 @@ def select_sources(
         if state.source not in CATCHUP_ORDER:
             continue
         seed = state.has_rows is False
-        missed = state.trigger is not None and _missed_firing(
-            state.trigger, state.last_success_at, now
+        missed = (
+            state.trigger is not None
+            and refresh_policy(state.source) != "static"
+            and _missed_firing(state.trigger, state.last_success_at, now)
         )
         if not (seed or missed):
             continue

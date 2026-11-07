@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fetchIngestFreshness, type SourceFreshness } from '../../api/ingest';
+import { FRESHNESS_REFRESH_EVENT } from './freshnessEvents';
 
 const SOURCE_LABELS: Record<string, string> = {
   cisa_kev:   'CISA KEV',
@@ -10,7 +11,11 @@ const SOURCE_LABELS: Record<string, string> = {
   epss:       'EPSS',
 };
 
-const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+const STATIC_LABELS: Record<string, string> = {
+  ic3: 'static (2021–2025 annual reports)',
+};
+
+const POLL_INTERVAL_MS = 300_000;
 
 function fmtAge(isoDate: string | null): string {
   if (!isoDate) return 'never';
@@ -23,13 +28,21 @@ function fmtAge(isoDate: string | null): string {
   return `${days}d ago`;
 }
 
+function isFixedPolicy(s: SourceFreshness): boolean {
+  return s.refresh_policy === 'static' || s.refresh_policy === 'disabled';
+}
+
+function fixedLabel(s: SourceFreshness): string {
+  if (s.refresh_policy === 'disabled') return 'disabled';
+  return STATIC_LABELS[s.source] ?? 'static';
+}
+
 function getDisplayStatus(s: SourceFreshness): string {
+  // Failures are shown for every policy, so a broken static source is not hidden.
   if (s.status === 'failed' || s.consecutive_failures > 0) return 'error';
+  if (isFixedPolicy(s)) return 'static';
   if (s.status === 'running') return 'running';
-  const lastSuccess = s.last_successful_run_at ?? s.last_run_at;
-  if (!lastSuccess || Date.now() - new Date(lastSuccess).getTime() > STALE_THRESHOLD_MS) {
-    return 'stale';
-  }
+  if (s.stale) return 'stale';
   return s.status ?? 'unknown';
 }
 
@@ -49,11 +62,43 @@ const DataFreshness: React.FC = () => {
   const [sources, setSources] = useState<SourceFreshness[]>([]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    fetchIngestFreshness(controller.signal)
-      .then(r => setSources(r.sources))
-      .catch(() => { /* non-fatal — hide silently */ });
-    return () => controller.abort();
+    let controller: AbortController | null = null;
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    const load = () => {
+      controller?.abort();
+      const c = new AbortController();
+      controller = c;
+      fetchIngestFreshness(c.signal)
+        .then(r => { if (!c.signal.aborted) setSources(r.sources); })
+        .catch(() => { /* non-fatal — hide silently */ });
+    };
+    const stop = () => {
+      if (timer !== null) { clearInterval(timer); timer = null; }
+    };
+    const start = () => {
+      stop();
+      timer = setInterval(load, POLL_INTERVAL_MS);
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        stop();
+      } else {
+        load();
+        start();
+      }
+    };
+
+    load();
+    if (!document.hidden) start();
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener(FRESHNESS_REFRESH_EVENT, load);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener(FRESHNESS_REFRESH_EVENT, load);
+      stop();
+      controller?.abort();
+    };
   }, []);
 
   if (sources.length === 0) return null;
@@ -71,7 +116,7 @@ const DataFreshness: React.FC = () => {
           >
             {SOURCE_LABELS[s.source] ?? s.source}
             {': '}
-            {fmtAge(s.last_run_at)}
+            {isFixedPolicy(s) ? fixedLabel(s) : fmtAge(s.last_run_at)}
             {displayStatus === 'error' && ' ⚠'}
             {displayStatus === 'stale' && ' ○'}
           </span>

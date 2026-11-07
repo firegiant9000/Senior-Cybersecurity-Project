@@ -100,10 +100,10 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:  # noqa
     if not api_key:
         logger.warning(
             "CENSUS_API_KEY not set. Attempting unauthenticated Census API requests. "
-            "If rate-limited, will fall back to CSV."
+            "If rate-limited, the run will fail."
         )
 
-    use_csv_fallback = False
+    census_error: str | None = None
 
     try:
         # Using 2023 data (most recent complete Census ACS 5-year estimates as of 2026)
@@ -190,8 +190,11 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:  # noqa
             income_resp.raise_for_status()
             income_data = income_resp.json()
 
+            if not isinstance(cbp_data, list) or not isinstance(income_data, list):
+                raise RuntimeError("Census response was not a list")
+
             smb_by_fips: dict[str, int] = {}
-            for row in cbp_data[1:] if isinstance(cbp_data, list) else []:
+            for row in cbp_data[1:]:
                 try:
                     estab_raw = str(row[0]).replace(",", "").strip()
                     fips = str(row[-1]).zfill(2)
@@ -200,7 +203,7 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:  # noqa
                     continue
 
             income_by_fips: dict[str, float] = {}
-            for row in income_data[1:] if isinstance(income_data, list) else []:
+            for row in income_data[1:]:
                 try:
                     income_raw = str(row[0]).replace(",", "").strip()
                     fips = str(row[-1]).zfill(2)
@@ -210,13 +213,19 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:  # noqa
                 except (TypeError, ValueError, IndexError):
                     continue
 
-            for state_abbr, state_fips in states.items():
-                smb_count = smb_by_fips.get(state_fips, 0)
-                if smb_count <= 0:
-                    logger.warning("Missing/invalid SMB count for %s; using default", state_abbr)
-                    smb_count = 100_000
+            missing = [
+                abbr
+                for abbr, fips in states.items()
+                if smb_by_fips.get(fips, 0) <= 0 or fips not in income_by_fips
+            ]
+            if missing:
+                raise RuntimeError(
+                    f"Census response incomplete: {len(missing)} of {len(states)} states missing"
+                )
 
-                median_income = income_by_fips.get(state_fips, 50_000.0)
+            for state_abbr, state_fips in states.items():
+                smb_count = smb_by_fips[state_fips]
+                median_income = income_by_fips[state_fips]
 
                 # Approximate state-level revenue proxy from household income + business counts.
                 gdp_estimate = median_income * smb_count * 2.5
@@ -243,13 +252,14 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:  # noqa
         )
 
     except (httpx.HTTPError, ValueError) as e:
-        logger.warning("Census API error: %s. Falling back to CSV file.", safe_http_error(e))
-        use_csv_fallback = True
+        census_error = safe_http_error(e)
+        logger.warning("Census API error: %s", census_error)
 
-    # Run outside the except block so a fallback failure does not chain the
-    # original exception (whose text includes the keyed request URL).
-    if use_csv_fallback:
-        await ingest_region_economics_from_csv(db)
+    # Raised outside the except block so the original exception (whose text
+    # includes the keyed request URL) is not chained into the traceback.
+    # No CSV fallback: the run must be recorded as failed, not as fresh demo data.
+    if census_error is not None:
+        raise RuntimeError(f"Census API error: {census_error}")
 
 
 async def ingest_region_economics_from_csv(

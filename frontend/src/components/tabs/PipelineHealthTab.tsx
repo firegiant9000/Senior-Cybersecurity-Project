@@ -10,6 +10,7 @@ import {
 } from '../../api/ingest';
 import { useAuth } from '../../context/AuthContext';
 import { formatDateWithTz } from '../../utils/formatTime';
+import { requestFreshnessRefresh } from '../shared/freshnessEvents';
 
 const PAGE_SIZE = 15;
 
@@ -137,6 +138,7 @@ const PipelineHealthTab: React.FC = () => {
         }
         if (!anyRunning && wasRunningRef.current) {
             fetchData(1, sourceFilter);
+            requestFreshnessRefresh();
         }
         wasRunningRef.current = anyRunning;
         if (!anyRunning) return;
@@ -184,14 +186,20 @@ const PipelineHealthTab: React.FC = () => {
         try {
             const res = await triggerIngestion(controller.signal, triggerSource || undefined);
             setTriggerMsg(res.message ?? 'Ingestion triggered.');
-            refreshTimerRef.current = window.setTimeout(() => fetchData(1, sourceFilter), 2000);
+            refreshTimerRef.current = window.setTimeout(() => {
+                fetchData(1, sourceFilter);
+                // The tab's own cards must see `running` too; its poll and the
+                // running -> idle path then take over.
+                refreshFreshness(new AbortController().signal);
+                requestFreshnessRefresh();
+            }, 2000);
         } catch (err) {
             if (err instanceof DOMException && err.name === 'AbortError') return;
             setTriggerMsg(err instanceof Error ? err.message : 'Trigger failed.');
         } finally {
             setTriggering(false);
         }
-    }, [triggerSource, sourceFilter, fetchData]);
+    }, [triggerSource, sourceFilter, fetchData, refreshFreshness]);
 
     const handleRetry = useCallback(async (source: string) => {
         // Find latest failed run for this source in current runs state
