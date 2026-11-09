@@ -3,7 +3,6 @@
 import asyncio
 import datetime
 import logging
-from collections import defaultdict
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -20,6 +19,7 @@ from app.db.models import CVE, KEV, IC3Incident
 from app.db.user import User
 from app.models.ingest_run import IngestRun
 from app.services.ingest_catchup import (
+    consecutive_failure_counts,
     effective_policy,
     hours_since,
     scheduled_sources,
@@ -261,8 +261,8 @@ async def _run_ingestion(
             return
 
         if trigger in _CATCHUP_TRIGGERS:
-            # Catch-up is redundant by design; a "skipped" row would count as a
-            # failure in _compute_consecutive_failures, so don't record one.
+            # Catch-up is redundant by design; a "skipped" row would only clutter
+            # the run history, so don't record one.
             logger.warning(
                 "Catch-up ingestion not started — lock held",
                 extra={"source": source, "trigger": trigger},
@@ -372,15 +372,23 @@ async def _run_locked(
         await release_or_invalidate(lock_conn, source)
 
 
-def _compute_consecutive_failures(runs: list[IngestRun]) -> int:
-    """Count consecutive terminal failures from most-recent backward."""
-    count = 0
-    for run in runs:
-        if run.status in {"failed", "skipped"}:
-            count += 1
-        else:
-            break
-    return count
+async def _last_success_finished_at(
+    db: AsyncSession, sources: list[str] | None = None
+) -> dict[str, datetime.datetime | None]:
+    """``finished_at`` of each source's most recently started completed run.
+
+    One row per source (``DISTINCT ON``), so the rows returned do not grow with history.
+    ``None`` means every source.
+    """
+    stmt = (
+        select(IngestRun.source, IngestRun.finished_at)
+        .where(IngestRun.status == "completed")
+        .distinct(IngestRun.source)
+        .order_by(IngestRun.source, IngestRun.started_at.desc())
+    )
+    if sources is not None:
+        stmt = stmt.where(IngestRun.source.in_(sources))
+    return dict((await db.execute(stmt)).all())
 
 
 # ---------------------------------------------------------------------------
@@ -389,35 +397,31 @@ def _compute_consecutive_failures(runs: list[IngestRun]) -> int:
 
 
 @router.get("/health", response_model=HealthResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
 async def get_ingest_health(
+    request: Request,
     db: AsyncSession = Depends(get_session),
 ) -> HealthResponse:
     """Return ingest health status — no auth required (for external monitors).
 
-    Reads from DB only, not APScheduler memory, so it is accurate on
-    multi-instance deployments.
+    Reads run history from the DB and policy from the shared cron settings, not
+    APScheduler memory or this instance's ``SCHEDULER_ENABLED``, so every instance
+    behind one URL gives the same answer. Public, so rate limited per client IP.
     """
-    stmt = select(IngestRun).order_by(IngestRun.source, IngestRun.started_at.desc())
-    result = await db.execute(stmt)
-    all_runs = result.scalars().all()
-
-    source_runs: dict[str, list[IngestRun]] = defaultdict(list)
-    for run in all_runs:
-        source_runs[run.source].append(run)
+    thresholds = stale_thresholds()
+    sources = list(thresholds)
+    last_success_at = await _last_success_finished_at(db, sources)
+    failures = await consecutive_failure_counts(db, sources)
 
     now = datetime.datetime.utcnow()
     sources_health: dict[str, SourceHealthItem] = {}
     all_healthy = True
 
-    thresholds = stale_thresholds()
     scheduled = scheduled_sources()
     for source in thresholds:
-        runs = source_runs.get(source, [])
+        hours_ago = hours_since(last_success_at.get(source), now)
 
-        last_success = next((r for r in runs if r.status == "completed"), None)
-        hours_ago = hours_since(last_success.finished_at if last_success else None, now)
-
-        consec_fails = _compute_consecutive_failures(runs)
+        consec_fails = failures.get(source, 0)
         policy = effective_policy(source, scheduled)
         stale = source_is_stale(source, hours_ago, thresholds, policy)
 
@@ -448,14 +452,15 @@ async def get_ingest_freshness(
 ) -> FreshnessResponse:
     """Return the latest ingest run info for each data source."""
     try:
-        stmt = select(IngestRun).order_by(IngestRun.source, IngestRun.started_at.desc())
-        result = await db.execute(stmt)
-        runs = result.scalars().all()
-
-        # Group by source (already sorted descending by started_at within each group)
-        source_groups: dict[str, list[IngestRun]] = defaultdict(list)
-        for run in runs:
-            source_groups[run.source].append(run)
+        # One latest row per source, ordered by source; rows returned do not grow with history.
+        stmt = (
+            select(IngestRun)
+            .distinct(IngestRun.source)
+            .order_by(IngestRun.source, IngestRun.started_at.desc())
+        )
+        latest_runs = (await db.execute(stmt)).scalars().all()
+        last_success_at = await _last_success_finished_at(db)
+        failures = await consecutive_failure_counts(db)
 
         # Query total record counts per source table
         source_table_map = {
@@ -472,21 +477,21 @@ async def get_ingest_freshness(
         scheduled = scheduled_sources()
         now = datetime.datetime.utcnow()
         sources = []
-        for source, group in source_groups.items():
-            latest = group[0]
+        for latest in latest_runs:
+            source = latest.source
 
             # [2A] Last successful run
-            last_success = next((r for r in group if r.status == "completed"), None)
+            last_success_finished = last_success_at.get(source)
             last_successful_run_at: str | None = None
-            if last_success and last_success.finished_at:
-                last_successful_run_at = last_success.finished_at.replace(
+            if last_success_finished:
+                last_successful_run_at = last_success_finished.replace(
                     tzinfo=datetime.UTC
                 ).isoformat()
 
             # [2A] Consecutive failures
-            consec_fails = _compute_consecutive_failures(group)
+            consec_fails = failures.get(source, 0)
 
-            hours_ago = hours_since(last_success.finished_at if last_success else None, now)
+            hours_ago = hours_since(last_success_finished, now)
             policy = effective_policy(source, scheduled)
 
             sources.append(

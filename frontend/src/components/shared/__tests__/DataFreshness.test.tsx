@@ -148,6 +148,20 @@ describe('DataFreshness', () => {
     expect(screen.getByText(/EPSS:/)).not.toHaveClass('freshness-stale');
   });
 
+  it('shows a run in progress as running even after an earlier failure', async () => {
+    // consecutive_failures no longer resets on a running row, so a catch-up or
+    // retry in flight after a failure must still read as running, not error.
+    mockFetch.mockResolvedValue({
+      sources: [
+        item({ source: 'nvd', status: 'running', consecutive_failures: 1 }),
+        item({ source: 'ic3', refresh_policy: 'static', status: 'running', consecutive_failures: 1 }),
+      ],
+    });
+    await renderBadge();
+    expect(screen.getByText(/NVD:/)).toHaveClass('freshness-running');
+    expect(screen.getByText(/IC3:/)).toHaveClass('freshness-static');
+  });
+
   it('does not poll while hidden', async () => {
     await renderBadge();
     setHidden(true);
