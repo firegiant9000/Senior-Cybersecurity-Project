@@ -10,7 +10,7 @@ from app.main import _ensure_firebase_credentials
 
 
 def test_service_account_json_wins_over_stale_credentials_path(monkeypatch, tmp_path):
-    # Render: render.yaml sets GOOGLE_APPLICATION_CREDENTIALS to a file that never
+    # Render: a leftover GOOGLE_APPLICATION_CREDENTIALS can point at a file that never
     # exists, and the key arrives in FIREBASE_SERVICE_ACCOUNT_JSON instead.
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
     monkeypatch.setattr(settings, "GOOGLE_APPLICATION_CREDENTIALS", "/app/service-account.json")
