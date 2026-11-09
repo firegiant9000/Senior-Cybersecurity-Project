@@ -1,15 +1,12 @@
 # Daily external check that production ingest data is fresh.
 #
-# Polls the public /api/v1/ingest/health endpoint and fails if NVD, CISA KEV or
-# EPSS has not succeeded within its threshold. It polls for up to 30 minutes so
-# the app's own startup catch-up (and a cold Render instance) can heal a stale
-# source before this check gives up.
-#
-# The top-level "healthy" flag is deliberately ignored until PR 2 changes what
-# it means; only per-source last_success_hours_ago is evaluated here.
-#
-# The thresholds below mirror INGEST_STALE_HOURS_* in the backend settings and
-# must be changed together with them.
+# Polls the public /api/v1/ingest/health endpoint and fails if any source is
+# stale. The server decides staleness per source: each entry carries a
+# refresh_policy ("scheduled", "static" or "disabled") and a boolean stale flag.
+# Sources with refresh_policy "static" or "disabled" are skipped; every other source must report
+# stale == false. This workflow keeps no source list or thresholds of its own.
+# It polls for up to 30 minutes so the app's own startup catch-up (and a cold
+# Render instance) can heal a stale source before this check gives up.
 #
 # GitHub disables scheduled workflows after 60 days without repository
 # activity; re-enable it from the Actions tab if that happens.
@@ -29,7 +26,7 @@ concurrency:
 
 jobs:
   check-freshness:
-    name: Check NVD, KEV and EPSS freshness
+    name: Check ingest freshness
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -44,56 +41,98 @@ jobs:
             exit 1
           fi
 
-          declare -A THRESHOLDS=([nvd]=25 [cisa_kev]=25 [epss]=49)
-          SOURCES=(nvd cisa_kev epss)
           URL="$BACKEND_URL/api/v1/ingest/health"
           BODY_FILE="$(mktemp)"
           DEADLINE=$((SECONDS + 1800))
           ATTEMPT=0
           CODE="000"
           STALE=()
+          CHECKED=0
 
-          # Sets STALE to the sources that are stale or unreadable in $BODY_FILE.
+          # Prints $1 if it is a short, plain token, otherwise "invalid". Server
+          # text must never reach the log verbatim (workflow-command injection).
+          safe() {
+            if [[ "$1" =~ ^[A-Za-z0-9_.-]{1,32}$ ]]; then
+              printf '%s' "$1"
+            else
+              printf 'invalid'
+            fi
+          }
+
+          # Prints the source names in $BODY_FILE, one per line.
+          source_names() {
+            jq -r '.sources | keys_unsorted[]' "$BODY_FILE" 2>/dev/null || true
+          }
+
+          # Prints field $2 of source $1 as a plain string, "null" if absent or not
+          # a scalar.
+          field() {
+            jq -r --arg s "$1" --arg f "$2" '.sources[$s][$f] as $v | if ($v | type) == "string" or ($v | type) == "number" or ($v | type) == "boolean" then ($v | tostring) else "null" end' "$BODY_FILE" 2>/dev/null || printf 'n/a'
+          }
+
+          # Sets STALE to the scheduled sources that are stale, unreadable or
+          # misnamed, and CHECKED to the number of judged (not static/disabled) sources seen.
           evaluate() {
             STALE=()
-            local s verdict t
-            for s in "${SOURCES[@]}"; do
-              t="${THRESHOLDS[$s]}"
-              # Fresh only when the value is a JSON number at or under the threshold;
-              # null, missing, bool, string, object or any jq error counts as stale.
-              verdict=$(jq -r --arg s "$s" --argjson t "$t" '.sources[$s].last_success_hours_ago as $h | if ($h | type) == "number" and $h <= $t then "fresh" else "stale" end' "$BODY_FILE" 2>/dev/null) || verdict="stale"
-              if [ "$verdict" != "fresh" ]; then
-                STALE+=("$s")
+            CHECKED=0
+            local s verdict
+            while IFS= read -r s; do
+              if [[ ! "$s" =~ ^[a-z0-9_]{1,32}$ ]]; then
+                CHECKED=$((CHECKED + 1))
+                STALE+=("invalid-source")
+                continue
               fi
-            done
+              # Static and disabled sources are skipped. Everything else is fresh only when
+              # stale is the JSON boolean false; null, missing or any other value
+              # (and any jq error) counts as stale.
+              verdict=$(jq -r --arg s "$s" '.sources[$s] as $x | if ($x | type) == "object" and ($x.refresh_policy == "static" or $x.refresh_policy == "disabled") then "skip" elif ($x | type) == "object" and $x.stale == false then "fresh" else "stale" end' "$BODY_FILE" 2>/dev/null) || verdict="stale"
+              case "$verdict" in
+                skip) ;;
+                fresh) CHECKED=$((CHECKED + 1)) ;;
+                *)
+                  CHECKED=$((CHECKED + 1))
+                  STALE+=("$s")
+                  ;;
+              esac
+            done < <(source_names)
           }
 
           print_table() {
-            local s hours fails
-            printf '%-10s %-12s %-10s %s\n' source hours_ago threshold consecutive_failures
-            for s in "${SOURCES[@]}"; do
-              hours=$(jq -r --arg s "$s" '.sources[$s].last_success_hours_ago // "null"' "$BODY_FILE" 2>/dev/null) || hours="n/a"
-              fails=$(jq -r --arg s "$s" '.sources[$s].consecutive_failures // "n/a"' "$BODY_FILE" 2>/dev/null) || fails="n/a"
-              printf '%-10s %-12s %-10s %s\n' "$s" "${hours:-n/a}" "${THRESHOLDS[$s]}" "${fails:-n/a}"
-            done
+            local s
+            printf '%-14s %-10s %-8s %-12s %s\n' source policy stale hours_ago consecutive_failures
+            while IFS= read -r s; do
+              if [[ ! "$s" =~ ^[a-z0-9_]{1,32}$ ]]; then
+                printf '%-14s %-10s %-8s %-12s %s\n' invalid-source invalid invalid invalid invalid
+                continue
+              fi
+              printf '%-14s %-10s %-8s %-12s %s\n' \
+                "$s" \
+                "$(safe "$(field "$s" refresh_policy)")" \
+                "$(safe "$(field "$s" stale)")" \
+                "$(safe "$(field "$s" last_success_hours_ago)")" \
+                "$(safe "$(field "$s" consecutive_failures)")"
+            done < <(source_names)
           }
 
           while true; do
             ATTEMPT=$((ATTEMPT + 1))
             : > "$BODY_FILE"
             CODE=$(curl -sS --max-time 60 -o "$BODY_FILE" -w '%{http_code}' "$URL" 2>/dev/null) || CODE="000"
+            STALE=()
+            CHECKED=0
 
             if [ "$CODE" = "200" ] && jq -e '.sources | type == "object"' "$BODY_FILE" >/dev/null 2>&1; then
               evaluate
-              if [ "${#STALE[@]}" -eq 0 ]; then
-                echo "Attempt $ATTEMPT: 200, all sources fresh"
-                print_table
-                exit 0
-              fi
-              echo "Attempt $ATTEMPT: $CODE, stale: ${STALE[*]}"
-            else
-              STALE=()
+            fi
+
+            if [ "$CHECKED" -eq 0 ]; then
               echo "Attempt $ATTEMPT: $CODE, no usable ingest health body"
+            elif [ "${#STALE[@]}" -eq 0 ]; then
+              echo "Attempt $ATTEMPT: 200, all sources fresh"
+              print_table
+              exit 0
+            else
+              echo "Attempt $ATTEMPT: $CODE, stale: ${STALE[*]}"
             fi
 
             if [ "$SECONDS" -ge "$DEADLINE" ]; then

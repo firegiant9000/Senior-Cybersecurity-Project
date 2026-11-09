@@ -19,7 +19,14 @@ from app.db.engine import AsyncSessionLocal, engine, get_session
 from app.db.models import CVE, KEV, IC3Incident
 from app.db.user import User
 from app.models.ingest_run import IngestRun
-from app.services.ingest_catchup import hours_since, is_stale, stale_thresholds
+from app.services.ingest_catchup import (
+    effective_policy,
+    hours_since,
+    scheduled_sources,
+    source_is_stale,
+    stale_thresholds,
+)
+from app.services.ingest_sources import RefreshPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +55,8 @@ class SourceFreshness(BaseModel):
     trigger: str | None = None
     retry_count: int = 0
     skipped_reason: str | None = None
+    refresh_policy: RefreshPolicy
+    stale: bool
 
 
 class FreshnessResponse(BaseModel):
@@ -83,6 +92,7 @@ class SourceHealthItem(BaseModel):
     """Health status for a single data source."""
 
     stale: bool
+    refresh_policy: RefreshPolicy
     last_success_hours_ago: float | None = None
     consecutive_failures: int = 0
 
@@ -399,20 +409,29 @@ async def get_ingest_health(
     sources_health: dict[str, SourceHealthItem] = {}
     all_healthy = True
 
-    for source, stale_hours in stale_thresholds().items():
+    thresholds = stale_thresholds()
+    scheduled = scheduled_sources()
+    for source in thresholds:
         runs = source_runs.get(source, [])
 
         last_success = next((r for r in runs if r.status == "completed"), None)
         hours_ago = hours_since(last_success.finished_at if last_success else None, now)
 
         consec_fails = _compute_consecutive_failures(runs)
-        stale = is_stale(hours_ago, stale_hours)
+        policy = effective_policy(source, scheduled)
+        stale = source_is_stale(source, hours_ago, thresholds, policy)
 
-        if stale or consec_fails >= 2:
+        # Static and disabled sources only make the service unhealthy if they have
+        # never succeeded; their failures and age are reported but ignored.
+        if policy == "scheduled":
+            if stale or consec_fails >= 2:
+                all_healthy = False
+        elif stale:
             all_healthy = False
 
         sources_health[source] = SourceHealthItem(
             stale=stale,
+            refresh_policy=policy,
             last_success_hours_ago=round(hours_ago, 1) if hours_ago is not None else None,
             consecutive_failures=consec_fails,
         )
@@ -449,6 +468,9 @@ async def get_ingest_freshness(
             count_result = await db.execute(select(func.count()).select_from(model))
             total_counts[src_name] = int(count_result.scalar_one())
 
+        thresholds = stale_thresholds()
+        scheduled = scheduled_sources()
+        now = datetime.datetime.utcnow()
         sources = []
         for source, group in source_groups.items():
             latest = group[0]
@@ -463,6 +485,9 @@ async def get_ingest_freshness(
 
             # [2A] Consecutive failures
             consec_fails = _compute_consecutive_failures(group)
+
+            hours_ago = hours_since(last_success.finished_at if last_success else None, now)
+            policy = effective_policy(source, scheduled)
 
             sources.append(
                 SourceFreshness(
@@ -483,6 +508,8 @@ async def get_ingest_freshness(
                     trigger=getattr(latest, "trigger", None),
                     retry_count=getattr(latest, "retry_count", 0),
                     skipped_reason=getattr(latest, "skipped_reason", None),
+                    refresh_policy=policy,
+                    stale=source_is_stale(source, hours_ago, thresholds, policy),
                 )
             )
         return FreshnessResponse(sources=sources)

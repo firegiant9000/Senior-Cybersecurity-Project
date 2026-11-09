@@ -29,7 +29,7 @@ All phases implemented. Tests added for lock contention, schedule registration, 
 | Tests: lock acquire/contention/release, stale run expiry | `backend/tests/test_ingest_lock.py` |
 | Tests: scheduler enabled/disabled, invalid/empty cron handling | `backend/tests/test_scheduler.py` |
 
-**To activate scheduling:** set `INGEST_SCHEDULE_NVD`, `INGEST_SCHEDULE_KEV`, etc. in `.env` or Render env vars using standard 5-field cron syntax. Empty = disabled. NVD, KEV and EPSS are scheduled by default since the ingest-freshness work; IC3 and economics default to empty.
+**To activate scheduling:** set `INGEST_SCHEDULE_NVD`, `INGEST_SCHEDULE_KEV`, etc. in `.env` or Render env vars using standard 5-field cron syntax. Empty = disabled. NVD, KEV, EPSS and economics (daily) are scheduled by default since the ingest-freshness work; IC3 is static and defaults to empty.
 
 ---
 
