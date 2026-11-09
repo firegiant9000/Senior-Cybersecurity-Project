@@ -230,9 +230,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [frontend-lint, frontend-test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    concurrency:
-      group: deploy-frontend
-      cancel-in-progress: true
+    # No concurrency group: cancel-in-progress orders by queue time, not commit order,
+    # so an older run could cancel the newest run and deploy stale code. Instead each
+    # run deploys only if its commit is still main's head (see "Check commit is main's head").
     defaults:
       run:
         working-directory: frontend
@@ -297,7 +297,24 @@ jobs:
       - name: Strip source maps from deploy artifact
         run: find dist -name '*.map' -delete
 
+      # Firebase Hosting keeps the last deploy, so a run for an older commit must not
+      # deploy after a newer one. Checked as late as possible to keep the window small.
+      - name: Check commit is main's head
+        id: head
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          head_sha=$(git ls-remote "https://github.com/$REPO" refs/heads/main | cut -f1)
+          if [ "$head_sha" = "$SHA" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "current=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::main moved to $head_sha; skipping deploy of $SHA (the newer run deploys)."
+          fi
+
       - name: Deploy to Firebase Hosting
+        if: steps.head.outputs.current == 'true'
         uses: FirebaseExtended/action-hosting-deploy@500ac625ca2dd40cbd15f7659af953801858032a # v0.11.0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
@@ -326,8 +343,8 @@ jobs:
     name: Post-Deploy Health Check
     runs-on: ubuntu-latest
     needs: [deploy-frontend, deploy-backend]
-    # Every run whose hook fired must verify the backend, even when a newer run's
-    # deploy-frontend cancelled this run's one (that newer run checks the frontend).
+    # Every run whose hook fired must verify the backend, even when deploy-frontend
+    # failed or skipped its deploy because main moved on.
     # No concurrency group, for the same reason as deploy-backend.
     if: >-
       always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
