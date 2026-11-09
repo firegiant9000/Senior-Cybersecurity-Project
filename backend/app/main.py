@@ -114,7 +114,7 @@ def _ensure_firebase_credentials() -> None:
         f.write(sa_json)
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = cred_path
     # init_firebase() reads settings, which loaded the env at import time. Without
-    # this it keeps the stale render.yaml path and every deploy fails at startup.
+    # this it keeps any stale configured path and every deploy fails at startup.
     settings.GOOGLE_APPLICATION_CREDENTIALS = cred_path
     _log.info("Wrote Firebase credentials to %s", cred_path)
 
