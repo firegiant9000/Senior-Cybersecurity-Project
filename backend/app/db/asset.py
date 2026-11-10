@@ -47,9 +47,10 @@ class Asset(Base):
         ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
     )
     hostname: Mapped[str] = mapped_column(String(255), nullable=False)
-    ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
-    os_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    os_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Lengths match the agent upload schema's caps (app/schemas/agent_scan.py ScanHost).
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    os_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    os_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
     mac_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
     discovered_via: Mapped[str] = mapped_column(String(32), nullable=False)
     first_seen: Mapped[datetime] = mapped_column(

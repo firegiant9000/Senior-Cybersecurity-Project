@@ -39,6 +39,8 @@ from app.repositories.vendor_aliases import SqlVendorAliasRepository
 
 logger = logging.getLogger(__name__)
 
+_CACHE_VERSION_MAX: int = CpeMatchCache.__table__.c.version_normalized.type.length
+
 Confidence = Literal["high", "medium", "low", "needs_review"]
 
 # Numeric stand-ins so the cache (which stores a float confidence) and the
@@ -479,6 +481,10 @@ class CpeMatcher:
         """
         best = max(matches, key=lambda m: _CONFIDENCE_SCORE[m.confidence])
         version_normalized = version.strip().lower() if version and version.strip() else None
+        # Lowercasing can lengthen a string ("İ" becomes 2 characters), so a version that fits
+        # asset_software can overflow the cache column. Skip caching it rather than fail the run.
+        if version_normalized is not None and len(version_normalized) > _CACHE_VERSION_MAX:
+            return
 
         existing = await self._session.execute(
             select(CpeMatchCache).where(
