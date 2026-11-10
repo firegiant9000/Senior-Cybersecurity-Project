@@ -5,7 +5,7 @@ from collections import Counter
 from typing import get_args
 
 import pytest
-from fastapi import Depends, FastAPI
+from fastapi import APIRouter, Depends, FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.routes.v1.auth import get_current_user
@@ -225,6 +225,25 @@ def test_mount_and_websocket_are_unenumerable():
     problems = check_table(tiny, {("GET", "/x"): RouteSpec("public")})
     assert "unenumerable: Mount /sub" in problems
     assert "unenumerable: APIWebSocketRoute /ws" in problems
+
+
+def test_frontend_and_nested_routes_are_unenumerable(tmp_path):
+    """fastapi 0.162 serves .frontend() routes and Mounts/WebSockets inside included routers."""
+    tiny = _tiny_app()
+    tiny.frontend("/app", directory=tmp_path)
+    inner = APIRouter()
+    inner.mount("/sub", FastAPI())
+
+    @inner.websocket("/ws")
+    async def _ws(websocket) -> None:  # noqa: ANN001
+        await websocket.close()
+
+    inner.frontend("/ui", directory=tmp_path)
+    tiny.include_router(inner, prefix="/nested")
+    problems = check_table(tiny, {("GET", "/x"): RouteSpec("public")})
+    assert "unenumerable: Mount /nested/sub" in problems
+    assert "unenumerable: APIWebSocketRoute /nested/ws" in problems
+    assert sum(p.startswith("unenumerable: frontend ") for p in problems) == 2, problems
 
 
 def test_explicit_head_and_options_on_api_route_are_checked():

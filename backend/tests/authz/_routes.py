@@ -9,8 +9,8 @@ from typing import get_args
 
 from fastapi import FastAPI
 from fastapi.dependencies.models import Dependant
-from fastapi.routing import APIRoute
-from starlette.routing import BaseRoute, Route
+from fastapi.routing import APIRoute, RouteContext, iter_route_contexts
+from starlette.routing import Route
 
 from app.api.routes.v1.auth import get_current_user, get_token_claims
 from app.core.dependencies import (
@@ -26,27 +26,47 @@ from tests.authz.route_table import OrgFrom, RouteClass, RouteSpec
 _IMPLICIT_METHODS = {"HEAD", "OPTIONS"}
 
 
-def _is_enumerable(route: BaseRoute) -> bool:
-    return isinstance(route, APIRoute | Route) and bool(getattr(route, "methods", None))
+def _routes(app: FastAPI) -> list[RouteContext]:
+    """Every route as mounted. Since fastapi 0.162 include_router no longer copies routes
+    into app.routes, so walk the effective contexts: they carry the full prefixed path and
+    a dependant that includes include_router/APIRouter dependencies. The original route's
+    own dependant lacks the include-level ones, so never read it for the authz check."""
+    return list(iter_route_contexts(app.routes))
+
+
+def _is_api(route: RouteContext) -> bool:
+    return isinstance(route.original_route, APIRoute)
+
+
+def _is_enumerable(route: RouteContext) -> bool:
+    return isinstance(route.original_route, APIRoute | Route) and bool(route.methods)
 
 
 def unenumerable_routes(app: FastAPI) -> list[str]:
-    """Routes the table cannot key by (method, path): mounts, hosts, websockets."""
-    return [
-        f"unenumerable: {type(route).__name__} {getattr(route, 'path', '')}"
-        for route in app.routes
+    """Routes the table cannot key by (method, path): mounts, hosts, websockets, and
+    .frontend() static routes, which iter_route_contexts never yields. The low-priority
+    iterator is private, so test_frontend_and_nested_routes_are_unenumerable pins it."""
+    found = [
+        f"unenumerable: {type(route.original_route).__name__} {route.path or ''}"
+        for route in _routes(app)
         if not _is_enumerable(route)
     ]
+    for route in app.router._iter_low_priority_routes():
+        original = getattr(route, "original_route", route)
+        found.append(
+            f"unenumerable: frontend {type(original).__name__} {getattr(route, 'path', '')}"
+        )
+    return found
 
 
-def enumerate_routes(app: FastAPI) -> list[tuple[str, str, BaseRoute]]:
-    found: list[tuple[str, str, BaseRoute]] = []
-    for route in app.routes:
+def enumerate_routes(app: FastAPI) -> list[tuple[str, str, RouteContext]]:
+    found: list[tuple[str, str, RouteContext]] = []
+    for route in _routes(app):
         if not _is_enumerable(route):
             continue
         # Only a plain Starlette Route adds implicit HEAD (and the CORS layer handles
         # OPTIONS); an APIRoute declares exactly its methods, so every one is checked.
-        skip = set() if isinstance(route, APIRoute) else _IMPLICIT_METHODS
+        skip = set() if _is_api(route) else _IMPLICIT_METHODS
         found.extend(
             (method, route.path, route) for method in sorted(route.methods) if method not in skip
         )
@@ -60,8 +80,8 @@ def _walk(dependant: Dependant, seen: set[Callable]) -> None:
         _walk(sub, seen)
 
 
-def dependency_calls(route: BaseRoute) -> set[Callable]:
-    if not isinstance(route, APIRoute):
+def dependency_calls(route: RouteContext) -> set[Callable]:
+    if not _is_api(route):
         return set()
     calls: set[Callable] = set()
     _walk(route.dependant, calls)
@@ -119,12 +139,12 @@ def _calls_access_check(endpoint: Callable) -> bool:
     return False
 
 
-def _handler_problems(key: tuple[str, str], spec: RouteSpec, route: BaseRoute) -> list[str]:
+def _handler_problems(key: tuple[str, str], spec: RouteSpec, route: RouteContext) -> list[str]:
     """in_handler must be true of the handler source; min_role None is an allowlist."""
     problems: list[str] = []
     label = f"{key[0]} {key[1]}"
     if spec.in_handler and key not in INLINE_CHECK_ROUTES:
-        endpoint = getattr(route, "endpoint", None)
+        endpoint = route.endpoint
         if endpoint is None or not _calls_access_check(endpoint):
             problems.append(f"in_handler set but the handler calls no access check: {label}")
     if spec.cls == "organization-scoped" and spec.min_role is None:
@@ -137,9 +157,9 @@ def _handler_problems(key: tuple[str, str], spec: RouteSpec, route: BaseRoute) -
     return problems
 
 
-def _param_names(route: BaseRoute) -> set[str]:
+def _param_names(route: RouteContext) -> set[str]:
     names: set[str] = set()
-    if not isinstance(route, APIRoute):
+    if not _is_api(route):
         return names
 
     def walk(dependant: Dependant) -> None:

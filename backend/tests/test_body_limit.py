@@ -9,8 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import annotated_types
 import pytest
-from fastapi.dependencies.utils import get_flat_dependant
-from fastapi.routing import APIRoute
+from fastapi.routing import APIRoute, iter_route_contexts
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 from starlette.datastructures import UploadFile
@@ -65,6 +64,14 @@ def test_limit_for_routes():
     assert limit_for(_EVENTS) == settings.MAX_JSON_BODY_BYTES
 
 
+def _body_params(dependant) -> list:
+    """Body params of a route's whole dependency tree (fastapi's own flattener is internal)."""
+    params = list(dependant.body_params)
+    for sub in dependant.dependencies:
+        params.extend(_body_params(sub))
+    return params
+
+
 def _is_upload_field(field) -> bool:
     return _holds_upload(getattr(field.field_info, "annotation", None))
 
@@ -78,10 +85,11 @@ def _holds_upload(annotation) -> bool:
 
 def test_every_file_route_gets_the_file_limit():
     upload_paths = set()
-    for route in app.routes:
-        if not isinstance(route, APIRoute):
+    # fastapi 0.162+ keeps included routers nested; the contexts give the prefixed path.
+    for route in iter_route_contexts(app.routes):
+        if not isinstance(route.original_route, APIRoute):
             continue
-        body_params = get_flat_dependant(route.dependant).body_params
+        body_params = _body_params(route.dependant)
         if not body_params:
             continue
         path = re.sub(r"\{[^}]*\}", "1", route.path)
