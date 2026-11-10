@@ -29,7 +29,9 @@ class CpeMatchCache(Base):
     id: Mapped[int] = mapped_column(primary_key=True)  # noqa: A003
     vendor_normalized: Mapped[str] = mapped_column(String(255), nullable=False)
     product_normalized: Mapped[str] = mapped_column(String(255), nullable=False)
-    version_normalized: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Holds asset_software.version lowercased, so it is at least as wide. Lowercasing can
+    # lengthen a string; the matcher skips caching a version that no longer fits.
+    version_normalized: Mapped[str | None] = mapped_column(String(255), nullable=True)
     cpe_uri: Mapped[str] = mapped_column(String(500), nullable=False)
     confidence_score: Mapped[float] = mapped_column(Float, nullable=False)
     last_verified_at: Mapped[datetime] = mapped_column(

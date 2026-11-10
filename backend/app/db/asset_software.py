@@ -28,7 +28,7 @@ class AssetSoftware(Base):
     )
     vendor: Mapped[str] = mapped_column(String(255), nullable=False)
     product: Mapped[str] = mapped_column(String(255), nullable=False)
-    version: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    version: Mapped[str | None] = mapped_column(String(255), nullable=True)
     cpe_uri: Mapped[str | None] = mapped_column(String(500), nullable=True)
     source: Mapped[str] = mapped_column(String(32), nullable=False)
     created_by_scan_run_id: Mapped[int | None] = mapped_column(

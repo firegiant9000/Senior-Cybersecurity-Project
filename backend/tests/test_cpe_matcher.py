@@ -316,3 +316,15 @@ async def test_pipeline_skips_non_vulnerable_rows() -> None:
     )
 
     assert matches == []
+
+
+@pytest.mark.asyncio
+async def test_write_back_skips_version_lengthened_past_cache_column() -> None:
+    # 255 characters fit asset_software.version, but "İ".lower() is 2 characters,
+    # so the normalized version (510) would overflow cpe_match_cache.version_normalized.
+    matcher = _matcher_with_rows([_criterion_row()])
+
+    matches = await matcher.match(vendor="Apache", product="log4j", version="İ" * 255)
+
+    assert len(matches) == 1
+    matcher._session.add.assert_not_called()  # type: ignore[attr-defined]
