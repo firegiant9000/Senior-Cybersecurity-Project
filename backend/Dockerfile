@@ -42,6 +42,10 @@ COPY . .
 ARG GIT_COMMIT=unknown
 ENV GIT_COMMIT=${GIT_COMMIT}
 
+# Cap glibc malloc arenas. With the default (8 per core) the process keeps freed memory
+# after large uploads and ingest runs, and resting memory ratchets up until a restart (#247).
+ENV MALLOC_ARENA_MAX=2
+
 # Create uploads directory and non-root user
 RUN mkdir -p /app/uploads \
     && useradd -m -u 1000 appuser \
