@@ -10,6 +10,7 @@ Findings from security scanners that are knowingly left unfixed. Every entry has
 - An entry is valid through its `Expires` date and fails the day after.
 - `pip-audit`, `trivy` and `semgrep` entries are suppressed in CI from this list (`python .github/scripts/scan_exceptions.py ids <scanner>`).
 - `npm-audit`, `govulncheck` and `codeql` entries are recorded here but suppressed by other means: npm `overrides`, or a CodeQL dismissal whose comment cites the entry ID.
+- A false positive or an intentional pattern is not an exception: dismiss the alert with a comment that names the control and the test. Exceptions are for real findings left unfixed.
 - Dates are `YYYY-MM-DD`. Scanner is one of `pip-audit`, `npm-audit`, `govulncheck`, `trivy`, `codeql`, `semgrep`, `alembic-check`.
 - The `## Exceptions` section holds only the table (no code blocks, nothing after the table), and the checker rejects anything else.
 - Do not put secrets or personal data in this file.
