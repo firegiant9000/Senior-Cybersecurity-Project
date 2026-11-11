@@ -52,9 +52,10 @@ type DataSourceFilter = 'all' | 'kev' | 'nvd';
 
 interface Props {
     apiBaseUrl: string;
+    showSummary?: boolean;
 }
 
-const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
+const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl, showSummary = true }) => {
     const [data, setData] = useState<RiskScoredItem[]>([]);
     const [stats, setStats] = useState<RiskStatsResponse | null>(null);
     const [loading, setLoading] = useState(false);
@@ -112,9 +113,9 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
     useEffect(() => {
         const controller = new AbortController();
         fetchData(1, dataSource, debouncedSearch, controller.signal);
-        fetchStats(dataSource, controller.signal);
+        if (showSummary) fetchStats(dataSource, controller.signal);
         return () => controller.abort();
-    }, [fetchData, fetchStats, dataSource, debouncedSearch]);
+    }, [fetchData, fetchStats, dataSource, debouncedSearch, showSummary]);
 
     const riskBands = stats?.bands ?? [];
     const maxBandCount = Math.max(1, ...riskBands.map(b => b.count));
@@ -181,6 +182,7 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
 
             {data.length > 0 && (
                 <>
+                    {showSummary && (
                     <div className="risk-analytics-grid">
                         <div className="risk-analytics-card">
                             <h3>Risk Distribution</h3>
@@ -228,6 +230,7 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
                             <div className="risk-kpi-subtitle">out of 100</div>
                         </div>
                     </div>
+                    )}
 
                     <div className="table-scroll-wrapper">
                     <table className="data-table cisa-table">
