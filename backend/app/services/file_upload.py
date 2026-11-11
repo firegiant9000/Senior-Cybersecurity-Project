@@ -106,7 +106,7 @@ async def save_upload(
         )
 
     # Write file
-    path = os.path.join(org_dir, stored)
+    path = resolve_upload_path(org_id, stored)
     try:
         with open(path, "wb") as f:
             f.write(content)
@@ -119,13 +119,22 @@ async def save_upload(
     return original, stored, len(content)
 
 
+def resolve_upload_path(org_id: int, stored_filename: str) -> str:
+    """Return the absolute path of a stored upload, refusing any name that leaves the org directory."""
+    org_dir = os.path.realpath(os.path.join(settings.UPLOAD_DIR, str(int(org_id))))
+    candidate = os.path.realpath(os.path.join(org_dir, stored_filename))
+    if not stored_filename or os.path.dirname(candidate) != org_dir:
+        raise HTTPException(status_code=400, detail="Invalid file name")
+    return candidate
+
+
 def delete_upload_file(org_id: int, stored_filename: str) -> None:
     """Remove a file from disk. No-op if already missing."""
-    path = os.path.join(settings.UPLOAD_DIR, str(org_id), stored_filename)
+    path = resolve_upload_path(org_id, stored_filename)
     if os.path.exists(path):
         os.remove(path)
 
 
 def get_upload_path(org_id: int, stored_filename: str) -> str:
     """Return the absolute path to a stored upload."""
-    return os.path.join(settings.UPLOAD_DIR, str(org_id), stored_filename)
+    return resolve_upload_path(org_id, stored_filename)
