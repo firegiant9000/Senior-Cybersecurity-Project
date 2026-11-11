@@ -341,6 +341,24 @@ async def _remove_reinvite_accept(world: World, as_user, who: WorldUser) -> None
     assert await _member_state(a.org_id, who.user_id) == ("member", "member", a.org_id)
 
 
+async def test_invite_token_is_returned_once_on_creation_only(fresh_world, as_user):
+    a = fresh_world.a
+    who = a.member
+    owner = await as_user(a.owner)
+    base = _ORG.format(a=a.org_id)
+    removed = await owner.delete(f"{base}/members/{who.user_id}")
+    assert removed.status_code == 204, removed.text
+
+    created = await owner.post(f"{base}/invites", json={"email": who.email, "org_role": "member"})
+    assert created.status_code == 201, created.text
+    assert created.json()["token"] == await _pending_token(who.email)
+
+    listed = await owner.get(f"{base}/invites")
+    assert listed.status_code == 200, listed.text
+    assert listed.json()["items"]
+    assert all("token" not in item for item in listed.json()["items"])
+
+
 async def test_removed_member_accepts_reinvite(fresh_world, as_user):
     await _remove_reinvite_accept(fresh_world, as_user, fresh_world.a.member)
 
