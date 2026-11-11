@@ -23,6 +23,8 @@ services:
         generateValue: true
       - key: LOG_LEVEL
         value: INFO
+      - key: LOG_JSON
+        value: "true"
       - key: FRONTEND_URL
         sync: false          # set manually to your Firebase Hosting URL
       - key: CORS_ORIGINS
