@@ -2,7 +2,7 @@
 
 This is the user-facing summary of how Hacker Tracker handles your data. The
 authoritative technical inventory lives in [pii_inventory.md](pii_inventory.md);
-this doc says the same thing in plain language. The in-app `/privacy` page mirrors this document.
+this doc says the same thing in plain language. The in-app `/privacy` page mirrors this document's provider and region table. Its activity, export and deletion wording still differs from this document; where they disagree, this document is authoritative.
 
 ---
 
