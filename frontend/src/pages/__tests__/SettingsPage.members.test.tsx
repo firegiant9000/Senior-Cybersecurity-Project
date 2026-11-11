@@ -936,6 +936,27 @@ describe('SettingsPage - Member Management', () => {
       expect(screen.queryByText(inviteLink())).not.toBeInTheDocument()
     })
 
+    it('clears the created link when an invite is revoked', async () => {
+      await sendInvite()
+
+      await screen.findByText(inviteLink())
+      await waitFor(() => {
+        expect(screen.getByText('pending@example.com')).toBeInTheDocument()
+      })
+      fireEvent.click(screen.getAllByTitle('Revoke invite')[0])
+
+      await waitFor(() => {
+        expect(mockRevokeInvite).toHaveBeenCalled()
+      })
+      await waitFor(() => {
+        expect(screen.queryByText(inviteLink())).not.toBeInTheDocument()
+      })
+      expect(screen.queryByRole('button', { name: /Copy link/i })).not.toBeInTheDocument()
+      expect(
+        screen.queryByText(/Invite created\. Copy the link and send it\./),
+      ).not.toBeInTheDocument()
+    })
+
     it('clears email input after sending invite', async () => {
       renderPage()
 

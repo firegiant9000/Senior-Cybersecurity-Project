@@ -273,6 +273,9 @@ export default function SettingsPage() {
     setInvitesError("");
     try {
       await revokeInvite(profile.org_id, inviteId);
+      setCreatedInviteLink(null);
+      setInviteLinkCopied(false);
+      setInvitesMsg("");
       loadInvites(profile.org_id, invitesPage);
     } catch {
       setInvitesError("Failed to revoke invite");
