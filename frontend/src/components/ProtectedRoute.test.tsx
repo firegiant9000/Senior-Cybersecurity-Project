@@ -22,6 +22,7 @@ function setAuth(overrides: Record<string, unknown>) {
     orgLoading: false,
     profileError: false,
     emailUnverified: false,
+    signedOutDeliberately: false,
     refreshProfile: vi.fn(),
     resendVerification: vi.fn(),
     confirmVerification: vi.fn(),
@@ -90,6 +91,36 @@ describe("ProtectedRoute", () => {
     );
 
     expect(screen.getByTestId("login-search")).toHaveTextContent("?next=%2Finvites%2Ftok123%3Fx%3D1%23h");
+    expect(screen.queryByText("protected content")).not.toBeInTheDocument();
+  });
+
+  it("deliberate sign-out: goes to / and never to /login", () => {
+    setAuth({ user: null, signedOutDeliberately: true });
+
+    function Where({ label }: { label: string }) {
+      const l = useLocation();
+      return <p data-testid={label}>{l.pathname + l.search}</p>;
+    }
+
+    render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <Routes>
+          <Route path="/" element={<Where label="home" />} />
+          <Route path="/login" element={<Where label="login" />} />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <p>protected content</p>
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("home")).toHaveTextContent("/");
+    expect(screen.queryByTestId("login")).not.toBeInTheDocument();
     expect(screen.queryByText("protected content")).not.toBeInTheDocument();
   });
 
