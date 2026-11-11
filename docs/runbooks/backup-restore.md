@@ -2,7 +2,9 @@
 
 ## What Render provides
 
-Production Postgres is on a paid plan in Oregon; the plan includes `<record here: point-in-time recovery window, or daily snapshots>`, read from the Render dashboard.
+Production Postgres is on a paid plan ($6/month) in Oregon. The plan includes point-in-time recovery: the dashboard's **Recovery** page can restore the database to any timestamp in the past 3 days (a Pro workspace would extend this to 7 days). Read from the Render dashboard on 2026-11-11.
+
+Point-in-time recovery covers only the last 3 days. It doesn't replace the drill below, which proves that a restore from a `pg_dump` taken outside Render works.
 
 ## Drill, quarterly
 
