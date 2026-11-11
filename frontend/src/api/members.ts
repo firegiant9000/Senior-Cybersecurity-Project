@@ -30,10 +30,10 @@ export interface InviteListResponse {
 }
 
 export interface InviteTokenInfo {
-  invite_token: string;
+  token: string;
   org_name: string;
-  org_role: string;
-  invited_email: string;
+  role: string;
+  email: string;
   expires_at: string;
 }
 
