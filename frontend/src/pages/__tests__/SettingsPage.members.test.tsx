@@ -215,7 +215,17 @@ describe('SettingsPage - Member Management', () => {
     mockSuccessfulProfileLoad()
     mockListMembers.mockResolvedValue(mockMembersData)
     mockListInvites.mockResolvedValue(mockInvitesData)
-    mockCreateInvite.mockResolvedValue(undefined)
+    mockCreateInvite.mockResolvedValue({
+      id: 9,
+      token: 'tok-abc',
+      email: 'new@example.com',
+      role: 'member',
+      status: 'pending',
+      org_id: 1,
+      inviter_id: 1,
+      expires_at: '',
+      created_at: '',
+    })
     mockRevokeInvite.mockResolvedValue(undefined)
     mockUpdateMemberRole.mockResolvedValue(undefined)
     mockRemoveMember.mockResolvedValue(undefined)
@@ -853,18 +863,77 @@ describe('SettingsPage - Member Management', () => {
       })
     })
 
-    it('shows success message after sending invite', async () => {
+    const inviteLink = () => `${window.location.origin}/invites/tok-abc`
+
+    const sendInvite = async () => {
       renderPage()
+      const emailInput = await screen.findByPlaceholderText(/user@example.com/i)
+      fireEvent.change(emailInput, { target: { value: 'new@example.com' } })
+      fireEvent.click(screen.getByRole('button', { name: /Send Invite/i }))
+    }
+
+    const stubClipboard = (writeText: ReturnType<typeof vi.fn>) => {
+      Object.defineProperty(window.navigator, 'clipboard', {
+        value: { writeText },
+        configurable: true,
+      })
+    }
+
+    it('shows a copyable invite link after sending invite', async () => {
+      await sendInvite()
+
+      expect(await screen.findByText(inviteLink())).toBeInTheDocument()
+      expect(
+        screen.getByText(/Invite created\. Copy the link and send it\./),
+      ).toBeInTheDocument()
+    })
+
+    it('copies the invite link to the clipboard', async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined)
+      stubClipboard(writeText)
+      await sendInvite()
+
+      fireEvent.click(await screen.findByRole('button', { name: /Copy link/i }))
 
       await waitFor(() => {
-        const emailInput = screen.getByPlaceholderText(/user@example.com/i)
-        fireEvent.change(emailInput, { target: { value: 'new@example.com' } })
-        fireEvent.click(screen.getByRole('button', { name: /Send Invite/i }))
+        expect(writeText).toHaveBeenCalledWith(inviteLink())
       })
+      expect(await screen.findByText('Copied!')).toBeInTheDocument()
+    })
+
+    it('keeps the link visible when the clipboard write is rejected', async () => {
+      const writeText = vi.fn().mockRejectedValue(new Error('denied'))
+      stubClipboard(writeText)
+      await sendInvite()
+
+      fireEvent.click(await screen.findByRole('button', { name: /Copy link/i }))
 
       await waitFor(() => {
-        expect(screen.getByText(/Invite sent/i)).toBeInTheDocument()
+        expect(writeText).toHaveBeenCalled()
       })
+      expect(screen.getByText(inviteLink())).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /Invitations/i })).toBeInTheDocument()
+    })
+
+    it('keeps the link visible when the clipboard is unavailable', async () => {
+      Object.defineProperty(window.navigator, 'clipboard', {
+        value: undefined,
+        configurable: true,
+      })
+      await sendInvite()
+
+      fireEvent.click(await screen.findByRole('button', { name: /Copy link/i }))
+
+      expect(screen.getByText(inviteLink())).toBeInTheDocument()
+    })
+
+    it('clears the link when Done is clicked', async () => {
+      await sendInvite()
+
+      await screen.findByText(inviteLink())
+      fireEvent.click(screen.getByRole('button', { name: /^Done$/i }))
+
+      expect(screen.queryByText(inviteLink())).not.toBeInTheDocument()
     })
 
     it('clears email input after sending invite', async () => {
