@@ -15,11 +15,26 @@ Architecture:
 - [../agent/README.md](../agent/README.md) — the Go host scanner and its wire contract
 - [m365_integration_notes.md](m365_integration_notes.md) — Microsoft 365 inventory spike
 
+Runbooks:
+
+- [runbooks/backup-restore.md](runbooks/backup-restore.md) — Backup and restore runbook (quarterly restore drill)
+- [runbooks/ingest-freshness.md](runbooks/ingest-freshness.md) — Ingest freshness runbook: whether production ingest data is fresh, and what to do when the daily check goes red
+
+AI summary:
+
+- [ai/case-study.md](ai/case-study.md) — Case study: hardening an LLM security briefing against prompt injection, and measuring it honestly
+- [ai/demo-script.md](ai/demo-script.md) — Demo script: an AI briefing with citations (60 seconds)
+- [ai/eval-protocol.md](ai/eval-protocol.md) — AI executive summary: evaluation protocol (S5a)
+- [ai/eval-2026-10-20-baseline.md](ai/eval-2026-10-20-baseline.md) — AI summary eval: S5a baselines B0 and B1 (2026-10-20)
+- [ai/eval-2026-10-20.md](ai/eval-2026-10-20.md) — AI summary eval: S5a final run F vs baselines (2026-10-20)
+- [ai/failures-2026-10-20.md](ai/failures-2026-10-20.md) — AI summary eval: failing held-out cases, B1 and F (2026-10-20)
+
 Security and privacy:
 
 - [security/agent_enrollment.md](security/agent_enrollment.md) — per-host tokens, rotation, revocation, replay window
 - [security/agent_release_verification.md](security/agent_release_verification.md) — verifying agent releases: artifact attestations, CycloneDX SBOM, offline verification
 - [security/agent_release_signing.md](security/agent_release_signing.md) — superseded stub (the GPG flow never ran and was removed)
+- [security/scan_exceptions.md](security/scan_exceptions.md) — Scan exceptions: scanner findings knowingly left unfixed, each with an expiry
 - [security/threat_model.md](security/threat_model.md) — STRIDE threat model: 115 threats, each controlled, tested, accepted or open, checked in CI
 - Authorization classification: the route-classification table (129 routes, each classified) lives in `backend/tests/authz/` and was delivered in S4
 - [security/privacy.md](security/privacy.md) and [security/pii_inventory.md](security/pii_inventory.md)
