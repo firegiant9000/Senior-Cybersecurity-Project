@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { httpUrlOrNull } from "./safeUrl";
+import { httpUrlOrNull, safeNextPath } from "./safeUrl";
 
 describe("httpUrlOrNull", () => {
   it("accepts http and https, trimmed", () => {
@@ -12,4 +12,13 @@ describe("httpUrlOrNull", () => {
       expect(httpUrlOrNull(v)).toBeNull();
     }
   });
+});
+
+describe("safeNextPath", () => {
+  it.each(['/invites/abc', '/org/findings?x=1#y', '/dashboard?tab=assets'])('accepts %s', (v) => {
+    expect(safeNextPath(v)).toBe(v);
+  });
+  it.each([null, undefined, '', 'dashboard', '//evil.example', '/\\evil.example',
+    'https://evil.example', 'javascript:alert(1)', '/a\nb', '/login', '/login?next=/x', '/signup'])(
+    'rejects %s', (v) => { expect(safeNextPath(v)).toBeNull(); });
 });
