@@ -106,7 +106,7 @@ const Dashboard: React.FC = () => {
 
     // The component key to render — for standalone groups it's the group id,
     // for groups with sub-tabs it's the active sub-tab id.
-    const activeComponent = activeGroupDef?.subTabs ? activeSubTab : activeGroup;
+    const activeComponent = !activeGroupDef ? 'overview' : activeGroupDef.subTabs ? activeSubTab : activeGroup;
 
     return (
         <div className="dashboard-container">

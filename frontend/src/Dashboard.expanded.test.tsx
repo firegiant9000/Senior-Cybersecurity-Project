@@ -136,7 +136,20 @@ vi.mock('./components/tabs/TrendsTab', () => ({ default: () => <div data-testid=
 vi.mock('./components/tabs/PipelineHealthTab', () => ({ default: () => <div data-testid="pipeline-health">Pipeline Health</div> }))
 vi.mock('./components/tabs/NormalizationLogTab', () => ({ default: () => <div data-testid="normalization-log">Normalization Log</div> }))
 vi.mock('./components/tabs/SmBAdvisorTab', () => ({ default: () => <div data-testid="smb-advisor">SMB Advisor</div> }))
-vi.mock('./components/tabs/VendorAlertsTab', () => ({ default: () => <div data-testid="vendor-alerts">Vendor Alerts</div> }))
+// Render counters: a gated tab must never render, even briefly before a redirect clears the query.
+const gatedRenders = vi.hoisted(() => ({ vendorAlerts: 0, assets: 0 }))
+vi.mock('./components/tabs/VendorAlertsTab', () => ({
+  default: () => {
+    gatedRenders.vendorAlerts++
+    return <div data-testid="vendor-alerts">Vendor Alerts</div>
+  },
+}))
+vi.mock('./pages/AssetsPage', () => ({
+  default: () => {
+    gatedRenders.assets++
+    return <div data-testid="assets-page">Assets</div>
+  },
+}))
 vi.mock('./components/tabs/DataSourcesTab', () => ({ default: () => <div data-testid="data-sources">Data Sources</div> }))
 vi.mock('./components/tabs/FindingsTab', () => ({ default: () => <div data-testid="findings">Findings</div> }))
 vi.mock('./components/tabs/AISummaryTab', () => ({ default: () => <div data-testid="ai-summary">AI Summary</div> }))
@@ -332,6 +345,53 @@ describe('Dashboard - Navigation & Rendering', () => {
       mockAuthValues.orgRole = 'admin'
       renderDashboard(['/dashboard?tab=admin'])
       await waitFor(() => expect(screen.getByTestId('overview-tab')).toBeInTheDocument())
+    })
+
+    // Warm the lazy chunk (as a permitted user) so a gated mount would be immediate rather than
+    // hidden by first-load latency, then reset the render counter before the gated render.
+    async function warmLazyTab(tab: string, testId: string) {
+      const org = mockAuthValues.orgId
+      const loading = mockAuthValues.orgLoading
+      mockAuthValues.orgId = 42
+      mockAuthValues.orgLoading = false
+      const warm = renderDashboard([`/dashboard?tab=${tab}`])
+      await waitFor(() => expect(screen.getByTestId(testId)).toBeInTheDocument())
+      warm.unmount()
+      gatedRenders.vendorAlerts = 0
+      gatedRenders.assets = 0
+      mockAuthValues.orgId = org
+      mockAuthValues.orgLoading = loading
+    }
+
+    it('never mounts VendorAlertsTab at ?tab=vendorAlerts for a user with no organisation', async () => {
+      await warmLazyTab('vendorAlerts', 'vendor-alerts')
+      mockAuthValues.orgId = null
+      renderDashboard(['/dashboard?tab=vendorAlerts'])
+      expect(screen.queryByTestId('vendor-alerts')).toBeNull()
+      await waitFor(() => expect(screen.getByTestId('overview-tab')).toBeInTheDocument())
+      expect(screen.queryByTestId('vendor-alerts')).toBeNull()
+      expect(gatedRenders.vendorAlerts).toBe(0)
+    })
+
+    it('never mounts AssetsPage at ?tab=assets for a user with no organisation', async () => {
+      await warmLazyTab('assets', 'assets-page')
+      mockAuthValues.orgId = null
+      renderDashboard(['/dashboard?tab=assets'])
+      expect(screen.queryByTestId('assets-page')).toBeNull()
+      await waitFor(() => expect(screen.getByTestId('overview-tab')).toBeInTheDocument())
+      expect(screen.queryByTestId('assets-page')).toBeNull()
+      expect(gatedRenders.assets).toBe(0)
+    })
+
+    it('never mounts VendorAlertsTab at ?tab=vendorAlerts while the organisation is loading', async () => {
+      await warmLazyTab('vendorAlerts', 'vendor-alerts')
+      mockAuthValues.orgId = 42
+      mockAuthValues.orgLoading = true
+      renderDashboard(['/dashboard?tab=vendorAlerts'])
+      expect(screen.queryByTestId('vendor-alerts')).toBeNull()
+      await waitFor(() => expect(screen.getByTestId('overview-tab')).toBeInTheDocument())
+      expect(screen.queryByTestId('vendor-alerts')).toBeNull()
+      expect(gatedRenders.vendorAlerts).toBe(0)
     })
   })
 
