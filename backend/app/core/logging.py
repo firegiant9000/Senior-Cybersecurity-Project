@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import sys
@@ -76,6 +77,39 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, default=str)
 
 
+def escape_control_chars(text: str) -> str:
+    """Escape CR, LF and other control characters so a value cannot forge log lines.
+
+    Tab is kept. ``\\r`` and ``\\n`` become their two-character escapes; other
+    characters below 0x20 and 0x7f become ``\\xNN``.
+    """
+    out: list[str] = []
+    for ch in text:
+        if ch == "\r":
+            out.append("\\r")
+        elif ch == "\n":
+            out.append("\\n")
+        elif ch != "\t" and (ord(ch) < 0x20 or ord(ch) == 0x7F):
+            out.append(f"\\x{ord(ch):02x}")
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+class ControlCharFormatter(logging.Formatter):
+    """Text formatter that escapes control characters in the message.
+
+    Works on a copy so other handlers (caplog, Sentry) see the original record.
+    ``exc_info`` is untouched, so tracebacks stay multi-line.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        clone = copy.copy(record)
+        clone.msg = escape_control_chars(clone.getMessage())
+        clone.args = None
+        return super().format(clone)
+
+
 def setup_logging(log_level: str = "DEBUG", *, json_output: bool = True) -> None:
     """Configure logging for the application.
 
@@ -95,7 +129,7 @@ def setup_logging(log_level: str = "DEBUG", *, json_output: bool = True) -> None
     if json_output:
         console_handler.setFormatter(JsonFormatter())
     else:
-        console_handler.setFormatter(logging.Formatter(LOG_FORMAT_TEXT))
+        console_handler.setFormatter(ControlCharFormatter(LOG_FORMAT_TEXT))
     root_logger.addHandler(console_handler)
 
     logging.getLogger("sqlalchemy").setLevel(logging.WARNING)

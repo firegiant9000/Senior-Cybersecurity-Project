@@ -213,9 +213,11 @@ Delivered:
 - Deploy secrets passed through `env:`.
 - `alembic check` is blocking, after the models were aligned with the migrations.
 
+_(2026-11-11: the gates fail their own workflow runs, but the main ruleset does not yet require the Security, CodeQL or Secret-scan checks. Until the owner applies T-CI-05 the acceptance below is not met.)_
+
 Allowed exceptions, each with an expiry of at most 90 days, live in [`scan_exceptions.md`](security/scan_exceptions.md), and CI enforces the expiries. The list is empty at close-out.
 
-Semgrep was evaluated and not kept: CodeQL found 0 alerts, and all 10 Semgrep findings were non-actionable. Making the gates required checks on `main` is a repository setting, which the owner applies.
+Semgrep was evaluated and not kept: CodeQL's default suite found 0 alerts when Semgrep was evaluated; the security-extended suite then raised 48 on main, triaged on 2026-11 (fixed in code or dismissed with a comment naming the control), and all 10 Semgrep findings were non-actionable. Making the gates required checks on `main` is a repository setting, which the owner applies.
 
 Work: blocking CI gates for each language: **CodeQL** (Python, JavaScript/TypeScript, Go) on PR and weekly; **pip-audit** with a lockfile or hashes for the backend (introduce `requirements.lock` or `uv.lock`); **govulncheck** for the agent; **npm audit** at high severity for the frontend; **Trivy** on the backend image with CRITICAL and HIGH failing; **Semgrep** with a small curated ruleset if it catches something CodeQL does not (drop it if not). Pin every GitHub Action to a commit SHA; add a top-level `permissions: contents: read` to every workflow; move the Render deploy-hook secret out of shell interpolation. Upgrade the 2023-vintage backend pins (fastapi, starlette, pydantic, python-multipart, sqlalchemy) and Go to a supported version; fix what breaks. Remove pytest and ruff from the production requirements. Document allowed exceptions in `docs/security/scan_exceptions.md` with an expiry date for each. _(2026-10-18: S2 now runs right after S5a. Added:)_ make `alembic check` blocking by removing `continue-on-error`, or record in `scan_exceptions.md`, with an expiry date, why it can't be.
 
@@ -233,9 +235,9 @@ Work: blocking CI gates for each language: **CodeQL** (Python, JavaScript/TypeSc
 
 #### S3. STRIDE threat model — DONE 2026-10-22 (#225)
 
-Delivered: [`threat_model.md`](security/threat_model.md) holds 110 threats: 42 CONTROL, 20 TEST, 18 ACCEPTED and 30 OPEN (plus 1 withdrawn). `.github/scripts/check_threat_model.py` runs in the `security.yml` workflow and checks the classifications and evidence. Writing it surfaced 10 findings (see the document's Findings). One, an SSRF in the domain checks, was fixed in #224 before publication; none of the other nine was severe, and none of them was fixed in S3. The OPEN rows are scheduled for S4, S5 or owner action.
+Delivered: [`threat_model.md`](security/threat_model.md) holds 110 threats at publication: 42 CONTROL, 20 TEST, 18 ACCEPTED and 30 OPEN (plus 1 withdrawn). `.github/scripts/check_threat_model.py` runs in the `security.yml` workflow and checks the classifications and evidence. Writing it surfaced 10 findings (see the document's Findings). One, an SSRF in the domain checks, was fixed in #224 before publication; none of the other nine was severe, and none of them was fixed in S3. The OPEN rows are scheduled for S4, S5 or owner action. _(2026-11-11: after S4 the document holds 117 rows: 37 CONTROL, 40 TEST, 19 ACCEPTED, 20 OPEN and 1 withdrawn.)_
 
-<a id="s3-privacy-page-follow-up"></a>Follow-up (2026-10-22): bring the in-app `/privacy` page (`frontend/src/pages/PrivacyPage.tsx`) in line with [`privacy.md`](security/privacy.md): the hosting region, and the Gemini and domain-lookup providers. Confirm the Render database region, then pin it in `render.yaml`.
+<a id="s3-privacy-page-follow-up"></a>Follow-up (2026-10-22): bring the in-app `/privacy` page (`frontend/src/pages/PrivacyPage.tsx`) in line with [`privacy.md`](security/privacy.md): the hosting region, and the Gemini and domain-lookup providers. Confirm the Render database region, then pin it in `render.yaml`. _(Done 2026-11 for the provider and region table: page, privacy.md and the database region are aligned. Still open: the page's activity, export and deletion wording differs from privacy.md.)_
 
 Work: `docs/security/threat_model.md` covering agent enrollment, agent upload, token lifecycle and rotation, replay, human authentication (including the email-link fallback), organization tenancy, the global-admin boundary, the ingestion pipeline (NVD, KEV, EPSS), the outbound domain checks and the AI summary inputs. For every threat, one of: **CONTROL** (with the file and line), **TEST** (with the test name), **ACCEPTED RISK** (with the reason and owner), or **OPEN RISK** (with the milestone that closes it). The threat model drives S4 and S5: every OPEN RISK must map to a later item or be explicitly accepted.
 
@@ -243,7 +245,7 @@ Work: `docs/security/threat_model.md` covering agent enrollment, agent upload, t
 
 **Evidence produced.** The threat model document.
 
-**Resume potential.** "Wrote a STRIDE threat model for Hacker Tracker's agent enrollment, upload, token lifecycle, tenancy and AI-input paths (115 threats), mapping each to a control, a test or an accepted risk, and used it to drive the authorization suite."
+**Resume potential.** "Wrote a STRIDE threat model for Hacker Tracker's agent enrollment, upload, token lifecycle, tenancy and AI-input paths (116 threats), mapping each to a control, a test or an accepted risk, and used it to drive the authorization suite."
 
 **Interview questions.**
 - Walk me through the spoofing and tampering threats on the agent upload path and how each is controlled.
