@@ -31,7 +31,12 @@ export default function ProtectedRoute({ children, requireOrg = true }: { childr
   }
 
   if (!user) {
-    return <Navigate to="/" replace />;
+    return (
+      <Navigate
+        to={`/login?next=${encodeURIComponent(location.pathname + location.search + location.hash)}`}
+        replace
+      />
+    );
   }
 
   // A new account whose email isn't verified yet gets the verify screen, not a profile error

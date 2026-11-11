@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { describe, it, expect, vi } from "vitest";
 
 const { authState } = vi.hoisted(() => ({
@@ -64,6 +64,33 @@ describe("ProtectedRoute", () => {
 
     expect(await screen.findByText(/We couldn't confirm your address yet/i)).toBeInTheDocument();
     expect(confirmVerification).toHaveBeenCalledTimes(1);
+  });
+
+  it("signed out: redirects to /login with the requested URL in ?next=", () => {
+    setAuth({ user: null });
+
+    function LoginSearch() {
+      return <p data-testid="login-search">{useLocation().search}</p>;
+    }
+
+    render(
+      <MemoryRouter initialEntries={["/invites/tok123?x=1#h"]}>
+        <Routes>
+          <Route path="/login" element={<LoginSearch />} />
+          <Route
+            path="/invites/:token"
+            element={
+              <ProtectedRoute>
+                <p>protected content</p>
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("login-search")).toHaveTextContent("?next=%2Finvites%2Ftok123%3Fx%3D1%23h");
+    expect(screen.queryByText("protected content")).not.toBeInTheDocument();
   });
 
   it("profileError screen unchanged when emailUnverified is false", () => {
