@@ -19,7 +19,7 @@ import ipaddress
 import logging
 from dataclasses import dataclass, field
 
-from sqlalchemy import func, select
+from sqlalchemy import func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.asset import Asset
@@ -29,6 +29,8 @@ from app.db.models import KEV
 logger = logging.getLogger(__name__)
 
 MAX_CSV_ROWS = 10_000
+# Rows per software INSERT / last_seen UPDATE statement in commit_inventory.
+SOFTWARE_BATCH_SIZE = 1_000
 REQUIRED_COLUMNS = ("hostname",)
 KNOWN_COLUMNS = (
     "hostname",
@@ -270,23 +272,49 @@ async def commit_inventory(  # noqa: C901
         return asset_count, 0
 
     asset_ids = {hostname_to_asset[r.hostname].id for r in sw_rows}
-    # Fetch existing software for these assets so we can dedup.
-    existing_sw_by_key: dict[tuple[int, str, str, str], AssetSoftware] = {}
+    # Fetch the dedup keys of existing software for these assets. Ids and keys
+    # only, not ORM objects: a 20,000-package agent rescan would otherwise hold
+    # every row in the session (#247).
+    existing_ids_by_key: dict[tuple[int, str, str, str], int] = {}
     if asset_ids:
         result = await session.execute(
-            select(AssetSoftware).where(
+            select(
+                AssetSoftware.id,
+                AssetSoftware.asset_id,
+                AssetSoftware.vendor,
+                AssetSoftware.product,
+                AssetSoftware.version,
+            ).where(
                 AssetSoftware.org_id == org_id,
                 AssetSoftware.asset_id.in_(asset_ids),
             )
         )
-        for sw in result.scalars().all():
-            key = (
-                sw.asset_id,
-                sw.vendor.lower(),
-                sw.product.lower(),
-                (sw.version or "").lower(),
+        for sw_id, asset_id, vendor, product, version in result:
+            existing_ids_by_key[
+                (asset_id, vendor.lower(), product.lower(), (version or "").lower())
+            ] = sw_id
+
+    # Refresh and insert in batches, so no statement or parameter list ever
+    # covers the whole upload at once.
+    refresh_ids: list[int] = []
+    new_rows: list[dict] = []
+
+    async def _write(*, final: bool = False) -> None:
+        if refresh_ids and (final or len(refresh_ids) >= SOFTWARE_BATCH_SIZE):
+            await session.execute(
+                update(AssetSoftware)
+                .where(AssetSoftware.id.in_(refresh_ids))
+                .values(last_seen=now)
+                .execution_options(synchronize_session=False)
             )
-            existing_sw_by_key[key] = sw
+            refresh_ids.clear()
+        if new_rows and (final or len(new_rows) >= SOFTWARE_BATCH_SIZE):
+            # render_nulls keeps every row's key set identical, so a None version
+            # doesn't split the batch into one INSERT per change.
+            await session.execute(
+                insert(AssetSoftware).execution_options(render_nulls=True), new_rows
+            )
+            new_rows.clear()
 
     touched_keys: set[tuple[int, str, str, str]] = set()
     for row in sw_rows:
@@ -301,25 +329,25 @@ async def commit_inventory(  # noqa: C901
             # Already inserted or refreshed in this upload.
             continue
         touched_keys.add(key)
-        existing_sw = existing_sw_by_key.get(key)
-        if existing_sw is None:
-            session.add(
-                AssetSoftware(
-                    asset_id=asset.id,
-                    org_id=org_id,
-                    vendor=row.vendor,
-                    product=row.product,
-                    version=row.version,
-                    source=source,
-                    created_by_scan_run_id=scan_run_id,
-                )
+        existing_id = existing_ids_by_key.get(key)
+        if existing_id is None:
+            new_rows.append(
+                {
+                    "asset_id": asset.id,
+                    "org_id": org_id,
+                    "vendor": row.vendor,
+                    "product": row.product,
+                    "version": row.version,
+                    "source": source,
+                    "created_by_scan_run_id": scan_run_id,
+                }
             )
-            software_count += 1
         else:
-            existing_sw.last_seen = now  # type: ignore[assignment]
-            software_count += 1
+            refresh_ids.append(existing_id)
+        software_count += 1
+        await _write()
 
-    await session.flush()
+    await _write(final=True)
     return asset_count, software_count
 
 

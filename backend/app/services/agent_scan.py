@@ -133,6 +133,14 @@ def extract_observations(
 
 
 def payload_hash(payload: AgentScanPayload) -> str:
-    """Stable sha256 of the canonical payload, stored on the scan_run for audit."""
-    canonical = json.dumps(payload.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    """Stable sha256 of the canonical payload, stored on the scan_run for audit.
+
+    The canonical JSON is fed to the hash piece by piece rather than built as one
+    string: a maximal upload would otherwise hold ~19 MB of text and again as bytes
+    (#247). The digest is identical to hashing ``json.dumps`` with these options.
+    """
+    encoder = json.JSONEncoder(sort_keys=True, separators=(",", ":"))
+    digest = hashlib.sha256()
+    for chunk in encoder.iterencode(payload.model_dump(mode="json")):
+        digest.update(chunk.encode("utf-8"))
+    return digest.hexdigest()
