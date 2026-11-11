@@ -201,10 +201,10 @@ describe('Dashboard - Navigation & Rendering', () => {
   })
 
   describe('Tab Visibility by Organization Status', () => {
-    it('locks org-only tabs when user has no org', () => {
+    it('omits org-only tabs when user has no org', () => {
       renderDashboard()
-      expect(screen.getByTestId('tab-assessment')).toBeDisabled()
-      expect(screen.getByTestId('tab-vendorAlerts')).toBeDisabled()
+      expect(screen.queryByTestId('tab-assessment')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('tab-vendorAlerts')).not.toBeInTheDocument()
     })
 
     it('shows org-only tabs when user has an org', () => {
@@ -255,12 +255,12 @@ describe('Dashboard - Navigation & Rendering', () => {
       expect(screen.getByTestId('tab-admin')).toBeInTheDocument()
     })
 
-    it('shows admin tabs for org admin', () => {
+    it('hides admin tabs for org admin who is not a platform admin', () => {
       mockAuthValues.orgId = 42
       mockAuthValues.role = 'viewer'
       mockAuthValues.orgRole = 'admin'
       renderDashboard()
-      expect(screen.getByTestId('tab-admin')).toBeInTheDocument()
+      expect(screen.queryByTestId('tab-admin')).not.toBeInTheDocument()
     })
 
     it('does not show admin tabs for org owner without admin role', () => {

@@ -112,12 +112,12 @@ describe('Dashboard tab filtering', () => {
     expect(screen.getByTestId('tab-pipelineHealth')).toBeTruthy()
   })
 
-  it('shows pipelineHealth for an org admin', () => {
+  it('hides pipelineHealth for an org admin who is not a platform admin', () => {
     mockAuthValues.orgId = 42
     mockAuthValues.role = 'viewer'
     mockAuthValues.orgRole = 'admin'
     renderDashboard()
-    expect(screen.getByTestId('tab-pipelineHealth')).toBeTruthy()
+    expect(screen.queryByTestId('tab-pipelineHealth')).toBeNull()
   })
 
   it('hides all org-only and pipelineHealth tabs while orgLoading', () => {

@@ -1,7 +1,14 @@
 import type { TabGroupDef } from '../config/tabGroups';
 
-export function canSeePipeline(role: string | null, orgRole: string | null): boolean {
-  return role === 'admin' || orgRole === 'admin';
+export function isPlatformAdmin(role: string | null | undefined): boolean {
+  return role?.toLowerCase() === 'admin';
+}
+
+export function isOrgAdmin(
+  role: string | null | undefined,
+  orgRole: string | null | undefined,
+): boolean {
+  return isPlatformAdmin(role) || orgRole === 'admin' || orgRole === 'owner';
 }
 
 interface VisibilityContext {
@@ -15,16 +22,14 @@ export function getVisibleGroups(
   groups: TabGroupDef[],
   ctx: VisibilityContext,
 ): TabGroupDef[] {
-  const isAdmin = ctx.role === 'admin' || ctx.orgRole === 'admin';
+  const isAdmin = isPlatformAdmin(ctx.role);
   const hasOrg = !ctx.orgLoading && ctx.orgId != null;
 
   return groups
     .map((g): TabGroupDef | null => {
       if (g.requiresAdmin && !isAdmin) return null;
 
-      // requiresOrg groups are shown as locked (not hidden) so users know they exist,
-      // but subTabs are not expanded — the group header is the only visible element
-      if (g.requiresOrg && !hasOrg) return { ...g, locked: true, subTabs: undefined };
+      if (g.requiresOrg && !hasOrg) return null;
 
       if (!g.subTabs) return g;
       const visibleSubs = g.subTabs.filter((s) => {
