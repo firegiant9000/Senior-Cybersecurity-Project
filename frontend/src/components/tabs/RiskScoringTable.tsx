@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useDebounce } from '../../hooks/useDebounce';
 import { fetchWithAuth } from '../../api/fetchWithAuth';
 import InfoTip from '../shared/InfoTip';
+import { BAND_COLORS } from '../intel/vulnSource';
 
 const RISK_SCORE_TIP =
     '0–100 composite combining CVSS severity, KEV presence, EPSS exploitation probability, and recency. Higher = more risk.';
@@ -116,13 +117,6 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
         fetchStats(dataSource, controller.signal);
         return () => controller.abort();
     }, [fetchData, fetchStats, dataSource, debouncedSearch]);
-
-    const BAND_COLORS: Record<string, string> = {
-        'Critical (80-100)': '#dc2626',
-        'High (60-79)': '#f59e0b',
-        'Medium (40-59)': '#eab308',
-        'Low (0-39)': '#3b82f6',
-    };
 
     const riskBands = stats?.bands ?? [];
     const maxBandCount = Math.max(1, ...riskBands.map(b => b.count));
