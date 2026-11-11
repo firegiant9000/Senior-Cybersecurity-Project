@@ -63,6 +63,8 @@ services:
 
 databases:
   - name: hacker-tracker-db
+    region: oregon
+    # Production runs a paid plan set in the dashboard; this value is not the live one.
     plan: free
     databaseName: cyber_threat_db
     postgresMajorVersion: "15"
