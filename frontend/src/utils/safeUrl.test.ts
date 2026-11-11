@@ -19,6 +19,10 @@ describe("safeNextPath", () => {
     expect(safeNextPath(v)).toBe(v);
   });
   it.each([null, undefined, '', 'dashboard', '//evil.example', '/\\evil.example',
-    'https://evil.example', 'javascript:alert(1)', '/a\nb', '/login', '/login?next=/x', '/signup'])(
-    'rejects %s', (v) => { expect(safeNextPath(v)).toBeNull(); });
+    'https://evil.example', 'javascript:alert(1)', '/a\nb', '/login', '/login?next=/x', '/signup',
+    '/\t/evil.example', '/\r/evil.example'])(
+    'rejects %j', (v) => { expect(safeNextPath(v)).toBeNull(); });
+  it('rejects an encoded double slash once decoded by URLSearchParams', () => {
+    expect(safeNextPath(new URLSearchParams('next=%2F%2Fevil.example').get('next'))).toBeNull();
+  });
 });
