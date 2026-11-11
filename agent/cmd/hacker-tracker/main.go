@@ -147,7 +147,7 @@ func uploadScan(scan output.Scan, server, apiKey string, timeout time.Duration) 
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), upload.MaxUploadDuration(timeout))
 	defer cancel()
 
 	acc, err := client.Upload(ctx, scan)

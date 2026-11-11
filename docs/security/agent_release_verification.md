@@ -5,8 +5,8 @@
 > before you run it on a host. Replaces the retired GPG flow
 > ([agent_release_signing.md](agent_release_signing.md)).
 
-Commands use `X.Y.Z` placeholders; the example version is `0.1.0`, so the tag is
-`agent-v0.1.0` and the binary is `hacker-tracker-0.1.0-linux-amd64`. You need the
+Commands use `X.Y.Z` placeholders; the example version is `0.1.1`, so the tag is
+`agent-v0.1.1` and the binary is `hacker-tracker-0.1.1-linux-amd64`. You need the
 GitHub CLI (`gh`) with `gh attestation` support, signed in (`gh auth login`).
 
 ## What you get
@@ -36,7 +36,7 @@ gh attestation verify hacker-tracker-X.Y.Z-linux-amd64 \
   --deny-self-hosted-runners
 ```
 
-Example: `X.Y.Z` = `0.1.0`. A pass exits 0. In a terminal it also prints the
+Example: `X.Y.Z` = `0.1.1`. A pass exits 0. In a terminal it also prints the
 verified attestation; in a script or CI log it prints nothing, so add
 `--format json` (optionally with `--jq`) if you want a record. Any
 failure (exit non-zero) means do not run the binary. `sha256sum -c` only catches
@@ -117,7 +117,7 @@ Find out what a shipped binary contains from its SBOM:
 # Go toolchain (stdlib) the binary was built with, e.g. go1.27.3
 jq -r '.components[] | select(.name == "std") | .version' hacker-tracker-X.Y.Z-linux-amd64.cdx.json
 
-# Agent version recorded in the SBOM, e.g. v0.1.0
+# Agent version recorded in the SBOM, e.g. v0.1.1
 jq -r '.metadata.component.version' hacker-tracker-X.Y.Z-linux-amd64.cdx.json
 
 # All components and versions

@@ -29,7 +29,7 @@ const SchemaVersion = "1.0"
 // build time with -ldflags "-X .../internal/output.ScannerVersion=<semver>".
 // The default below is the source-of-truth for local/dev builds and must stay a
 // clean semver that the golden fixture expects.
-var ScannerVersion = "0.1.0"
+var ScannerVersion = "0.1.1"
 
 // Host describes the machine the scan ran on. Identity on the backend is the
 // (org, agent token) pair, never the hostname — hostname here is descriptive.
