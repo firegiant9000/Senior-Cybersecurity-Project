@@ -79,8 +79,7 @@ class LossProjectionService:
         incident_rate = _INCIDENT_RATE.get(org.employee_range, 1.0)
         if org.employee_range not in _INCIDENT_RATE:
             logger.warning(
-                "Unknown employee_range %r for org %s — defaulting incident rate to 1.0",
-                org.employee_range,
+                "Unknown employee_range for org %s; defaulting incident rate to 1.0",
                 org.id,
             )
 
