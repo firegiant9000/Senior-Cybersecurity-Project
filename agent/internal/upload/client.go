@@ -34,6 +34,12 @@ const (
 	maxRetryWait      = 30 * time.Second
 )
 
+// MaxUploadDuration is the longest Upload can take with the given per-request
+// timeout: every attempt timing out plus the longest waits between them.
+func MaxUploadDuration(timeout time.Duration) time.Duration {
+	return maxUploadAttempts*timeout + (maxUploadAttempts-1)*maxRetryWait
+}
+
 // ErrServerBusy is returned when every upload attempt got HTTP 503.
 var ErrServerBusy = errors.New("server is busy (503) after 3 attempts; the scan was not stored, run the scanner again later")
 

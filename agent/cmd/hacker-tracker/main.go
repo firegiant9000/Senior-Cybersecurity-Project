@@ -147,14 +147,7 @@ func uploadScan(scan output.Scan, server, apiKey string, timeout time.Duration) 
 	if err != nil {
 		return err
 	}
-	// Upload may make up to uploadAttempts requests (each bounded by timeout)
-	// with up to uploadMaxWait of Retry-After waits in total; the context must
-	// outlive all of them. Keep in step with upload.maxUploadAttempts / maxRetryWait.
-	const (
-		uploadAttempts = 3
-		uploadMaxWait  = 60 * time.Second
-	)
-	ctx, cancel := context.WithTimeout(context.Background(), uploadAttempts*timeout+uploadMaxWait)
+	ctx, cancel := context.WithTimeout(context.Background(), upload.MaxUploadDuration(timeout))
 	defer cancel()
 
 	acc, err := client.Upload(ctx, scan)

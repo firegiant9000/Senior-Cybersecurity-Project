@@ -179,9 +179,11 @@ func newRetryClient(t *testing.T, url string) (*Client, *[]time.Duration) {
 
 func TestUploadRetriesOn503ThenSucceeds(t *testing.T) {
 	var bodies [][]byte
+	var auths []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
 		bodies = append(bodies, b)
+		auths = append(auths, r.Header.Get("Authorization"))
 		if len(bodies) <= 2 {
 			w.Header().Set("Retry-After", "7")
 			w.WriteHeader(http.StatusServiceUnavailable)
@@ -206,8 +208,32 @@ func TestUploadRetriesOn503ThenSucceeds(t *testing.T) {
 	if !bytes.Equal(bodies[0], bodies[1]) || !bytes.Equal(bodies[1], bodies[2]) {
 		t.Error("request bodies differ between attempts")
 	}
+	for i, a := range auths {
+		if a != "Bearer ht_abc_def" {
+			t.Errorf("request %d Authorization = %q, want %q", i, a, "Bearer ht_abc_def")
+		}
+	}
 	if fmt.Sprint(*waits) != fmt.Sprint([]time.Duration{7 * time.Second, 7 * time.Second}) {
 		t.Errorf("waits = %v, want [7s 7s]", *waits)
+	}
+}
+
+func TestMaxUploadDuration(t *testing.T) {
+	if got := MaxUploadDuration(30 * time.Second); got != 150*time.Second {
+		t.Errorf("MaxUploadDuration(30s) = %v, want 150s", got)
+	}
+}
+
+func TestSleepCtxReturnsOnCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	start := time.Now()
+	err := sleepCtx(ctx, time.Hour)
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("sleepCtx error = %v, want context.Canceled", err)
+	}
+	if d := time.Since(start); d >= time.Second {
+		t.Errorf("sleepCtx took %v, want < 1s", d)
 	}
 }
 
