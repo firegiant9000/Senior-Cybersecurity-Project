@@ -2,10 +2,8 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useDebounce } from '../../hooks/useDebounce';
 import { fetchWithAuth } from '../../api/fetchWithAuth';
 import InfoTip from '../shared/InfoTip';
-import { BAND_COLORS } from '../intel/vulnSource';
+import { BAND_COLORS, RISK_SCORE_TIP } from '../intel/vulnSource';
 
-const RISK_SCORE_TIP =
-    '0–100 composite combining CVSS severity, KEV presence, EPSS exploitation probability, and recency. Higher = more risk.';
 const EPSS_TIP =
     'EPSS = Exploit Prediction Scoring System. Probability (0–100%) that this CVE will be exploited in the next 30 days.';
 

@@ -4,6 +4,9 @@ export function parseVulnSource(value: string | null): VulnSource {
   return value === 'kev' || value === 'nvd' || value === 'scored' ? value : 'scored';
 }
 
+export const RISK_SCORE_TIP =
+  '0–100 composite combining CVSS severity, KEV presence, EPSS exploitation probability, and recency. Higher = more risk.';
+
 export const SEVERITY_ORDER = ['Critical', 'High', 'Medium', 'Low', 'Unknown'];
 
 export const BAND_COLORS: Record<string, string> = {
