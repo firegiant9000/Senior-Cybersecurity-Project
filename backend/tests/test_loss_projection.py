@@ -205,6 +205,21 @@ class TestEmployeeRangeScaling:
         assert result.size_multiplier == pytest.approx(1.0)
         assert result.projected_annual_loss == pytest.approx(100_000.0)
 
+    @pytest.mark.asyncio
+    async def test_unknown_employee_range_is_not_logged(self, caplog):
+        db = _db_returning(
+            [
+                [(2023,)],
+                [(100_000.0, 50, 2023, 2023)],
+            ]
+        )
+        svc = LossProjectionService(db)
+        with caplog.at_level("WARNING"):
+            await svc.build(_org(employee_range="UNLISTED-RANGE-999"))
+
+        assert "UNLISTED-RANGE-999" not in caplog.text
+        assert "Unknown employee_range" in caplog.text
+
 
 # ---------------------------------------------------------------------------
 # Empty-string normalisation

@@ -116,7 +116,7 @@ export default function PrivacyPage() {
               <tr>
                 <td>Render</td>
                 <td>Backend + managed PostgreSQL</td>
-                <td>US East (Ohio)</td>
+                <td>US West (Oregon)</td>
               </tr>
               <tr>
                 <td>Firebase Hosting</td>
@@ -127,6 +127,16 @@ export default function PrivacyPage() {
                 <td>Sentry</td>
                 <td>Error reports (scrubbed)</td>
                 <td>US</td>
+              </tr>
+              <tr>
+                <td>Google Gemini API</td>
+                <td>AI summary (org-level fields and findings only, no user identifiers)</td>
+                <td>Google global</td>
+              </tr>
+              <tr>
+                <td>HIBP, Shodan, AlienVault OTX, crt.sh</td>
+                <td>External domain checks (your organization&apos;s domain name or its public address only)</td>
+                <td>Each provider&apos;s own</td>
               </tr>
             </tbody>
           </table>

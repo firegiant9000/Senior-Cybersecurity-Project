@@ -30,6 +30,7 @@ import {
 } from "../api/uploads";
 import AssessmentReadinessWidget from "../components/AssessmentReadiness";
 import ValidationPanel from "../components/ValidationPanel";
+import { httpUrlOrNull } from "../utils/safeUrl";
 import "../Dashboard.css";
 import "./SettingsPage.css";
 
@@ -554,6 +555,7 @@ export default function OrgProfilePage() {
     canEditOrganizationProfile(profile.role, profile.org_role);
   const companyFieldsDisabled =
     orgLoading || !organization || !canEditOrgProfile;
+  const logoPreviewUrl = httpUrlOrNull(logoUrlField);
 
   const handleSaveCompanyProfile = async () => {
     if (!profile?.org_id || !canEditOrgProfile) return;
@@ -773,10 +775,10 @@ export default function OrgProfilePage() {
                             onChange={(e) => setLogoUrlField(e.target.value)}
                             disabled={companyFieldsDisabled}
                           />
-                          {logoUrlField.trim() !== "" && (
+                          {logoPreviewUrl !== null && (
                             <img
                               className="company-logo-preview"
-                              src={logoUrlField.trim()}
+                              src={logoPreviewUrl}
                               alt=""
                               onError={(e) => {
                                 e.currentTarget.style.display = "none";

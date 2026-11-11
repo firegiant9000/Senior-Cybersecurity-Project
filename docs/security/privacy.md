@@ -2,11 +2,7 @@
 
 This is the user-facing summary of how Hacker Tracker handles your data. The
 authoritative technical inventory lives in [pii_inventory.md](pii_inventory.md);
-this doc says the same thing in plain language. The in-app `/privacy` page is
-meant to mirror it but currently lags behind: it doesn't yet list the AI and
-lookup providers below, and shows an older hosting region. This doc is the
-current one; the fix is tracked in the
-[roadmap](../PRODUCT_VIABILITY_ROADMAP.md#s3-privacy-page-follow-up).
+this doc says the same thing in plain language. The in-app `/privacy` page mirrors this document's provider and region table. Its activity, export and deletion wording still differs from this document; where they disagree, this document is authoritative.
 
 ---
 
@@ -62,15 +58,13 @@ disclosure and the enrollment/revocation flow live in
 | Provider          | Role                                       | Region                |
 |-------------------|--------------------------------------------|-----------------------|
 | Firebase Auth     | Authentication                             | Google global         |
-| Render            | Backend + managed PostgreSQL               | US (backend pinned to Oregon; database region not yet pinned) |
+| Render            | Backend + managed PostgreSQL               | US West (Oregon), backend and database |
 | Firebase Hosting  | Static frontend assets                     | Google global         |
 | Sentry            | Error reports (scrubbed)                   | US                    |
 | Google Gemini API | AI summary (org-level fields and findings only, no user identifiers) | Google global |
 | HIBP, Shodan, AlienVault OTX, crt.sh | External domain checks (the org's domain name or its public address only) | Each provider's own |
 
-Organization and application data is stored in our PostgreSQL database, which
-is expected to be in the United States (Oregon) alongside the web service. The
-database region is not yet pinned in `render.yaml` (roadmap S3 follow-up).
+Organization and application data is stored in our PostgreSQL database in the United States (Oregon), alongside the web service.
 Sign-in identities are held by Firebase Auth, which operates
 globally. Some other providers above also process data globally: the CDN for
 static assets, Google Gemini for the AI summary, and the domain-lookup

@@ -38,12 +38,14 @@ export interface MockAssessmentData {
   fields_to_advance: number
 }
 
+let mockSeq = 0
+
 /**
  * Factory function to create mock user objects
  */
 export function createMockUser(overrides: Partial<MockUser> = {}): MockUser {
   return {
-    uid: 'test-user-' + Math.random().toString(36).substr(2, 9),
+    uid: `test-user-${++mockSeq}`,
     email: 'user@example.com',
     emailVerified: false,
     metadata: { lastSignInTime: '2024-01-01T00:00:00Z' },
@@ -56,8 +58,8 @@ export function createMockUser(overrides: Partial<MockUser> = {}): MockUser {
  */
 export function createMockOrgMember(overrides: Partial<MockOrgMember> = {}): MockOrgMember {
   return {
-    user_id: Math.floor(Math.random() * 10000),
-    email: `user-${Math.random().toString(36).substr(2, 5)}@example.com`,
+    user_id: ++mockSeq,
+    email: `user-${mockSeq}@example.com`,
     role: 'member',
     is_active: true,
     created_at: new Date().toISOString(),

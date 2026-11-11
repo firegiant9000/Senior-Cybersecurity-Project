@@ -90,7 +90,7 @@ flowchart LR
 
 | Component | Where | Notes |
 | --- | --- | --- |
-| Backend | `backend/` | FastAPI, SQLAlchemy 2 async, Alembic (49 migration files; two carry the 021 prefix), pytest |
+| Backend | `backend/` | FastAPI, SQLAlchemy 2 async, Alembic (52 migration files; two carry the 021 prefix), pytest |
 | Frontend | `frontend/` | React 18, TypeScript, Vite, React Router, Recharts, Vitest |
 | Host agent | `agent/` | Go 1.27, standard library only, Linux (dpkg/rpm, systemd, optional `ss`) |
 | Auth | Firebase Authentication | Backend verifies ID tokens with the Admin SDK |
@@ -244,7 +244,7 @@ on `main` (395 of 560 commits are mine, across the identities listed in
 - Most of the React dashboard: the analytics-tab rebuild, component
   reorganization, assets and findings views, executive report page, Firebase
   auth UI
-- The repository CI workflows; 47 of the 49 Alembic migration files; the majority of the
+- The repository CI workflows; 50 of the 52 Alembic migration files; the majority of the
   backend tests
 
 ### Major contributions by me (originally built by a teammate)
