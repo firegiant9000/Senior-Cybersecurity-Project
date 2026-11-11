@@ -21,6 +21,10 @@ interface InventoryHealth {
   last_source: string | null;
 }
 
+export function assetsLinkTarget(assetsTotal: number): string {
+  return assetsTotal > 0 ? "/dashboard?tab=assets" : "/inventory/upload";
+}
+
 function relativeTime(iso: string): string {
   const then = new Date(iso).getTime();
   const diffSec = Math.round((Date.now() - then) / 1000);
@@ -107,7 +111,7 @@ export default function InventoryHealthCard() {
                 ? `Last upload: ${relativeTime(data.last_inventory_update)}${data.last_source ? ` · ${data.last_source}` : ""}`
                 : "No inventory uploaded yet."}
             </span>
-            <Link to={data.assets_total > 0 ? "/?tab=assets" : "/inventory/upload"}>
+            <Link to={assetsLinkTarget(data.assets_total)}>
               {data.assets_total > 0 ? "View assets →" : "Upload CSV →"}
             </Link>
           </div>
