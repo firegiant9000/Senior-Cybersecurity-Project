@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { isOrgAdmin } from '../../utils/roleUtils';
 import './DashboardHeader.css';
 
 interface Props {
@@ -16,7 +17,7 @@ const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout }
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement | null>(null);
 
-    const canDebug = role === 'admin' || orgRole === 'admin' || orgRole === 'owner';
+    const canDebug = isOrgAdmin(role, orgRole);
     const displayRole = orgRole ?? role ?? 'User';
 
     useEffect(() => {

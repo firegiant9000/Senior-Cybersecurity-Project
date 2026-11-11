@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { sendEmailVerification, sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "../firebase";
 import { useAuth } from "../context/AuthContext";
+import { isOrgAdmin } from "../utils/roleUtils";
 import { API_BASE_URL, fetchWithAuth } from "../api/fetchWithAuth";
 import {
   OrgMember,
@@ -117,9 +118,7 @@ export default function SettingsPage() {
   const canManageMembers =
     profile != null &&
     profile.org_id != null &&
-    (profile.role === "admin" ||
-      profile.org_role === "admin" ||
-      profile.org_role === "owner");
+    isOrgAdmin(profile.role, profile.org_role);
 
   useEffect(() => {
     if (profile?.org_id && canManageMembers) {
