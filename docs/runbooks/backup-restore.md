@@ -10,7 +10,7 @@ Both connection strings come only from environment variables set in the operator
 
 - `pg_dump --format=custom --no-owner --no-acl --file "$HOME/ht-drill.dump" "$HT_PROD_DATABASE_URL"`
 - `docker run --name ht-restore -e POSTGRES_PASSWORD="$HT_DRILL_PASSWORD" -p 55432:5432 -d postgres:15`
-- `until docker exec ht-restore pg_isready -U postgres; do sleep 1; done`
+- `until docker exec ht-restore pg_isready -h 127.0.0.1 -U postgres; do sleep 1; done`
 - `pg_restore --no-owner --dbname "$HT_DRILL_DATABASE_URL" "$HOME/ht-drill.dump"`
 - Row counts on both sides for `organizations`, `users`, `memberships`, `assets`, `asset_software`, `asset_findings`, `scan_runs`, `agent_enrollments`, `audit_log`: `SELECT count(*) FROM <table>;`
   Count production in the same window as the dump. Tables still being written (for example `audit_log` and `scan_runs`) may differ only by rows created after the dump started; record that in Notes, not as a mismatch.
