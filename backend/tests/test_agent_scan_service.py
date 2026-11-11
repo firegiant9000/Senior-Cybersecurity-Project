@@ -7,6 +7,7 @@ hash. The route wiring + replay/auth is covered in ``test_agent_scan_routes.py``
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -144,6 +145,18 @@ def test_payload_hash_is_stable_and_order_independent():
     b = AgentScanPayload.model_validate(data)
     assert agent_scan.payload_hash(a) == agent_scan.payload_hash(b)
     assert len(agent_scan.payload_hash(a)) == 64
+
+
+def test_payload_hash_matches_the_canonical_json_digest():
+    # The hash is streamed (#247) but must stay byte-identical to the stored
+    # values: sha256 of sorted-key, compact, ASCII-escaped JSON.
+    data = _golden_dict()
+    data["host"]["hostname"] = "hôst-ü-日本"
+    payload = AgentScanPayload.model_validate(data)
+    canonical = json.dumps(
+        payload.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    assert agent_scan.payload_hash(payload) == hashlib.sha256(canonical).hexdigest()
 
 
 def test_payload_hash_changes_with_content():
