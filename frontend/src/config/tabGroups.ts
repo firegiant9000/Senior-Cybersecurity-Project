@@ -11,7 +11,6 @@ export interface TabGroupDef {
   requiresOrg?: boolean;
   requiresAdmin?: boolean;
   subTabs?: SubTabDef[];
-  locked?: boolean;
 }
 
 /**

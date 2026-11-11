@@ -95,16 +95,14 @@ vi.mock('./components/dashboard/DashboardHeader', () => ({
 }))
 
 vi.mock('./components/dashboard/TabBar', () => ({
-  default: ({ groups, activeGroup, onGroupChange }: { groups: Array<{ id: string; label: string; locked?: boolean }>; activeGroup: string; onGroupChange: (id: string) => void }) => (
+  default: ({ groups, activeGroup, onGroupChange }: { groups: Array<{ id: string; label: string }>; activeGroup: string; onGroupChange: (id: string) => void }) => (
     <nav data-testid="tab-bar">
       {groups.map((g) => (
         <button
           key={g.id}
           data-testid={`tab-${g.id}`}
-          data-locked={g.locked}
           data-active={activeGroup === g.id}
           onClick={() => onGroupChange(g.id)}
-          disabled={g.locked}
         >
           {g.label}
         </button>
@@ -220,24 +218,6 @@ describe('Dashboard - Navigation & Rendering', () => {
       expect(screen.getByTestId('tab-threats')).toBeInTheDocument()
       expect(screen.getByTestId('tab-trendsData')).toBeInTheDocument()
     })
-
-    it('shows org-join CTA when no org and loading complete', () => {
-      renderDashboard()
-      expect(screen.getByText(/not part of an organization/i)).toBeInTheDocument()
-      expect(screen.getByText(/Join or create an org/i)).toBeInTheDocument()
-    })
-
-    it('hides org-join CTA when org exists', () => {
-      mockAuthValues.orgId = 42
-      renderDashboard()
-      expect(screen.queryByText(/not part of an organization/i)).toBeNull()
-    })
-
-    it('hides org-join CTA while loading org data', () => {
-      mockAuthValues.orgLoading = true
-      renderDashboard()
-      expect(screen.queryByText(/not part of an organization/i)).toBeNull()
-    })
   })
 
   describe('Tab Visibility by Role', () => {
@@ -341,21 +321,16 @@ describe('Dashboard - Navigation & Rendering', () => {
       await waitFor(() => expect(screen.getByTestId('normalization-log')).toBeInTheDocument())
     })
 
-    it('disables navigation to locked tabs', () => {
-      renderDashboard()
-      const lockedTab = screen.queryAllByRole('button').find(b => b.getAttribute('data-locked') === 'true')
-      if (lockedTab) {
-        expect(lockedTab).toBeDisabled()
-      }
-    })
-
-    it('falls back to overview when accessing locked tab', async () => {
-      renderDashboard(['/dashboard?tab=lockedTab'])
+    it('falls back to overview when accessing non-existent tab', async () => {
+      renderDashboard(['/dashboard?tab=invalidTab'])
       await waitFor(() => expect(screen.getByTestId('overview-tab')).toBeInTheDocument())
     })
 
-    it('falls back to overview when accessing non-existent tab', async () => {
-      renderDashboard(['/dashboard?tab=invalidTab'])
+    it('falls back to overview at ?tab=admin for an org admin who is not a platform admin', async () => {
+      mockAuthValues.orgId = 42
+      mockAuthValues.role = null
+      mockAuthValues.orgRole = 'admin'
+      renderDashboard(['/dashboard?tab=admin'])
       await waitFor(() => expect(screen.getByTestId('overview-tab')).toBeInTheDocument())
     })
   })
@@ -395,14 +370,6 @@ describe('Dashboard - Navigation & Rendering', () => {
       fireEvent.click(logoutBtn)
       
       expect(mockLogout).toHaveBeenCalled()
-    })
-  })
-
-  describe('Organization Navigation Link', () => {
-    it('links to settings when user has no org', () => {
-      renderDashboard()
-      const settingsLink = screen.getByRole('link', { name: /Join or create an org/i })
-      expect(settingsLink).toHaveAttribute('href', '/settings')
     })
   })
 

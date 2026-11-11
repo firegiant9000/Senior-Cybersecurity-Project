@@ -48,24 +48,6 @@
     background-color: var(--tab-active-bg);
 }
 
-/* Locked (org-gated) tab */
-.tab--locked {
-    opacity: 0.45;
-    cursor: not-allowed;
-    pointer-events: auto;
-}
-
-.tab--locked:hover {
-    background-color: transparent;
-    color: var(--text-secondary);
-}
-
-.tab-lock-icon {
-    font-size: 10px;
-    margin-right: 4px;
-    vertical-align: middle;
-}
-
 /* Sub-tab indicator chevron */
 .tab-chevron {
     display: inline-block;
