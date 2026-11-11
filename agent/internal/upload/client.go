@@ -18,6 +18,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,7 +27,15 @@ import (
 
 const (
 	scansPath = "/api/v1/inventory/scans"
+
+	// maxUploadAttempts is the total number of POSTs on HTTP 503.
+	maxUploadAttempts = 3
+	defaultRetryWait  = 5 * time.Second
+	maxRetryWait      = 30 * time.Second
 )
+
+// ErrServerBusy is returned when every upload attempt got HTTP 503.
+var ErrServerBusy = errors.New("server is busy (503) after 3 attempts; the scan was not stored, run the scanner again later")
 
 // Accepted mirrors the backend ScanUploadAccepted response (201).
 type Accepted struct {
@@ -52,6 +61,9 @@ type Client struct {
 	BaseURL string
 	Token   string
 	HTTP    *http.Client
+
+	// sleep waits between upload attempts; tests replace it.
+	sleep func(ctx context.Context, d time.Duration) error
 }
 
 // New builds a Client with a sane default timeout. baseURL is trimmed of a
@@ -76,6 +88,7 @@ func New(baseURL, token string, timeout time.Duration) (*Client, error) {
 	return &Client{
 		BaseURL: strings.TrimRight(clean.String(), "/"),
 		Token:   token,
+		sleep:   sleepCtx,
 		HTTP: &http.Client{
 			Timeout:   timeout,
 			Transport: transport,
@@ -119,9 +132,32 @@ func (c *Client) Upload(ctx context.Context, scan output.Scan) (*Accepted, error
 	if err != nil {
 		return nil, fmt.Errorf("marshal scan: %w", err)
 	}
+	for attempt := 1; ; attempt++ {
+		resp, respBody, err := c.post(ctx, body)
+		if err != nil {
+			return nil, err
+		}
+		if resp.StatusCode == http.StatusServiceUnavailable {
+			// The backend answers 503 before the import transaction, so resending
+			// the same (scan_id, nonce) is safe: no replay marker exists yet.
+			if attempt >= maxUploadAttempts {
+				return nil, ErrServerBusy
+			}
+			if err := c.sleep(ctx, retryAfter(resp.Header)); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		return interpret(resp.StatusCode, respBody)
+	}
+}
+
+// post sends one upload request and returns the response with its (64 KiB
+// limited) body already read and closed.
+func (c *Client) post(ctx context.Context, body []byte) (*http.Response, []byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+scansPath, bytes.NewReader(body))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 	req.Header.Set("Content-Type", "application/json")
@@ -130,12 +166,42 @@ func (c *Client) Upload(ctx context.Context, scan output.Scan) (*Accepted, error
 
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("upload request failed: %w", err)
+		return nil, nil, fmt.Errorf("upload request failed: %w", err)
 	}
 	defer resp.Body.Close()
 	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	return resp, respBody, nil
+}
 
-	switch resp.StatusCode {
+// retryAfter parses a Retry-After header given as integer seconds. Missing,
+// unparseable, negative or HTTP-date values give defaultRetryWait; the result
+// is capped at maxRetryWait.
+func retryAfter(h http.Header) time.Duration {
+	secs, err := strconv.Atoi(strings.TrimSpace(h.Get("Retry-After")))
+	if err != nil || secs < 0 {
+		return defaultRetryWait
+	}
+	d := time.Duration(secs) * time.Second
+	if secs > int(maxRetryWait/time.Second) {
+		return maxRetryWait
+	}
+	return d
+}
+
+func sleepCtx(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-t.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// interpret maps a non-503 upload response to the result or an actionable error.
+func interpret(status int, respBody []byte) (*Accepted, error) {
+	switch status {
 	case http.StatusCreated:
 		var acc Accepted
 		if err := json.Unmarshal(respBody, &acc); err != nil {
@@ -151,7 +217,7 @@ func (c *Client) Upload(ctx context.Context, scan output.Scan) (*Accepted, error
 	case http.StatusUnprocessableEntity:
 		return nil, fmt.Errorf("payload rejected (422): %s", detail(respBody))
 	default:
-		return nil, fmt.Errorf("upload failed (HTTP %d): %s", resp.StatusCode, detail(respBody))
+		return nil, fmt.Errorf("upload failed (HTTP %d): %s", status, detail(respBody))
 	}
 }
 

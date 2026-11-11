@@ -144,6 +144,9 @@ user-facing walkthrough (enroll → install → rotate → revoke → lost host)
 - Each upload carries a fresh `scan_id` (UUIDv4) and `nonce`; the backend rejects
   a duplicate `(scan_id, nonce)` within 24h (`409`), so a captured payload cannot
   be replayed.
+- On HTTP `503` the scanner waits for the server's `Retry-After` (5 s by default,
+  30 s at most) and tries up to three times in total; if every attempt gets `503`
+  it exits 1 with a "server is busy" message. Nothing else is retried.
 
 ### Upload responses the scanner handles
 

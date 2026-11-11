@@ -1,8 +1,11 @@
 package upload
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -131,5 +134,137 @@ func TestClientDoesNotFollowRedirects(t *testing.T) {
 	}
 	if n := hits.Load(); n != 0 {
 		t.Fatalf("redirect target was hit %d times, want 0", n)
+	}
+}
+
+func TestRetryAfterParsing(t *testing.T) {
+	cases := map[string]time.Duration{
+		"":                              5 * time.Second,
+		"5":                             5 * time.Second,
+		"0":                             0,
+		"12":                            12 * time.Second,
+		"-3":                            5 * time.Second,
+		"9999":                          30 * time.Second,
+		"Wed, 21 Oct 2026 07:28:00 GMT": 5 * time.Second,
+		"soon":                          5 * time.Second,
+	}
+	for in, want := range cases {
+		h := http.Header{}
+		if in != "" {
+			h.Set("Retry-After", in)
+		}
+		if got := retryAfter(h); got != want {
+			t.Errorf("retryAfter(%q) = %v, want %v", in, got, want)
+		}
+	}
+}
+
+func retryTestScan() output.Scan {
+	return output.New("id", "nonce", output.Host{Hostname: "h"}, nil, nil, nil)
+}
+
+func newRetryClient(t *testing.T, url string) (*Client, *[]time.Duration) {
+	t.Helper()
+	c, err := New(url, "ht_abc_def", 5*time.Second)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	waits := &[]time.Duration{}
+	c.sleep = func(_ context.Context, d time.Duration) error {
+		*waits = append(*waits, d)
+		return nil
+	}
+	return c, waits
+}
+
+func TestUploadRetriesOn503ThenSucceeds(t *testing.T) {
+	var bodies [][]byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, b)
+		if len(bodies) <= 2 {
+			w.Header().Set("Retry-After", "7")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"scan_run_id":1,"status":"queued","asset_count":1,"software_count":2}`))
+	}))
+	defer srv.Close()
+
+	c, waits := newRetryClient(t, srv.URL)
+	acc, err := c.Upload(context.Background(), retryTestScan())
+	if err != nil {
+		t.Fatalf("Upload: %v", err)
+	}
+	if acc.ScanRunID != 1 {
+		t.Errorf("ScanRunID = %d, want 1", acc.ScanRunID)
+	}
+	if len(bodies) != 3 {
+		t.Fatalf("requests = %d, want 3", len(bodies))
+	}
+	if !bytes.Equal(bodies[0], bodies[1]) || !bytes.Equal(bodies[1], bodies[2]) {
+		t.Error("request bodies differ between attempts")
+	}
+	if fmt.Sprint(*waits) != fmt.Sprint([]time.Duration{7 * time.Second, 7 * time.Second}) {
+		t.Errorf("waits = %v, want [7s 7s]", *waits)
+	}
+}
+
+func TestUploadGivesUpAfterThree503s(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+
+	c, waits := newRetryClient(t, srv.URL)
+	_, err := c.Upload(context.Background(), retryTestScan())
+	if !errors.Is(err, ErrServerBusy) {
+		t.Fatalf("error = %v, want ErrServerBusy", err)
+	}
+	if n := hits.Load(); n != 3 {
+		t.Errorf("requests = %d, want 3", n)
+	}
+	if len(*waits) != 2 {
+		t.Errorf("waits = %d, want 2", len(*waits))
+	}
+}
+
+func TestUploadStopsWhenContextEndsDuringWait(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+
+	c, _ := newRetryClient(t, srv.URL)
+	c.sleep = func(context.Context, time.Duration) error { return context.Canceled }
+	_, err := c.Upload(context.Background(), retryTestScan())
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context.Canceled", err)
+	}
+	if n := hits.Load(); n != 1 {
+		t.Errorf("requests = %d, want 1", n)
+	}
+}
+
+func TestUploadDoesNotRetryOtherStatuses(t *testing.T) {
+	for _, status := range []int{401, 409, 422, 426, 429, 500} {
+		var hits atomic.Int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			hits.Add(1)
+			w.WriteHeader(status)
+		}))
+		c, _ := newRetryClient(t, srv.URL)
+		if _, err := c.Upload(context.Background(), retryTestScan()); err == nil {
+			t.Errorf("status %d: want an error", status)
+		}
+		if n := hits.Load(); n != 1 {
+			t.Errorf("status %d: requests = %d, want 1", status, n)
+		}
+		srv.Close()
 	}
 }
