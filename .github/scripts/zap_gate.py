@@ -17,11 +17,24 @@ import scan_exceptions
 MIN_FAIL_RISK = 2  # ZAP riskcode: 0 info, 1 low, 2 medium, 3 high
 
 
-def _sites(report: dict) -> list[dict]:
-    site = report.get("site", [])
+def _sites(report: dict) -> list[dict] | None:
+    """The report's site objects, or None when `site` is missing/malformed or holds a non-object."""
+    site = report.get("site")
     if isinstance(site, dict):
         return [site]
-    return [s for s in site if isinstance(s, dict)]
+    if isinstance(site, list) and all(isinstance(s, dict) for s in site):
+        return site
+    return None
+
+
+def _well_formed(report: object) -> bool:
+    """At least one site; every site has an `alerts` list of objects."""
+    if not isinstance(report, dict):
+        return False
+    sites = _sites(report)
+    if not sites:
+        return False
+    return all(isinstance(s.get("alerts"), list) and all(isinstance(a, dict) for a in s["alerts"]) for s in sites)
 
 
 def _risk(alert: dict) -> int | None:
@@ -34,8 +47,8 @@ def _risk(alert: dict) -> int | None:
 def failing_alerts(report: dict, ignored: set[str]) -> list[dict]:
     """Alerts with riskcode >= 2 not ignored, plus any alert whose riskcode is missing or non-numeric."""
     failing = []
-    for site in _sites(report):
-        for a in site.get("alerts", []):
+    for site in _sites(report) or []:
+        for a in site.get("alerts") or []:
             risk = _risk(a)
             if risk is None or (risk >= MIN_FAIL_RISK and str(a.get("pluginid")) not in ignored):
                 failing.append(a)
@@ -57,8 +70,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    if not isinstance(report, dict) or not _sites(report):
-        print("error: ZAP report has no site entries (empty or failed scan?)", file=sys.stderr)
+    if not _well_formed(report):
+        print("error: ZAP report is empty or malformed (need site entries, each with an alerts list)", file=sys.stderr)
         return 1
 
     today = datetime.now(timezone.utc).date()
@@ -67,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
     for a in failing:
         if _risk(a) is None:
             print(f"error: alert {a.get('pluginid')} has a missing or non-numeric riskcode", file=sys.stderr)
-        print(f"{a['pluginid']} {a.get('riskdesc', '')} {a.get('name', '')} ({len(a.get('instances', []))} instances)")
+        print(f"{a.get('pluginid')} {a.get('riskdesc', '')} {a.get('name', '')} ({len(a.get('instances', []))} instances)")
     return 1 if failing else 0
 
 

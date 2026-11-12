@@ -92,7 +92,19 @@ class CliTest(unittest.TestCase):
         import contextlib
         import io
 
-        for rep in ({}, {"site": []}, {"site": "oops"}):
+        malformed = (
+            {},
+            {"site": []},
+            {"site": "oops"},
+            {"site": None},
+            {"site": [{}]},
+            {"site": {}},
+            {"site": [{"alerts": "x"}]},
+            {"site": ["junk", {"alerts": []}]},
+            {"site": [{"alerts": ["junk"]}]},
+            [],
+        )
+        for rep in malformed:
             with contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(self._run(rep, HEADER), 1, rep)
 
@@ -108,6 +120,14 @@ class CliTest(unittest.TestCase):
             code = self._run(report([{"pluginid": "777"}]), HEADER)
         self.assertEqual(code, 1)
         self.assertIn("777", err.getvalue())
+
+    def test_malformed_riskcode_without_pluginid_does_not_crash(self):
+        import contextlib
+        import io
+
+        with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
+            code = self._run(report([{"name": "no id"}]), HEADER)
+        self.assertEqual(code, 1)
 
     def test_output_line_format(self):
         import contextlib
