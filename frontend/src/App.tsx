@@ -15,6 +15,7 @@ import UploadInventoryPage from "./pages/UploadInventoryPage.tsx";
 import NotFoundPage from "./pages/NotFoundPage.tsx";
 import IntegrationsPage from "./pages/IntegrationsPage.tsx";
 import ProtectedRoute from "./components/ProtectedRoute.tsx";
+import AppShell from "./components/shell/AppShell.tsx";
 import DemoBanner from "./components/DemoBanner.tsx";
 import { useAuth } from "./context/AuthContext.tsx";
 
@@ -111,13 +112,14 @@ function App() {
         }
       />
       <Route
-        path="/dashboard"
         element={
           <ProtectedRoute>
-            <Dashboard />
+            <AppShell />
           </ProtectedRoute>
         }
-      />
+      >
+        <Route path="/dashboard" element={<Dashboard />} />
+      </Route>
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
     </>

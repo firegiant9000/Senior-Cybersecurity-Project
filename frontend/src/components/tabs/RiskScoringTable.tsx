@@ -2,9 +2,8 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useDebounce } from '../../hooks/useDebounce';
 import { fetchWithAuth } from '../../api/fetchWithAuth';
 import InfoTip from '../shared/InfoTip';
+import { BAND_COLORS, RISK_SCORE_TIP } from '../intel/vulnSource';
 
-const RISK_SCORE_TIP =
-    '0–100 composite combining CVSS severity, KEV presence, EPSS exploitation probability, and recency. Higher = more risk.';
 const EPSS_TIP =
     'EPSS = Exploit Prediction Scoring System. Probability (0–100%) that this CVE will be exploited in the next 30 days.';
 
@@ -53,9 +52,10 @@ type DataSourceFilter = 'all' | 'kev' | 'nvd';
 
 interface Props {
     apiBaseUrl: string;
+    showSummary?: boolean;
 }
 
-const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
+const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl, showSummary = true }) => {
     const [data, setData] = useState<RiskScoredItem[]>([]);
     const [stats, setStats] = useState<RiskStatsResponse | null>(null);
     const [loading, setLoading] = useState(false);
@@ -113,16 +113,9 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
     useEffect(() => {
         const controller = new AbortController();
         fetchData(1, dataSource, debouncedSearch, controller.signal);
-        fetchStats(dataSource, controller.signal);
+        if (showSummary) fetchStats(dataSource, controller.signal);
         return () => controller.abort();
-    }, [fetchData, fetchStats, dataSource, debouncedSearch]);
-
-    const BAND_COLORS: Record<string, string> = {
-        'Critical (80-100)': '#dc2626',
-        'High (60-79)': '#f59e0b',
-        'Medium (40-59)': '#eab308',
-        'Low (0-39)': '#3b82f6',
-    };
+    }, [fetchData, fetchStats, dataSource, debouncedSearch, showSummary]);
 
     const riskBands = stats?.bands ?? [];
     const maxBandCount = Math.max(1, ...riskBands.map(b => b.count));
@@ -189,6 +182,7 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
 
             {data.length > 0 && (
                 <>
+                    {showSummary && (
                     <div className="risk-analytics-grid">
                         <div className="risk-analytics-card">
                             <h3>Risk Distribution</h3>
@@ -236,6 +230,7 @@ const RiskScoringTable: React.FC<Props> = ({ apiBaseUrl }) => {
                             <div className="risk-kpi-subtitle">out of 100</div>
                         </div>
                     </div>
+                    )}
 
                     <div className="table-scroll-wrapper">
                     <table className="data-table cisa-table">
