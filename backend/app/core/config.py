@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import model_validator
 
@@ -27,7 +28,8 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
 
     # Application
     APP_NAME: str = "Cyber Threat Intelligence Platform"
-    APP_ENV: str = "development"
+    # Required, no default: a deploy that forgets it must fail at import, not run as development.
+    APP_ENV: Literal["development", "testing", "production"]
     API_PREFIX: str = "/api/v1"
 
     # Server
@@ -40,6 +42,11 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     # /health: bound on the SELECT 1 and how long a result is shared between callers.
     HEALTH_DB_TIMEOUT_SECONDS: float = 2.0
     HEALTH_CACHE_SECONDS: float = 2.0
+
+    @property
+    def is_dev_or_test(self) -> bool:
+        """True only for development/testing; production-only guards key off this."""
+        return self.APP_ENV in ("development", "testing")
 
     @model_validator(mode="after")
     def _normalize_database_url(self) -> "Settings":
@@ -74,7 +81,7 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
 
     @model_validator(mode="after")
     def _validate_production_cors(self) -> "Settings":
-        if self.APP_ENV not in ("development", "testing"):
+        if not self.is_dev_or_test:
             localhost_origins = [o for o in self.CORS_ORIGINS if "localhost" in o]
             if localhost_origins:
                 raise ValueError(

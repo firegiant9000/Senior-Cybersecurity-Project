@@ -10,6 +10,7 @@ def test_default_secret_key_blocks_production():
     with patch("app.main.settings") as mock_settings:
         mock_settings.SECRET_KEY = "change-me-in-production"
         mock_settings.APP_ENV = "production"
+        mock_settings.is_dev_or_test = False
         mock_settings.APP_NAME = "Test"
         mock_settings.LOG_LEVEL = "WARNING"
         mock_settings.CORS_ORIGINS = ["http://localhost:5173"]
@@ -29,6 +30,7 @@ def test_default_secret_key_allows_development():
     with patch("app.main.settings") as mock_settings:
         mock_settings.SECRET_KEY = "change-me-in-production"
         mock_settings.APP_ENV = "development"
+        mock_settings.is_dev_or_test = True
         mock_settings.APP_NAME = "Test"
         mock_settings.LOG_LEVEL = "WARNING"
         mock_settings.CORS_ORIGINS = ["http://localhost:5173"]
@@ -48,6 +50,7 @@ def test_default_secret_key_allows_testing():
     with patch("app.main.settings") as mock_settings:
         mock_settings.SECRET_KEY = "change-me-in-production"
         mock_settings.APP_ENV = "testing"
+        mock_settings.is_dev_or_test = True
         mock_settings.APP_NAME = "Test"
         mock_settings.LOG_LEVEL = "WARNING"
         mock_settings.CORS_ORIGINS = ["http://localhost:5173"]

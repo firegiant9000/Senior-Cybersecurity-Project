@@ -130,7 +130,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
             "Ensure GOOGLE_APPLICATION_CREDENTIALS is set correctly.",
             exc,
         )
-        if settings.APP_ENV not in ("development", "testing"):
+        if not settings.is_dev_or_test:
             raise SystemExit(
                 "FATAL: Firebase initialization failed. "
                 "See logs and verify your Google Cloud credentials."
@@ -159,7 +159,7 @@ def create_app() -> FastAPI:
     init_sentry()
 
     if settings.SECRET_KEY == "change-me-in-production":
-        if settings.APP_ENV not in ("development", "testing"):
+        if not settings.is_dev_or_test:
             raise SystemExit(
                 "FATAL: SECRET_KEY is set to the default insecure value "
                 f"and APP_ENV={settings.APP_ENV!r}. "
@@ -192,7 +192,7 @@ def create_app() -> FastAPI:
     fastapi_app.add_middleware(SlowAPIMiddleware)
 
     # Add CORS middleware
-    if settings.APP_ENV in ("development", "testing"):
+    if settings.is_dev_or_test:
         allowed_methods = ["*"]
         allowed_headers = ["*"]
     else:
