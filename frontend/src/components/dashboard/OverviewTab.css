@@ -181,6 +181,11 @@
     min-height: 0;
 }
 
+/* Fixed-layout slots that carry a source badge: anchor the absolute badge. */
+.overview-badged-slot {
+    position: relative;
+}
+
 /* Source-status badge — positioned top-left so it never collides with the
    drag handle (top-right). Visible at rest; tooltip on hover. */
 .widget-source-badge {
