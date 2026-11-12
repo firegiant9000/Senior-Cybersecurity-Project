@@ -167,6 +167,89 @@ jobs:
           ignore-unfixed: false
           exit-code: 0
 
+  zap-baseline:
+    name: ZAP baseline (local stack)
+    runs-on: ubuntu-latest
+    env:
+      COMPOSE_PROJECT_NAME: ht-zap
+      # ZAP stable, resolved 2026-11-12 (ghcr.io/zaproxy/zaproxy:stable). Bump by hand.
+      ZAP_IMAGE: ghcr.io/zaproxy/zaproxy@sha256:9624669db72f54d86c4b46a7064518bd9bf79d8c61a4c31befa9923489f328af
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      # zap_gate.py uses `str | None` annotations, so it needs Python 3.10+.
+      - name: Set up Python 3.11
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.11"
+
+      # The override uses !reset / !override, which need Compose >= 2.24.
+      - name: Record Docker Compose version
+        run: docker compose version
+
+      # The base file's env_file entries are required, so they must exist (empty).
+      - name: Create empty env files
+        run: touch backend/.env frontend/.env
+
+      - name: Start postgres and backend (CI override)
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --build --wait postgres backend
+
+      # zap-baseline.py spiders only from -t, so this hook (loaded via --hook) requests
+      # the unauthenticated seed URLs first; ZAP passively scans every response.
+      - name: Write ZAP seed hook
+        run: |
+          mkdir -p zap-wrk
+          cat > zap-wrk/seed_hook.py <<'EOF'
+          SEEDS = [
+              "/",
+              "/health",
+              "/api/v1/ingest/health",
+              "/api/v1/public/stats",
+              "/api/v1/data-status",
+              "/docs",
+          ]
+
+
+          def zap_started(zap, target):
+              for path in SEEDS:
+                  zap.core.access_url(target.rstrip("/") + path, followredirects="true")
+          EOF
+          # The ZAP container runs as uid 1000 and must write the reports here.
+          chmod a+w zap-wrk
+
+      # -I: ZAP's own exit code never fails the step; zap_gate.py decides.
+      - name: ZAP baseline scan
+        run: >
+          docker run --rm
+          --network ht-zap_cyber_threat_network
+          -v "$PWD/zap-wrk:/zap/wrk:rw"
+          "$ZAP_IMAGE"
+          zap-baseline.py -t http://backend:8000 -J zap-report.json -r zap-report.html
+          --hook /zap/wrk/seed_hook.py -I
+
+      - name: Check exception list (format and expiry)
+        run: python .github/scripts/scan_exceptions.py check
+
+      - name: Gate on medium and above
+        run: python .github/scripts/zap_gate.py zap-wrk/zap-report.json docs/security/scan_exceptions.md
+
+      - name: Upload ZAP reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zap-report
+          path: |
+            zap-wrk/zap-report.json
+            zap-wrk/zap-report.html
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v
+
   npm-audit:
     name: npm audit (frontend, prod deps)
     runs-on: ubuntu-latest
