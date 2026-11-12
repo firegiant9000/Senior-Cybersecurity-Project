@@ -213,7 +213,7 @@ Delivered:
 - Deploy secrets passed through `env:`.
 - `alembic check` is blocking, after the models were aligned with the migrations.
 
-_(2026-11-11: the gates fail their own workflow runs, but the main ruleset does not yet require the Security, CodeQL or Secret-scan checks. Until the owner applies T-CI-05 the acceptance below is not met.)_
+_(2026-11-11: the owner applied T-CI-05. The `main` ruleset requires every Security, CodeQL and Secret-scan job and blocks on CodeQL alerts of high severity or above, so the acceptance below is met. A reviewed copy of the ruleset is in [`.github/rulesets/main.json`](../.github/rulesets/main.json).)_
 
 Allowed exceptions, each with an expiry of at most 90 days, live in [`scan_exceptions.md`](security/scan_exceptions.md), and CI enforces the expiries. The list is empty at close-out.
 
@@ -256,11 +256,11 @@ Work: `docs/security/threat_model.md` covering agent enrollment, agent upload, t
 #### Owner actions: repo hardening
 
 Settings the owner applies; none is a code change. Rows from the S3 threat model:
-- T-REL-02: a tag ruleset protecting `agent-v*`.
-- T-REL-03: immutable releases.
+- T-REL-02: a tag ruleset protecting `agent-v*`. _(Done 2026-11-11.)_
+- T-REL-03: immutable releases. _(Enabled 2026-11-11; the row stays OPEN until there is an in-repo evidence form.)_
 - T-CI-02: Environment-gated deploy secrets, or a keyless deploy.
 - T-CI-04: `persist-credentials: false` on the remaining checkouts.
-- T-CI-05: required Security, CodeQL and Secret-scan checks, required approvals, and Dependabot security updates.
+- T-CI-05: required Security, CodeQL and Secret-scan checks, required approvals, and Dependabot security updates. _(Done 2026-11-11, except approvals: a one-maintainer repo can't approve its own PRs, so 0 approvals stays as the residual.)_
 
 #### S4. Authorization assurance — DONE 2026-10-24 (PRs #226–#230)
 
