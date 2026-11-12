@@ -76,6 +76,10 @@ vi.mock('./context/AuthContext.tsx', () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
 
+vi.mock('./hooks/useDarkMode', () => ({
+  useDarkMode: () => [false, vi.fn()],
+}))
+
 vi.mock('./Dashboard.tsx', () => ({
   default: () => <div data-testid="dashboard">Dashboard</div>,
 }))
@@ -403,6 +407,22 @@ describe('App - Routing & Navigation', () => {
       mockAuthContext.orgId = 1
       renderApp(['/dashboard'])
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+    })
+
+    it('renders the dashboard inside the shell main landmark (id="main")', () => {
+      mockAuthContext.user = { uid: 'user1', email: 'user@example.com' } as unknown
+      mockAuthContext.orgId = 1
+      renderApp(['/dashboard'])
+      const main = document.getElementById('main')
+      expect(main).not.toBeNull()
+      expect(main).toContainElement(screen.getByTestId('dashboard'))
+    })
+
+    it('renders no shell header or main landmark for a signed-out user at /dashboard', () => {
+      renderApp(['/dashboard'])
+      expect(screen.getByTestId('protected-redirect')).toBeInTheDocument()
+      expect(document.getElementById('main')).toBeNull()
+      expect(screen.queryByRole('banner')).not.toBeInTheDocument()
     })
 
     it('shows the not-found page, not the dashboard, at undefined routes', () => {
