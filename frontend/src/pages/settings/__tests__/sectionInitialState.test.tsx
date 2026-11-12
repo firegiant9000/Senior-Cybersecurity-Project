@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react'
-import { render, fireEvent } from '@testing-library/react'
+import { render, fireEvent, screen } from '@testing-library/react'
 import { beforeEach, describe, it, expect, vi } from 'vitest'
 import CompanySection from '../CompanySection'
 import SecurityProfileSection from '../SecurityProfileSection'
@@ -104,7 +104,7 @@ describe('organisation fields hold organisation values from the first commit tha
   it('keeps an edit while the organisation object is unchanged', () => {
     ctx.organization = makeOrg()
     const { rerender } = render(<CompanySection orgId={7} canEdit onChanged={() => {}} />)
-    fireEvent.change(field('company-name'), { target: { value: 'Draft' } })
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Draft' } })
     rerender(<CompanySection orgId={7} canEdit onChanged={() => {}} />)
     expect(field('company-name').value).toBe('Draft')
   })
@@ -112,7 +112,7 @@ describe('organisation fields hold organisation values from the first commit tha
   it('re-syncs the fields when a different organisation object arrives', () => {
     ctx.organization = makeOrg()
     const { rerender } = render(<CompanySection orgId={7} canEdit onChanged={() => {}} />)
-    fireEvent.change(field('company-name'), { target: { value: 'Draft' } })
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Draft' } })
     ctx.organization = { ...makeOrg(), name: 'Acme Renamed' }
     rerender(<CompanySection orgId={7} canEdit onChanged={() => {}} />)
     expect(field('company-name').value).toBe('Acme Renamed')
