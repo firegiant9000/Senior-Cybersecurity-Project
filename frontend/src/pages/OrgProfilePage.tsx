@@ -4,18 +4,6 @@ import { useUserContext } from "../context/UserContext";
 import { API_BASE_URL, fetchWithAuth } from "../api/fetchWithAuth";
 import { isOrgAdmin } from "../utils/roleUtils";
 import {
-  OrgVendor,
-  OrgVendorImportPreviewResponse,
-  VendorSuggestion,
-  listVendors,
-  createVendor,
-  deleteVendor,
-  importVendorsCsv,
-  previewVendorsCsv,
-  suggestVendors,
-  autocompleteVendors,
-} from "../api/vendors";
-import {
   OrgDomain,
   listDomains,
   addDomain,
@@ -32,6 +20,7 @@ import AssessmentReadinessWidget from "../components/AssessmentReadiness";
 import ValidationPanel from "../components/ValidationPanel";
 import CompanySection from "./settings/CompanySection";
 import SecurityProfileSection from "./settings/SecurityProfileSection";
+import TechnologySection from "./settings/TechnologySection";
 import "../Dashboard.css";
 import "./SettingsPage.css";
 
@@ -89,29 +78,11 @@ export default function OrgProfilePage() {
   const toggleSection = (key: string) =>
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
 
-  // Vendor / Tech Stack state
-  const [vendors, setVendors] = useState<OrgVendor[]>([]);
-  const [vendorTotal, setVendorTotal] = useState(0);
-  const [vendorPage, setVendorPage] = useState(1);
-  const [vendorLoading, setVendorLoading] = useState(false);
-  const [vendorError, setVendorError] = useState("");
-  const [vendorMsg, setVendorMsg] = useState("");
-  const [newVendor, setNewVendor] = useState("");
-  const [newProduct, setNewProduct] = useState("");
-  const [vendorSuggestions, setVendorSuggestions] = useState<VendorSuggestion[]>([]);
-  const [productSuggestions, setProductSuggestions] = useState<string[]>([]);
-  const [showVendorSuggestions, setShowVendorSuggestions] = useState(false);
-  const [showProductSuggestions, setShowProductSuggestions] = useState(false);
-  const vendorInputRef = useRef<HTMLInputElement>(null);
-  const productInputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadFileInputRef = useRef<HTMLInputElement>(null);
-  const vendorPageSize = 20;
 
-  // CSV preview state
-  const [csvPreview, setCsvPreview] = useState<OrgVendorImportPreviewResponse | null>(null);
-  const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [csvPreviewing, setCsvPreviewing] = useState(false);
+  // Bumped when cloud providers sync into vendors, so TechnologySection reloads page 1.
+  const [vendorReloadKey, setVendorReloadKey] = useState(0);
+  const bumpVendorReload = useCallback(() => setVendorReloadKey((k) => k + 1), []);
 
   // Domain state
   const [domains, setDomains] = useState<OrgDomain[]>([]);
@@ -131,26 +102,6 @@ export default function OrgProfilePage() {
   const [uploadError, setUploadError] = useState("");
   const [uploadMsg, setUploadMsg] = useState("");
 
-  const loadVendors = useCallback(async (orgId: number, page: number) => {
-    setVendorLoading(true);
-    setVendorError("");
-    try {
-      const data = await listVendors(orgId, page, vendorPageSize);
-      setVendors(data.items);
-      setVendorTotal(data.total);
-    } catch {
-      setVendorError("Failed to load technology stack");
-    } finally {
-      setVendorLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (profile?.org_id) {
-      loadVendors(profile.org_id, vendorPage);
-    }
-  }, [profile?.org_id, vendorPage, loadVendors]);
-
   useEffect(() => {
     if (loading || !location.hash) return;
     const hashToSection: Record<string, string> = {
@@ -164,100 +115,6 @@ export default function OrgProfilePage() {
     const el = document.getElementById(location.hash.slice(1));
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [location.hash, loading]);
-
-  const handleAddVendor = async () => {
-    if (!profile?.org_id || !newVendor.trim()) return;
-    setVendorError("");
-    const normalizedNew = newVendor.trim().replace(/\s+/g, " ").toLowerCase();
-    const normalizedProd = newProduct.trim().replace(/\s+/g, " ").toLowerCase();
-    const isDupe = vendors.some(
-      (v) =>
-        v.vendor_name.toLowerCase() === normalizedNew &&
-        v.product_name.toLowerCase() === normalizedProd,
-    );
-    if (isDupe) {
-      setVendorError("A vendor with this name already exists in your stack.");
-      return;
-    }
-    try {
-      await createVendor(profile.org_id, newVendor.trim(), newProduct.trim());
-      setNewVendor("");
-      setNewProduct("");
-      setVendorMsg("Vendor added");
-      setVendorPage(1);
-      loadVendors(profile.org_id, 1);
-      bumpReadiness();
-    } catch (err) {
-      setVendorError(
-        err instanceof Error ? err.message : "Failed to add vendor",
-      );
-    }
-  };
-
-  const handleDeleteVendor = async (vendorId: number) => {
-    if (!profile?.org_id) return;
-    setVendorError("");
-    try {
-      await deleteVendor(profile.org_id, vendorId);
-      setVendorPage(1);
-      loadVendors(profile.org_id, 1);
-      bumpReadiness();
-    } catch {
-      setVendorError("Failed to remove vendor");
-    }
-  };
-
-  const handleCsvImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !profile?.org_id) return;
-    setVendorError("");
-    setVendorMsg("");
-    setCsvPreviewing(true);
-    try {
-      const preview = await previewVendorsCsv(profile.org_id, file);
-      setCsvPreview(preview);
-      setCsvFile(file);
-    } catch (err) {
-      setVendorError(err instanceof Error ? err.message : "CSV preview failed");
-    } finally {
-      setCsvPreviewing(false);
-    }
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const handleCsvConfirm = async () => {
-    if (!csvFile || !profile?.org_id) return;
-    setVendorError("");
-    setVendorMsg("");
-    try {
-      const result = await importVendorsCsv(profile.org_id, csvFile);
-      const parts: string[] = [];
-      if (result.imported) parts.push(`${result.imported} imported`);
-      if (result.skipped) parts.push(`${result.skipped} duplicates skipped`);
-      if (result.errors.length) parts.push(`${result.errors.length} errors`);
-      if (!result.imported && !result.skipped && !result.errors.length) {
-        setVendorError("CSV contained no valid vendor rows");
-      } else {
-        setVendorMsg(parts.join(", "));
-      }
-      if (result.errors.length) {
-        setVendorError(result.errors.slice(0, 5).join("\n"));
-      }
-      loadVendors(profile.org_id, 1);
-      setVendorPage(1);
-      bumpReadiness();
-    } catch (err) {
-      setVendorError(err instanceof Error ? err.message : "CSV import failed");
-    } finally {
-      setCsvPreview(null);
-      setCsvFile(null);
-    }
-  };
-
-  const handleCsvCancel = () => {
-    setCsvPreview(null);
-    setCsvFile(null);
-  };
 
   // ── Domain handlers ──────────────────────────────────────────────────
   const loadDomains = useCallback(async (orgId: number, page: number) => {
@@ -383,66 +240,6 @@ export default function OrgProfilePage() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  // Debounced typeahead for vendor name — uses fuzzy suggest endpoint with confidence scores
-  useEffect(() => {
-    if (newVendor.length < 2) {
-      setVendorSuggestions([]);
-      setShowVendorSuggestions(false);
-      return;
-    }
-    let cancelled = false;
-    const timer = setTimeout(async () => {
-      try {
-        const results = await suggestVendors(newVendor);
-        if (!cancelled) {
-          setVendorSuggestions(results);
-          setShowVendorSuggestions(results.length > 0);
-        }
-      } catch {
-        if (!cancelled) {
-          setVendorSuggestions([]);
-          setShowVendorSuggestions(false);
-        }
-      }
-    }, 300);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [newVendor]);
-
-  // Debounced autocomplete for product name
-  useEffect(() => {
-    if (newProduct.length < 2) {
-      setProductSuggestions([]);
-      setShowProductSuggestions(false);
-      return;
-    }
-    let cancelled = false;
-    const timer = setTimeout(async () => {
-      try {
-        const results = await autocompleteVendors(
-          newProduct,
-          "product",
-          newVendor || undefined,
-        );
-        if (!cancelled) {
-          setProductSuggestions(results);
-          setShowProductSuggestions(results.length > 0);
-        }
-      } catch {
-        if (!cancelled) {
-          setProductSuggestions([]);
-          setShowProductSuggestions(false);
-        }
-      }
-    }, 300);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [newProduct, newVendor]);
-
   const canEditOrgProfile =
     profile != null &&
     isOrgAdmin(profile.role, profile.org_role);
@@ -532,7 +329,7 @@ export default function OrgProfilePage() {
                     <span className={`section-accordion-chevron${openSections.security ? ' open' : ''}`}>›</span>
                   </button>
                   <div hidden={!openSections.security}>
-                    <SecurityProfileSection orgId={orgId} canEdit={canEditOrgProfile} onChanged={bumpReadiness} onVendorsSynced={() => loadVendors(orgId, 1)} />
+                    <SecurityProfileSection orgId={orgId} canEdit={canEditOrgProfile} onChanged={bumpReadiness} onVendorsSynced={bumpVendorReload} />
                   </div>
                 </section>
               )}
@@ -546,233 +343,10 @@ export default function OrgProfilePage() {
                     </div>
                     <span className={`section-accordion-chevron${openSections.vendors ? ' open' : ''}`}>›</span>
                   </button>
-                  {openSections.vendors && (
-                    <div className="section-accordion-body">
-                      {vendorMsg && (
-                    <div className="settings-action-msg">{vendorMsg}</div>
-                  )}
-                  {vendorError && (
-                    <div
-                      className="settings-error"
-                      style={{
-                        whiteSpace: "pre-line",
-                        marginBottom: "0.75rem",
-                      }}
-                    >
-                      {vendorError}
-                    </div>
-                  )}
-
-                  <div className="vendor-add-form">
-                    <div className="vendor-input-wrapper">
-                      <input
-                        ref={vendorInputRef}
-                        type="text"
-                        placeholder="Vendor name"
-                        value={newVendor}
-                        onChange={(e) => setNewVendor(e.target.value)}
-                        onFocus={() =>
-                          vendorSuggestions.length > 0 &&
-                          setShowVendorSuggestions(true)
-                        }
-                        onBlur={() =>
-                          setTimeout(() => setShowVendorSuggestions(false), 200)
-                        }
-                      />
-                      {showVendorSuggestions && (
-                        <ul className="autocomplete-dropdown">
-                          {vendorSuggestions.map((s) => (
-                            <li
-                              key={s.vendor_name}
-                              onMouseDown={() => {
-                                setNewVendor(s.vendor_name);
-                                setShowVendorSuggestions(false);
-                              }}
-                              title={`${Math.round(s.score * 100)}% match`}
-                              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}
-                            >
-                              <span>{s.vendor_name}</span>
-                              <span style={{ fontSize: '11px', color: 'var(--text-muted)', flexShrink: 0 }}>
-                                {Math.round(s.score * 100)}%
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                    <div className="vendor-input-wrapper">
-                      <input
-                        ref={productInputRef}
-                        type="text"
-                        placeholder="Product name (optional)"
-                        value={newProduct}
-                        onChange={(e) => setNewProduct(e.target.value)}
-                        onFocus={() =>
-                          productSuggestions.length > 0 &&
-                          setShowProductSuggestions(true)
-                        }
-                        onBlur={() =>
-                          setTimeout(
-                            () => setShowProductSuggestions(false),
-                            200,
-                          )
-                        }
-                      />
-                      {showProductSuggestions && (
-                        <ul className="autocomplete-dropdown">
-                          {productSuggestions.map((s) => (
-                            <li
-                              key={s}
-                              onMouseDown={() => {
-                                setNewProduct(s);
-                                setShowProductSuggestions(false);
-                              }}
-                            >
-                              {s}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                    <button
-                      className="action-btn"
-                      onClick={handleAddVendor}
-                      disabled={!newVendor.trim()}
-                    >
-                      Add
-                    </button>
+                  {/* Kept mounted (hidden when collapsed) so drafts, paging and banners survive collapse. */}
+                  <div hidden={!openSections.vendors}>
+                    <TechnologySection orgId={profile.org_id} canEdit={canEditOrgProfile} onChanged={bumpReadiness} reloadKey={vendorReloadKey} />
                   </div>
-
-                  <div className="vendor-import-row">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".csv"
-                      style={{ display: "none" }}
-                      onChange={handleCsvImport}
-                    />
-                    <button
-                      className="action-btn"
-                      disabled={csvPreviewing}
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      {csvPreviewing ? "Previewing…" : "Import CSV"}
-                    </button>
-                    <span className="vendor-import-hint">
-                      CSV with vendor_name column (max 500 rows)
-                    </span>
-                  </div>
-
-                  {csvPreview && (
-                    <div className="csv-preview-panel">
-                      <p className="csv-preview-summary">
-                        <strong>CSV preview:</strong> {csvPreview.would_import} row
-                        {csvPreview.would_import !== 1 ? "s" : ""} to import
-                        {csvPreview.would_skip > 0
-                          ? `, ${csvPreview.would_skip} in-file duplicate${csvPreview.would_skip !== 1 ? "s" : ""} skipped`
-                          : ""}
-                        {csvPreview.errors.length > 0
-                          ? `, ${csvPreview.errors.length} error${csvPreview.errors.length !== 1 ? "s" : ""}`
-                          : ""}
-                      </p>
-                      {csvPreview.errors.length > 0 && (
-                        <ul className="csv-preview-errors">
-                          {csvPreview.errors.slice(0, 5).map((e, i) => (
-                            <li key={i}>{e}</li>
-                          ))}
-                          {csvPreview.errors.length > 5 && (
-                            <li>…and {csvPreview.errors.length - 5} more</li>
-                          )}
-                        </ul>
-                      )}
-                      <div className="csv-preview-actions">
-                        <button
-                          className="action-btn"
-                          disabled={csvPreview.would_import === 0}
-                          onClick={handleCsvConfirm}
-                        >
-                          Confirm Import
-                        </button>
-                        <button className="action-btn-secondary" onClick={handleCsvCancel}>
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {vendorLoading ? (
-                    <p className="settings-loading">Loading vendors...</p>
-                  ) : vendors.length === 0 ? (
-                    <p className="vendor-empty">
-                      No vendors added yet. Add your first vendor above or
-                      import a CSV.
-                    </p>
-                  ) : (
-                    <>
-                      <table className="vendor-table">
-                        <thead>
-                          <tr>
-                            <th>Vendor</th>
-                            <th>Product</th>
-                            <th>Added</th>
-                            <th></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {vendors.map((v) => (
-                            <tr key={v.id}>
-                              <td>
-                                {v.vendor_name}
-                                <span className="matched-count-badge">
-                                  {v.matched_kev_count} KEV
-                                </span>
-                              </td>
-                              <td>{v.product_name || "-"}</td>
-                              <td>
-                                {new Date(v.created_at).toLocaleDateString()}
-                              </td>
-                              <td>
-                                <button
-                                  className="vendor-delete-btn"
-                                  onClick={() => handleDeleteVendor(v.id)}
-                                  title="Remove"
-                                >
-                                  &times;
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      {vendorTotal > vendorPageSize && (
-                        <div className="vendor-pagination">
-                          <button
-                            className="action-btn"
-                            disabled={vendorPage <= 1}
-                            onClick={() => setVendorPage((p) => p - 1)}
-                          >
-                            Previous
-                          </button>
-                          <span className="vendor-page-info">
-                            Page {vendorPage} of{" "}
-                            {Math.ceil(vendorTotal / vendorPageSize)}
-                          </span>
-                          <button
-                            className="action-btn"
-                            disabled={
-                              vendorPage >=
-                              Math.ceil(vendorTotal / vendorPageSize)
-                            }
-                            onClick={() => setVendorPage((p) => p + 1)}
-                          >
-                            Next
-                          </button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                    </div>
-                  )}
                 </section>
               )}
 

@@ -191,4 +191,32 @@ describe('OrgProfilePage section state survives collapse', () => {
     fireEvent.click(header)
     expect(within(section('section-security-profile')).getByLabelText('GCP')).toBeChecked()
   })
+
+  it('keeps an unsaved Technology draft and the current page after collapsing and reopening', async () => {
+    mockListVendors.mockImplementation(async (_org: number, page: number) => ({
+      items: [
+        { id: page, vendor_name: `Vendor p${page}`, product_name: '', created_at: '2024-01-01T00:00:00Z', matched_kev_count: 0 },
+      ],
+      total: 40,
+      page,
+      page_size: 20,
+    }))
+    await loaded()
+    const header = screen.getByRole('button', { name: /^Your Technology Stack/ })
+    fireEvent.click(header)
+    const tech = within(section('section-vendors'))
+    await tech.findByText('Vendor p1')
+    // The initial load fetches page 1 exactly once.
+    expect(mockListVendors).toHaveBeenCalledTimes(1)
+    fireEvent.change(tech.getByPlaceholderText('Vendor name'), { target: { value: 'Draft Vendor' } })
+    fireEvent.click(tech.getByRole('button', { name: 'Next' }))
+    await tech.findByText('Vendor p2')
+    fireEvent.click(header)
+    fireEvent.click(header)
+    const reopened = within(section('section-vendors'))
+    expect(reopened.getByPlaceholderText('Vendor name')).toHaveValue('Draft Vendor')
+    expect(reopened.getByText('Page 2 of 2')).toBeInTheDocument()
+    // Collapsing and reopening does not refetch.
+    expect(mockListVendors).toHaveBeenCalledTimes(2)
+  })
 })
