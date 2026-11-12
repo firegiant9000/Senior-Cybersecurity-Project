@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, cleanup, act } from '@testing-library/react';
 
@@ -27,7 +28,9 @@ vi.mock('../../charts/LossByAttackTypeChart', () => ({
   default: () => <div data-testid="loss-by-attack" />,
 }));
 vi.mock('../../charts/MalwareBarChart', () => ({
-  default: () => <div data-testid="malware-chart" />,
+  default: ({ loading }: { loading: boolean }) => (
+    <div data-testid="malware-chart" data-loading={String(loading)} />
+  ),
 }));
 
 import IncidentLandscape from '../IncidentLandscape';
@@ -65,8 +68,9 @@ describe('IncidentLandscape', () => {
 
   it('shows source badges in order: geographic, sector matrix, then ic3_incidents x3', async () => {
     render(<IncidentLandscape />);
-    await screen.findByTestId('malware-chart');
-    await waitFor(() => expect(mockTypes).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.getByTestId('malware-chart')).toHaveAttribute('data-loading', 'false'),
+    );
     const keys = screen.getAllByTestId('source-badge').map(b => b.textContent);
     expect(keys).toEqual([
       'ic3_geographic',
@@ -115,6 +119,38 @@ describe('IncidentLandscape', () => {
     });
     expect(errSpy).not.toHaveBeenCalled();
     errSpy.mockRestore();
+  });
+
+  it('ignores results of the aborted first effect run under StrictMode', async () => {
+    let n = 0;
+    const impl = (signal: AbortSignal) => {
+      if (n++ < 4) {
+        return new Promise<never>((_, rej) => {
+          signal.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError')));
+        });
+      }
+      return new Promise<{ items: never[]; year: null }>(res =>
+        setTimeout(() => res({ items: [], year: null }), 50),
+      );
+    };
+    mockGeo.mockImplementation(impl);
+    mockMatrix.mockImplementation(impl);
+    mockRisk.mockImplementation(impl);
+    mockTypes.mockImplementation(impl);
+    render(
+      <StrictMode>
+        <IncidentLandscape />
+      </StrictMode>,
+    );
+    // Let the aborted first run settle while the second run is still pending.
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 10));
+    });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId('malware-chart')).toHaveAttribute('data-loading', 'false'),
+    );
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('shows an error line for an AbortError that did not come from our own abort', async () => {
