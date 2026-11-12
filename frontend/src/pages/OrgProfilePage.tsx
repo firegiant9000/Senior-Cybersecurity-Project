@@ -515,9 +515,10 @@ export default function OrgProfilePage() {
                     </div>
                     <span className={`section-accordion-chevron${openSections.company ? ' open' : ''}`}>›</span>
                   </button>
-                  {openSections.company && (
+                  {/* Kept mounted (hidden when collapsed) so drafts and banners survive collapse. */}
+                  <div hidden={!openSections.company}>
                     <CompanySection orgId={orgId} canEdit={canEditOrgProfile} onChanged={bumpReadiness} />
-                  )}
+                  </div>
                 </section>
               )}
 
@@ -530,9 +531,9 @@ export default function OrgProfilePage() {
                     </div>
                     <span className={`section-accordion-chevron${openSections.security ? ' open' : ''}`}>›</span>
                   </button>
-                  {openSections.security && (
+                  <div hidden={!openSections.security}>
                     <SecurityProfileSection orgId={orgId} canEdit={canEditOrgProfile} onChanged={bumpReadiness} onVendorsSynced={() => loadVendors(orgId, 1)} />
-                  )}
+                  </div>
                 </section>
               )}
 
