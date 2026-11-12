@@ -33,6 +33,12 @@ import NextStepsCard from './NextStepsCard';
 import InventoryHealthCard from './InventoryHealthCard';
 import { COLORS } from '../../theme';
 import InfoTip, { getAcronymDefinition } from '../shared/InfoTip';
+import VictimImpactBadge from '../shared/VictimImpactBadge';
+import LossByAttackTypeChart from '../charts/LossByAttackTypeChart';
+import SectorImpactTable from '../charts/SectorImpactTable';
+import {
+  fmtMoney, truncate, TOOLTIP_CONTENT_STYLE, TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE,
+} from '../../utils/chartFormat';
 import SourceBadge from '../shared/SourceBadge';
 import ThreatOverviewWidget from './ThreatOverviewWidget';
 
@@ -66,32 +72,7 @@ const WIDGET_DATASET_KEY: Record<string, string> = {
     sectorTable: 'ic3_incidents',
 };
 
-function fmtMoney(v: number): string {
-  if (v >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(1)}B`;
-  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000) return `$${Math.round(v / 1_000)}k`;
-  return `$${v}`;
-}
-
-function truncate(str: string, max = 22): string {
-  return str.length > max ? str.slice(0, max) + '…' : str;
-}
-
-const TOOLTIP_CONTENT_STYLE = {
-  backgroundColor: 'var(--card-bg)',
-  border: '1px solid var(--border)',
-  color: 'var(--text-primary)',
-  fontSize: 12,
-  borderRadius: 6,
-} as const;
-const TOOLTIP_ITEM_STYLE = { color: 'var(--text-primary)' } as const;
-const TOOLTIP_LABEL_STYLE = { color: 'var(--text-primary)', fontWeight: 600 } as const;
-
-const VICTIM_BADGE = (
-    <span className="victim-impact-badge">
-      IC3<InfoTip text={getAcronymDefinition('IC3')!} label="IC3" /> Victim Financial Impact
-    </span>
-);
+const VICTIM_BADGE = <VictimImpactBadge />;
 
 const OVERVIEW_WIDGETS = [
     { id: 'executiveSummary',    label: 'Executive Summary',             moveable: false },
@@ -659,43 +640,8 @@ function renderGridWidget(
             );
 
         // ── Victim Impact widgets ────────────────────────────────────────────
-        case 'lossAttack': {
-            const data = [...dashboardData.attackTypes]
-                .sort((a, b) => b.total_loss - a.total_loss)
-                .slice(0, 10)
-                .map((d) => ({ ...d, label: truncate(d.attack_type) }));
-            return (
-                <WidgetErrorBoundary key={id} title="Loss by Attack Type">
-                    <div className="card chart-widget">
-                        <span className="widget-title">Total Financial Loss by Attack Type</span>
-                        <div className="chart-body">
-                            {dashboardLoadingHeavy ? <WidgetSkeleton variant="chart" /> : data.length === 0 ? (
-                                <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>No data available.</p>
-                            ) : (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={data} layout="vertical" margin={{ top: 4, right: 72, left: 4, bottom: 4 }}>
-                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                                        <XAxis type="number" tickFormatter={fmtMoney} tick={{ fontSize: 12 }} tickMargin={8} />
-                                        <YAxis type="category" dataKey="label" width={160} tick={{ fontSize: 12 }} tickMargin={8} />
-                                        <Tooltip
-                                            contentStyle={TOOLTIP_CONTENT_STYLE}
-                                            itemStyle={TOOLTIP_ITEM_STYLE}
-                                            labelStyle={TOOLTIP_LABEL_STYLE}
-                                            formatter={(v: unknown) => [`$${(v as number).toLocaleString()}`, 'Total Loss']}
-                                            labelFormatter={(label: unknown) => { const m = data.find((d) => d.label === label); return m?.attack_type ?? String(label); }}
-                                        />
-                                        <Bar dataKey="total_loss" fill={COLORS.red} radius={[0, 4, 4, 0]}>
-                                            <LabelList dataKey="total_loss" position="right" formatter={(v: unknown) => fmtMoney(v as number)} style={{ fontSize: 10, fill: '#555', fontWeight: 600 }} />
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            )}
-                        </div>
-                        {VICTIM_BADGE}
-                    </div>
-                </WidgetErrorBoundary>
-            );
-        }
+        case 'lossAttack':
+            return <LossByAttackTypeChart key={id} data={dashboardData.attackTypes} loading={dashboardLoadingHeavy} />;
         case 'avgLossSector': {
             const data = [...dashboardData.industryRisk]
                 .sort((a, b) => b.avg_loss_per_incident - a.avg_loss_per_incident)
@@ -771,40 +717,7 @@ function renderGridWidget(
             );
         }
         case 'sectorTable':
-            return (
-                <WidgetErrorBoundary key={id} title="Sector Summary">
-                    <div className="card victim-table-card">
-                        <span className="widget-title">Sector Impact Summary</span>
-                        <div className="tab-table-scroll">
-                            {dashboardLoadingHeavy ? <WidgetSkeleton variant="chart" /> : dashboardData.industryRisk.length === 0 ? (
-                                <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>No data available.</p>
-                            ) : (
-                                <table className="tab-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Sector</th>
-                                            <th>Complaints</th>
-                                            <th>Total Loss</th>
-                                            <th>Avg Loss / Incident</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {[...dashboardData.industryRisk].sort((a, b) => b.total_loss - a.total_loss).map(row => (
-                                            <tr key={row.sector}>
-                                                <td>{row.sector}</td>
-                                                <td>{row.complaint_count.toLocaleString()}</td>
-                                                <td>${row.total_loss.toLocaleString()}</td>
-                                                <td>${row.avg_loss_per_incident.toLocaleString()}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            )}
-                        </div>
-                        {VICTIM_BADGE}
-                    </div>
-                </WidgetErrorBoundary>
-            );
+            return <SectorImpactTable key={id} data={dashboardData.industryRisk} loading={dashboardLoadingHeavy} />;
 
         default:
             return null;
