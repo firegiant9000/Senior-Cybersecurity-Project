@@ -30,78 +30,10 @@ import {
 } from "../api/uploads";
 import AssessmentReadinessWidget from "../components/AssessmentReadiness";
 import ValidationPanel from "../components/ValidationPanel";
-import { httpUrlOrNull } from "../utils/safeUrl";
+import CompanySection from "./settings/CompanySection";
+import SecurityProfileSection from "./settings/SecurityProfileSection";
 import "../Dashboard.css";
 import "./SettingsPage.css";
-
-const INDUSTRY_OPTIONS = [
-  "Finance & Insurance",
-  "Healthcare",
-  "Tech & Software",
-  "Government",
-  "Retail & E-Commerce",
-  "Education",
-  "Manufacturing",
-  "Professional Services",
-  "Real Estate",
-  "Construction",
-  "Legal Services",
-  "Transportation",
-  "Hospitality",
-  "Non-Profit",
-  "Other",
-] as const;
-
-const CLOUD_PROVIDERS = [
-  "AWS", "Azure", "GCP", "Microsoft 365", "Google Workspace",
-  "Salesforce", "Shopify", "QuickBooks", "Dropbox", "Slack", "Zoom",
-] as const;
-
-const COMPLIANCE_FRAMEWORKS = [
-  "HIPAA", "PCI-DSS", "SOC 2", "CMMC", "NIST CSF", "ISO 27001", "None",
-] as const;
-
-const DATA_TYPES = [
-  "PII (names, SSNs)",
-  "PHI (health records)",
-  "Payment card data",
-  "Intellectual property",
-  "Customer financial data",
-  "None of these",
-] as const;
-
-const SECURITY_CONTROLS = [
-  { key: "mfa_enabled", label: "MFA enabled for all users", category: "Identity & Access" },
-  { key: "password_policy", label: "Password policy enforced", category: "Identity & Access" },
-  { key: "sso_in_use", label: "SSO in use", category: "Identity & Access" },
-  { key: "edr_deployed", label: "EDR/antivirus deployed", category: "Endpoint Protection" },
-  { key: "devices_encrypted", label: "Devices encrypted", category: "Endpoint Protection" },
-  { key: "auto_patching", label: "Auto-patching enabled", category: "Endpoint Protection" },
-  { key: "email_filtering", label: "Email filtering / gateway", category: "Email Security" },
-  { key: "phishing_training", label: "Phishing training conducted", category: "Email Security" },
-  { key: "firewall_in_place", label: "Firewall in place", category: "Network" },
-  { key: "vpn_remote_access", label: "VPN for remote access", category: "Network" },
-  { key: "network_segmentation", label: "Network segmentation", category: "Network" },
-  { key: "regular_backups", label: "Regular data backups", category: "Data Protection" },
-  { key: "backup_testing", label: "Backup restoration tested", category: "Data Protection" },
-  { key: "data_classification", label: "Data classification policy", category: "Data Protection" },
-  { key: "ir_plan_documented", label: "IR plan documented", category: "Incident Response" },
-  { key: "ir_plan_tested", label: "IR plan tested within 12 months", category: "Incident Response" },
-] as const;
-
-const DEVICE_COUNT_RANGES = [
-  "1-10", "11-50", "51-200", "201-500", "501-1000", "1001+",
-] as const;
-
-const INCIDENT_HISTORY_OPTIONS = [
-  { value: "none", label: "No incidents" },
-  { value: "ransomware", label: "Ransomware" },
-  { value: "phishing", label: "Phishing / BEC" },
-  { value: "data_breach", label: "Data breach" },
-  { value: "malware", label: "Malware" },
-  { value: "insider_threat", label: "Insider threat" },
-  { value: "other", label: "Other" },
-] as const;
 
 interface UserProfile {
   id: number;
@@ -115,12 +47,7 @@ interface UserProfile {
 }
 
 export default function OrgProfilePage() {
-  const {
-    organization,
-    refreshOrganization,
-    loading: orgLoading,
-    error: orgError,
-  } = useUserContext();
+  const { organization, refreshOrganization } = useUserContext();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -161,25 +88,6 @@ export default function OrgProfilePage() {
   });
   const toggleSection = (key: string) =>
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
-
-  const [companyNameField, setCompanyNameField] = useState("");
-  const [logoUrlField, setLogoUrlField] = useState("");
-  const [primaryDomainField, setPrimaryDomainField] = useState("");
-  const [industryLabelField, setIndustryLabelField] = useState("");
-  const [companySaveMsg, setCompanySaveMsg] = useState("");
-  const [companySaveErr, setCompanySaveErr] = useState("");
-  const [companySaving, setCompanySaving] = useState(false);
-
-  // Security profile state
-  const [securityControls, setSecurityControls] = useState<Record<string, "yes" | "no" | "unsure">>({});
-  const [cloudProviders, setCloudProviders] = useState<string[]>([]);
-  const [complianceFrameworks, setComplianceFrameworks] = useState<string[]>([]);
-  const [dataTypes, setDataTypes] = useState<string[]>([]);
-  const [deviceCountRange, setDeviceCountRange] = useState("");
-  const [incidentHistory, setIncidentHistory] = useState("");
-  const [secProfileSaveMsg, setSecProfileSaveMsg] = useState("");
-  const [secProfileSaveErr, setSecProfileSaveErr] = useState("");
-  const [secProfileSaving, setSecProfileSaving] = useState(false);
 
   // Vendor / Tech Stack state
   const [vendors, setVendors] = useState<OrgVendor[]>([]);
@@ -535,123 +443,10 @@ export default function OrgProfilePage() {
     };
   }, [newProduct, newVendor]);
 
-  // Sync company profile fields when organization data loads
-  useEffect(() => {
-    if (!organization) return;
-    setCompanyNameField(organization.name);
-    setLogoUrlField(organization.logo_url ?? "");
-    setPrimaryDomainField(organization.primary_domain ?? "");
-    setIndustryLabelField(organization.industry_label ?? "");
-    setSecurityControls((organization.security_controls ?? {}) as Record<string, "yes" | "no" | "unsure">);
-    setCloudProviders(organization.cloud_providers ?? []);
-    setComplianceFrameworks(organization.compliance_frameworks ?? []);
-    setDataTypes(organization.data_types ?? []);
-    setDeviceCountRange(organization.device_count_range ?? "");
-    setIncidentHistory(organization.incident_history ?? "");
-  }, [organization]);
-
   const canEditOrgProfile =
     profile != null &&
     isOrgAdmin(profile.role, profile.org_role);
-  const companyFieldsDisabled =
-    orgLoading || !organization || !canEditOrgProfile;
-  const logoPreviewUrl = httpUrlOrNull(logoUrlField);
-
-  const handleSaveCompanyProfile = async () => {
-    if (!profile?.org_id || !canEditOrgProfile) return;
-    setCompanySaveMsg("");
-    setCompanySaveErr("");
-    setCompanySaving(true);
-    try {
-      const body = {
-        name: companyNameField.trim(),
-        logo_url: logoUrlField.trim() || null,
-        primary_domain: primaryDomainField.trim() || null,
-        industry_label: industryLabelField || null,
-      };
-      const resp = await fetchWithAuth(
-        `${API_BASE_URL}/api/v1/organizations/${profile.org_id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        },
-      );
-      if (!resp.ok) {
-        const detail = await resp.text();
-        throw new Error(detail || "Failed to save company profile");
-      }
-      setCompanySaveMsg("Company profile saved.");
-      await refreshOrganization();
-      bumpReadiness();
-    } catch (err) {
-      setCompanySaveErr(err instanceof Error ? err.message : "Save failed");
-    } finally {
-      setCompanySaving(false);
-    }
-  };
-
-  const toggleSecProfileItem = (
-    field: "cloudProviders" | "complianceFrameworks" | "dataTypes",
-    value: string,
-  ) => {
-    const setters = {
-      cloudProviders: setCloudProviders,
-      complianceFrameworks: setComplianceFrameworks,
-      dataTypes: setDataTypes,
-    };
-    setters[field]((prev) => {
-      return prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value];
-    });
-  };
-
-  const handleSaveSecurityProfile = async () => {
-    if (!profile?.org_id || !canEditOrgProfile) return;
-    setSecProfileSaveMsg("");
-    setSecProfileSaveErr("");
-    setSecProfileSaving(true);
-    try {
-      const body = {
-        security_controls: Object.keys(securityControls).length > 0 ? securityControls : null,
-        cloud_providers: cloudProviders.length > 0 ? cloudProviders : null,
-        compliance_frameworks: complianceFrameworks.length > 0 ? complianceFrameworks : null,
-        data_types: dataTypes.length > 0 ? dataTypes : null,
-        device_count_range: deviceCountRange || null,
-        incident_history: incidentHistory || null,
-      };
-      const resp = await fetchWithAuth(
-        `${API_BASE_URL}/api/v1/organizations/${profile.org_id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        },
-      );
-      if (!resp.ok) {
-        const detail = await resp.text();
-        throw new Error(detail || "Failed to save security profile");
-      }
-      setSecProfileSaveMsg("Security profile saved.");
-      await refreshOrganization();
-      // Sync checked cloud providers into the vendor tech stack. Backend
-      // dedupes via the (org, vendor, product) unique constraint when
-      // ?idempotent=true, so existing rows are returned unchanged instead
-      // of duplicated. We can't dedupe on the client because `vendors`
-      // only holds the current paginated page.
-      const orgId = profile.org_id;
-      if (orgId != null && cloudProviders.length > 0) {
-        await Promise.allSettled(
-          cloudProviders.map((p) => createVendor(orgId, p, "", { idempotent: true })),
-        );
-        loadVendors(orgId, 1);
-      }
-      bumpReadiness();
-    } catch (err) {
-      setSecProfileSaveErr(err instanceof Error ? err.message : "Save failed");
-    } finally {
-      setSecProfileSaving(false);
-    }
-  };
+  const orgId = profile?.org_id ?? null;
 
   useEffect(() => {
     let cancelled = false;
@@ -711,7 +506,7 @@ export default function OrgProfilePage() {
               {profile.org_id != null && <AssessmentReadinessWidget refreshKey={readinessKey} />}
               {profile.org_id != null && <ValidationPanel />}
 
-              {profile.org_id != null && (
+              {orgId != null && (
                 <section className="settings-section">
                   <button className="section-accordion-header" onClick={() => toggleSection('company')} aria-expanded={openSections.company}>
                     <div className="section-accordion-header-text">
@@ -721,125 +516,12 @@ export default function OrgProfilePage() {
                     <span className={`section-accordion-chevron${openSections.company ? ' open' : ''}`}>›</span>
                   </button>
                   {openSections.company && (
-                    <div className="section-accordion-body">
-                      {!canEditOrgProfile && (
-                    <p className="settings-readonly-hint">
-                      Only organization owners, organization admins, or platform
-                      admins can edit these fields.
-                    </p>
-                  )}
-                  {orgLoading && !organization && (
-                    <p className="settings-loading">Loading organization...</p>
-                  )}
-                  {orgError && (
-                    <div className="settings-error">
-                      Could not load organization profile.
-                    </div>
-                  )}
-                  {organization && (
-                    <>
-                      {companySaveMsg && (
-                        <div className="settings-action-msg">
-                          {companySaveMsg}
-                        </div>
-                      )}
-                      {companySaveErr && (
-                        <div
-                          className="settings-error"
-                          style={{ marginBottom: "0.75rem" }}
-                        >
-                          {companySaveErr}
-                        </div>
-                      )}
-                      <div className="settings-field company-profile-field">
-                        <label htmlFor="company-name">Name</label>
-                        <input
-                          id="company-name"
-                          className="company-profile-input"
-                          type="text"
-                          value={companyNameField}
-                          onChange={(e) => setCompanyNameField(e.target.value)}
-                          disabled={companyFieldsDisabled}
-                          autoComplete="organization"
-                        />
-                      </div>
-                      <div className="settings-field company-profile-field">
-                        <label htmlFor="company-logo">Logo</label>
-                        <div className="company-logo-input-col">
-                          <input
-                            id="company-logo"
-                            className="company-profile-input"
-                            type="url"
-                            placeholder="https://..."
-                            value={logoUrlField}
-                            onChange={(e) => setLogoUrlField(e.target.value)}
-                            disabled={companyFieldsDisabled}
-                          />
-                          {logoPreviewUrl !== null && (
-                            <img
-                              className="company-logo-preview"
-                              src={logoPreviewUrl}
-                              alt=""
-                              onError={(e) => {
-                                e.currentTarget.style.display = "none";
-                              }}
-                            />
-                          )}
-                        </div>
-                      </div>
-                      <div className="settings-field company-profile-field">
-                        <label htmlFor="company-domain">Domain</label>
-                        <input
-                          id="company-domain"
-                          className="company-profile-input"
-                          type="text"
-                          placeholder="example.com"
-                          value={primaryDomainField}
-                          onChange={(e) =>
-                            setPrimaryDomainField(e.target.value)
-                          }
-                          disabled={companyFieldsDisabled}
-                          autoCapitalize="none"
-                        />
-                      </div>
-                      <div className="settings-field company-profile-field">
-                        <label htmlFor="company-industry">Industry</label>
-                        <select
-                          id="company-industry"
-                          className="company-profile-input"
-                          value={industryLabelField}
-                          onChange={(e) => setIndustryLabelField(e.target.value)}
-                          disabled={companyFieldsDisabled}
-                        >
-                          <option value="">Select industry…</option>
-                          {INDUSTRY_OPTIONS.map((opt) => (
-                            <option key={opt} value={opt}>{opt}</option>
-                          ))}
-                        </select>
-                      </div>
-                      {canEditOrgProfile && (
-                        <div
-                          className="settings-actions"
-                          style={{ marginTop: "1rem" }}
-                        >
-                          <button
-                            type="button"
-                            className="action-btn"
-                            disabled={companySaving || !companyNameField.trim()}
-                            onClick={() => void handleSaveCompanyProfile()}
-                          >
-                            {companySaving ? "Saving..." : "Save company profile"}
-                          </button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                    </div>
+                    <CompanySection orgId={orgId} canEdit={canEditOrgProfile} onChanged={bumpReadiness} />
                   )}
                 </section>
               )}
 
-              {profile.org_id != null && organization && canEditOrgProfile && (
+              {orgId != null && organization && canEditOrgProfile && (
                 <section id="section-security-profile" className="settings-section">
                   <button className="section-accordion-header" onClick={() => toggleSection('security')} aria-expanded={openSections.security}>
                     <div className="section-accordion-header-text">
@@ -849,141 +531,7 @@ export default function OrgProfilePage() {
                     <span className={`section-accordion-chevron${openSections.security ? ' open' : ''}`}>›</span>
                   </button>
                   {openSections.security && (
-                    <div className="section-accordion-body">
-                      {secProfileSaveMsg && (
-                    <div className="settings-action-msg">{secProfileSaveMsg}</div>
-                  )}
-                  {secProfileSaveErr && (
-                    <div className="settings-error" style={{ marginBottom: "0.75rem" }}>
-                      {secProfileSaveErr}
-                    </div>
-                  )}
-
-                  <div className="sec-profile-subsection">
-                    <h3 className="sec-profile-subtitle">Security Controls</h3>
-                    {[...new Set(SECURITY_CONTROLS.map((c) => c.category))].map((cat) => (
-                      <div key={cat} className="sec-control-group">
-                        <h4 className="sec-control-category">{cat}</h4>
-                        {SECURITY_CONTROLS.filter((c) => c.category === cat).map((control) => {
-                          const val = securityControls[control.key] ?? "unsure";
-                          return (
-                            <div key={control.key} className="sec-control-row">
-                              <span className="sec-control-label">{control.label}</span>
-                              <div className="sec-control-toggle">
-                                {(["yes", "no", "unsure"] as const).map((opt) => (
-                                  <button
-                                    key={opt}
-                                    type="button"
-                                    className={`sec-control-option${val === opt ? " selected" : ""}`}
-                                    onClick={() =>
-                                      setSecurityControls((prev) => ({ ...prev, [control.key]: opt }))
-                                    }
-                                  >
-                                    {opt === "yes" ? "Yes" : opt === "no" ? "No" : "Unsure"}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="sec-profile-subsection">
-                    <h3 className="sec-profile-subtitle">Cloud & SaaS Providers</h3>
-                    <div className="sec-checklist">
-                      {CLOUD_PROVIDERS.map((provider) => (
-                        <label key={provider} className="sec-check-item">
-                          <input
-                            type="checkbox"
-                            checked={cloudProviders.includes(provider)}
-                            onChange={() => toggleSecProfileItem("cloudProviders", provider)}
-                          />
-                          {provider}
-                        </label>
-                      ))}
-                    </div>
-                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
-                      Checked providers are automatically added to Your Technology Stack for vulnerability monitoring.
-                    </p>
-                  </div>
-
-                  <div className="sec-profile-subsection">
-                    <h3 className="sec-profile-subtitle">Compliance Frameworks</h3>
-                    <div className="sec-checklist">
-                      {COMPLIANCE_FRAMEWORKS.map((fw) => (
-                        <label key={fw} className="sec-check-item">
-                          <input
-                            type="checkbox"
-                            checked={complianceFrameworks.includes(fw)}
-                            onChange={() => toggleSecProfileItem("complianceFrameworks", fw)}
-                          />
-                          {fw}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="sec-profile-subsection">
-                    <h3 className="sec-profile-subtitle">Data Types Handled</h3>
-                    <div className="sec-checklist">
-                      {DATA_TYPES.map((dt) => (
-                        <label key={dt} className="sec-check-item">
-                          <input
-                            type="checkbox"
-                            checked={dataTypes.includes(dt)}
-                            onChange={() => toggleSecProfileItem("dataTypes", dt)}
-                          />
-                          {dt}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="sec-profile-subsection">
-                    <h3 className="sec-profile-subtitle">Additional Context</h3>
-                    <div className="sec-profile-field-row">
-                      <label htmlFor="device-count">Approximate device count</label>
-                      <select
-                        id="device-count"
-                        className="member-role-select"
-                        value={deviceCountRange}
-                        onChange={(e) => setDeviceCountRange(e.target.value)}
-                      >
-                        <option value="">Not set</option>
-                        {DEVICE_COUNT_RANGES.map((r) => (
-                          <option key={r} value={r}>{r} devices</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="sec-profile-field-row">
-                      <label htmlFor="incident-history">Prior cyber incidents (past 24 months)</label>
-                      <select
-                        id="incident-history"
-                        className="member-role-select"
-                        value={incidentHistory}
-                        onChange={(e) => setIncidentHistory(e.target.value)}
-                      >
-                        <option value="">Not set</option>
-                        {INCIDENT_HISTORY_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="settings-actions" style={{ marginTop: "1rem" }}>
-                    <button
-                      type="button"
-                      className="action-btn"
-                      disabled={secProfileSaving}
-                      onClick={() => void handleSaveSecurityProfile()}
-                    >
-                      {secProfileSaving ? "Saving..." : "Save security profile"}
-                    </button>
-                  </div>
-                    </div>
+                    <SecurityProfileSection orgId={orgId} canEdit={canEditOrgProfile} onChanged={bumpReadiness} onVendorsSynced={() => loadVendors(orgId, 1)} />
                   )}
                 </section>
               )}
