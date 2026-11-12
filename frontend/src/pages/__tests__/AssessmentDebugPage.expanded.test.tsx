@@ -350,32 +350,26 @@ describe('AssessmentDebugPage', () => {
       })
     })
 
-    it('has back to dashboard button', async () => {
+    it('renders the title as the page h1', async () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Back to Dashboard/i })).toBeInTheDocument()
+        expect(
+          screen.getByRole('heading', { level: 1, name: /Assessment Debug View/i }),
+        ).toBeInTheDocument()
       })
     })
 
-    it('has back to settings button', async () => {
+    it('has a back to settings link and no back to dashboard control', async () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Back to Settings/i })).toBeInTheDocument()
+        expect(screen.getByRole('link', { name: /Back to Settings/i })).toHaveAttribute(
+          'href',
+          '/settings',
+        )
       })
-    })
-
-    it('navigates to dashboard when clicking back to dashboard', async () => {
-      renderPage()
-
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Back to Dashboard/i })).toBeInTheDocument()
-      })
-
-      fireEvent.click(screen.getByRole('button', { name: /Back to Dashboard/i }))
-
-      expect(mockNavigate).toHaveBeenCalledWith('/')
+      expect(screen.queryByText(/Back to Dashboard/i)).not.toBeInTheDocument()
     })
   })
 
