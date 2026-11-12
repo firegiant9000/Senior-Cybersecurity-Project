@@ -219,4 +219,56 @@ describe('OrgProfilePage section state survives collapse', () => {
     // Collapsing and reopening does not refetch.
     expect(mockListVendors).toHaveBeenCalledTimes(2)
   })
+
+  it('keeps an unsaved Domains draft after collapsing and reopening', async () => {
+    await loaded()
+    const header = screen.getByRole('button', { name: /^Organization Domains/ })
+    fireEvent.click(header)
+    const dom = within(section('section-domains'))
+    fireEvent.change(dom.getByPlaceholderText('example.com'), { target: { value: 'draft.example' } })
+    fireEvent.click(header)
+    expect(header).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(header)
+    expect(within(section('section-domains')).getByPlaceholderText('example.com')).toHaveValue('draft.example')
+  })
+
+  it('keeps the Uploads success banner after collapsing and reopening', async () => {
+    await loaded()
+    const header = screen.getByRole('button', { name: /^File Uploads/ })
+    fireEvent.click(header)
+    const input = section('section-uploads').querySelector('input[type="file"]') as HTMLInputElement
+    const file = new File(['a,b'], 'data.csv', { type: 'text/csv' })
+    fireEvent.change(input, { target: { files: [file] } })
+    await within(section('section-uploads')).findByText('"data.csv" uploaded successfully')
+    fireEvent.click(header)
+    fireEvent.click(header)
+    expect(
+      within(section('section-uploads')).getByText('"data.csv" uploaded successfully'),
+    ).toBeInTheDocument()
+  })
+
+  it('returns Technology to page 1 and reloads once when cloud providers sync', async () => {
+    mockListVendors.mockImplementation(async (_org: number, page: number) => ({
+      items: [
+        { id: page, vendor_name: `Vendor p${page}`, product_name: '', created_at: '2024-01-01T00:00:00Z', matched_kev_count: 0 },
+      ],
+      total: 40,
+      page,
+      page_size: 20,
+    }))
+    await loaded()
+    fireEvent.click(screen.getByRole('button', { name: /^Your Technology Stack/ }))
+    const tech = within(section('section-vendors'))
+    await tech.findByText('Vendor p1')
+    fireEvent.click(tech.getByRole('button', { name: 'Next' }))
+    await tech.findByText('Vendor p2')
+    expect(mockListVendors).toHaveBeenCalledTimes(2)
+
+    fireEvent.click(screen.getByRole('button', { name: /^Security Profile/ }))
+    fireEvent.click(within(section('section-security-profile')).getByRole('button', { name: 'Save security profile' }))
+    await tech.findByText('Vendor p1')
+    expect(tech.getByText('Page 1 of 2')).toBeInTheDocument()
+    expect(mockCreateVendor).toHaveBeenCalled()
+    expect(mockListVendors).toHaveBeenCalledTimes(3)
+  })
 })
