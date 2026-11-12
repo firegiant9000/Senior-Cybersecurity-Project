@@ -9,9 +9,10 @@ interface Props {
     onToggleDark: () => void;
     user: { email: string | null } | null;
     onLogout: () => Promise<void>;
+    minimal?: boolean;
 }
 
-const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout }) => {
+const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout, minimal = false }) => {
     const navigate = useNavigate();
     const { role, orgRole } = useAuth();
     const [menuOpen, setMenuOpen] = useState(false);
@@ -42,14 +43,16 @@ const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout }
                     <button className="dark-mode-btn" onClick={onToggleDark} title="Toggle dark mode">
                         {dark ? '☀' : '🌙'}
                     </button>
-                    <button
-                        className="dark-mode-btn glossary-btn"
-                        onClick={() => navigate('/glossary')}
-                        title="Glossary & help"
-                        aria-label="Open glossary"
-                    >
-                        ?
-                    </button>
+                    {!minimal && (
+                        <button
+                            className="dark-mode-btn glossary-btn"
+                            onClick={() => navigate('/glossary')}
+                            title="Glossary & help"
+                            aria-label="Open glossary"
+                        >
+                            ?
+                        </button>
+                    )}
                 </div>
 
                 {user ? (
@@ -71,26 +74,30 @@ const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout }
                             <div className={`user-dropdown-menu ${menuOpen ? 'open' : ''}`} role="menu">
                                 <div className="user-dropdown-item email" role="none">{user.email}</div>
                                 <div className="user-dropdown-item role" role="none">{displayRole}</div>
-                                <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/org-profile'); }}>
-                                    Organization Profile
-                                </button>
-                                <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/settings'); }}>
-                                    Settings
-                                </button>
-                                <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/integrations'); }}>
-                                    Integrations
-                                </button>
-                                {canDebug && (
-                                    <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/settings/assessment-debug'); }}>
-                                        Assessment Debug
-                                    </button>
+                                {!minimal && (
+                                    <>
+                                        <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/org-profile'); }}>
+                                            Organization Profile
+                                        </button>
+                                        <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/settings'); }}>
+                                            Settings
+                                        </button>
+                                        <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/integrations'); }}>
+                                            Integrations
+                                        </button>
+                                        {canDebug && (
+                                            <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/settings/assessment-debug'); }}>
+                                                Assessment Debug
+                                            </button>
+                                        )}
+                                        <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/data-handling'); }}>
+                                            Data Handling
+                                        </button>
+                                        <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/privacy'); }}>
+                                            Privacy
+                                        </button>
+                                    </>
                                 )}
-                                <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/data-handling'); }}>
-                                    Data Handling
-                                </button>
-                                <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/privacy'); }}>
-                                    Privacy
-                                </button>
                                 <button className="user-dropdown-item" role="menuitem" onClick={async () => { await onLogout(); navigate('/'); }}>
                                     Log Out
                                 </button>
