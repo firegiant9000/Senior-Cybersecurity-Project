@@ -17,6 +17,11 @@ export interface OrgInvite {
   created_at: string;
 }
 
+/** Creation response only: carries the invite token once. The list never has it. */
+export interface OrgInviteCreated extends OrgInvite {
+  token: string;
+}
+
 export interface InviteListResponse {
   total: number;
   page: number;
@@ -25,10 +30,10 @@ export interface InviteListResponse {
 }
 
 export interface InviteTokenInfo {
-  invite_token: string;
+  token: string;
   org_name: string;
-  org_role: string;
-  invited_email: string;
+  role: string;
+  email: string;
   expires_at: string;
 }
 
@@ -55,7 +60,7 @@ export async function createInvite(
   orgId: number,
   email: string,
   orgRole: string = "member",
-): Promise<OrgInvite> {
+): Promise<OrgInviteCreated> {
   const resp = await fetchWithAuth(
     `${API_BASE_URL}/api/v1/organizations/${orgId}/invites`,
     {
