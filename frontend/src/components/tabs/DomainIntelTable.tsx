@@ -34,11 +34,7 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-interface Props {
-  onNavigateToFindings?: () => void;
-}
-
-const DomainIntelTable: React.FC<Props> = ({ onNavigateToFindings }) => {
+const DomainIntelTable: React.FC = () => {
   const { user } = useAuth();
   const [snapshot, setSnapshot] = useState<SnapshotListItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,24 +70,8 @@ const DomainIntelTable: React.FC<Props> = ({ onNavigateToFindings }) => {
     return (
       <div style={{ textAlign: 'center', padding: '32px 16px' }}>
         <p style={{ color: 'var(--text-secondary, #555)', marginBottom: 12 }}>
-          No scan data yet. Run a findings scan to see which intelligence sources are active.
+          No scan yet. Run a findings scan to see which sources were used.
         </p>
-        {onNavigateToFindings && (
-          <button
-            onClick={onNavigateToFindings}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--accent, #3b82f6)',
-              fontWeight: 600,
-              fontSize: 13,
-              cursor: 'pointer',
-              textDecoration: 'underline',
-            }}
-          >
-            Go to Findings tab
-          </button>
-        )}
       </div>
     );
   }
