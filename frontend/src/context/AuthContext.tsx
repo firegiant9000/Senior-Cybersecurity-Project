@@ -19,6 +19,8 @@ interface AuthContextType {
   profileError: boolean;
   /** The API refused the profile because the account's email is not verified yet. */
   emailUnverified: boolean;
+  /** True from a user-initiated logout until a user next signs in; lets route guards skip the return-to-login redirect. */
+  signedOutDeliberately: boolean;
   role: string | null;
   orgRole: string | null;
   login: (email: string, password: string) => Promise<void>;
@@ -47,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const [profileError, setProfileError] = useState(false);
   const [emailUnverified, setEmailUnverified] = useState(false);
+  const [signedOutDeliberately, setSignedOutDeliberately] = useState(false);
 
   const fetchProfile = useCallback(async (firebaseUser: User, maxRetries = 1) => {
     setProfileError(false);
@@ -99,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(firebaseUser);
       setLoading(false);
       if (firebaseUser) {
+        setSignedOutDeliberately(false);
         setOrgLoading(true);
         // A previous user's verify screen must not survive into this user's fetch outcome.
         // Not in fetchProfile: confirmVerification refetches for the same user and must keep it.
@@ -125,7 +129,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    await signOut(auth);
+    // Set before signOut so it is committed no later than the listener's setUser(null).
+    setSignedOutDeliberately(true);
+    try {
+      await signOut(auth);
+    } catch (err) {
+      setSignedOutDeliberately(false);
+      throw err;
+    }
   };
 
   const getIdToken = async () => {
@@ -163,7 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, orgId, orgIsDemo, orgLoading, profileError, emailUnverified, role, orgRole, login, signup, logout, getIdToken, refreshProfile, resendVerification, confirmVerification }}>
+    <AuthContext.Provider value={{ user, loading, orgId, orgIsDemo, orgLoading, profileError, emailUnverified, signedOutDeliberately, role, orgRole, login, signup, logout, getIdToken, refreshProfile, resendVerification, confirmVerification }}>
       {children}
     </AuthContext.Provider>
   );
