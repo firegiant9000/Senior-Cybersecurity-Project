@@ -344,6 +344,22 @@ describe('SettingsPage - Member Management', () => {
       })
     })
 
+    it('renders no related-pages nav while loading or when the user has no organisation', async () => {
+      const noOrgProfile = { ...mockUserProfile, org_id: null, org_role: null }
+      mockFetchWithAuth.mockResolvedValue({
+        ok: true,
+        json: async () => noOrgProfile,
+      })
+
+      renderPage()
+
+      expect(screen.queryByRole('navigation', { name: 'Related pages' })).not.toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.queryByText(/Loading profile/i)).not.toBeInTheDocument()
+      })
+      expect(screen.queryByRole('navigation', { name: 'Related pages' })).not.toBeInTheDocument()
+    })
+
     it('hides member management when org_id is null', async () => {
       const noOrgProfile = { ...mockUserProfile, org_id: null, org_role: null }
       mockFetchWithAuth.mockResolvedValue({

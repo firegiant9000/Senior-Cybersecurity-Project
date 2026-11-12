@@ -18,10 +18,12 @@ export default function SettingsPage() {
   return (
     <>
       <h1>Settings</h1>
-      <nav className="settings-page-links" aria-label="Related pages">
-        {profile?.org_id != null && <Link to="/org-profile">Organization Profile</Link>}
-        {canManageMembers && <Link to="/settings/assessment-debug">Assessment Debug</Link>}
-      </nav>
+      {profile?.org_id != null && (
+        <nav className="settings-page-links" aria-label="Related pages">
+          <Link to="/org-profile">Organization Profile</Link>
+          {canManageMembers && <Link to="/settings/assessment-debug">Assessment Debug</Link>}
+        </nav>
+      )}
 
       <div className="settings-page settings-page--embedded">
         <div className="settings-card settings-card--wide">

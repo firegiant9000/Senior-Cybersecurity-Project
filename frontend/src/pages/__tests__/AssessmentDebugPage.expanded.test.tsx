@@ -64,10 +64,6 @@ vi.mock('../../context/AuthContext', () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
 
-vi.mock('../../hooks/useDarkMode', () => ({
-  useDarkMode: () => [false, vi.fn()],
-}))
-
 vi.mock('../../api/assessmentDebug', () => ({
   fetchAssessmentDebug: (...args: unknown[]) => mockFetchDebug(...args),
 }))
@@ -301,10 +297,14 @@ describe('AssessmentDebugPage', () => {
   })
 
   describe('Loading & Error States', () => {
-    it('shows loading state initially', () => {
+    it('shows loading state initially', async () => {
       renderPage()
 
       expect(screen.getByText(/Loading debug snapshot/i)).toBeInTheDocument()
+      // Let the fetch settle inside act so the state update is not left dangling.
+      await waitFor(() => {
+        expect(screen.queryByText(/Loading debug snapshot/i)).not.toBeInTheDocument()
+      })
     })
 
     it('shows error message when fetch fails', async () => {
