@@ -45,7 +45,6 @@ export function useIncidentLandscape(): IncidentLandscapeData {
       const errors: string[] = [];
       const items = <T,>(r: PromiseSettledResult<{ items: T[] }>, label: string): T[] => {
         if (r.status === 'fulfilled') return r.value.items;
-        if ((r.reason as { name?: string } | null)?.name === 'AbortError') return [];
         errors.push(`${label} could not be loaded.`);
         return [];
       };

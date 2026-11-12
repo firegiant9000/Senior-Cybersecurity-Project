@@ -65,6 +65,7 @@ describe('IncidentLandscape', () => {
 
   it('shows source badges in order: geographic, sector matrix, then ic3_incidents x3', async () => {
     render(<IncidentLandscape />);
+    await screen.findByTestId('malware-chart');
     await waitFor(() => expect(mockTypes).toHaveBeenCalled());
     const keys = screen.getAllByTestId('source-badge').map(b => b.textContent);
     expect(keys).toEqual([
@@ -98,14 +99,30 @@ describe('IncidentLandscape', () => {
     cleanup();
   });
 
-  it('does not show an error for requests rejected because they were aborted', async () => {
-    let rejectMatrix: (e: unknown) => void = () => {};
-    mockMatrix.mockImplementation(() => new Promise((_, rej) => { rejectMatrix = rej; }));
-    render(<IncidentLandscape />);
-    await waitFor(() => expect(mockMatrix).toHaveBeenCalled());
+  it('does not update state or log when pending fetches reject after unmount', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const rejectors: Array<(e: unknown) => void> = [];
+    const pending = <T,>() => new Promise<T>((_, rej) => { rejectors.push(rej); });
+    mockGeo.mockImplementation(() => pending());
+    mockMatrix.mockImplementation(() => pending());
+    mockRisk.mockImplementation(() => pending());
+    mockTypes.mockImplementation(() => pending());
+    const { unmount } = render(<IncidentLandscape />);
+    await waitFor(() => expect(rejectors).toHaveLength(4));
+    unmount();
     await act(async () => {
-      rejectMatrix(new DOMException('aborted', 'AbortError'));
+      rejectors.forEach(rej => rej(new DOMException('aborted', 'AbortError')));
     });
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(errSpy).not.toHaveBeenCalled();
+    errSpy.mockRestore();
+  });
+
+  it('shows an error line for an AbortError that did not come from our own abort', async () => {
+    mockMatrix.mockRejectedValue(new DOMException('timed out', 'AbortError'));
+    render(<IncidentLandscape />);
+    expect(await screen.findAllByRole('alert')).toHaveLength(1);
+    for (const id of STUBS) {
+      expect(screen.getByTestId(id)).toBeInTheDocument();
+    }
   });
 });
