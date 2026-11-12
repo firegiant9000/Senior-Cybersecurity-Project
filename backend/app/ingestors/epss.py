@@ -10,6 +10,7 @@ Free, unauthenticated. Supports comma-separated CVE IDs (up to 2000 per request)
 import asyncio
 import datetime
 import logging
+import math
 
 import httpx
 from sqlalchemy import select, update
@@ -21,6 +22,19 @@ logger = logging.getLogger(__name__)
 
 EPSS_API_URL = "https://api.first.org/data/v1/epss"
 BATCH_SIZE = 100  # ~1.6KB URL per batch; FIRST.org rejects URLs >8KB
+
+
+def _valid_probability(value: object) -> float | None:
+    """Return ``value`` as a finite float in [0.0, 1.0], else None."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (ValueError, TypeError):
+        return None
+    if not math.isfinite(number) or not 0.0 <= number <= 1.0:
+        return None
+    return number
 
 
 async def ingest_epss(db: AsyncSession) -> int:  # noqa: C901
@@ -41,27 +55,32 @@ async def ingest_epss(db: AsyncSession) -> int:  # noqa: C901
     async with httpx.AsyncClient(timeout=60) as client:
         for i in range(0, len(cve_ids), BATCH_SIZE):
             batch = cve_ids[i : i + BATCH_SIZE]
+            requested = set(batch)
             cve_param = ",".join(batch)
+            skipped_invalid = 0
+            skipped_unrequested = 0
             try:
                 resp = await client.get(EPSS_API_URL, params={"cve": cve_param})
                 resp.raise_for_status()
                 payload = resp.json()
                 for entry in payload.get("data", []):
                     cve_id = entry.get("cve")
-                    epss_raw = entry.get("epss")
-                    pct_raw = entry.get("percentile")
-                    if cve_id and epss_raw is not None:
-                        try:
-                            score = float(epss_raw)
-                        except (ValueError, TypeError):
-                            continue
-                        percentile: float | None = None
-                        if pct_raw is not None:
-                            try:
-                                percentile = float(pct_raw)
-                            except (ValueError, TypeError):
-                                percentile = None
-                        scores[cve_id] = (score, percentile)
+                    if not isinstance(cve_id, str) or cve_id not in requested:
+                        skipped_unrequested += 1
+                        continue
+                    score = _valid_probability(entry.get("epss"))
+                    if score is None:
+                        skipped_invalid += 1
+                        continue
+                    percentile = _valid_probability(entry.get("percentile"))
+                    scores[cve_id] = (score, percentile)
+                if skipped_invalid or skipped_unrequested:
+                    logger.warning(
+                        "EPSS batch %d: skipped %d invalid, %d unrequested entries",
+                        i // BATCH_SIZE,
+                        skipped_invalid,
+                        skipped_unrequested,
+                    )
             except httpx.HTTPError as exc:
                 logger.warning("EPSS batch %d failed: %s", i // BATCH_SIZE, exc)
                 continue

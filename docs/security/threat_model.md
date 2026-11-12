@@ -196,7 +196,7 @@ flowchart LR
 | T-ING-01 | T | A network attacker alters feed responses in transit. | CONTROL | `backend/app/ingestors/nvd.py::ingest_nvd` (L369) | HTTPS endpoints with httpx's default TLS verification; no `verify=False` in the feed ingestors. The domain probe skips certificate checks on purpose, because it reports on the certificate (T-DOM-06). |
 | T-ING-02 | T | A compromised or poisoned upstream feed publishes false CVE, KEV or EPSS data. | ACCEPTED | reason: NIST, CISA and FIRST are the authoritative sources and publish no signed feeds; records are shape-validated but their content is trusted as published; owner: Arlo; review: 2027-04-22 | NVD updates overwrite the stored description and score on every pass. |
 | T-ING-03 | T | Malformed feed records are stored. | TEST | `backend/tests/test_validators.py::TestNvdCveValidationSchema::test_invalid_cve_id`, `backend/tests/test_validators.py::TestCisaKevValidationSchema::test_invalid_cve_id`, `backend/tests/test_epss_ingest.py::test_ingest_epss_skips_malformed_scores` | CVSS is clamped to [0, 10]; severity is checked against an allow-list. |
-| T-ING-04 | T | EPSS values outside [0, 1], or for CVEs that weren't requested, are stored. | OPEN | milestone: S5; item: manual AppSec findings (input validation on ingestion) | |
+| T-ING-04 | T | EPSS values outside [0, 1], or for CVEs that weren't requested, are stored. | TEST | `backend/tests/test_epss_ingest.py::test_epss_out_of_range_score_skipped`, `backend/tests/test_epss_ingest.py::test_epss_unrequested_cve_ignored` | `_valid_probability` rejects non-finite and out-of-range scores; an out-of-range percentile is stored as NULL; entries for CVEs not in the batch are dropped. |
 | T-ING-05 | D | A bad or partial feed wipes the stored vulnerability data. | CONTROL | `backend/app/ingestors/nvd.py::upsert_normalized_cve` (L65), `backend/app/ingestors/cisa_kev.py::ingest_cisa_kev` (L93) | Ingestion only inserts and updates; it never deletes. KEV commits once per run. NVD commits per page, so a failure mid-run leaves a partial update. |
 | T-ING-06 | D | A slow or oversized feed response ties up a worker or exhausts memory. | OPEN | milestone: S5; item: manual AppSec findings (explicit timeouts and response-size caps on feed fetches) | Explicit timeouts exist on the NVD, EPSS and economics clients. The KEV client still has none (`cisa_kev.py` creates `httpx.AsyncClient()` without one). All three fetchers read the full body, so response-size caps are open. |
 | T-ING-07 | T | A failed or partial sync is reported as completed, so data freshness looks green. | OPEN | milestone: S5; item: manual AppSec findings (EPSS batch errors and NVD 429s mark the run partial) | |
@@ -311,7 +311,7 @@ These are what writing the model surfaced that wasn't already known or documente
 | Milestone | Rows |
 |-----------|------|
 | S4 (authorization assurance) | none: all 14 rows closed in S4 (stages A–E); T-UPL-09 reached operators with agent-v0.1.1 |
-| S5 (DAST and manual AppSec) | T-ING-04, T-ING-06, T-ING-07, T-ING-10, T-DOM-08, T-AI-09, T-PLAT-03, T-PLAT-05, T-PLAT-07, T-PLAT-10, T-PLAT-13, T-TEN-14, T-TEN-16, T-TEN-17, T-TEN-18 |
+| S5 (DAST and manual AppSec) | T-ING-06, T-ING-07, T-ING-10, T-DOM-08, T-AI-09, T-PLAT-03, T-PLAT-05, T-PLAT-07, T-PLAT-10, T-PLAT-13, T-TEN-14, T-TEN-16, T-TEN-17, T-TEN-18 |
 | OWNER (repo hardening, Arlo) | T-REL-03, T-CI-02, T-CI-04 |
 
 ## ACCEPTED RISK register
