@@ -34,6 +34,7 @@ from app.db.user import User
 from app.repositories.org_invite import SqlOrgInviteRepository, get_invite_repo
 from app.schemas.org_invite import (
     InviteCreate,
+    InviteCreated,
     InviteListResponse,
     InviteRead,
     InviteTokenRead,
@@ -72,8 +73,8 @@ def _judge_caller(dependency_membership: Membership, locked: Membership | None) 
 # ── Invite endpoints ──────────────────────────────────────────────────────────
 
 
-@router.post("/orgs/{org_id}/invites", response_model=InviteRead, status_code=201)
-@router.post("/organizations/{org_id}/invites", response_model=InviteRead, status_code=201)
+@router.post("/orgs/{org_id}/invites", response_model=InviteCreated, status_code=201)
+@router.post("/organizations/{org_id}/invites", response_model=InviteCreated, status_code=201)
 @limiter.limit(settings.RATE_LIMIT_DATA)
 async def create_invite(
     request: Request,  # noqa: ARG001

@@ -10,6 +10,7 @@ import {
 } from '../../api/ingest';
 import { useAuth } from '../../context/AuthContext';
 import { formatDateWithTz } from '../../utils/formatTime';
+import { isPlatformAdmin } from '../../utils/roleUtils';
 import { requestFreshnessRefresh } from '../shared/freshnessEvents';
 
 const PAGE_SIZE = 15;
@@ -67,7 +68,7 @@ function runningMinutes(startedAt: string | null): number {
 
 const PipelineHealthTab: React.FC = () => {
     const { role } = useAuth();
-    const isAdmin = role === 'admin';
+    const isAdmin = isPlatformAdmin(role);
 
     const [runs, setRuns] = useState<IngestRunItem[]>([]);
     const [freshness, setFreshness] = useState<SourceFreshness[]>([]);

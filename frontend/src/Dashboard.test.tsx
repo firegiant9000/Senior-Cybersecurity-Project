@@ -50,9 +50,9 @@ vi.mock('./hooks/useDarkMode', () => ({ useDarkMode: () => [false, vi.fn()] }))
 vi.mock('./components/dashboard/OverviewTab', () => ({ default: () => <div>Overview</div> }))
 vi.mock('./components/dashboard/DashboardHeader', () => ({ default: () => <div>Header</div> }))
 vi.mock('./components/dashboard/TabBar', () => ({
-  default: ({ groups }: { groups: { id: string; label: string; locked?: boolean; subTabs?: { id: string; label: string }[] }[] }) => (
+  default: ({ groups }: { groups: { id: string; label: string; subTabs?: { id: string; label: string }[] }[] }) => (
     <nav>
-      {groups.filter(g => !g.locked).flatMap(g => [
+      {groups.flatMap(g => [
         <span key={g.id} data-testid={`tab-${g.id}`}>{g.label}</span>,
         ...(g.subTabs ?? []).map(s => <span key={s.id} data-testid={`tab-${s.id}`}>{s.label}</span>),
       ])}
@@ -112,12 +112,12 @@ describe('Dashboard tab filtering', () => {
     expect(screen.getByTestId('tab-pipelineHealth')).toBeTruthy()
   })
 
-  it('shows pipelineHealth for an org admin', () => {
+  it('hides pipelineHealth for an org admin who is not a platform admin', () => {
     mockAuthValues.orgId = 42
     mockAuthValues.role = 'viewer'
     mockAuthValues.orgRole = 'admin'
     renderDashboard()
-    expect(screen.getByTestId('tab-pipelineHealth')).toBeTruthy()
+    expect(screen.queryByTestId('tab-pipelineHealth')).toBeNull()
   })
 
   it('hides all org-only and pipelineHealth tabs while orgLoading', () => {
@@ -127,10 +127,5 @@ describe('Dashboard tab filtering', () => {
     expect(screen.queryByTestId('tab-pipelineHealth')).toBeNull()
     // Non-org tabs should still be visible
     expect(screen.getByTestId('tab-overview')).toBeTruthy()
-  })
-
-  it('shows org-join CTA when user has no org and loading is done', () => {
-    renderDashboard()
-    expect(screen.getByText(/not part of an organization/i)).toBeTruthy()
   })
 })

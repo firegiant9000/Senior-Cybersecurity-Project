@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useUserContext } from "../context/UserContext";
 import { API_BASE_URL, fetchWithAuth } from "../api/fetchWithAuth";
-import { canEditOrganizationProfile } from "../components/ProtectedRoute";
+import { isOrgAdmin } from "../utils/roleUtils";
 import {
   OrgVendor,
   OrgVendorImportPreviewResponse,
@@ -552,7 +552,7 @@ export default function OrgProfilePage() {
 
   const canEditOrgProfile =
     profile != null &&
-    canEditOrganizationProfile(profile.role, profile.org_role);
+    isOrgAdmin(profile.role, profile.org_role);
   const companyFieldsDisabled =
     orgLoading || !organization || !canEditOrgProfile;
   const logoPreviewUrl = httpUrlOrNull(logoUrlField);

@@ -2,12 +2,16 @@ import React, { useState } from "react";
 import { sendPasswordResetEmail, sendEmailVerification } from "firebase/auth";
 import { auth } from "../firebase";
 import { useAuth } from "../context/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { safeNextPath } from "../utils/safeUrl";
 import "./LoginPage.css";
 
 export default function LoginPage({ defaultSignUp = false }: { defaultSignUp?: boolean }) {
-  const { login, signup } = useAuth();
+  const { user, loading: authLoading, login, signup } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // Decoded once by URLSearchParams; navigate with exactly what safeNextPath returns.
+  const dest = safeNextPath(searchParams.get("next")) ?? "/dashboard";
 
   const [isSignUp, setIsSignUp] = useState(defaultSignUp);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
@@ -44,7 +48,7 @@ export default function LoginPage({ defaultSignUp = false }: { defaultSignUp?: b
       } else {
         await login(email, password);
       }
-      navigate("/dashboard");
+      navigate(dest);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Authentication failed";
       if (message.includes("user-not-found") || message.includes("wrong-password") || message.includes("invalid-credential")) {
@@ -92,6 +96,11 @@ export default function LoginPage({ defaultSignUp = false }: { defaultSignUp?: b
       setLoading(false);
     }
   };
+
+  // Already signed in and no submit in flight (a submit navigates to dest itself).
+  if (!authLoading && user && !loading) {
+    return <Navigate to={dest} replace />;
+  }
 
   // Forgot password view
   if (isForgotPassword) {
@@ -171,7 +180,7 @@ export default function LoginPage({ defaultSignUp = false }: { defaultSignUp?: b
         </div>
 
         <form onSubmit={handleSubmit} className="login-form">
-          {error && <div className="login-error">{error}</div>}
+          {error && <div className="login-error" role="alert">{error}</div>}
           {success && <div className="login-success">{success}</div>}
 
           <div className="form-group">
@@ -251,6 +260,9 @@ export default function LoginPage({ defaultSignUp = false }: { defaultSignUp?: b
               ? "Already have an account? Sign in"
               : "Don't have an account? Sign up"}
           </button>
+          <p className="login-helper">
+            <Link to="/privacy">Privacy</Link> · <Link to="/data-handling">Data handling</Link>
+          </p>
         </div>
       </div>
     </div>

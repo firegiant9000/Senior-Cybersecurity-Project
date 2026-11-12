@@ -80,16 +80,16 @@ import { ForbiddenError } from '../../api/fetchWithAuth'
 // ─────────────────────────────────────────────────────────────────────────────
 
 const mockInviteData = {
-  invite_token: 'test-token-123',
+  token: 'test-token-123',
   org_name: 'Acme Corp',
-  org_role: 'member',
-  invited_email: 'user@example.com',
+  role: 'member',
+  email: 'user@example.com',
   expires_at: '2026-12-31T00:00:00Z',
 }
 
 const mockAdminInviteData = {
   ...mockInviteData,
-  org_role: 'admin',
+  role: 'admin',
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -540,10 +540,10 @@ describe('AcceptInvitePage', () => {
   describe('Edge Cases', () => {
     it('handles different role types', async () => {
       const rolesData = [
-        { ...mockInviteData, org_role: 'owner' },
-        { ...mockInviteData, org_role: 'admin' },
-        { ...mockInviteData, org_role: 'member' },
-        { ...mockInviteData, org_role: 'viewer' },
+        { ...mockInviteData, role: 'owner' },
+        { ...mockInviteData, role: 'admin' },
+        { ...mockInviteData, role: 'member' },
+        { ...mockInviteData, role: 'viewer' },
       ]
 
       for (const roleData of rolesData) {
@@ -553,7 +553,7 @@ describe('AcceptInvitePage', () => {
         renderPage()
 
         await waitFor(() => {
-          expect(screen.getByText(roleData.org_role)).toBeInTheDocument()
+          expect(screen.getByText(roleData.role)).toBeInTheDocument()
         })
       }
     })
@@ -575,7 +575,7 @@ describe('AcceptInvitePage', () => {
       const longEmail = 'very.long.email.address+with+tags@subdomain.example.com'
       mockGetInvite.mockResolvedValue({
         ...mockInviteData,
-        invited_email: longEmail,
+        email: longEmail,
       })
 
       renderPage()

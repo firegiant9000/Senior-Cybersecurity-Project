@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useEffect, useCallback, useMemo } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import './Dashboard.css';
 import { useAuth } from './context/AuthContext';
 import { useDarkMode } from './hooks/useDarkMode';
@@ -61,9 +61,9 @@ const Dashboard: React.FC = () => {
         return activeGroupDef.subTabs[0].id;
     }, [activeGroupDef, activeGroup, resolved.sub]);
 
-    // If active group isn't visible or is locked, fall back to overview
+    // If active group isn't visible, fall back to overview
     useEffect(() => {
-        if ((!activeGroupDef || activeGroupDef.locked) && visibleGroups.length > 0) {
+        if (!activeGroupDef && visibleGroups.length > 0) {
             setSearchParams({}, { replace: true });
         }
     }, [activeGroupDef, visibleGroups, setSearchParams]);
@@ -84,7 +84,6 @@ const Dashboard: React.FC = () => {
     const handleGroupChange = useCallback(
         (groupId: string) => {
             const group = visibleGroups.find((g) => g.id === groupId);
-            if (group?.locked) return;
             const params: Record<string, string> = { tab: groupId };
             if (group?.subTabs) {
                 params.sub = group.subTabs[0].id;
@@ -107,10 +106,7 @@ const Dashboard: React.FC = () => {
 
     // The component key to render — for standalone groups it's the group id,
     // for groups with sub-tabs it's the active sub-tab id.
-    // Locked groups fall back to 'overview' to prevent a flash of gated content.
-    const activeComponent = activeGroupDef?.locked
-        ? 'overview'
-        : (activeGroupDef?.subTabs ? activeSubTab : activeGroup);
+    const activeComponent = !activeGroupDef ? 'overview' : activeGroupDef.subTabs ? activeSubTab : activeGroup;
 
     return (
         <div className="dashboard-container">
@@ -137,14 +133,6 @@ const Dashboard: React.FC = () => {
             )}
 
             <main className="dashboard-content">
-                {!orgLoading && orgId == null && (
-                    <div className="org-join-cta">
-                        <span>You are not part of an organization. </span>
-                        <Link to="/settings">Join or create an org</Link>
-                        <span> to unlock org-specific features.</span>
-                    </div>
-                )}
-
                 {activeComponent === 'overview' && (
                     <OverviewTab
                         data={data}

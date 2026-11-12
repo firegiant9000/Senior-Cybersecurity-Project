@@ -17,6 +17,7 @@ import type { AssessmentValidation } from "../api/assessmentValidation";
 import type { FindingsReport } from "../api/findings";
 import SeverityBadge from "../components/shared/SeverityBadge";
 import InfoTip from "../components/shared/InfoTip";
+import { isOrgAdmin } from "../utils/roleUtils";
 import "../Dashboard.css";
 import "./SettingsPage.css";
 
@@ -29,8 +30,7 @@ export default function AssessmentDebugPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const canAccess =
-    role === "admin" || orgRole === "admin" || orgRole === "owner";
+  const canAccess = isOrgAdmin(role, orgRole);
 
   useEffect(() => {
     if (authLoading) return;
