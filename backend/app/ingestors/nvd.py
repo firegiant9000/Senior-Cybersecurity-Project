@@ -13,12 +13,15 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.http_fetch import get_json_capped
 from app.db.models import CVE
 from app.schemas.validators import NvdCveValidationSchema
 
 logger = logging.getLogger(__name__)
 
 NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+NVD_PAGE_MAX_BYTES = 64 * 1024 * 1024  # one bulk page (2000 results)
+NVD_SINGLE_MAX_BYTES = 2 * 1024 * 1024  # one CVE lookup
 
 
 def _should_update_cve(existing: CVE, *, today: date | None = None) -> bool:
@@ -135,9 +138,13 @@ async def fetch_nvd_cve_by_id(
                 headers["apiKey"] = api_key
 
             try:
-                response = await client.get(NVD_URL, params=params, headers=headers)
-                response.raise_for_status()
-                payload = response.json()
+                payload = await get_json_capped(
+                    client,
+                    NVD_URL,
+                    max_bytes=NVD_SINGLE_MAX_BYTES,
+                    params=params,
+                    headers=headers,
+                )
                 break
             except httpx.HTTPStatusError as exc:
                 status_code = exc.response.status_code
@@ -412,8 +419,13 @@ async def ingest_nvd(  # noqa: C901
                 headers["apiKey"] = api_key
 
             try:
-                resp = await client.get(NVD_URL, params=params, headers=headers)
-                resp.raise_for_status()
+                data = await get_json_capped(
+                    client,
+                    NVD_URL,
+                    max_bytes=NVD_PAGE_MAX_BYTES,
+                    params=params,
+                    headers=headers,
+                )
             except httpx.HTTPStatusError as e:
                 status_code = e.response.status_code
                 if use_api_key and status_code in {403, 404}:
@@ -431,8 +443,6 @@ async def ingest_nvd(  # noqa: C901
                     )
                     break
                 raise
-
-            data = resp.json()
 
             # NVD API returns oldest records first at startIndex=0.
             # If caller requests a bounded max_results from index 0,

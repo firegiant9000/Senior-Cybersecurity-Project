@@ -16,12 +16,15 @@ import httpx
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.http_fetch import ResponseTooLargeError, get_json_capped
+from app.core.logging import safe_http_error
 from app.db.models import CVE
 
 logger = logging.getLogger(__name__)
 
 EPSS_API_URL = "https://api.first.org/data/v1/epss"
 BATCH_SIZE = 100  # ~1.6KB URL per batch; FIRST.org rejects URLs >8KB
+EPSS_BATCH_MAX_BYTES = 1024 * 1024  # 100 CVEs per batch; real responses are ~20KB
 
 
 def _valid_probability(value: object) -> float | None:
@@ -60,10 +63,21 @@ async def ingest_epss(db: AsyncSession) -> int:  # noqa: C901
             skipped_invalid = 0
             skipped_unrequested = 0
             try:
-                resp = await client.get(EPSS_API_URL, params={"cve": cve_param})
-                resp.raise_for_status()
-                payload = resp.json()
-                for entry in payload.get("data", []):
+                payload = await get_json_capped(
+                    client,
+                    EPSS_API_URL,
+                    max_bytes=EPSS_BATCH_MAX_BYTES,
+                    params={"cve": cve_param},
+                )
+                if not isinstance(payload, dict):
+                    raise ValueError("EPSS payload was not an object")
+                entries = payload.get("data", [])
+                if not isinstance(entries, list):
+                    raise ValueError("EPSS data was not a list")
+                for entry in entries:
+                    if not isinstance(entry, dict):
+                        skipped_unrequested += 1
+                        continue
                     cve_id = entry.get("cve")
                     if not isinstance(cve_id, str) or cve_id not in requested:
                         skipped_unrequested += 1
@@ -81,8 +95,8 @@ async def ingest_epss(db: AsyncSession) -> int:  # noqa: C901
                         skipped_invalid,
                         skipped_unrequested,
                     )
-            except httpx.HTTPError as exc:
-                logger.warning("EPSS batch %d failed: %s", i // BATCH_SIZE, exc)
+            except (httpx.HTTPError, ResponseTooLargeError, ValueError) as exc:
+                logger.warning("EPSS batch %d failed: %s", i // BATCH_SIZE, safe_http_error(exc))
                 continue
             await asyncio.sleep(0.5)
 
