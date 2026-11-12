@@ -405,10 +405,45 @@ describe('App - Routing & Navigation', () => {
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
     })
 
-    it('shows dashboard for authenticated users at undefined routes', () => {
+    it('shows the not-found page, not the dashboard, at undefined routes', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = 1
       renderApp(['/unknown-route'])
+      expect(screen.getByTestId('not-found-page')).toBeInTheDocument()
+      expect(screen.queryByTestId('dashboard')).not.toBeInTheDocument()
+    })
+
+    it('shows the not-found page at /dashboard/inventory', () => {
+      mockAuthContext.user = { uid: 'user1' } as unknown
+      mockAuthContext.orgId = 1
+      renderApp(['/dashboard/inventory'])
+      expect(screen.getByTestId('not-found-page')).toBeInTheDocument()
+    })
+
+    it('shows the not-found page at /nope', () => {
+      mockAuthContext.user = { uid: 'user1' } as unknown
+      mockAuthContext.orgId = 1
+      renderApp(['/nope'])
+      expect(screen.getByTestId('not-found-page')).toBeInTheDocument()
+    })
+
+    it('shows the not-found page when signed out (no guard)', () => {
+      renderApp(['/nope'])
+      expect(screen.getByTestId('not-found-page')).toBeInTheDocument()
+      expect(screen.queryByTestId('protected-redirect')).not.toBeInTheDocument()
+    })
+
+    it('redirects /assessment-intake to the onboarding page', () => {
+      mockAuthContext.user = { uid: 'user1' } as unknown
+      mockAuthContext.orgId = 1
+      renderApp(['/assessment-intake'])
+      expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
+    })
+
+    it('redirects /assets to the dashboard', () => {
+      mockAuthContext.user = { uid: 'user1' } as unknown
+      mockAuthContext.orgId = 1
+      renderApp(['/assets'])
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
     })
 
@@ -645,11 +680,11 @@ describe('App - Routing & Navigation', () => {
       expect(screen.getByTestId('org-redirect')).toBeInTheDocument()
     })
 
-    it('recovers from invalid route', () => {
+    it('shows the not-found page for an invalid route', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = 1
       renderApp(['/completely-invalid-route'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      expect(screen.getByTestId('not-found-page')).toBeInTheDocument()
     })
 
     it('handles rapid route changes', () => {

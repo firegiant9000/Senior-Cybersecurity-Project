@@ -814,7 +814,7 @@ function OrgRiskScoreCard() {
       <p className="smb-section-sub">
         Calculated from your org's industry and employee range.{' '}
         <Link to="/org-profile" style={{ color: 'var(--accent)', textDecoration: 'underline', fontSize: 'inherit' }}>
-          Update profile
+          Edit organisation profile
         </Link>{' '}
         to recalculate, or{' '}
         <Link
@@ -1018,7 +1018,7 @@ const SmBAdvisorTab: React.FC = () => {
           <p className="smb-profile-hint">
             ⚙️ Industry or state not configured.{' '}
             <Link to="/org-profile" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>
-              Update Organization Profile
+              Edit organisation profile
             </Link>{' '}
             to unlock your full personalized risk report.
           </p>
@@ -1026,7 +1026,7 @@ const SmBAdvisorTab: React.FC = () => {
         {selectedSector && selectedState && !loading && (
           <p className="smb-profile-hint" style={{ marginTop: 4 }}>
             <Link to="/org-profile" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>
-              Update Organization Profile
+              Edit organisation profile
             </Link>{' '}
             to change your industry or state.
           </p>
