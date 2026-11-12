@@ -2,9 +2,7 @@ import React, { Suspense, lazy, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import './Dashboard.css';
 import { useAuth } from './context/AuthContext';
-import { useDarkMode } from './hooks/useDarkMode';
 import { useDashboardData } from './hooks/useDashboardData';
-import DashboardHeader from './components/dashboard/DashboardHeader';
 import TabBar from './components/dashboard/TabBar';
 import SubTabBar from './components/dashboard/SubTabBar';
 import OverviewTab from './components/dashboard/OverviewTab';
@@ -29,8 +27,7 @@ const AssetsPage = lazy(() => import('./pages/AssetsPage'));
 
 const Dashboard: React.FC = () => {
     const [searchParams, setSearchParams] = useSearchParams();
-    const [dark, toggleDark] = useDarkMode();
-    const { user, logout, orgId, orgLoading, role, orgRole } = useAuth();
+    const { user, orgId, orgLoading, role, orgRole } = useAuth();
     const { data, loading, loadingHeavy, errors, lastUpdated, refresh, setOnProgress } = useDashboardData();
 
     const visibleGroups = useMemo(
@@ -109,13 +106,7 @@ const Dashboard: React.FC = () => {
     const activeComponent = !activeGroupDef ? 'overview' : activeGroupDef.subTabs ? activeSubTab : activeGroup;
 
     return (
-        <div className="dashboard-container">
-            <DashboardHeader
-                dark={dark}
-                onToggleDark={toggleDark}
-                user={user}
-                onLogout={logout}
-            />
+        <>
             <TabBar
                 activeGroup={activeGroup}
                 activeSubTab={activeSubTab}
@@ -132,7 +123,6 @@ const Dashboard: React.FC = () => {
                 />
             )}
 
-            <main className="dashboard-content">
                 {activeComponent === 'overview' && (
                     <OverviewTab
                         data={data}
@@ -159,8 +149,7 @@ const Dashboard: React.FC = () => {
                     {activeComponent === 'anomalies' && <AnomaliesTab />}
                     {activeComponent === 'assets' && <AssetsPage />}
                 </Suspense>
-            </main>
-        </div>
+        </>
     );
 };
 

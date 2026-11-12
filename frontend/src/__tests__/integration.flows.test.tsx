@@ -104,6 +104,10 @@ vi.mock('react-router-dom', async () => {
   return { ...actual, useNavigate: () => mockNavigate }
 })
 
+vi.mock('../hooks/useDarkMode', () => ({
+  useDarkMode: () => [false, vi.fn()],
+}))
+
 vi.mock('../Dashboard', () => ({
   default: () => <div data-testid="dashboard">Dashboard</div>,
 }))
