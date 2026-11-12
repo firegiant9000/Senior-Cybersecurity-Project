@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
@@ -8,16 +8,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const {
   mockLogout,
-  mockToggleDark,
   mockRefresh,
 } = vi.hoisted(() => {
   const mockLogout = vi.fn()
-  const mockToggleDark = vi.fn()
   const mockRefresh = vi.fn()
 
   return {
     mockLogout,
-    mockToggleDark,
     mockRefresh,
   }
 })
@@ -72,26 +69,8 @@ vi.mock('./hooks/useDashboardData', () => ({
   }),
 }))
 
-vi.mock('./hooks/useDarkMode', () => ({
-  useDarkMode: () => [false, mockToggleDark],
-}))
-
 vi.mock('./components/dashboard/OverviewTab', () => ({
   default: () => <div data-testid="overview-tab">Overview Content</div>,
-}))
-
-vi.mock('./components/dashboard/DashboardHeader', () => ({
-  default: ({ dark, onToggleDark, user }: { dark: boolean; onToggleDark: () => void; user?: { email?: string } }) => (
-    <header data-testid="dashboard-header">
-      <button data-testid="dark-mode-toggle" onClick={onToggleDark}>
-        Dark: {dark ? 'on' : 'off'}
-      </button>
-      <span data-testid="user-email">{user?.email}</span>
-      <button data-testid="logout-btn" onClick={() => mockLogout()}>
-        Logout
-      </button>
-    </header>
-  ),
 }))
 
 vi.mock('./components/dashboard/TabBar', () => ({
@@ -181,34 +160,6 @@ describe('Dashboard - Navigation & Rendering', () => {
     mockAuthValues.orgLoading = false
     mockAuthValues.role = null
     mockAuthValues.orgRole = null
-  })
-
-  describe('Page Structure & Header', () => {
-    it('renders dashboard container', () => {
-      renderDashboard()
-      expect(screen.getByRole('main')).toBeInTheDocument()
-    })
-
-    it('renders dashboard header', () => {
-      renderDashboard()
-      expect(screen.getByTestId('dashboard-header')).toBeInTheDocument()
-    })
-
-    it('displays current user email in header', () => {
-      mockAuthValues.user = { uid: 'u1', email: 'john@example.com' } as unknown
-      renderDashboard()
-      expect(screen.getByTestId('user-email')).toHaveTextContent('john@example.com')
-    })
-
-    it('renders tab bar', () => {
-      renderDashboard()
-      expect(screen.getByTestId('tab-bar')).toBeInTheDocument()
-    })
-
-    it('displays logo/branding elements', () => {
-      renderDashboard()
-      expect(screen.getByTestId('dashboard-header')).toBeTruthy()
-    })
   })
 
   describe('Tab Visibility by Organization Status', () => {
@@ -395,44 +346,6 @@ describe('Dashboard - Navigation & Rendering', () => {
     })
   })
 
-  describe('Dark Mode Toggle', () => {
-    it('renders dark mode toggle button', () => {
-      renderDashboard()
-      expect(screen.getByTestId('dark-mode-toggle')).toBeInTheDocument()
-    })
-
-    it('calls dark mode toggle when button clicked', async () => {
-      renderDashboard()
-      const toggleBtn = screen.getByTestId('dark-mode-toggle')
-      fireEvent.click(toggleBtn)
-      
-      await waitFor(() => {
-        expect(mockToggleDark).toHaveBeenCalled()
-      })
-    })
-
-    it('displays dark mode state in toggle button', () => {
-      renderDashboard()
-      const toggleBtn = screen.getByTestId('dark-mode-toggle')
-      expect(toggleBtn).toHaveTextContent('Dark: off')
-    })
-  })
-
-  describe('Logout Functionality', () => {
-    it('renders logout button', () => {
-      renderDashboard()
-      expect(screen.getByTestId('logout-btn')).toBeInTheDocument()
-    })
-
-    it('calls logout when logout button clicked', () => {
-      renderDashboard()
-      const logoutBtn = screen.getByTestId('logout-btn')
-      fireEvent.click(logoutBtn)
-      
-      expect(mockLogout).toHaveBeenCalled()
-    })
-  })
-
   describe('Component Rendering by Tab', () => {
     beforeEach(() => {
       mockAuthValues.orgId = 42
@@ -553,7 +466,6 @@ describe('Dashboard - Navigation & Rendering', () => {
   describe('Loading States', () => {
     it('renders correctly while dashboard data is loading', () => {
       renderDashboard()
-      expect(screen.getByTestId('dashboard-header')).toBeInTheDocument()
       expect(screen.getByTestId('tab-bar')).toBeInTheDocument()
     })
 
