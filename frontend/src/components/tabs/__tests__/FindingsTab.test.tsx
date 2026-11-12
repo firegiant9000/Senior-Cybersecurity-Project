@@ -21,6 +21,10 @@ vi.mock('../../../api/findings', () => ({
   patchFindingStatus: mockPatchStatus,
 }))
 
+vi.mock('../DomainIntelTable', () => ({
+  default: () => <div data-testid="domain-intel-table">Domain intel table</div>,
+}))
+
 const makeFinding = (over: Record<string, unknown>) => ({
   id: 'id-1',
   stable_key: 'key-1',
@@ -147,6 +151,21 @@ describe('FindingsTab characterisation', () => {
       expect(mockFetchHistory).toHaveBeenCalledWith(expect.any(AbortSignal), 10),
     )
     expect(await screen.findByText('No previous scans recorded yet.')).toBeInTheDocument()
+  })
+
+  it('shows scan sources behind a collapsed toggle that mounts DomainIntelTable on demand', async () => {
+    mockFetchFindings.mockResolvedValue(twoFindings())
+    renderTab()
+    await screen.findByText('Threat alpha', {}, SLOW)
+
+    const toggle = screen.getByRole('button', { name: /Sources used in this scan/ })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByTestId('domain-intel-table')).not.toBeInTheDocument()
+
+    fireEvent.click(toggle)
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByTestId('domain-intel-table')).toBeInTheDocument()
   })
 
   it('links to /org-profile from the empty state', async () => {

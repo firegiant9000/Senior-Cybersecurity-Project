@@ -97,10 +97,6 @@ const Dashboard: React.FC = () => {
         [activeGroup, setSearchParams],
     );
 
-    const navigateToFindings = useCallback(() => {
-        setSearchParams({ tab: 'assessment', sub: 'findings' });
-    }, [setSearchParams]);
-
     // The component key to render — for standalone groups it's the group id,
     // for groups with sub-tabs it's the active sub-tab id.
     const activeComponent = !activeGroupDef ? 'overview' : activeGroupDef.subTabs ? activeSubTab : activeGroup;
@@ -139,7 +135,7 @@ const Dashboard: React.FC = () => {
                     {activeComponent === 'smbAdvisor' && <SmBAdvisorTab />}
                     {activeComponent === 'findings' && <FindingsTab />}
                     {activeComponent === 'aiSummary' && <AISummaryTab />}
-                    {activeComponent === 'dataSources' && <DataSourcesTab onNavigateToFindings={navigateToFindings} />}
+                    {activeComponent === 'dataSources' && <DataSourcesTab />}
                     {activeComponent === 'riskScoring' && <RiskScoringTable apiBaseUrl={API_BASE_URL} />}
                     {activeComponent === 'threatIntel' && <ThreatIntelTab />}
                     {activeComponent === 'trends' && <TrendsTab />}
