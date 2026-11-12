@@ -1,64 +1,32 @@
 /**
- * Central data-fetching hook for the Overview dashboard.
+ * Data-fetching hook for the fixed Overview.
  *
- * Two-wave loading strategy:
- *   Wave 1 (fast) — drives stat cards and quick charts above the fold:
- *     summary, attackTypes, severityDistribution, temporalTrends, kevTotal
- *   Wave 2 (heavy) — background-loads large dataset widgets:
- *     geographicThreats, sectorAttackMatrix, industryRisk
- *
- * `loading` is true only during wave 1.
- * `loadingHeavy` is true during wave 2 (wave 1 already resolved).
+ * Fetches only what the Overview shows: severity distribution, KEV total,
+ * loss projection and risk score stats. `loadingHeavy` is kept for the
+ * consumer API and always equals `loading`.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import {
-  fetchDashboardSummary,
-  fetchAttackTypes,
-  fetchIndustryRisk,
-  fetchGeographicHeatmap,
   fetchSeverityDistribution,
-  fetchSectorAttackMatrix,
-  type DashboardSummary,
-  type AttackTypeStats,
-  type IndustryRiskProfile,
-  type GeographicThreat,
   type SeverityCount,
-  type SectorAttackCombination,
 } from '../api/dashboardSummary'
 import {
-  fetchTemporalTrends,
   fetchKevTotal,
   fetchRiskScoreStats,
-  fetchIC3AnomalyCount,
-  fetchEscalatingSectorCount,
-  type TemporalTrend,
   type RiskScoreStatsResponse,
 } from '../api/tabsApi'
-import {
-  fetchExecutiveSummary,
-  type ExecutiveSummary,
-} from '../api/executiveSummary'
 import {
   fetchLossProjection,
   type LossProjection,
 } from '../api/lossProjection'
 
 export interface DashboardData {
-  summary:              DashboardSummary | null
-  executiveSummary:     ExecutiveSummary | null
   lossProjection:       LossProjection | null
-  attackTypes:          AttackTypeStats[]
-  industryRisk:         IndustryRiskProfile[]
-  geographicThreats:    GeographicThreat[]
   severityDistribution: SeverityCount[]
-  sectorAttackMatrix:   SectorAttackCombination[]
-  temporalTrends:       TemporalTrend[]
   kevTotal:             number
   riskScoreStats:       RiskScoreStatsResponse | null
-  ic3AnomalyCount:      number | null
-  escalatingSectorCount: number | null
 }
 
 export interface UseDashboardDataResult {
@@ -72,19 +40,10 @@ export interface UseDashboardDataResult {
 }
 
 const EMPTY_DATA: DashboardData = {
-  summary:              null,
-  executiveSummary:     null,
   lossProjection:       null,
-  attackTypes:          [],
-  industryRisk:         [],
-  geographicThreats:    [],
   severityDistribution: [],
-  sectorAttackMatrix:   [],
-  temporalTrends:       [],
   kevTotal:             0,
   riskScoreStats:       null,
-  ic3AnomalyCount:      null,
-  escalatingSectorCount: null,
 }
 
 const TIMEOUT_MS = 10_000
@@ -112,7 +71,6 @@ export function useDashboardData(): UseDashboardDataResult {
   const { user } = useAuth()
   const [data,         setData]         = useState<DashboardData>(EMPTY_DATA)
   const [loading,      setLoading]      = useState(true)
-  const [loadingHeavy, setLoadingHeavy] = useState(true)
   const [errors,       setErrors]       = useState<string[]>([])
   const [lastUpdated,  setLastUpdated]  = useState<Date | null>(null)
   const [refreshKey,   setRefreshKey]   = useState(0)
@@ -129,7 +87,6 @@ export function useDashboardData(): UseDashboardDataResult {
     const { signal } = controller
 
     setLoading(true)
-    setLoadingHeavy(true)
     setErrors([])
 
     const t = <T>(p: Promise<T>, label: string) =>
@@ -152,80 +109,33 @@ export function useDashboardData(): UseDashboardDataResult {
       return errs
     }
 
-    // ── Wave 1: fast endpoints that drive the stat cards ─────────────────────
     Promise.all([
-      t(fetchDashboardSummary(signal),     'Dashboard summary').then(r => { trackProgress('Dashboard summary'); return r; }),
-      t(fetchAttackTypes(signal),          'Attack types').then(r => { trackProgress('Attack types'); return r; }),
       t(fetchSeverityDistribution(signal), 'Severity distribution').then(r => { trackProgress('Severity distribution'); return r; }),
-      t(fetchTemporalTrends(signal),       'Temporal trends').then(r => { trackProgress('Temporal trends'); return r; }),
       t(fetchKevTotal(signal),             'KEV total').then(r => { trackProgress('KEV total'); return r; }),
-      t(fetchExecutiveSummary(signal),     'Executive summary').then(r => { trackProgress('Executive summary'); return r; }),
       t(fetchLossProjection(signal),       'Loss projection').then(r => { trackProgress('Loss projection'); return r; }),
       t(fetchRiskScoreStats(signal),       'Risk score stats').then(r => { trackProgress('Risk score stats'); return r; }),
-    ]).then(([summaryR, attackR, severityR, trendsR, kevR, execR, lossR, riskR]) => {
+    ]).then(([severityR, kevR, lossR, riskR]) => {
       if (signal.aborted) return
 
-      type SummaryResult        = PromiseSettledResult<DashboardSummary>
-      type ExecResult           = PromiseSettledResult<ExecutiveSummary>
       type LossProjectionResult = PromiseSettledResult<LossProjection>
-      type AttackResult         = PromiseSettledResult<{ items: AttackTypeStats[] }>
       type SeverityResult       = PromiseSettledResult<{ items: SeverityCount[] }>
-      type TrendsResult         = PromiseSettledResult<{ items: TemporalTrend[] }>
       type KevTotalResult       = PromiseSettledResult<number>
       type RiskStatsResult      = PromiseSettledResult<RiskScoreStatsResponse>
 
-      const wave1Errors = collectErrors(
-        [summaryR, attackR, severityR, trendsR, kevR, execR, lossR, riskR],
-        ['Summary', 'Attack types', 'Severity data', 'Temporal trends', 'KEV total', 'Executive summary', 'Loss projection', 'Risk score stats'],
+      const errs = collectErrors(
+        [severityR, kevR, lossR, riskR],
+        ['Severity data', 'KEV total', 'Loss projection', 'Risk score stats'],
       )
 
-      setData(prev => ({
-        ...prev,
-        summary:              extract(summaryR  as SummaryResult,        null),
-        executiveSummary:     extract(execR     as ExecResult,           null),
+      setData({
         lossProjection:       extract(lossR     as LossProjectionResult, null),
-        attackTypes:          extract(attackR   as AttackResult,         { items: [] }).items,
         severityDistribution: extract(severityR as SeverityResult,       { items: [] }).items,
-        temporalTrends:       extract(trendsR   as TrendsResult,         { items: [] }).items,
         kevTotal:             extract(kevR      as KevTotalResult,       0),
         riskScoreStats:       extract(riskR     as RiskStatsResult,      null),
-      }))
-      setErrors(wave1Errors)
+      })
+      setErrors(errs)
       setLastUpdated(new Date())
       setLoading(false)
-
-      // ── Wave 2: heavy endpoints loaded in the background ───────────────────
-      Promise.all([
-        t(fetchGeographicHeatmap(signal),       'Geographic heatmap').then(r => { trackProgress('Geographic heatmap'); return r; }),
-        t(fetchSectorAttackMatrix(signal),      'Sector attack matrix').then(r => { trackProgress('Sector attack matrix'); return r; }),
-        t(fetchIndustryRisk(signal),            'Industry risk').then(r => { trackProgress('Industry risk'); return r; }),
-        t(fetchIC3AnomalyCount(signal),         'IC3 anomalies').then(r => { trackProgress('IC3 anomalies'); return r; }),
-        t(fetchEscalatingSectorCount(signal),   'Escalating sectors').then(r => { trackProgress('Escalating sectors'); return r; }),
-      ]).then(([geoR, matrixR, industryR, anomalyR, escalatingR]) => {
-        if (signal.aborted) return
-
-        type GeoResult        = PromiseSettledResult<{ items: GeographicThreat[] }>
-        type MatrixResult     = PromiseSettledResult<{ items: SectorAttackCombination[] }>
-        type IndustryResult   = PromiseSettledResult<{ items: IndustryRiskProfile[] }>
-        type AnomalyResult    = PromiseSettledResult<number>
-
-        const wave2Errors = collectErrors(
-          [geoR, matrixR, industryR, anomalyR, escalatingR],
-          ['Geographic data', 'Sector matrix', 'Industry risk', 'IC3 anomalies', 'Escalating sectors'],
-        )
-
-        setData(prev => ({
-          ...prev,
-          geographicThreats:    extract(geoR        as GeoResult,      { items: [] }).items,
-          sectorAttackMatrix:   extract(matrixR      as MatrixResult,   { items: [] }).items,
-          industryRisk:         extract(industryR    as IndustryResult, { items: [] }).items,
-          ic3AnomalyCount:      extract(anomalyR     as AnomalyResult,  null),
-          escalatingSectorCount: extract(escalatingR as AnomalyResult,  null),
-        }))
-        setErrors(prev => [...prev, ...wave2Errors])
-      }).finally(() => {
-        if (!signal.aborted) setLoadingHeavy(false)
-      })
     }).catch(() => {
       // Catastrophic failure (e.g. AbortError from cleanup) — don't surface
       if (!signal.aborted) setLoading(false)
@@ -234,5 +144,5 @@ export function useDashboardData(): UseDashboardDataResult {
     return () => controller.abort()
   }, [refreshKey, user?.uid])
 
-  return { data, loading, loadingHeavy, errors, lastUpdated, refresh, setOnProgress }
+  return { data, loading, loadingHeavy: loading, errors, lastUpdated, refresh, setOnProgress }
 }

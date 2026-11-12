@@ -80,19 +80,10 @@ const OverviewTab: React.FC<Props> = ({
     const handleRefresh = useCallback(() => {
         // Start progress tracking with all items
         startProgress([
-            'Dashboard summary',
-            'Attack types',
             'Severity distribution',
-            'Temporal trends',
             'KEV total',
-            'Executive summary',
             'Loss projection',
             'Risk score stats',
-            'Geographic heatmap',
-            'Sector attack matrix',
-            'Industry risk',
-            'IC3 anomalies',
-            'Escalating sectors',
         ]);
         refresh();
         setFreshnessRevision((r) => r + 1);
