@@ -19,7 +19,7 @@ const TabBar: React.FC<Props> = ({ activeGroup, activeSubTab, onGroupChange, onS
         else if (e.key === 'End') next = groups.length - 1;
         if (next >= 0) {
             e.preventDefault();
-            if (!groups[next].locked) onGroupChange(groups[next].id);
+            onGroupChange(groups[next].id);
             (e.currentTarget.parentElement?.children[next] as HTMLElement)?.focus();
         }
     };
@@ -31,7 +31,6 @@ const TabBar: React.FC<Props> = ({ activeGroup, activeSubTab, onGroupChange, onS
 
     const handleSelectChange = (value: string) => {
         for (const group of groups) {
-            if (group.locked) continue;
             if (!group.subTabs) {
                 if (group.id === value) { onGroupChange(value); return; }
             } else {
@@ -45,21 +44,18 @@ const TabBar: React.FC<Props> = ({ activeGroup, activeSubTab, onGroupChange, onS
         <>
             {/* Desktop/tablet: horizontal scrolling tab strip */}
             <div className="tabs-container" role="tablist">
-                {groups.map(({ id, label, subTabs, locked }, idx) => (
+                {groups.map(({ id, label, subTabs }, idx) => (
                     <button
                         key={id}
                         role="tab"
-                        aria-selected={!locked && activeGroup === id}
-                        aria-disabled={locked || undefined}
+                        aria-selected={activeGroup === id}
                         tabIndex={activeGroup === id ? 0 : -1}
-                        className={`tab ${activeGroup === id ? 'active' : ''} ${locked ? 'tab--locked' : ''}`}
-                        onClick={() => { if (!locked) onGroupChange(id); }}
+                        className={`tab ${activeGroup === id ? 'active' : ''}`}
+                        onClick={() => onGroupChange(id)}
                         onKeyDown={(e) => handleKeyDown(e, idx)}
-                        title={locked ? 'Complete org setup to unlock' : undefined}
                     >
-                        {locked && <span className="tab-lock-icon" aria-hidden="true">🔒</span>}
                         {label}
-                        {!locked && subTabs && subTabs.length > 0 && (
+                        {subTabs && subTabs.length > 0 && (
                             <span className={`tab-chevron${activeGroup === id ? ' tab-chevron--open' : ''}`} aria-hidden="true">▾</span>
                         )}
                     </button>
@@ -73,10 +69,7 @@ const TabBar: React.FC<Props> = ({ activeGroup, activeSubTab, onGroupChange, onS
                 onChange={(e) => handleSelectChange(e.target.value)}
                 aria-label="Navigate to tab"
             >
-                {groups.map(({ id, label, subTabs, locked }) => {
-                    if (locked) {
-                        return <option key={id} value={id} disabled>🔒 {label}</option>;
-                    }
+                {groups.map(({ id, label, subTabs }) => {
                     if (subTabs && subTabs.length > 0) {
                         return (
                             <optgroup key={id} label={label}>

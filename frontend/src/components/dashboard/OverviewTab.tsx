@@ -26,7 +26,7 @@ import RefreshButton from '../RefreshButton';
 
 import { fetchIngestFreshness } from '../../api/ingest';
 import { useAuth } from '../../context/AuthContext';
-import { canSeePipeline as checkCanSeePipeline } from '../../utils/roleUtils';
+import { isPlatformAdmin } from '../../utils/roleUtils';
 import WidgetSkeleton from '../shared/WidgetSkeleton';
 import AssessmentBanner from '../shared/AssessmentBanner';
 import NextStepsCard from './NextStepsCard';
@@ -820,8 +820,8 @@ const OverviewTab: React.FC<Props> = ({
     onRefresh: refresh,
     onSetRefreshProgress,
 }) => {
-    const { role, orgRole } = useAuth();
-    const pipelineVisible = checkCanSeePipeline(role, orgRole);
+    const { role } = useAuth();
+    const pipelineVisible = isPlatformAdmin(role);
     const [lastIngestAt, setLastIngestAt] = useState<string | null>(null);
     const [freshnessRevision, setFreshnessRevision] = useState(0);
     const [showCustomize, setShowCustomize] = useState(false);

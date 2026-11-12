@@ -4,19 +4,6 @@ import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import VerifyEmailPanel from "./VerifyEmailPanel";
 
-/**
- * Aligns with backend ``PUT /organizations/{org_id}``: global ``role === "admin"``
- * or org-level ``org_role`` of ``owner`` / ``admin`` (API uses lowercase strings).
- */
-export function canEditOrganizationProfile(
-  userRole: string | null | undefined,
-  orgRole: string | null | undefined,
-): boolean {
-  if ((userRole ?? "").toLowerCase() === "admin") return true;
-  const r = (orgRole ?? "").toLowerCase();
-  return r === "admin" || r === "owner";
-}
-
 export default function ProtectedRoute({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
   const { user, loading, orgId, orgLoading, profileError, emailUnverified, signedOutDeliberately, refreshProfile, logout } = useAuth();
   const location = useLocation();

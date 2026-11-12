@@ -1,73 +1,38 @@
 import { describe, it, expect } from 'vitest'
-import { canSeePipeline } from './roleUtils'
+import { isPlatformAdmin, isOrgAdmin, getVisibleGroups } from './roleUtils'
+import type { TabGroupDef } from '../config/tabGroups'
 
-describe('canSeePipeline', () => {
-  it('returns true for global admin', () => {
-    expect(canSeePipeline('admin', null)).toBe(true)
+describe('isPlatformAdmin', () => {
+  it('is true for admin in any case', () => {
+    expect(isPlatformAdmin('admin')).toBe(true)
+    expect(isPlatformAdmin('Admin')).toBe(true)
   })
 
-  it('returns true for org admin', () => {
-    expect(canSeePipeline('viewer', 'admin')).toBe(true)
-  })
-
-  it('returns true when both are admin', () => {
-    expect(canSeePipeline('admin', 'admin')).toBe(true)
-  })
-
-  it('returns false for org owner (not admin)', () => {
-    expect(canSeePipeline('viewer', 'owner')).toBe(false)
-  })
-
-  it('returns false for org member', () => {
-    expect(canSeePipeline('viewer', 'member')).toBe(false)
-  })
-
-  it('returns false when both are null', () => {
-    expect(canSeePipeline(null, null)).toBe(false)
-  })
-
-  it('returns false for empty-string roles', () => {
-    expect(canSeePipeline('', '')).toBe(false)
-  })
-
-  it('is case-sensitive (uppercase Admin does not match)', () => {
-    // Backend values are normalized to lowercase before reaching this function.
-    // This test documents that the function itself does NOT case-fold.
-    expect(canSeePipeline('Admin', null)).toBe(false)
-  })
-
-  it('returns false for undefined inputs (treated as non-admin)', () => {
-    expect(canSeePipeline(undefined as unknown as null, undefined as unknown as null)).toBe(false)
-  })
-
-  it('returns false for whitespace-only role strings', () => {
-    expect(canSeePipeline(' ', ' ')).toBe(false)
-  })
-
-  it('returns true for global admin regardless of orgRole value', () => {
-    expect(canSeePipeline('admin', 'owner')).toBe(true)
-    expect(canSeePipeline('admin', 'member')).toBe(true)
-    expect(canSeePipeline('admin', '')).toBe(true)
-  })
-
-  it('returns true for org admin regardless of global role value', () => {
-    expect(canSeePipeline('owner', 'admin')).toBe(true)
-    expect(canSeePipeline('member', 'admin')).toBe(true)
-    expect(canSeePipeline('', 'admin')).toBe(true)
-  })
-
-  it('returns false for all non-admin role combinations exhaustively', () => {
-    const nonAdminRoles = ['viewer', 'owner', 'member', 'editor', null, ''] as const
-    for (const role of nonAdminRoles) {
-      for (const orgRole of nonAdminRoles) {
-        expect(canSeePipeline(role, orgRole)).toBe(false)
-      }
-    }
+  it('is false for null, undefined, empty and other roles', () => {
+    expect(isPlatformAdmin(null)).toBe(false)
+    expect(isPlatformAdmin(undefined)).toBe(false)
+    expect(isPlatformAdmin('')).toBe(false)
+    expect(isPlatformAdmin('viewer')).toBe(false)
+    expect(isPlatformAdmin('owner')).toBe(false)
   })
 })
 
-import { getVisibleGroups } from './roleUtils'
-import type { TabGroupDef } from '../config/tabGroups'
+describe('isOrgAdmin', () => {
+  it('is true for org owner and org admin', () => {
+    expect(isOrgAdmin(null, 'owner')).toBe(true)
+    expect(isOrgAdmin(null, 'admin')).toBe(true)
+  })
+
+  it('is true for a platform admin with no org role', () => {
+    expect(isOrgAdmin('admin', null)).toBe(true)
+  })
+
+  it('is false for members and for no roles', () => {
+    expect(isOrgAdmin(null, 'member')).toBe(false)
+    expect(isOrgAdmin(null, null)).toBe(false)
+    expect(isOrgAdmin(undefined, undefined)).toBe(false)
+  })
+})
 
 describe('getVisibleGroups', () => {
   const base: TabGroupDef = { id: 'public', label: 'Public' }
@@ -90,23 +55,30 @@ describe('getVisibleGroups', () => {
     expect(result.map((g) => g.id)).toEqual(['public', 'org-tab'])
   })
 
-  it('shows org-required groups as locked when orgId is null', () => {
+  it('hides the admin group from an org admin who is not a platform admin', () => {
+    const result = getVisibleGroups([base, requiresAdmin], {
+      ...baseCtx,
+      role: null,
+      orgRole: 'admin',
+    })
+    expect(result.map((g) => g.id)).toEqual(['public'])
+  })
+
+  it('omits org-required groups when orgId is null', () => {
     const result = getVisibleGroups([base, requiresOrg, requiresAdmin], {
       ...baseCtx,
       orgId: null,
     })
-    expect(result.map((g) => g.id)).toEqual(['public', 'org-tab'])
-    expect(result.find((g) => g.id === 'org-tab')?.locked).toBe(true)
+    expect(result.map((g) => g.id)).toEqual(['public'])
   })
 
-  it('shows org-required groups as locked while orgLoading is true', () => {
+  it('omits org-required groups while orgLoading is true', () => {
     const result = getVisibleGroups([base, requiresOrg], {
       ...baseCtx,
       orgId: 1,
       orgLoading: true,
     })
-    expect(result.map((g) => g.id)).toEqual(['public', 'org-tab'])
-    expect(result.find((g) => g.id === 'org-tab')?.locked).toBe(true)
+    expect(result.map((g) => g.id)).toEqual(['public'])
   })
 
   it('returns empty array when no groups pass filters', () => {
