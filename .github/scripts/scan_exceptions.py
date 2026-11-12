@@ -14,6 +14,7 @@ SCANNERS = (
     "codeql",
     "semgrep",
     "alembic-check",
+    "zap",
 )
 COLUMNS = 7
 SECTION_HEADING = "## Exceptions"

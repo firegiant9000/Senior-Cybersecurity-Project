@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""Fail when a ZAP JSON report has medium or high alerts not covered by an active exception.
+
+Usage: zap_gate.py <zap-report.json> <scan_exceptions.md>
+
+Exits 0 when no alert with riskcode >= 2 remains after removing plugin ids that are active
+`zap` entries in the exception list (expired entries do not count). Otherwise exits 1 and
+prints one line per failing alert: `pluginid riskdesc name (N instances)`.
+"""
+
+import json
+import sys
+from datetime import datetime, timezone
+
+import scan_exceptions
+
+MIN_FAIL_RISK = 2  # ZAP riskcode: 0 info, 1 low, 2 medium, 3 high
+
+
+def _sites(report: dict) -> list[dict]:
+    site = report.get("site", [])
+    if isinstance(site, dict):
+        return [site]
+    return [s for s in site if isinstance(s, dict)]
+
+
+def failing_alerts(report: dict, ignored: set[str]) -> list[dict]:
+    failing = []
+    for site in _sites(report):
+        for a in site.get("alerts", []):
+            if int(a.get("riskcode", 0)) >= MIN_FAIL_RISK and str(a.get("pluginid")) not in ignored:
+                failing.append(a)
+    return failing
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = sys.argv[1:] if argv is None else argv
+    if len(args) != 2:
+        print("usage: zap_gate.py <zap-report.json> <scan_exceptions.md>", file=sys.stderr)
+        return 2
+    report_path, exceptions_path = args
+    try:
+        with open(report_path, encoding="utf-8") as f:
+            report = json.load(f)
+        with open(exceptions_path, encoding="utf-8") as f:
+            entries = scan_exceptions.parse_exceptions(f.read())
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    today = datetime.now(timezone.utc).date()
+    ignored = set(scan_exceptions.active_ids(entries, "zap", today))
+    failing = failing_alerts(report, ignored)
+    for a in failing:
+        print(f"{a['pluginid']} {a.get('riskdesc', '')} {a.get('name', '')} ({len(a.get('instances', []))} instances)")
+    return 1 if failing else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
