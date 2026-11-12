@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import (
     AsyncSession,  # type: ignore[import-not-found]  # pylint: disable=import-error
 )
 
+from app.core.http_fetch import FEED_TIMEOUT, get_json_capped
 from app.db.models import CVE, KEV
 from app.integrations.cve_org import fetch_cve_org_enrichment
 from app.schemas.validators import CisaKevValidationSchema
@@ -23,6 +24,8 @@ from app.schemas.validators import CisaKevValidationSchema
 logger = logging.getLogger(__name__)
 
 CISA_KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+# The catalogue is about 1.5 MB today; cap well above that (T-ING-06).
+KEV_MAX_BYTES = 16 * 1024 * 1024
 
 
 def _parse_date(value: str | None) -> date | None:
@@ -100,10 +103,8 @@ async def ingest_cisa_kev(db: AsyncSession) -> int:  # noqa: C901
     Returns:
         The number of new KEV entries ingested (not including updates)
     """
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(CISA_KEV_URL)
-        resp.raise_for_status()
-        data = resp.json()
+    async with httpx.AsyncClient(timeout=FEED_TIMEOUT) as client:
+        data = await get_json_capped(client, CISA_KEV_URL, max_bytes=KEV_MAX_BYTES)
 
     count = 0
     total_processed = 0
