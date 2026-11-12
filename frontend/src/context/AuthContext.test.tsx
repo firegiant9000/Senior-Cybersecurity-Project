@@ -34,6 +34,7 @@ vi.mock("firebase/auth", () => ({
 
 vi.mock("../firebase", () => ({ auth: {} }));
 
+import { signOut } from "firebase/auth";
 import { AuthProvider, useAuth } from "./AuthContext";
 
 function Probe() {
@@ -208,5 +209,76 @@ describe("AuthContext profile fetch", () => {
     expect(fakeUser.reload).toHaveBeenCalledTimes(1);
     expect(fakeUser.getIdToken).toHaveBeenCalledWith(true);
     expect(fakeUser.calls.indexOf("reload")).toBeLessThan(fakeUser.calls.indexOf("getIdToken(true)"));
+  });
+});
+
+describe("AuthContext signedOutDeliberately", () => {
+  const renders: Array<{ signedOut: boolean; flag: boolean }> = [];
+
+  function FlagProbe() {
+    const { user, signedOutDeliberately, logout } = useAuth();
+    renders.push({ signedOut: user === null, flag: signedOutDeliberately });
+    return (
+      <div>
+        <span data-testid="flag">{String(signedOutDeliberately)}</span>
+        <span data-testid="user">{user ? "in" : "out"}</span>
+        <button onClick={() => logout().catch(() => {})}>logout</button>
+      </div>
+    );
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    renders.length = 0;
+    vi.stubGlobal("fetch", mockFetch);
+    mockFetch.mockResolvedValue(response(200, PROFILE));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("is set before the listener nulls the user, and cleared when a user signs in again", async () => {
+    vi.mocked(signOut).mockImplementation(async () => {
+      authListener.current!(null);
+    });
+    render(
+      <AuthProvider>
+        <FlagProbe />
+      </AuthProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent("in"));
+    expect(screen.getByTestId("flag")).toHaveTextContent("false");
+
+    fireEvent.click(screen.getByText("logout"));
+
+    await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent("out"));
+    expect(screen.getByTestId("flag")).toHaveTextContent("true");
+    // After the first signed-in render (the provider starts with user null before its listener
+    // runs), no render shows a signed-out user without the flag.
+    const afterSignIn = renders.slice(renders.findIndex((r) => !r.signedOut));
+    expect(afterSignIn.some((r) => r.signedOut)).toBe(true);
+    expect(afterSignIn.filter((r) => r.signedOut && !r.flag)).toEqual([]);
+
+    act(() => {
+      authListener.current!(fakeUser);
+    });
+    await waitFor(() => expect(screen.getByTestId("flag")).toHaveTextContent("false"));
+  });
+
+  it("does not stay set when signOut fails", async () => {
+    vi.mocked(signOut).mockRejectedValue(new Error("network"));
+    render(
+      <AuthProvider>
+        <FlagProbe />
+      </AuthProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent("in"));
+
+    fireEvent.click(screen.getByText("logout"));
+
+    await waitFor(() => expect(signOut).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByTestId("flag")).toHaveTextContent("false"));
+    expect(screen.getByTestId("user")).toHaveTextContent("in");
   });
 });
