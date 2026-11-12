@@ -264,6 +264,14 @@ describe('OrgProfilePage characterisation', () => {
     fireEvent.click(within(sec).getByLabelText('None'))
     expect(within(sec).getByLabelText('None')).toBeChecked()
     expect(within(sec).getByLabelText('HIPAA')).not.toBeChecked()
+    // a framework after "None" clears "None"
+    fireEvent.click(within(sec).getByLabelText('HIPAA'))
+    expect(within(sec).getByLabelText('HIPAA')).toBeChecked()
+    expect(within(sec).getByLabelText('None')).not.toBeChecked()
+    // "Unsure" after a framework clears the framework
+    fireEvent.click(within(sec).getByLabelText('Unsure'))
+    expect(within(sec).getByLabelText('Unsure')).toBeChecked()
+    expect(within(sec).getByLabelText('HIPAA')).not.toBeChecked()
   })
 
   it('3. saving Security Profile sends exactly its six fields, then createVendor per cloud provider', async () => {

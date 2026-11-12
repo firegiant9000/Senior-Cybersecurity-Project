@@ -69,7 +69,7 @@ export default function CompanySection({ orgId, canEdit, onChanged }: SectionPro
   };
 
   return (
-    <div className="section-accordion-body">
+    <div className="section-accordion-body company-section">
       {!canEdit && (
         <p className="settings-readonly-hint">
           Only organization owners, organization admins, or platform
