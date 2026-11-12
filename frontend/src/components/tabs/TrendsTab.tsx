@@ -9,6 +9,7 @@ import WidgetSkeleton from '../shared/WidgetSkeleton';
 import WidgetErrorBoundary from '../shared/WidgetErrorBoundary';
 import { COLORS } from '../../theme';
 import { IC3_SECTORS } from '../../api/tabsApi';
+import IncidentLandscape from '../intel/IncidentLandscape';
 
 interface ProjectedPoint {
   year: number;
@@ -466,6 +467,7 @@ const TrendsTab: React.FC = () => {
           </div>
         </WidgetErrorBoundary>
       </div>
+      <IncidentLandscape />
     </div>
   );
 };
