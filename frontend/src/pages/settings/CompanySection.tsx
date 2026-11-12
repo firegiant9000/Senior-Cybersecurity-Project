@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useUserContext } from "../../context/UserContext";
 import { updateOrganization } from "../../api/organizations";
 import { httpUrlOrNull } from "../../utils/safeUrl";
@@ -30,17 +30,21 @@ export default function CompanySection({ orgId, canEdit, onChanged }: SectionPro
     error: orgError,
   } = useUserContext();
 
-  const [companyNameField, setCompanyNameField] = useState("");
-  const [logoUrlField, setLogoUrlField] = useState("");
-  const [primaryDomainField, setPrimaryDomainField] = useState("");
-  const [industryLabelField, setIndustryLabelField] = useState("");
+  // Fields start from the organization already loaded, so the first render is
+  // correct and the sync effect below does not overwrite an early edit.
+  const [companyNameField, setCompanyNameField] = useState(() => organization?.name ?? "");
+  const [logoUrlField, setLogoUrlField] = useState(() => organization?.logo_url ?? "");
+  const [primaryDomainField, setPrimaryDomainField] = useState(() => organization?.primary_domain ?? "");
+  const [industryLabelField, setIndustryLabelField] = useState(() => organization?.industry_label ?? "");
   const [companySaveMsg, setCompanySaveMsg] = useState("");
   const [companySaveErr, setCompanySaveErr] = useState("");
   const [companySaving, setCompanySaving] = useState(false);
+  const syncedOrganization = useRef(organization);
 
-  // Sync company profile fields when organization data loads
+  // Re-sync company profile fields when a different organization object arrives
   useEffect(() => {
-    if (!organization) return;
+    if (!organization || organization === syncedOrganization.current) return;
+    syncedOrganization.current = organization;
     setCompanyNameField(organization.name);
     setLogoUrlField(organization.logo_url ?? "");
     setPrimaryDomainField(organization.primary_domain ?? "");

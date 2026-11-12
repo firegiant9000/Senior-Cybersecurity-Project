@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useUserContext } from "../../context/UserContext";
 import { updateOrganization } from "../../api/organizations";
 import { createVendor } from "../../api/vendors";
@@ -63,19 +63,27 @@ export default function SecurityProfileSection({
 }: SectionProps & { onVendorsSynced: () => void }) {
   const { organization, refreshOrganization } = useUserContext();
 
-  const [securityControls, setSecurityControls] = useState<Record<string, "yes" | "no" | "unsure">>({});
-  const [cloudProviders, setCloudProviders] = useState<string[]>([]);
-  const [complianceFrameworks, setComplianceFrameworks] = useState<string[]>([]);
-  const [dataTypes, setDataTypes] = useState<string[]>([]);
-  const [deviceCountRange, setDeviceCountRange] = useState("");
-  const [incidentHistory, setIncidentHistory] = useState("");
+  // Fields start from the organization already loaded, so the first render is
+  // correct and the sync effect below does not overwrite an early edit.
+  const [securityControls, setSecurityControls] = useState<Record<string, "yes" | "no" | "unsure">>(
+    () => (organization?.security_controls ?? {}) as Record<string, "yes" | "no" | "unsure">,
+  );
+  const [cloudProviders, setCloudProviders] = useState<string[]>(() => organization?.cloud_providers ?? []);
+  const [complianceFrameworks, setComplianceFrameworks] = useState<string[]>(
+    () => organization?.compliance_frameworks ?? [],
+  );
+  const [dataTypes, setDataTypes] = useState<string[]>(() => organization?.data_types ?? []);
+  const [deviceCountRange, setDeviceCountRange] = useState(() => organization?.device_count_range ?? "");
+  const [incidentHistory, setIncidentHistory] = useState(() => organization?.incident_history ?? "");
   const [secProfileSaveMsg, setSecProfileSaveMsg] = useState("");
   const [secProfileSaveErr, setSecProfileSaveErr] = useState("");
   const [secProfileSaving, setSecProfileSaving] = useState(false);
+  const syncedOrganization = useRef(organization);
 
-  // Sync security profile fields when organization data loads
+  // Re-sync security profile fields when a different organization object arrives
   useEffect(() => {
-    if (!organization) return;
+    if (!organization || organization === syncedOrganization.current) return;
+    syncedOrganization.current = organization;
     setSecurityControls((organization.security_controls ?? {}) as Record<string, "yes" | "no" | "unsure">);
     setCloudProviders(organization.cloud_providers ?? []);
     setComplianceFrameworks(organization.compliance_frameworks ?? []);
