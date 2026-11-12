@@ -17,13 +17,7 @@ import WidgetSkeleton from '../shared/WidgetSkeleton';
 import WidgetErrorBoundary from '../shared/WidgetErrorBoundary';
 import { COLORS, RISK_COLORS, SEVERITY_COLORS } from '../../theme';
 
-const SEVERITY_ORDER = ['Critical', 'High', 'Medium', 'Low', 'Unknown'];
-
-function fmtM(v: number): string {
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000)     return `${Math.round(v / 1_000)}k`;
-  return String(v);
-}
+import { SEVERITY_ORDER, fmtM } from '../intel/vulnSource';
 
 function severityBadge(label: string) {
   const color = RISK_COLORS[label as keyof typeof RISK_COLORS] ?? '#9e9e9e';
