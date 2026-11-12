@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { isOrgAdmin } from "../utils/roleUtils";
 import { useAccountProfile } from "./settings/useAccountProfile";
 import AccountSection from "./settings/AccountSection";
@@ -8,8 +8,6 @@ import "../Dashboard.css";
 import "./SettingsPage.css";
 
 export default function SettingsPage() {
-  const navigate = useNavigate();
-
   const { profile, loading, error } = useAccountProfile();
 
   const canManageMembers =
@@ -18,28 +16,12 @@ export default function SettingsPage() {
     isOrgAdmin(profile.role, profile.org_role);
 
   return (
-    <div className="dashboard-container">
-      <header className="dashboard-header">
-        <h1>Settings</h1>
-        <div className="header-buttons">
-          <button type="button" onClick={() => navigate("/")}>
-            Back to Dashboard
-          </button>
-          {profile?.org_id != null && (
-            <button type="button" onClick={() => navigate("/org-profile")}>
-              Organization Profile
-            </button>
-          )}
-          {canManageMembers && (
-            <button
-              type="button"
-              onClick={() => navigate("/settings/assessment-debug")}
-            >
-              Assessment Debug
-            </button>
-          )}
-        </div>
-      </header>
+    <>
+      <h1>Settings</h1>
+      <nav className="settings-page-links" aria-label="Related pages">
+        {profile?.org_id != null && <Link to="/org-profile">Organization Profile</Link>}
+        {canManageMembers && <Link to="/settings/assessment-debug">Assessment Debug</Link>}
+      </nav>
 
       <div className="settings-page settings-page--embedded">
         <div className="settings-card settings-card--wide">
@@ -63,6 +45,6 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 }

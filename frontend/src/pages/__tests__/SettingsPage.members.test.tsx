@@ -247,6 +247,23 @@ describe('SettingsPage - Member Management', () => {
       })
     })
 
+    it('has an h1, cross-links for an org admin and no Back to Dashboard control', async () => {
+      renderPage()
+
+      expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.getByRole('link', { name: 'Organization Profile' })).toHaveAttribute(
+          'href',
+          '/org-profile',
+        )
+      })
+      expect(screen.getByRole('link', { name: 'Assessment Debug' })).toHaveAttribute(
+        'href',
+        '/settings/assessment-debug',
+      )
+      expect(screen.queryByText(/Back to Dashboard/i)).not.toBeInTheDocument()
+    })
+
     it('shows loading state initially', () => {
       renderPage()
 
