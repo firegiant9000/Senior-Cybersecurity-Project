@@ -52,9 +52,10 @@ class FailingAlertsTest(unittest.TestCase):
         rep = {"site": {"alerts": [alert("10038", "2")]}}
         self.assertEqual(len(zap_gate.failing_alerts(rep, set())), 1)
 
-    def test_missing_site_or_alerts_passes(self):
-        self.assertEqual(zap_gate.failing_alerts({}, set()), [])
-        self.assertEqual(zap_gate.failing_alerts({"site": [{}]}, set()), [])
+    def test_malformed_riskcode_fails(self):
+        for bad in ({"pluginid": "7"}, {"pluginid": "7", "riskcode": "x"}):
+            result = zap_gate.failing_alerts(report([bad]), {"7"})
+            self.assertEqual(len(result), 1)
 
 
 class CliTest(unittest.TestCase):
@@ -76,9 +77,37 @@ class CliTest(unittest.TestCase):
         self.assertEqual(self._run(report([alert("10038", "2")]), md), 0)
 
     def test_expired_exception_not_ignored(self):
+        import contextlib
+        import io
+
         today = datetime.now(timezone.utc).date()
         md = HEADER + self._row(today - timedelta(days=30), today - timedelta(days=1))
-        self.assertEqual(self._run(report([alert("10038", "2")]), md), 1)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = self._run(report([alert("10038", "2")]), md)
+        self.assertEqual(code, 1)
+        self.assertIn("10038", buf.getvalue())
+
+    def test_empty_or_siteless_report_fails_closed(self):
+        import contextlib
+        import io
+
+        for rep in ({}, {"site": []}, {"site": "oops"}):
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(self._run(rep, HEADER), 1, rep)
+
+    def test_site_with_no_alerts_passes(self):
+        self.assertEqual(self._run({"site": [{"alerts": []}]}, HEADER), 0)
+
+    def test_malformed_riskcode_cli_fails_and_names_plugin(self):
+        import contextlib
+        import io
+
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            code = self._run(report([{"pluginid": "777"}]), HEADER)
+        self.assertEqual(code, 1)
+        self.assertIn("777", err.getvalue())
 
     def test_output_line_format(self):
         import contextlib

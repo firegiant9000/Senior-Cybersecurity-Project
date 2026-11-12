@@ -24,11 +24,20 @@ def _sites(report: dict) -> list[dict]:
     return [s for s in site if isinstance(s, dict)]
 
 
+def _risk(alert: dict) -> int | None:
+    try:
+        return int(alert["riskcode"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def failing_alerts(report: dict, ignored: set[str]) -> list[dict]:
+    """Alerts with riskcode >= 2 not ignored, plus any alert whose riskcode is missing or non-numeric."""
     failing = []
     for site in _sites(report):
         for a in site.get("alerts", []):
-            if int(a.get("riskcode", 0)) >= MIN_FAIL_RISK and str(a.get("pluginid")) not in ignored:
+            risk = _risk(a)
+            if risk is None or (risk >= MIN_FAIL_RISK and str(a.get("pluginid")) not in ignored):
                 failing.append(a)
     return failing
 
@@ -48,10 +57,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
+    if not isinstance(report, dict) or not _sites(report):
+        print("error: ZAP report has no site entries (empty or failed scan?)", file=sys.stderr)
+        return 1
+
     today = datetime.now(timezone.utc).date()
     ignored = set(scan_exceptions.active_ids(entries, "zap", today))
     failing = failing_alerts(report, ignored)
     for a in failing:
+        if _risk(a) is None:
+            print(f"error: alert {a.get('pluginid')} has a missing or non-numeric riskcode", file=sys.stderr)
         print(f"{a['pluginid']} {a.get('riskdesc', '')} {a.get('name', '')} ({len(a.get('instances', []))} instances)")
     return 1 if failing else 0
 
