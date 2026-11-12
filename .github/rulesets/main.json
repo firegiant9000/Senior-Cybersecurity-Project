@@ -1,0 +1,68 @@
+{
+  "name": "main",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "exclude": [],
+      "include": ["~DEFAULT_BRANCH"]
+    }
+  },
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "allowed_merge_methods": ["merge", "squash", "rebase"],
+        "dismiss_stale_reviews_on_push": false,
+        "require_code_owner_review": false,
+        "require_extra_approval_for_unattributed_changes": true,
+        "require_last_push_approval": false,
+        "required_approving_review_count": 0,
+        "required_review_thread_resolution": false,
+        "required_reviewers": []
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "do_not_enforce_on_create": false,
+        "strict_required_status_checks_policy": true,
+        "required_status_checks": [
+          { "context": "Backend Lint", "integration_id": 15368 },
+          { "context": "Backend Tests", "integration_id": 15368 },
+          { "context": "Deploy Preview to Firebase Hosting", "integration_id": 15368 },
+          { "context": "Frontend Lint", "integration_id": 15368 },
+          { "context": "Frontend Tests", "integration_id": 15368 },
+          { "context": "Scan exceptions and workflow pins", "integration_id": 15368 },
+          { "context": "pip-audit (backend)", "integration_id": 15368 },
+          { "context": "govulncheck (agent)", "integration_id": 15368 },
+          { "context": "Trivy (backend image)", "integration_id": 15368 },
+          { "context": "npm audit (frontend, prod deps)", "integration_id": 15368 },
+          { "context": "gitleaks (full history)", "integration_id": 15368 },
+          { "context": "Agent (Go scanner)", "integration_id": 15368 },
+          { "context": "Analyze (actions)", "integration_id": 15368 },
+          { "context": "Analyze (go)", "integration_id": 15368 },
+          { "context": "Analyze (javascript-typescript)", "integration_id": 15368 },
+          { "context": "Analyze (python)", "integration_id": 15368 }
+        ]
+      }
+    },
+    {
+      "type": "code_scanning",
+      "parameters": {
+        "code_scanning_tools": [
+          {
+            "tool": "CodeQL",
+            "alerts_threshold": "errors",
+            "security_alerts_threshold": "high_or_higher"
+          }
+        ]
+      }
+    }
+  ],
+  "bypass_actors": [
+    { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" }
+  ]
+}

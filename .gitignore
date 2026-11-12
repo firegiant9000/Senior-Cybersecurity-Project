@@ -10,6 +10,9 @@
 service-account.json
 **/service-account*.json
 
+# Database dumps (backup drill; contain personal data and live invite tokens)
+*.dump
+
 # Python venv + caches
 .venv/
 venv/
