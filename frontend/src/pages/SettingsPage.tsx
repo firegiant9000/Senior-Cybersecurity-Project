@@ -3,16 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { isOrgAdmin } from "../utils/roleUtils";
 import { useAccountProfile } from "./settings/useAccountProfile";
 import AccountSection from "./settings/AccountSection";
-import {
-  OrgMember,
-  OrgInvite,
-  listMembers,
-  listInvites,
-  createInvite,
-  revokeInvite,
-  updateMemberRole,
-  removeMember,
-} from "../api/members";
+import TeamSection from "./settings/TeamSection";
 import {
   Agent,
   AgentTokenIssued,
@@ -30,23 +21,6 @@ export default function SettingsPage() {
 
   const { profile, loading, error } = useAccountProfile();
 
-  // Members & invites state
-  const [membersList, setMembersList] = useState<OrgMember[]>([]);
-  const [membersTotal, setMembersTotal] = useState(0);
-  const [membersPage, setMembersPage] = useState(1);
-  const [membersLoading, setMembersLoading] = useState(false);
-  const [membersError, setMembersError] = useState("");
-  const [membersMsg, setMembersMsg] = useState("");
-  const [invitesList, setInvitesList] = useState<OrgInvite[]>([]);
-  const [invitesTotal, setInvitesTotal] = useState(0);
-  const [invitesPage, setInvitesPage] = useState(1);
-  const [invitesLoading, setInvitesLoading] = useState(false);
-  const [invitesError, setInvitesError] = useState("");
-  const [invitesMsg, setInvitesMsg] = useState("");
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState("member");
-  const membersPageSize = 20;
-
   // Agent enrollment state (Month 4 Phase 2)
   const [agentsList, setAgentsList] = useState<Agent[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(false);
@@ -56,10 +30,6 @@ export default function SettingsPage() {
   // The raw token is shown exactly once, right after enroll/rotate.
   const [issuedToken, setIssuedToken] = useState<AgentTokenIssued | null>(null);
   const [copied, setCopied] = useState(false);
-  const [createdInviteLink, setCreatedInviteLink] = useState<string | null>(
-    null,
-  );
-  const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
 
   const loadAgents = useCallback(async () => {
     setAgentsLoading(true);
@@ -74,50 +44,10 @@ export default function SettingsPage() {
     }
   }, []);
 
-  const loadMembers = useCallback(async (orgId: number, page: number) => {
-    setMembersLoading(true);
-    setMembersError("");
-    try {
-      const data = await listMembers(orgId, page, membersPageSize);
-      setMembersList(data.items);
-      setMembersTotal(data.total);
-    } catch {
-      setMembersError("Failed to load members");
-    } finally {
-      setMembersLoading(false);
-    }
-  }, []);
-
-  const loadInvites = useCallback(async (orgId: number, page: number) => {
-    setInvitesLoading(true);
-    setInvitesError("");
-    try {
-      const data = await listInvites(orgId, page, membersPageSize);
-      setInvitesList(data.items);
-      setInvitesTotal(data.total);
-    } catch {
-      setInvitesError("Failed to load invites");
-    } finally {
-      setInvitesLoading(false);
-    }
-  }, []);
-
   const canManageMembers =
     profile != null &&
     profile.org_id != null &&
     isOrgAdmin(profile.role, profile.org_role);
-
-  useEffect(() => {
-    if (profile?.org_id && canManageMembers) {
-      loadMembers(profile.org_id, membersPage);
-    }
-  }, [profile?.org_id, membersPage, loadMembers, canManageMembers]);
-
-  useEffect(() => {
-    if (profile?.org_id && canManageMembers) {
-      loadInvites(profile.org_id, invitesPage);
-    }
-  }, [profile?.org_id, invitesPage, loadInvites, canManageMembers]);
 
   useEffect(() => {
     if (profile?.org_id && canManageMembers) {
@@ -212,86 +142,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleCopyInviteLink = async () => {
-    if (!createdInviteLink) return;
-    try {
-      await window.navigator.clipboard.writeText(createdInviteLink);
-      setInviteLinkCopied(true);
-    } catch {
-      // Clipboard rejected or unavailable: the link stays visible to select.
-      setInviteLinkCopied(false);
-    }
-  };
-
-  const handleSendInvite = async () => {
-    if (!profile?.org_id || !inviteEmail.trim()) return;
-    setInvitesError("");
-    setInvitesMsg("");
-    setCreatedInviteLink(null);
-    setInviteLinkCopied(false);
-    try {
-      const created = await createInvite(
-        profile.org_id,
-        inviteEmail.trim(),
-        inviteRole,
-      );
-      setInviteEmail("");
-      setInviteRole("member");
-      setCreatedInviteLink(
-        `${window.location.origin}/invites/${encodeURIComponent(created.token)}`,
-      );
-      setInvitesMsg("Invite created. Copy the link and send it.");
-      loadInvites(profile.org_id, 1);
-      setInvitesPage(1);
-    } catch (err) {
-      setInvitesError(
-        err instanceof Error ? err.message : "Failed to send invite",
-      );
-    }
-  };
-
-  const handleRevokeInvite = async (inviteId: number) => {
-    if (!profile?.org_id) return;
-    setInvitesError("");
-    try {
-      await revokeInvite(profile.org_id, inviteId);
-      setCreatedInviteLink(null);
-      setInviteLinkCopied(false);
-      setInvitesMsg("");
-      loadInvites(profile.org_id, invitesPage);
-    } catch {
-      setInvitesError("Failed to revoke invite");
-    }
-  };
-
-  const handleUpdateMemberRole = async (userId: number, newRole: string) => {
-    if (!profile?.org_id) return;
-    setMembersError("");
-    try {
-      await updateMemberRole(profile.org_id, userId, newRole);
-      setMembersMsg("Role updated");
-      loadMembers(profile.org_id, membersPage);
-    } catch (err) {
-      setMembersError(
-        err instanceof Error ? err.message : "Failed to update role",
-      );
-    }
-  };
-
-  const handleRemoveMember = async (userId: number) => {
-    if (!profile?.org_id) return;
-    setMembersError("");
-    try {
-      await removeMember(profile.org_id, userId);
-      setMembersMsg("Member removed");
-      loadMembers(profile.org_id, membersPage);
-    } catch (err) {
-      setMembersError(
-        err instanceof Error ? err.message : "Failed to remove member",
-      );
-    }
-  };
-
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
@@ -326,286 +176,12 @@ export default function SettingsPage() {
               <AccountSection profile={profile} />
 
               {profile.org_id != null && canManageMembers && (
-                <section className="settings-section">
-                  <h2>Members</h2>
-                  <p className="tech-stack-description">
-                    Manage who belongs to your organization and their roles.
-                  </p>
-
-                  {membersMsg && (
-                    <div className="settings-action-msg">{membersMsg}</div>
-                  )}
-                  {membersError && (
-                    <div
-                      className="settings-error"
-                      style={{
-                        whiteSpace: "pre-line",
-                        marginBottom: "0.75rem",
-                      }}
-                    >
-                      {membersError}
-                    </div>
-                  )}
-
-                  {membersLoading ? (
-                    <p className="settings-loading">Loading members...</p>
-                  ) : membersList.length === 0 ? (
-                    <p className="vendor-empty">No members found.</p>
-                  ) : (
-                    <>
-                      <table className="vendor-table">
-                        <thead>
-                          <tr>
-                            <th>Email</th>
-                            <th>Role</th>
-                            <th>Joined</th>
-                            <th></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {membersList.map((m) => (
-                            <tr key={m.user_id}>
-                              <td>{m.email}</td>
-                              <td>
-                                {m.role === "owner" ? (
-                                  <span className="role-badge">
-                                    {m.role}
-                                  </span>
-                                ) : (
-                                  <select
-                                    className="member-role-select"
-                                    value={m.role ?? "member"}
-                                    onChange={(e) =>
-                                      handleUpdateMemberRole(
-                                        m.user_id,
-                                        e.target.value,
-                                      )
-                                    }
-                                    disabled={
-                                      m.user_id === profile.id ||
-                                      profile.org_role !== "owner" && profile.role !== "admin"
-                                    }
-                                  >
-                                    <option value="member">member</option>
-                                    <option value="admin">admin</option>
-                                  </select>
-                                )}
-                              </td>
-                              <td>
-                                {new Date(m.created_at).toLocaleDateString()}
-                              </td>
-                              <td>
-                                {m.role !== "owner" &&
-                                  m.user_id !== profile.id && (
-                                    <button
-                                      className="vendor-delete-btn"
-                                      onClick={() => handleRemoveMember(m.user_id)}
-                                      title="Remove member"
-                                    >
-                                      &times;
-                                    </button>
-                                  )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      {membersTotal > membersPageSize && (
-                        <div className="vendor-pagination">
-                          <button
-                            className="action-btn"
-                            disabled={membersPage <= 1}
-                            onClick={() => setMembersPage((p) => p - 1)}
-                          >
-                            Previous
-                          </button>
-                          <span className="vendor-page-info">
-                            Page {membersPage} of{" "}
-                            {Math.ceil(membersTotal / membersPageSize)}
-                          </span>
-                          <button
-                            className="action-btn"
-                            disabled={
-                              membersPage >=
-                              Math.ceil(membersTotal / membersPageSize)
-                            }
-                            onClick={() => setMembersPage((p) => p + 1)}
-                          >
-                            Next
-                          </button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </section>
-              )}
-
-              {profile.org_id != null && canManageMembers && (
-                <section className="settings-section">
-                  <h2>Invitations</h2>
-                  <p className="tech-stack-description">
-                    Invite users to join your organization. They will need to
-                    create an account with the invited email and accept the
-                    invite.
-                  </p>
-
-                  {invitesMsg && (
-                    <div className="settings-action-msg">{invitesMsg}</div>
-                  )}
-                  {createdInviteLink && (
-                    <div
-                      className="settings-action-msg"
-                      style={{
-                        border: "1px solid var(--accent, #2d7)",
-                        padding: "0.75rem",
-                        marginBottom: "0.75rem",
-                      }}
-                    >
-                      <pre
-                        style={{
-                          whiteSpace: "pre-wrap",
-                          wordBreak: "break-all",
-                          margin: "0.5rem 0",
-                          userSelect: "all",
-                        }}
-                      >
-                        {createdInviteLink}
-                      </pre>
-                      <div style={{ display: "flex", gap: "0.5rem" }}>
-                        <button
-                          className="action-btn"
-                          onClick={handleCopyInviteLink}
-                        >
-                          {inviteLinkCopied ? "Copied!" : "Copy link"}
-                        </button>
-                        <button
-                          className="action-btn"
-                          onClick={() => {
-                            setCreatedInviteLink(null);
-                            setInviteLinkCopied(false);
-                            setInvitesMsg("");
-                          }}
-                        >
-                          Done
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  {invitesError && (
-                    <div
-                      className="settings-error"
-                      style={{
-                        whiteSpace: "pre-line",
-                        marginBottom: "0.75rem",
-                      }}
-                    >
-                      {invitesError}
-                    </div>
-                  )}
-
-                  <div className="vendor-add-form">
-                    <div className="vendor-input-wrapper">
-                      <input
-                        type="email"
-                        placeholder="user@example.com"
-                        value={inviteEmail}
-                        onChange={(e) => setInviteEmail(e.target.value)}
-                        onKeyDown={(e) =>
-                          e.key === "Enter" && handleSendInvite()
-                        }
-                      />
-                    </div>
-                    <select
-                      className="member-role-select"
-                      value={inviteRole}
-                      onChange={(e) => setInviteRole(e.target.value)}
-                    >
-                      <option value="member">member</option>
-                      <option value="admin">admin</option>
-                    </select>
-                    <button
-                      className="action-btn"
-                      onClick={handleSendInvite}
-                      disabled={!inviteEmail.trim()}
-                    >
-                      Send Invite
-                    </button>
-                  </div>
-
-                  {invitesLoading ? (
-                    <p className="settings-loading">Loading invites...</p>
-                  ) : invitesList.length === 0 ? (
-                    <p className="vendor-empty">No pending invitations.</p>
-                  ) : (
-                    <>
-                      <table className="vendor-table">
-                        <thead>
-                          <tr>
-                            <th>Email</th>
-                            <th>Role</th>
-                            <th>Status</th>
-                            <th>Expires</th>
-                            <th></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {invitesList.map((inv) => (
-                            <tr key={inv.id}>
-                              <td>{inv.email}</td>
-                              <td>{inv.role}</td>
-                              <td>
-                                <span
-                                  className={`status-badge ${inv.status === "pending" ? "active" : "inactive"}`}
-                                >
-                                  {inv.status}
-                                </span>
-                              </td>
-                              <td>
-                                {new Date(inv.expires_at).toLocaleDateString()}
-                              </td>
-                              <td>
-                                {inv.status === "pending" && (
-                                  <button
-                                    className="vendor-delete-btn"
-                                    onClick={() => handleRevokeInvite(inv.id)}
-                                    title="Revoke invite"
-                                  >
-                                    &times;
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      {invitesTotal > membersPageSize && (
-                        <div className="vendor-pagination">
-                          <button
-                            className="action-btn"
-                            disabled={invitesPage <= 1}
-                            onClick={() => setInvitesPage((p) => p - 1)}
-                          >
-                            Previous
-                          </button>
-                          <span className="vendor-page-info">
-                            Page {invitesPage} of{" "}
-                            {Math.ceil(invitesTotal / membersPageSize)}
-                          </span>
-                          <button
-                            className="action-btn"
-                            disabled={
-                              invitesPage >=
-                              Math.ceil(invitesTotal / membersPageSize)
-                            }
-                            onClick={() => setInvitesPage((p) => p + 1)}
-                          >
-                            Next
-                          </button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </section>
+                <TeamSection
+                  orgId={profile.org_id}
+                  userId={profile.id}
+                  role={profile.role}
+                  orgRole={profile.org_role}
+                />
               )}
               {profile.org_id != null && canManageMembers && (
                 <section className="settings-section">
