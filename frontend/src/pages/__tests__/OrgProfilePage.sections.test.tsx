@@ -126,7 +126,7 @@ function setup(route = '/org-profile') {
 
 async function loaded(route?: string) {
   const utils = setup(route)
-  await screen.findByLabelText('Name')
+  await screen.findByLabelText(/^Company Name/)
   return utils
 }
 
@@ -168,14 +168,14 @@ describe('OrgProfilePage section state survives collapse', () => {
   it('keeps an unsaved Company edit after collapsing and reopening', async () => {
     await loaded()
     // Wait for the section's sync-from-organisation effect before editing.
-    await waitFor(() => expect(screen.getByLabelText('Name')).toHaveValue('Acme Corp'))
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Draft Name' } })
+    await waitFor(() => expect(screen.getByLabelText(/^Company Name/)).toHaveValue('Acme Corp'))
+    fireEvent.change(screen.getByLabelText(/^Company Name/), { target: { value: 'Draft Name' } })
     const header = screen.getByRole('button', { name: /^Company profile/ })
     fireEvent.click(header)
     expect(header).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(header)
     expect(header).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByLabelText('Name')).toHaveValue('Draft Name')
+    expect(screen.getByLabelText(/^Company Name/)).toHaveValue('Draft Name')
   })
 
   it('keeps an unsaved Security Profile edit after collapsing and reopening', async () => {
