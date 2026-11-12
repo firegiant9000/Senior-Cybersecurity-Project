@@ -196,6 +196,13 @@ describe('OrgProfilePage characterisation', () => {
     expect(screen.queryByRole('button', { name: 'Save security profile' })).not.toBeInTheDocument()
   })
 
+  it('1c. has an h1, an Account Settings link and no Back to Dashboard control', async () => {
+    await loaded()
+    expect(screen.getByRole('heading', { level: 1, name: 'Organization Profile' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Account Settings' })).toHaveAttribute('href', '/settings')
+    expect(screen.queryByText(/Back to Dashboard/i)).not.toBeInTheDocument()
+  })
+
   it('2. saving Company sends exactly name, logo_url, primary_domain, industry_label', async () => {
     await loaded()
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: '  Acme Ltd  ' } })
