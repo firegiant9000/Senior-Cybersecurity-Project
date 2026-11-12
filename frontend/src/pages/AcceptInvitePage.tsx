@@ -102,11 +102,11 @@ export default function AcceptInvitePage() {
                 </div>
                 <div className="settings-field">
                   <label>Role</label>
-                  <span className="role-badge">{invite.org_role}</span>
+                  <span className="role-badge">{invite.role}</span>
                 </div>
                 <div className="settings-field">
                   <label>Invited email</label>
-                  <span>{invite.invited_email}</span>
+                  <span>{invite.email}</span>
                 </div>
                 <div className="settings-field">
                   <label>Expires</label>

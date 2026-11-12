@@ -23,23 +23,23 @@ export interface TabGroupDef {
 export const TAB_GROUPS: TabGroupDef[] = [
   {
     id: 'overview',
-    label: 'Threat Dashboard',
+    label: 'Overview',
   },
   {
     id: 'assessment',
     label: 'Org Risk Assessment',
     requiresOrg: true,
     subTabs: [
-      { id: 'smbAdvisor', label: 'SMB Risk Advisor' },
+      { id: 'smbAdvisor', label: 'Risk Profile' },
       { id: 'findings', label: 'Security Findings' },
-      { id: 'aiSummary', label: 'AI Risk Briefing' },
+      { id: 'aiSummary', label: 'AI Briefing' },
     ],
   },
   {
     id: 'threats',
     label: 'CVE & Threat Intel',
     subTabs: [
-      { id: 'threatIntel', label: 'KEV & CVE Explorer' },
+      { id: 'threatIntel', label: 'Recent Vulnerabilities' },
       { id: 'riskScoring', label: 'Vulnerability Scoring' },
       { id: 'anomalies', label: 'Anomalies' },
     ],

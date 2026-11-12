@@ -38,10 +38,10 @@ vi.mock("../api/members", () => ({
 import AcceptInvitePage from "./AcceptInvitePage";
 
 const mockInvite = {
-  invite_token: "test-token-123",
+  token: "test-token-123",
   org_name: "Acme Corp",
-  org_role: "member",
-  invited_email: "user@example.com",
+  role: "member",
+  email: "user@example.com",
   expires_at: "2026-12-31T00:00:00Z",
 };
 

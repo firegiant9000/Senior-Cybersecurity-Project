@@ -14,7 +14,7 @@ A screen capture of a local Hacker Tracker instance. It shows a synthetic organi
    - Security controls: answer about half and leave the rest unknown, so the briefing has data gaps to mention.
 
    The AI summary needs the profile at **Enhanced** tier or above (`GET /api/v1/organizations/mine/intake`); the route returns 422 below that.
-5. **Dry take:** open the **AI Summary** tab once before recording, so a slow first call doesn't land in the take. Each Gemini call costs about half a US cent, and the route allows 5 calls per minute.
+5. **Dry take:** open the **AI Briefing** tab once before recording, so a slow first call doesn't land in the take. Each Gemini call costs about half a US cent, and the route allows 5 calls per minute.
 
 ## The 60 seconds
 
@@ -22,7 +22,7 @@ A screen capture of a local Hacker Tracker instance. It shows a synthetic organi
 |---|---|---|
 | 0–8 s | Dashboard for `Bayou Bakery LLC (demo)` | "This is Hacker Tracker, running locally on a made-up bakery. Every finding comes from public threat feeds matched against the bakery's software and domain." |
 | 8–20 s | **Findings**: scroll the known-exploited (KEV) findings and the missing-SPF/DMARC finding | "Here are the raw findings: products on CISA's known-exploited list, and an email domain with no spoofing protection." |
-| 20–35 s | **AI Summary**: click **Regenerate**, then show the narrative and the notable risks | "Gemini turns that into a plain-English briefing for the owner. The prompt passes the organisation's details and findings as a block of data, not as instructions, which makes it much harder for text typed into a profile field to take over the briefing." |
+| 20–35 s | **AI Briefing**: click **Regenerate**, then show the narrative and the notable risks | "Gemini turns that into a plain-English briefing for the owner. The prompt passes the organisation's details and findings as a block of data, not as instructions, which makes it much harder for text typed into a profile field to take over the briefing." |
 | 35–50 s | Browser dev tools, **Network**: the `mine/ai-summary?force_refresh=true` response with `notable_risks[0].finding_ids` expanded, next to the matching finding `id` in the `mine/findings` response | "Each risk has to cite the ids of the findings it's based on. A validator drops any risk that cites nothing or cites an id that isn't in the input, so every risk is tied to a real finding." |
 | 50–60 s | `docs/ai/case-study.md`, the results table | "On 22 held-out test cases, the hardened version stopped both attacks that got through before: 0 of 10 attack cases succeeded. That still leaves a 95% upper bound of about 30%, so it isn't statistically proven, and the case study says so." |
 

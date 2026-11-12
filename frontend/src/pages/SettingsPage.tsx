@@ -73,6 +73,10 @@ export default function SettingsPage() {
   // The raw token is shown exactly once, right after enroll/rotate.
   const [issuedToken, setIssuedToken] = useState<AgentTokenIssued | null>(null);
   const [copied, setCopied] = useState(false);
+  const [createdInviteLink, setCreatedInviteLink] = useState<string | null>(
+    null,
+  );
+  const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
 
   const loadAgents = useCallback(async () => {
     setAgentsLoading(true);
@@ -225,15 +229,35 @@ export default function SettingsPage() {
     }
   };
 
+  const handleCopyInviteLink = async () => {
+    if (!createdInviteLink) return;
+    try {
+      await window.navigator.clipboard.writeText(createdInviteLink);
+      setInviteLinkCopied(true);
+    } catch {
+      // Clipboard rejected or unavailable: the link stays visible to select.
+      setInviteLinkCopied(false);
+    }
+  };
+
   const handleSendInvite = async () => {
     if (!profile?.org_id || !inviteEmail.trim()) return;
     setInvitesError("");
     setInvitesMsg("");
+    setCreatedInviteLink(null);
+    setInviteLinkCopied(false);
     try {
-      await createInvite(profile.org_id, inviteEmail.trim(), inviteRole);
+      const created = await createInvite(
+        profile.org_id,
+        inviteEmail.trim(),
+        inviteRole,
+      );
       setInviteEmail("");
       setInviteRole("member");
-      setInvitesMsg("Invite sent");
+      setCreatedInviteLink(
+        `${window.location.origin}/invites/${encodeURIComponent(created.token)}`,
+      );
+      setInvitesMsg("Invite created. Copy the link and send it.");
       loadInvites(profile.org_id, 1);
       setInvitesPage(1);
     } catch (err) {
@@ -248,6 +272,9 @@ export default function SettingsPage() {
     setInvitesError("");
     try {
       await revokeInvite(profile.org_id, inviteId);
+      setCreatedInviteLink(null);
+      setInviteLinkCopied(false);
+      setInvitesMsg("");
       loadInvites(profile.org_id, invitesPage);
     } catch {
       setInvitesError("Failed to revoke invite");
@@ -564,6 +591,45 @@ export default function SettingsPage() {
 
                   {invitesMsg && (
                     <div className="settings-action-msg">{invitesMsg}</div>
+                  )}
+                  {createdInviteLink && (
+                    <div
+                      className="settings-action-msg"
+                      style={{
+                        border: "1px solid var(--accent, #2d7)",
+                        padding: "0.75rem",
+                        marginBottom: "0.75rem",
+                      }}
+                    >
+                      <pre
+                        style={{
+                          whiteSpace: "pre-wrap",
+                          wordBreak: "break-all",
+                          margin: "0.5rem 0",
+                          userSelect: "all",
+                        }}
+                      >
+                        {createdInviteLink}
+                      </pre>
+                      <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <button
+                          className="action-btn"
+                          onClick={handleCopyInviteLink}
+                        >
+                          {inviteLinkCopied ? "Copied!" : "Copy link"}
+                        </button>
+                        <button
+                          className="action-btn"
+                          onClick={() => {
+                            setCreatedInviteLink(null);
+                            setInviteLinkCopied(false);
+                            setInvitesMsg("");
+                          }}
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
                   )}
                   {invitesError && (
                     <div
