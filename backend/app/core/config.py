@@ -1,8 +1,10 @@
 """Core configuration and settings."""
 
+import ipaddress
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import model_validator
 
@@ -12,6 +14,30 @@ try:
     )
 except ImportError:  # pragma: no cover - fallback for older environments
     from pydantic import BaseSettings  # type: ignore
+
+
+def _production_cors_origin_problem(origin: str) -> "str | None":
+    """Return why an origin is unacceptable in production, or None if it is acceptable."""
+    try:
+        parts = urlsplit(origin)
+        host = parts.hostname or ""
+    except ValueError:
+        return "origin is malformed"
+    if parts.scheme != "https":
+        return "scheme must be https"
+    if not host or "*" in host:
+        return "host must be an explicit name without wildcards"
+    if host == "localhost":
+        return "localhost is not allowed"
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    else:
+        return "IP literal hosts are not allowed"
+    if parts.path not in ("", "/"):
+        return "path must be empty"
+    return None
 
 
 class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
@@ -81,13 +107,14 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
 
     @model_validator(mode="after")
     def _validate_production_cors(self) -> "Settings":
-        if not self.is_dev_or_test:
-            localhost_origins = [o for o in self.CORS_ORIGINS if "localhost" in o]
-            if localhost_origins:
+        if self.is_dev_or_test:
+            return self
+        for origin in self.CORS_ORIGINS:
+            problem = _production_cors_origin_problem(origin)
+            if problem is not None:
                 raise ValueError(
-                    f"CORS_ORIGINS contains localhost entries {localhost_origins} "
-                    f"but APP_ENV={self.APP_ENV!r}. "
-                    "Set CORS_ORIGINS to production domains only."
+                    f"CORS_ORIGINS entry {origin!r} is not allowed when APP_ENV={self.APP_ENV!r}: "
+                    f"{problem}. Set CORS_ORIGINS to exact https production origins only."
                 )
         return self
 
