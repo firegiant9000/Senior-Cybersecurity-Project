@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useUserContext } from "../../context/UserContext";
 import { updateOrganization } from "../../api/organizations";
 import { httpUrlOrNull } from "../../utils/safeUrl";
@@ -30,8 +30,6 @@ export default function CompanySection({ orgId, canEdit, onChanged }: SectionPro
     error: orgError,
   } = useUserContext();
 
-  // Fields start from the organization already loaded, so the first render is
-  // correct and the sync effect below does not overwrite an early edit.
   const [companyNameField, setCompanyNameField] = useState(() => organization?.name ?? "");
   const [logoUrlField, setLogoUrlField] = useState(() => organization?.logo_url ?? "");
   const [primaryDomainField, setPrimaryDomainField] = useState(() => organization?.primary_domain ?? "");
@@ -39,17 +37,18 @@ export default function CompanySection({ orgId, canEdit, onChanged }: SectionPro
   const [companySaveMsg, setCompanySaveMsg] = useState("");
   const [companySaveErr, setCompanySaveErr] = useState("");
   const [companySaving, setCompanySaving] = useState(false);
-  const syncedOrganization = useRef(organization);
 
-  // Re-sync company profile fields when a different organization object arrives
-  useEffect(() => {
-    if (!organization || organization === syncedOrganization.current) return;
-    syncedOrganization.current = organization;
+  // Re-sync the fields when a different organization object arrives. This is
+  // done during render, not in an effect, so the fields never commit with stale
+  // values and an edit made right after they appear is not overwritten.
+  const [syncedOrganization, setSyncedOrganization] = useState(organization);
+  if (organization && organization !== syncedOrganization) {
+    setSyncedOrganization(organization);
     setCompanyNameField(organization.name);
     setLogoUrlField(organization.logo_url ?? "");
     setPrimaryDomainField(organization.primary_domain ?? "");
     setIndustryLabelField(organization.industry_label ?? "");
-  }, [organization]);
+  }
 
   const companyFieldsDisabled = orgLoading || !organization || !canEdit;
   const logoPreviewUrl = httpUrlOrNull(logoUrlField);

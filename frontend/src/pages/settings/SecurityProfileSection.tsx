@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useUserContext } from "../../context/UserContext";
 import { updateOrganization } from "../../api/organizations";
 import { createVendor } from "../../api/vendors";
@@ -63,8 +63,6 @@ export default function SecurityProfileSection({
 }: SectionProps & { onVendorsSynced: () => void }) {
   const { organization, refreshOrganization } = useUserContext();
 
-  // Fields start from the organization already loaded, so the first render is
-  // correct and the sync effect below does not overwrite an early edit.
   const [securityControls, setSecurityControls] = useState<Record<string, "yes" | "no" | "unsure">>(
     () => (organization?.security_controls ?? {}) as Record<string, "yes" | "no" | "unsure">,
   );
@@ -78,19 +76,20 @@ export default function SecurityProfileSection({
   const [secProfileSaveMsg, setSecProfileSaveMsg] = useState("");
   const [secProfileSaveErr, setSecProfileSaveErr] = useState("");
   const [secProfileSaving, setSecProfileSaving] = useState(false);
-  const syncedOrganization = useRef(organization);
 
-  // Re-sync security profile fields when a different organization object arrives
-  useEffect(() => {
-    if (!organization || organization === syncedOrganization.current) return;
-    syncedOrganization.current = organization;
+  // Re-sync the fields when a different organization object arrives. This is
+  // done during render, not in an effect, so the fields never commit with stale
+  // values and an edit made right after they appear is not overwritten.
+  const [syncedOrganization, setSyncedOrganization] = useState(organization);
+  if (organization && organization !== syncedOrganization) {
+    setSyncedOrganization(organization);
     setSecurityControls((organization.security_controls ?? {}) as Record<string, "yes" | "no" | "unsure">);
     setCloudProviders(organization.cloud_providers ?? []);
     setComplianceFrameworks(organization.compliance_frameworks ?? []);
     setDataTypes(organization.data_types ?? []);
     setDeviceCountRange(organization.device_count_range ?? "");
     setIncidentHistory(organization.incident_history ?? "");
-  }, [organization]);
+  }
 
   const toggleSecProfileItem = (
     field: "cloudProviders" | "complianceFrameworks" | "dataTypes",
