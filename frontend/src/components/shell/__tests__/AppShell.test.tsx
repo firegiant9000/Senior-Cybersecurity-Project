@@ -1,3 +1,4 @@
+import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -26,6 +27,11 @@ vi.mock('../../../hooks/useDarkMode', () => ({
 function GoButton() {
   const navigate = useNavigate();
   return <button onClick={() => navigate('/glossary')}>go glossary</button>;
+}
+
+function SearchButton() {
+  const navigate = useNavigate();
+  return <button onClick={() => navigate('/dashboard?tab=vendorAlerts')}>go vendor</button>;
 }
 
 function renderShell(initial: string) {
@@ -76,6 +82,37 @@ describe('AppShell', () => {
     expect(document.title).toBe('Glossary · Hacker Tracker');
   });
 
+  it('does not focus main on initial load under StrictMode', () => {
+    render(
+      <React.StrictMode>
+        <MemoryRouter initialEntries={['/dashboard']}>
+          <Routes>
+            <Route element={<AppShell />}>
+              <Route path="/dashboard" element={<p>dash</p>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </React.StrictMode>,
+    );
+    expect(document.activeElement).not.toBe(screen.getByRole('main'));
+  });
+
+  it('updates the title but keeps focus on a search-only change', () => {
+    render(
+      <MemoryRouter initialEntries={['/dashboard?tab=assessment&sub=findings']}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route path="/dashboard" element={<SearchButton />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(document.title).toBe('Security Findings · Hacker Tracker');
+    fireEvent.click(screen.getByText('go vendor'));
+    expect(document.title).toBe('Vendor Alerts · Hacker Tracker');
+    expect(document.activeElement).not.toBe(screen.getByRole('main'));
+  });
+
   it('calls the dark mode toggle from the header theme button', () => {
     renderShell('/dashboard');
     fireEvent.click(screen.getByTitle('Toggle dark mode'));
@@ -99,6 +136,7 @@ describe('titleFor', () => {
     expect(titleFor('/dashboard', '?tab=vendorAlerts')).toBe('Vendor Alerts');
     expect(titleFor('/dashboard', '?tab=assessment')).toBe('Risk Profile');
     expect(titleFor('/dashboard', '')).toBe('Overview');
+    expect(titleFor('/dashboard', '?tab=nope&x=1')).toBe('Overview');
   });
 
   it('uses the static map for other paths', () => {

@@ -22,8 +22,8 @@ function dashboardTitle(search: string): string {
   const tabId = legacy?.sub ? legacy.tab : (rawTab ?? 'overview');
   const subId = legacy?.sub ? legacy.sub : rawSub;
 
-  const group = TAB_GROUPS.find((g) => g.id === tabId);
-  if (!group) return DEFAULT_TITLE;
+  // Dashboard renders Overview for an unknown tab, so the title follows.
+  const group = TAB_GROUPS.find((g) => g.id === tabId) ?? TAB_GROUPS[0];
   if (group.subTabs) {
     const sub = group.subTabs.find((s) => s.id === subId) ?? group.subTabs[0];
     return sub.label;
