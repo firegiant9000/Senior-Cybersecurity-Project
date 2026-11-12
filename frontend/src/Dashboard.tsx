@@ -1,10 +1,8 @@
 import React, { Suspense, lazy, useEffect, useCallback, useMemo } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import './Dashboard.css';
 import { useAuth } from './context/AuthContext';
-import { useDarkMode } from './hooks/useDarkMode';
 import { useDashboardData } from './hooks/useDashboardData';
-import DashboardHeader from './components/dashboard/DashboardHeader';
 import TabBar from './components/dashboard/TabBar';
 import SubTabBar from './components/dashboard/SubTabBar';
 import OverviewTab from './components/dashboard/OverviewTab';
@@ -29,8 +27,7 @@ const AssetsPage = lazy(() => import('./pages/AssetsPage'));
 
 const Dashboard: React.FC = () => {
     const [searchParams, setSearchParams] = useSearchParams();
-    const [dark, toggleDark] = useDarkMode();
-    const { user, logout, orgId, orgLoading, role, orgRole } = useAuth();
+    const { user, orgId, orgLoading, role, orgRole } = useAuth();
     const { data, loading, loadingHeavy, errors, lastUpdated, refresh, setOnProgress } = useDashboardData();
 
     const visibleGroups = useMemo(
@@ -61,9 +58,9 @@ const Dashboard: React.FC = () => {
         return activeGroupDef.subTabs[0].id;
     }, [activeGroupDef, activeGroup, resolved.sub]);
 
-    // If active group isn't visible or is locked, fall back to overview
+    // If active group isn't visible, fall back to overview
     useEffect(() => {
-        if ((!activeGroupDef || activeGroupDef.locked) && visibleGroups.length > 0) {
+        if (!activeGroupDef && visibleGroups.length > 0) {
             setSearchParams({}, { replace: true });
         }
     }, [activeGroupDef, visibleGroups, setSearchParams]);
@@ -84,7 +81,6 @@ const Dashboard: React.FC = () => {
     const handleGroupChange = useCallback(
         (groupId: string) => {
             const group = visibleGroups.find((g) => g.id === groupId);
-            if (group?.locked) return;
             const params: Record<string, string> = { tab: groupId };
             if (group?.subTabs) {
                 params.sub = group.subTabs[0].id;
@@ -101,25 +97,12 @@ const Dashboard: React.FC = () => {
         [activeGroup, setSearchParams],
     );
 
-    const navigateToFindings = useCallback(() => {
-        setSearchParams({ tab: 'assessment', sub: 'findings' });
-    }, [setSearchParams]);
-
     // The component key to render — for standalone groups it's the group id,
     // for groups with sub-tabs it's the active sub-tab id.
-    // Locked groups fall back to 'overview' to prevent a flash of gated content.
-    const activeComponent = activeGroupDef?.locked
-        ? 'overview'
-        : (activeGroupDef?.subTabs ? activeSubTab : activeGroup);
+    const activeComponent = !activeGroupDef ? 'overview' : activeGroupDef.subTabs ? activeSubTab : activeGroup;
 
     return (
-        <div className="dashboard-container">
-            <DashboardHeader
-                dark={dark}
-                onToggleDark={toggleDark}
-                user={user}
-                onLogout={logout}
-            />
+        <>
             <TabBar
                 activeGroup={activeGroup}
                 activeSubTab={activeSubTab}
@@ -135,15 +118,6 @@ const Dashboard: React.FC = () => {
                     onSubTabChange={handleSubTabChange}
                 />
             )}
-
-            <main className="dashboard-content">
-                {!orgLoading && orgId == null && (
-                    <div className="org-join-cta">
-                        <span>You are not part of an organization. </span>
-                        <Link to="/settings">Join or create an org</Link>
-                        <span> to unlock org-specific features.</span>
-                    </div>
-                )}
 
                 {activeComponent === 'overview' && (
                     <OverviewTab
@@ -161,7 +135,7 @@ const Dashboard: React.FC = () => {
                     {activeComponent === 'smbAdvisor' && <SmBAdvisorTab />}
                     {activeComponent === 'findings' && <FindingsTab />}
                     {activeComponent === 'aiSummary' && <AISummaryTab />}
-                    {activeComponent === 'dataSources' && <DataSourcesTab onNavigateToFindings={navigateToFindings} />}
+                    {activeComponent === 'dataSources' && <DataSourcesTab />}
                     {activeComponent === 'riskScoring' && <RiskScoringTable apiBaseUrl={API_BASE_URL} />}
                     {activeComponent === 'threatIntel' && <ThreatIntelTab />}
                     {activeComponent === 'trends' && <TrendsTab />}
@@ -171,8 +145,7 @@ const Dashboard: React.FC = () => {
                     {activeComponent === 'anomalies' && <AnomaliesTab />}
                     {activeComponent === 'assets' && <AssetsPage />}
                 </Suspense>
-            </main>
-        </div>
+        </>
     );
 };
 

@@ -14,6 +14,7 @@ import { downloadCsv } from '../../utils/csvExport';
 import SeverityBadge from '../shared/SeverityBadge';
 import DisclaimerBanner from '../shared/DisclaimerBanner';
 import InfoTip from '../shared/InfoTip';
+import DomainIntelTable from './DomainIntelTable';
 import './FindingsTab.css';
 
 const TYPE_LABELS: Record<string, { label: string; icon: string }> = {
@@ -73,6 +74,7 @@ const FindingsTab: React.FC = () => {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [history, setHistory] = useState<SnapshotListItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [showSources, setShowSources] = useState(false);
 
   const loadHistory = useCallback(() => {
     if (!user) return;
@@ -219,7 +221,7 @@ const FindingsTab: React.FC = () => {
                 <li>At least one security question answered</li>
               </ul>
               <Link to="/org-profile" className="findings-error-action">
-                Complete Profile
+                Edit organisation profile
               </Link>
             </>
           ) : (
@@ -237,7 +239,7 @@ const FindingsTab: React.FC = () => {
                   Retry
                 </button>
                 <Link to="/org-profile" className="findings-error-action" style={{ background: 'transparent', color: 'var(--accent)', border: '1px solid var(--accent)' }}>
-                  Review Profile
+                  Edit organisation profile
                 </Link>
               </div>
             </>
@@ -258,7 +260,7 @@ const FindingsTab: React.FC = () => {
             profile data is limited — try adding more vendors and domains in Organization Profile.
           </p>
           <Link to="/org-profile" className="findings-empty-action">
-            Update Profile
+            Edit organisation profile
           </Link>
         </div>
       </div>
@@ -511,6 +513,18 @@ const FindingsTab: React.FC = () => {
             )}
           </div>
         )}
+      </section>
+
+      {/* Sources used in this scan */}
+      <section className="findings-history-section">
+        <button
+          className="findings-history-toggle"
+          aria-expanded={showSources}
+          onClick={() => setShowSources((prev) => !prev)}
+        >
+          {showSources ? '▲' : '▼'} Sources used in this scan
+        </button>
+        {showSources && <DomainIntelTable />}
       </section>
     </div>
   );

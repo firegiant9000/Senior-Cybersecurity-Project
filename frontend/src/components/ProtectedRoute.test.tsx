@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { describe, it, expect, vi } from "vitest";
 
 const { authState } = vi.hoisted(() => ({
@@ -22,6 +22,7 @@ function setAuth(overrides: Record<string, unknown>) {
     orgLoading: false,
     profileError: false,
     emailUnverified: false,
+    signedOutDeliberately: false,
     refreshProfile: vi.fn(),
     resendVerification: vi.fn(),
     confirmVerification: vi.fn(),
@@ -64,6 +65,63 @@ describe("ProtectedRoute", () => {
 
     expect(await screen.findByText(/We couldn't confirm your address yet/i)).toBeInTheDocument();
     expect(confirmVerification).toHaveBeenCalledTimes(1);
+  });
+
+  it("signed out: redirects to /login with the requested URL in ?next=", () => {
+    setAuth({ user: null });
+
+    function LoginSearch() {
+      return <p data-testid="login-search">{useLocation().search}</p>;
+    }
+
+    render(
+      <MemoryRouter initialEntries={["/invites/tok123?x=1#h"]}>
+        <Routes>
+          <Route path="/login" element={<LoginSearch />} />
+          <Route
+            path="/invites/:token"
+            element={
+              <ProtectedRoute>
+                <p>protected content</p>
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("login-search")).toHaveTextContent("?next=%2Finvites%2Ftok123%3Fx%3D1%23h");
+    expect(screen.queryByText("protected content")).not.toBeInTheDocument();
+  });
+
+  it("deliberate sign-out: goes to / and never to /login", () => {
+    setAuth({ user: null, signedOutDeliberately: true });
+
+    function Where({ label }: { label: string }) {
+      const l = useLocation();
+      return <p data-testid={label}>{l.pathname + l.search}</p>;
+    }
+
+    render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <Routes>
+          <Route path="/" element={<Where label="home" />} />
+          <Route path="/login" element={<Where label="login" />} />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <p>protected content</p>
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("home")).toHaveTextContent("/");
+    expect(screen.queryByTestId("login")).not.toBeInTheDocument();
+    expect(screen.queryByText("protected content")).not.toBeInTheDocument();
   });
 
   it("profileError screen unchanged when emailUnverified is false", () => {

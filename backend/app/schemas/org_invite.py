@@ -25,6 +25,12 @@ class InviteRead(BaseModel):
     created_at: datetime
 
 
+class InviteCreated(InviteRead):
+    """Creation response only: carries the invite token once. Never used for listing."""
+
+    token: str
+
+
 class InviteListResponse(BaseModel):
     total: int
     page: int

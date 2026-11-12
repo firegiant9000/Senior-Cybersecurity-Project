@@ -12,9 +12,10 @@ import GlossaryPage from "./pages/GlossaryPage.tsx";
 import PrivacyPage from "./pages/PrivacyPage.tsx";
 import DataHandlingPage from "./pages/DataHandlingPage.tsx";
 import UploadInventoryPage from "./pages/UploadInventoryPage.tsx";
-import AssetsPage from "./pages/AssetsPage.tsx";
+import NotFoundPage from "./pages/NotFoundPage.tsx";
 import IntegrationsPage from "./pages/IntegrationsPage.tsx";
 import ProtectedRoute from "./components/ProtectedRoute.tsx";
+import AppShell from "./components/shell/AppShell.tsx";
 import DemoBanner from "./components/DemoBanner.tsx";
 import { useAuth } from "./context/AuthContext.tsx";
 
@@ -66,14 +67,7 @@ function App() {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/assessment-intake"
-        element={
-          <ProtectedRoute requireOrg={false}>
-            <AssessmentIntakePage />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/assessment-intake" element={<Navigate to="/onboarding" replace />} />
       <Route
         path="/org-profile"
         element={
@@ -108,14 +102,7 @@ function App() {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/assets"
-        element={
-          <ProtectedRoute>
-            <AssetsPage />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/assets" element={<Navigate to="/dashboard?tab=assets" replace />} />
       <Route
         path="/integrations"
         element={
@@ -125,13 +112,15 @@ function App() {
         }
       />
       <Route
-        path="/*"
         element={
           <ProtectedRoute>
-            <Dashboard />
+            <AppShell />
           </ProtectedRoute>
         }
-      />
+      >
+        <Route path="/dashboard" element={<Dashboard />} />
+      </Route>
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
     </>
   );

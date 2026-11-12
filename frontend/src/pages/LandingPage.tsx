@@ -108,7 +108,7 @@ const LandingPage: React.FC = () => {
           to give small and medium businesses a clear picture of their real-world exposure.
         </p>
         <div className="landing-hero-ctas">
-          <Link to="/signup" className="landing-cta-primary">Get Started — Free</Link>
+          <Link to="/signup" className="landing-cta-primary">Get Started</Link>
           <Link to="/login" className="landing-cta-secondary">Sign In</Link>
         </div>
       </div>
@@ -140,7 +140,7 @@ const LandingPage: React.FC = () => {
 
     <section className="landing-cta-section">
       <h2 className="landing-cta-title">Ready to see your risk profile?</h2>
-      <p className="landing-cta-sub">Set up your organization in minutes. No credit card required.</p>
+      <p className="landing-cta-sub">An application-security reference implementation that also works as an exposure-management prototype. Not a commercial product.</p>
       <Link to="/signup" className="landing-cta-primary landing-cta-large">Get Started</Link>
     </section>
 
@@ -163,6 +163,10 @@ const LandingPage: React.FC = () => {
           BEA<InfoTip text={getAcronymDefinition('BEA')!} label="BEA" />
         </span>
         . For informational purposes only.
+      </p>
+      <p className="landing-footer-links">
+        <Link to="/privacy">Privacy</Link>{' · '}
+        <Link to="/data-handling">Data handling</Link>
       </p>
     </footer>
   </div>
