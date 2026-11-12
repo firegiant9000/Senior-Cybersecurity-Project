@@ -18,7 +18,7 @@ export function canEditOrganizationProfile(
 }
 
 export default function ProtectedRoute({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
-  const { user, loading, orgId, orgLoading, profileError, emailUnverified, refreshProfile, logout } = useAuth();
+  const { user, loading, orgId, orgLoading, profileError, emailUnverified, signedOutDeliberately, refreshProfile, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -31,7 +31,16 @@ export default function ProtectedRoute({ children, requireOrg = true }: { childr
   }
 
   if (!user) {
-    return <Navigate to="/" replace />;
+    // A deliberate sign-out goes to the landing page, not a login that would remember this page.
+    if (signedOutDeliberately) {
+      return <Navigate to="/" replace />;
+    }
+    return (
+      <Navigate
+        to={`/login?next=${encodeURIComponent(location.pathname + location.search + location.hash)}`}
+        replace
+      />
+    );
   }
 
   // A new account whose email isn't verified yet gets the verify screen, not a profile error

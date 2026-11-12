@@ -76,6 +76,9 @@ const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout }
                                 <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/settings'); }}>
                                     Settings
                                 </button>
+                                <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/integrations'); }}>
+                                    Integrations
+                                </button>
                                 {canDebug && (
                                     <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/settings/assessment-debug'); }}>
                                         Assessment Debug
