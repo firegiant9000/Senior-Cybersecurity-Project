@@ -71,18 +71,21 @@ export default function OrgProfilePage() {
   const bumpVendorReload = useCallback(() => setVendorReloadKey((k) => k + 1), []);
 
   useEffect(() => {
-    if (loading || !location.hash) return;
-    const hashToSection: Record<string, string> = {
-      '#section-security-profile': 'security',
-      '#section-vendors': 'vendors',
-      '#section-domains': 'domains',
-      '#section-uploads': 'uploads',
+    if (loading) return;
+    const pathToSection: Record<string, string> = {
+      technology: 'vendors',
+      domains: 'domains',
+      uploads: 'uploads',
     };
-    const sectionKey = hashToSection[location.hash];
-    if (sectionKey) setOpenSections(prev => ({ ...prev, [sectionKey]: true }));
-    const el = document.getElementById(location.hash.slice(1));
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [location.hash, loading]);
+    const lastSegment = location.pathname.split('/').filter(Boolean).pop() ?? '';
+    const pathSection = pathToSection[lastSegment];
+    if (pathSection) setOpenSections(prev => ({ ...prev, [pathSection]: true }));
+    if (location.hash === '#security-profile') {
+      setOpenSections(prev => ({ ...prev, security: true }));
+      const el = document.getElementById('section-security-profile');
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [location.pathname, location.hash, loading]);
 
   const canEditOrgProfile =
     profile != null &&

@@ -1,10 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import React, { Suspense, useEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useDarkMode } from '../../hooks/useDarkMode';
 import { titleFor } from '../../config/pageTitles';
 import { visibleNav, activeNav } from '../../config/navigation';
 import DashboardHeader from '../dashboard/DashboardHeader';
+import WidgetSkeleton from '../shared/WidgetSkeleton';
 import PrimaryNav from './PrimaryNav';
 import SecondaryNav from './SecondaryNav';
 import '../../Dashboard.css';
@@ -22,12 +23,12 @@ export function resetShellFocusForTests(): void {
 export default function AppShell(): React.JSX.Element {
   const [dark, toggleDark] = useDarkMode();
   const { user, logout, orgId, role } = useAuth();
-  const { pathname, search } = useLocation();
+  const { pathname } = useLocation();
   const mainRef = useRef<HTMLElement | null>(null);
   const minimal = orgId == null;
 
   const groups = visibleNav({ role: role ?? null, orgId: orgId ?? null });
-  const active = activeNav(pathname, search);
+  const active = activeNav(pathname);
   // activeNav ignores visibility: only expose a group (and its items) the user can see.
   const visibleGroup = groups.find((g) => g.id === active.group?.id) ?? null;
   const activeGroupId = visibleGroup?.id ?? null;
@@ -38,9 +39,9 @@ export default function AppShell(): React.JSX.Element {
   const hiddenGroup = active.group !== null && visibleGroup === null;
 
   useEffect(() => {
-    const title = hiddenGroup ? 'Page not found' : titleFor(pathname, search);
+    const title = hiddenGroup ? 'Page not found' : titleFor(pathname);
     document.title = `${title} · Hacker Tracker`;
-  }, [pathname, search, hiddenGroup]);
+  }, [pathname, hiddenGroup]);
 
   // Focus moves on path changes only (not tab changes within a page, not the session's first mount).
   // Comparing against the last pathname seen (not a first-run flag) keeps StrictMode's double
@@ -65,7 +66,9 @@ export default function AppShell(): React.JSX.Element {
         </>
       )}
       <main id="main" ref={mainRef} tabIndex={-1} className="dashboard-content">
-        <Outlet />
+        <Suspense fallback={<WidgetSkeleton />}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   );

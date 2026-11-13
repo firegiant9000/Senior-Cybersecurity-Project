@@ -1,4 +1,3 @@
-import { TAB_GROUPS, LEGACY_TAB_MAP } from './tabGroups';
 import { isPlatformAdmin } from '../utils/roleUtils';
 
 export type Requirement = 'org' | 'platformAdmin';
@@ -32,39 +31,38 @@ const admin = (id: string, label: string, to: string): NavItem => ({
 });
 
 const ORG_ITEMS: NavItem[] = [
-  org('assets', 'Assets', '/dashboard?tab=assets'),
-  org('findings', 'Findings', '/dashboard?tab=assessment&sub=findings'),
-  org('vendorAlerts', 'Vendor Alerts', '/dashboard?tab=vendorAlerts'),
-  org('smbAdvisor', 'Risk Profile', '/dashboard?tab=assessment&sub=smbAdvisor'),
-  org('aiSummary', 'AI Briefing', '/dashboard?tab=assessment&sub=aiSummary'),
+  org('assets', 'Assets', '/org/assets'),
+  org('findings', 'Findings', '/org/findings'),
+  org('vendorAlerts', 'Vendor Alerts', '/org/vendor-alerts'),
+  org('smbAdvisor', 'Risk Profile', '/org/risk'),
+  org('aiSummary', 'AI Briefing', '/org/briefing'),
 ];
 
 const INTEL_ITEMS: NavItem[] = [
-  { id: 'threatIntel', label: 'Recent Vulnerabilities', to: '/dashboard?tab=threats&sub=threatIntel' },
-  { id: 'riskScoring', label: 'Vulnerability Scoring', to: '/dashboard?tab=threats&sub=riskScoring' },
-  { id: 'anomalies', label: 'Anomalies', to: '/dashboard?tab=threats&sub=anomalies' },
-  { id: 'trends', label: 'Incident Trends', to: '/dashboard?tab=trendsData&sub=trends' },
-  { id: 'dataSources', label: 'Reference Data', to: '/dashboard?tab=trendsData&sub=dataSources' },
+  { id: 'vulnerabilities', label: 'Vulnerabilities', to: '/intel/vulnerabilities' },
+  { id: 'anomalies', label: 'Anomalies', to: '/intel/anomalies' },
+  { id: 'trends', label: 'Incident Trends', to: '/intel/trends' },
+  { id: 'dataSources', label: 'Reference Data', to: '/intel/reference' },
 ];
 
 const ADMIN_ITEMS: NavItem[] = [
-  admin('pipelineHealth', 'Pipeline Health', '/dashboard?tab=admin&sub=pipelineHealth'),
-  admin('normalizationLog', 'Normalization Log', '/dashboard?tab=admin&sub=normalizationLog'),
-  admin('assessmentDebug', 'Assessment Debug', '/settings/assessment-debug'),
+  admin('pipelineHealth', 'Pipeline Health', '/admin/pipeline'),
+  admin('normalizationLog', 'Normalization Log', '/admin/normalization-log'),
+  admin('assessmentDebug', 'Assessment Debug', '/admin/assessment-debug'),
 ];
 
 export const NAV_GROUPS: NavGroup[] = [
-  { id: 'overview', label: 'Overview', to: '/dashboard', items: [] },
+  { id: 'overview', label: 'Overview', to: '/overview', items: [] },
   { id: 'org', label: 'My organisation', to: ORG_ITEMS[0].to, requires: 'org', items: ORG_ITEMS },
   { id: 'intel', label: 'Threat intelligence', to: INTEL_ITEMS[0].to, items: INTEL_ITEMS },
   { id: 'admin', label: 'Admin', to: ADMIN_ITEMS[0].to, requires: 'platformAdmin', items: ADMIN_ITEMS },
 ];
 
 export const AVATAR_ITEMS: NavItem[] = [
-  { id: 'orgProfile', label: 'Organisation profile', to: '/org-profile' },
-  { id: 'team', label: 'Team and agents', to: '/settings' },
-  { id: 'integrations', label: 'Integrations', to: '/integrations' },
-  { id: 'account', label: 'Account', to: '/settings' },
+  { id: 'orgProfile', label: 'Organisation profile', to: '/settings/organisation' },
+  { id: 'team', label: 'Team and agents', to: '/settings/team' },
+  { id: 'integrations', label: 'Integrations', to: '/settings/integrations' },
+  { id: 'account', label: 'Account', to: '/settings/account' },
   { id: 'glossary', label: 'Glossary', to: '/glossary' },
   { id: 'privacy', label: 'Privacy', to: '/privacy' },
   { id: 'dataHandling', label: 'Data handling', to: '/data-handling' },
@@ -81,55 +79,30 @@ export function visibleNav(ctx: { role: string | null; orgId: number | null }): 
     .filter((g) => g.items.length > 0 || NAV_GROUPS.find((n) => n.id === g.id)?.items.length === 0);
 }
 
-function parseTo(to: string): { path: string; tab: string | null; sub: string | null } {
-  const [path, query = ''] = to.split('?');
-  const params = new URLSearchParams(query);
-  return { path, tab: params.get('tab'), sub: params.get('sub') };
+function pathOf(to: string): string {
+  return to.split('?')[0];
 }
 
-const NONE = { group: null, item: null };
+function matchesPath(pathname: string, p: string): boolean {
+  return pathname === p || pathname.startsWith(p + '/');
+}
 
-export function activeNav(
-  pathname: string,
-  search: string,
-): { group: NavGroup | null; item: NavItem | null } {
-  let tab: string | null = null;
-  let sub: string | null = null;
-
-  if (pathname === '/dashboard') {
-    const params = new URLSearchParams(search);
-    const rawTab = params.get('tab');
-    const rawSub = params.get('sub');
-    const legacy = rawTab ? LEGACY_TAB_MAP[rawTab] : undefined;
-    tab = legacy?.sub ? legacy.tab : rawTab;
-    sub = legacy?.sub ? legacy.sub : rawSub;
-
-    // Dashboard renders Overview for an unknown tab.
-    const def = TAB_GROUPS.find((g) => g.id === tab);
-    if (!def || def.id === 'overview') {
-      return { group: NAV_GROUPS[0], item: null };
-    }
-    if (def.subTabs) {
-      sub = def.subTabs.find((s) => s.id === sub)?.id ?? def.subTabs[0].id;
-    } else {
-      sub = null;
-    }
-  } else if (pathname === '/inventory/upload') {
-    tab = 'assets';
-  } else {
-    for (const group of NAV_GROUPS) {
-      const item = group.items.find((i) => parseTo(i.to).path === pathname);
-      if (item) return { group, item };
-    }
-    return NONE;
-  }
-
+/** Longest path-prefix match (segment-aware) over NAV_GROUPS items; a group with no items matches its own `to`. */
+export function activeNav(pathname: string): { group: NavGroup | null; item: NavItem | null } {
+  let best: { group: NavGroup; item: NavItem | null } | null = null;
+  let bestLen = -1;
   for (const group of NAV_GROUPS) {
-    const item = group.items.find((i) => {
-      const p = parseTo(i.to);
-      return p.path === '/dashboard' && p.tab === tab && p.sub === sub;
-    });
-    if (item) return { group, item };
+    const candidates: { item: NavItem | null; to: string }[] =
+      group.items.length === 0
+        ? [{ item: null, to: group.to }]
+        : group.items.map((item) => ({ item, to: item.to }));
+    for (const c of candidates) {
+      const p = pathOf(c.to);
+      if (matchesPath(pathname, p) && p.length > bestLen) {
+        best = { group, item: c.item };
+        bestLen = p.length;
+      }
+    }
   }
-  return NONE;
+  return best ?? { group: null, item: null };
 }

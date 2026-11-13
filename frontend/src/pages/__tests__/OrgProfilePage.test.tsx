@@ -390,8 +390,8 @@ describe('OrgProfilePage characterisation', () => {
     await waitFor(() => expect(mockDeleteUpload).toHaveBeenCalledWith(ORG_ID, 31))
   })
 
-  it('6. rendering at #section-vendors opens the Technology Stack section', async () => {
-    await loaded('/org-profile#section-vendors')
+  it('6. rendering at /settings/technology opens the Technology Stack section', async () => {
+    await loaded('/settings/technology')
     const sec = section('section-vendors')
     await waitFor(() =>
       expect(within(sec).getByPlaceholderText('Vendor name')).toBeInTheDocument(),
