@@ -16,7 +16,7 @@ export default function DataHandlingPage() {
       <header className="dashboard-header">
         <h1>Data Handling</h1>
         <div className="header-buttons">
-          <button type="button" onClick={() => navigate(user ? "/dashboard" : "/")}>
+          <button type="button" onClick={() => navigate(user ? "/overview" : "/")}>
             Back
           </button>
         </div>

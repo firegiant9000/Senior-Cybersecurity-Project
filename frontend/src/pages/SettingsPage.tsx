@@ -20,8 +20,8 @@ export default function SettingsPage() {
       <h1>Settings</h1>
       {profile?.org_id != null && (
         <nav className="settings-page-links" aria-label="Related pages">
-          <Link to="/org-profile">Organization Profile</Link>
-          {isPlatformAdmin(profile.role) && <Link to="/settings/assessment-debug">Assessment Debug</Link>}
+          <Link to="/settings/organisation">Organization Profile</Link>
+          {isPlatformAdmin(profile.role) && <Link to="/admin/assessment-debug">Assessment Debug</Link>}
         </nav>
       )}
 

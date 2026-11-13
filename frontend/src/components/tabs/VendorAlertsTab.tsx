@@ -120,7 +120,7 @@ const VendorAlertsTab: React.FC = () => {
             Add your technology stack in Organization Profile. We'll match your vendors against the CISA Known Exploited Vulnerabilities catalog and alert you to active threats.
           </p>
           <Link
-            to="/org-profile#section-vendors"
+            to="/settings/technology"
             style={{
               display: 'inline-block',
               background: 'var(--accent, #3b82f6)',
@@ -143,7 +143,7 @@ const VendorAlertsTab: React.FC = () => {
     return (
       <div className="tab-page">
         <div className="overview-toolbar" style={{ marginBottom: '1rem' }}>
-          <Link to="/org-profile#section-vendors" style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'underline' }}>
+          <Link to="/settings/technology" style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'underline' }}>
             Manage Vendors →
           </Link>
         </div>
@@ -217,7 +217,7 @@ const VendorAlertsTab: React.FC = () => {
             progress={progressState.progress}
             label="Refresh"
           />
-          <Link to="/org-profile#section-vendors" className="vendor-alerts-manage-link">
+          <Link to="/settings/technology" className="vendor-alerts-manage-link">
             Manage Vendors →
           </Link>
         </div>

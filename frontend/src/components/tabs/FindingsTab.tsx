@@ -220,7 +220,7 @@ const FindingsTab: React.FC = () => {
                 <li>At least one domain</li>
                 <li>At least one security question answered</li>
               </ul>
-              <Link to="/org-profile" className="findings-error-action">
+              <Link to="/settings/organisation" className="findings-error-action">
                 Edit organisation profile
               </Link>
             </>
@@ -238,7 +238,7 @@ const FindingsTab: React.FC = () => {
                 <button className="findings-error-action" onClick={load}>
                   Retry
                 </button>
-                <Link to="/org-profile" className="findings-error-action" style={{ background: 'transparent', color: 'var(--accent)', border: '1px solid var(--accent)' }}>
+                <Link to="/settings/organisation" className="findings-error-action" style={{ background: 'transparent', color: 'var(--accent)', border: '1px solid var(--accent)' }}>
                   Edit organisation profile
                 </Link>
               </div>
@@ -259,7 +259,7 @@ const FindingsTab: React.FC = () => {
             No findings were generated for your organization. This could mean your
             profile data is limited — try adding more vendors and domains in Organization Profile.
           </p>
-          <Link to="/org-profile" className="findings-empty-action">
+          <Link to="/settings/organisation" className="findings-empty-action">
             Edit organisation profile
           </Link>
         </div>

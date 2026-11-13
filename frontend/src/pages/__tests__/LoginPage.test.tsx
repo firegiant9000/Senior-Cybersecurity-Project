@@ -38,7 +38,7 @@ function renderAt(url: string, defaultSignUp = false) {
       <Routes>
         <Route path="/login" element={<LoginPage defaultSignUp={defaultSignUp} />} />
         <Route path="/signup" element={<LoginPage defaultSignUp={defaultSignUp} />} />
-        <Route path="/dashboard" element={<div>DASHBOARD ROUTE</div>} />
+        <Route path="/overview" element={<div>OVERVIEW ROUTE</div>} />
         <Route path="/invites/:token" element={<div>INVITE ROUTE</div>} />
       </Routes>
     </MemoryRouter>
@@ -72,10 +72,10 @@ describe('LoginPage next handling', () => {
     '/login?next=/\\evil.example',
     '/login?next=https://evil.example',
     '/login?next=%2F%2Fevil.example',
-  ])('falls back to the dashboard for an unsafe next (%j)', async (url) => {
+  ])('falls back to the overview for an unsafe next (%j)', async (url) => {
     renderAt(url);
     fillAndSubmitSignIn();
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/dashboard'));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/overview'));
     expect(mockNavigate).toHaveBeenCalledTimes(1);
   });
 
@@ -96,10 +96,10 @@ describe('LoginPage next handling', () => {
     expect(mockLogin).not.toHaveBeenCalled();
   });
 
-  it('a signed-in user with an unsafe next is redirected to the dashboard', () => {
+  it('a signed-in user with an unsafe next is redirected to the overview', () => {
     mockUser = { uid: 'u1' };
     renderAt('/login?next=//evil.example');
-    expect(screen.getByText('DASHBOARD ROUTE')).toBeInTheDocument();
+    expect(screen.getByText('OVERVIEW ROUTE')).toBeInTheDocument();
   });
 
   it('does not redirect while auth is still loading', () => {

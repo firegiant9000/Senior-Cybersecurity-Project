@@ -79,7 +79,7 @@ const renderTab = () =>
 const SLOW = { timeout: 4000 }
 
 const profileLinks = () =>
-  screen.getAllByRole('link').filter((l) => l.getAttribute('href') === '/org-profile')
+  screen.getAllByRole('link').filter((l) => l.getAttribute('href') === '/settings/organisation')
 
 describe('FindingsTab characterisation', () => {
   beforeEach(() => {
@@ -168,7 +168,7 @@ describe('FindingsTab characterisation', () => {
     expect(screen.getByTestId('domain-intel-table')).toBeInTheDocument()
   })
 
-  it('links to /org-profile from the empty state', async () => {
+  it('links to /settings/organisation from the empty state', async () => {
     mockFetchFindings.mockResolvedValue(makeReport([]))
     renderTab()
 
@@ -176,7 +176,7 @@ describe('FindingsTab characterisation', () => {
     expect(profileLinks()).toHaveLength(1)
   })
 
-  it('links to /org-profile from the setup-required error state', async () => {
+  it('links to /settings/organisation from the setup-required error state', async () => {
     mockFetchFindings.mockRejectedValue(new Error('Profile is incomplete'))
     renderTab()
 
@@ -184,7 +184,7 @@ describe('FindingsTab characterisation', () => {
     expect(profileLinks()).toHaveLength(1)
   })
 
-  it('links to /org-profile and offers Retry from the generic error state', async () => {
+  it('links to /settings/organisation and offers Retry from the generic error state', async () => {
     mockFetchFindings.mockRejectedValue(new Error('boom'))
     renderTab()
 

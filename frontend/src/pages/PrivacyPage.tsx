@@ -13,7 +13,7 @@ export default function PrivacyPage() {
       <header className="dashboard-header">
         <h1>Privacy</h1>
         <div className="header-buttons">
-          <button type="button" onClick={() => navigate(user ? "/dashboard" : "/")}>
+          <button type="button" onClick={() => navigate(user ? "/overview" : "/")}>
             Back
           </button>
         </div>

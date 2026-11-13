@@ -1,7 +1,10 @@
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup, configure } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { resetShellFocusForTests } from './components/shell/AppShell'
+
+// Screens are lazy-loaded; a cold dynamic import can exceed the 1 s default under a full run.
+configure({ asyncUtilTimeout: 5000 })
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hoisted Mocks
@@ -81,8 +84,12 @@ vi.mock('./hooks/useDarkMode', () => ({
   useDarkMode: () => [false, vi.fn()],
 }))
 
-vi.mock('./Dashboard.tsx', () => ({
-  default: () => <div data-testid="dashboard">Dashboard</div>,
+vi.mock('./pages/OverviewPage.tsx', () => ({
+  default: () => <div data-testid="overview-page">Overview</div>,
+}))
+
+vi.mock('./pages/AssetsPage', () => ({
+  default: () => <div data-testid="assets-page">Assets</div>,
 }))
 
 vi.mock('./pages/LoginPage.tsx', () => ({
@@ -186,14 +193,14 @@ describe('App - Routing & Navigation', () => {
     it('shows landing page while auth is loading', () => {
       mockAuthContext.loading = true
       renderApp(['/'])
-      expect(screen.queryByTestId('dashboard')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('overview-page')).not.toBeInTheDocument()
     })
 
-    it('redirects to dashboard when user is authenticated', () => {
+    it('redirects to the overview when user is authenticated', () => {
       mockAuthContext.user = { uid: 'user1', email: 'user@example.com' } as unknown
       mockAuthContext.orgId = 1
       renderApp(['/'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
     })
 
     it('does not render content while auth is loading and user exists', () => {
@@ -201,7 +208,7 @@ describe('App - Routing & Navigation', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       renderApp(['/'])
       expect(screen.queryByTestId('landing-page')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('dashboard')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('overview-page')).not.toBeInTheDocument()
     })
   })
 
@@ -308,18 +315,18 @@ describe('App - Routing & Navigation', () => {
     })
   })
 
-  describe('Settings Route (/settings)', () => {
+  describe('Settings Route (/settings/account)', () => {
     it('shows settings page when user is authenticated', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = 1
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
     })
 
     it('requires authentication to access settings', () => {
       mockAuthContext.user = null
       mockAuthContext.loading = false
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('protected-redirect')).toBeInTheDocument()
     })
 
@@ -327,30 +334,47 @@ describe('App - Routing & Navigation', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('org-redirect')).toBeInTheDocument()
     })
 
     it('allows access when user and org are both present', () => {
       mockAuthContext.user = { uid: 'user1', email: 'user@example.com' } as unknown
       mockAuthContext.orgId = 42
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
     })
   })
 
-  describe('Assessment Debug Route (/settings/assessment-debug)', () => {
-    it('shows assessment debug page when authenticated and has org', () => {
+  describe('Assessment Debug Route (/admin/assessment-debug, legacy /settings/assessment-debug)', () => {
+    it('shows assessment debug page to a platform admin with an org', () => {
+      mockAuthContext.user = { uid: 'user1' } as unknown
+      mockAuthContext.orgId = 1
+      mockAuthContext.role = 'admin'
+      renderApp(['/admin/assessment-debug'])
+      expect(screen.getByTestId('assessment-debug-page')).toBeInTheDocument()
+    })
+
+    it('redirects the legacy URL to the admin path', () => {
+      mockAuthContext.user = { uid: 'user1' } as unknown
+      mockAuthContext.orgId = 1
+      mockAuthContext.role = 'admin'
+      renderApp(['/settings/assessment-debug'])
+      expect(screen.getByTestId('assessment-debug-page')).toBeInTheDocument()
+    })
+
+    it('shows not found to a user who is not a platform admin', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = 1
       renderApp(['/settings/assessment-debug'])
-      expect(screen.getByTestId('assessment-debug-page')).toBeInTheDocument()
+      expect(screen.queryByTestId('assessment-debug-page')).not.toBeInTheDocument()
+      expect(screen.getByTestId('not-found-page')).toBeInTheDocument()
     })
 
     it('requires authentication', () => {
       mockAuthContext.user = null
       mockAuthContext.loading = false
-      renderApp(['/settings/assessment-debug'])
+      renderApp(['/admin/assessment-debug'])
       expect(screen.getByTestId('protected-redirect')).toBeInTheDocument()
     })
 
@@ -358,12 +382,12 @@ describe('App - Routing & Navigation', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false
-      renderApp(['/settings/assessment-debug'])
+      renderApp(['/admin/assessment-debug'])
       expect(screen.getByTestId('org-redirect')).toBeInTheDocument()
     })
   })
 
-  describe('Assessment Intake Route (/assessment-intake)', () => {
+  describe('Assessment Intake Route (legacy /assessment-intake redirects to /onboarding)', () => {
     it('shows assessment intake page when authenticated and has org', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = 1
@@ -387,18 +411,25 @@ describe('App - Routing & Navigation', () => {
     })
   })
 
-  describe('Organization Profile Route (/org-profile)', () => {
-    it('shows org profile page when authenticated and has org', () => {
+  describe('Organization Profile Route (/settings/organisation, legacy /org-profile)', () => {
+    it('redirects the legacy /org-profile URL to the organisation page', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = 1
       renderApp(['/org-profile'])
       expect(screen.getByTestId('org-profile-page')).toBeInTheDocument()
     })
 
+    it('shows org profile page when authenticated and has org', () => {
+      mockAuthContext.user = { uid: 'user1' } as unknown
+      mockAuthContext.orgId = 1
+      renderApp(['/settings/organisation'])
+      expect(screen.getByTestId('org-profile-page')).toBeInTheDocument()
+    })
+
     it('requires authentication', () => {
       mockAuthContext.user = null
       mockAuthContext.loading = false
-      renderApp(['/org-profile'])
+      renderApp(['/settings/organisation'])
       expect(screen.getByTestId('protected-redirect')).toBeInTheDocument()
     })
 
@@ -406,41 +437,48 @@ describe('App - Routing & Navigation', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false
-      renderApp(['/org-profile'])
+      renderApp(['/settings/organisation'])
       expect(screen.getByTestId('org-redirect')).toBeInTheDocument()
     })
   })
 
-  describe('Dashboard Catch-All Route (/*)', () => {
-    it('shows dashboard for authenticated users at /dashboard', () => {
+  describe('Overview and catch-all routes', () => {
+    it('shows the overview for authenticated users at /overview', () => {
+      mockAuthContext.user = { uid: 'user1' } as unknown
+      mockAuthContext.orgId = 1
+      renderApp(['/overview'])
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
+    })
+
+    it('redirects the legacy /dashboard URL to the overview', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = 1
       renderApp(['/dashboard'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
     })
 
-    it('renders the dashboard inside the shell main landmark (id="main")', () => {
+    it('renders the overview inside the shell main landmark (id="main")', () => {
       mockAuthContext.user = { uid: 'user1', email: 'user@example.com' } as unknown
       mockAuthContext.orgId = 1
-      renderApp(['/dashboard'])
+      renderApp(['/overview'])
       const main = document.getElementById('main')
       expect(main).not.toBeNull()
-      expect(main).toContainElement(screen.getByTestId('dashboard'))
+      expect(main).toContainElement(screen.getByTestId('overview-page'))
     })
 
-    it('renders no shell header or main landmark for a signed-out user at /dashboard', () => {
-      renderApp(['/dashboard'])
+    it('renders no shell header or main landmark for a signed-out user at /overview', () => {
+      renderApp(['/overview'])
       expect(screen.getByTestId('protected-redirect')).toBeInTheDocument()
       expect(document.getElementById('main')).toBeNull()
       expect(screen.queryByRole('banner')).not.toBeInTheDocument()
     })
 
-    it('shows the not-found page, not the dashboard, at undefined routes', () => {
+    it('shows the not-found page, not the overview, at undefined routes', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = 1
       renderApp(['/unknown-route'])
       expect(screen.getByTestId('not-found-page')).toBeInTheDocument()
-      expect(screen.queryByTestId('dashboard')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('overview-page')).not.toBeInTheDocument()
     })
 
     it('shows the not-found page at /dashboard/inventory', () => {
@@ -470,33 +508,33 @@ describe('App - Routing & Navigation', () => {
       expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
     })
 
-    it('redirects /assets to the dashboard', () => {
+    it('redirects the legacy /assets URL to the assets page', async () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = 1
       renderApp(['/assets'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      expect(await screen.findByTestId('assets-page')).toBeInTheDocument()
     })
 
-    it('requires authentication to access dashboard', () => {
+    it('requires authentication to access the overview', () => {
       mockAuthContext.user = null
       mockAuthContext.loading = false
-      renderApp(['/dashboard'])
+      renderApp(['/overview'])
       expect(screen.getByTestId('protected-redirect')).toBeInTheDocument()
     })
 
-    it('requires org to access dashboard', () => {
+    it('requires org to access the overview', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false
-      renderApp(['/dashboard'])
+      renderApp(['/overview'])
       expect(screen.getByTestId('org-redirect')).toBeInTheDocument()
     })
 
-    it('shows dashboard when user and org both present', () => {
+    it('shows the overview when user and org both present', () => {
       mockAuthContext.user = { uid: 'user1', email: 'user@example.com' } as unknown
       mockAuthContext.orgId = 1
-      renderApp(['/dashboard'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      renderApp(['/overview'])
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
     })
   })
 
@@ -518,27 +556,28 @@ describe('App - Routing & Navigation', () => {
       expect(document.getElementById('main')).toContainElement(screen.getByTestId('accept-invite-page'))
     })
 
-    it('renders /settings inside #main', () => {
+    it('renders /settings/account inside #main', () => {
       mockAuthContext.user = { uid: 'user1', email: 'user@example.com' } as unknown
       mockAuthContext.orgId = 1
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(document.getElementById('main')).toContainElement(screen.getByTestId('settings-page'))
     })
 
-    it('renders /org-profile and /settings/assessment-debug inside #main', () => {
+    it('renders /settings/organisation and /admin/assessment-debug inside #main', () => {
       mockAuthContext.user = { uid: 'user1', email: 'user@example.com' } as unknown
       mockAuthContext.orgId = 1
-      renderApp(['/org-profile'])
+      mockAuthContext.role = 'admin'
+      renderApp(['/settings/organisation'])
       expect(document.getElementById('main')).toContainElement(screen.getByTestId('org-profile-page'))
       cleanup()
-      renderApp(['/settings/assessment-debug'])
+      renderApp(['/admin/assessment-debug'])
       expect(document.getElementById('main')).toContainElement(screen.getByTestId('assessment-debug-page'))
     })
 
-    it('keeps /report/executive outside the shell', () => {
+    it('keeps /org/report outside the shell', () => {
       mockAuthContext.user = { uid: 'user1', email: 'user@example.com' } as unknown
       mockAuthContext.orgId = 1
-      renderApp(['/report/executive'])
+      renderApp(['/org/report'])
       expect(screen.getByTestId('executive-report-page')).toBeInTheDocument()
       expect(document.getElementById('main')).toBeNull()
     })
@@ -556,10 +595,10 @@ describe('App - Routing & Navigation', () => {
       expect(document.getElementById('main')).toBeNull()
     })
 
-    it('still requires an organisation for /settings', () => {
+    it('still requires an organisation for /settings/account', () => {
       mockAuthContext.user = { uid: 'user1', email: 'user@example.com' } as unknown
       mockAuthContext.orgId = null
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('org-redirect')).toBeInTheDocument()
       expect(document.getElementById('main')).toBeNull()
     })
@@ -569,7 +608,7 @@ describe('App - Routing & Navigation', () => {
     it('blocks unauthenticated users from protected routes', () => {
       mockAuthContext.user = null
       mockAuthContext.loading = false
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('protected-redirect')).toBeInTheDocument()
     })
 
@@ -577,7 +616,7 @@ describe('App - Routing & Navigation', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false
-      renderApp(['/dashboard'])
+      renderApp(['/overview'])
       expect(screen.getByTestId('org-redirect')).toBeInTheDocument()
     })
 
@@ -592,14 +631,14 @@ describe('App - Routing & Navigation', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = true
-      renderApp(['/dashboard'])
+      renderApp(['/overview'])
       expect(screen.queryByTestId('org-redirect')).not.toBeInTheDocument()
     })
 
     it('waits for auth loading before redirecting', () => {
       mockAuthContext.user = null
       mockAuthContext.loading = true
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.queryByTestId('protected-redirect')).not.toBeInTheDocument()
     })
   })
@@ -616,14 +655,14 @@ describe('App - Routing & Navigation', () => {
       expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
     })
 
-    it('supports navigation from onboarding to dashboard', () => {
+    it('supports navigation from onboarding to the overview', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = 1
       renderApp(['/onboarding'])
       expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
 
-      renderApp(['/dashboard'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      renderApp(['/overview'])
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
     })
 
     it('supports navigation from invite to settings', () => {
@@ -633,24 +672,24 @@ describe('App - Routing & Navigation', () => {
       expect(screen.getByTestId('accept-invite-page')).toBeInTheDocument()
 
       mockAuthContext.orgId = 1
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
     })
 
-    it('supports navigation from dashboard to settings', () => {
+    it('supports navigation from the overview to settings', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = 1
-      renderApp(['/dashboard'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      renderApp(['/overview'])
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
 
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
     })
 
     it('supports navigation from settings to assessment pages', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = 1
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
 
       renderApp(['/assessment-intake'])
@@ -663,16 +702,16 @@ describe('App - Routing & Navigation', () => {
       mockAuthContext.loading = true
       renderApp(['/'])
       expect(screen.queryByTestId('landing-page')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('dashboard')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('overview-page')).not.toBeInTheDocument()
     })
 
     it('does not render content while org is loading for protected routes', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = true
-      renderApp(['/dashboard'])
+      renderApp(['/overview'])
       expect(screen.queryByTestId('org-redirect')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('dashboard')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('overview-page')).not.toBeInTheDocument()
     })
   })
 
@@ -685,7 +724,7 @@ describe('App - Routing & Navigation', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = 1
       renderApp(['/'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
     })
 
     it('handles user joining org after creation', () => {
@@ -695,19 +734,19 @@ describe('App - Routing & Navigation', () => {
       expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
 
       mockAuthContext.orgId = 42
-      renderApp(['/dashboard'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      renderApp(['/overview'])
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
     })
 
     it('handles user leaving org', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = 1
-      renderApp(['/dashboard'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      renderApp(['/overview'])
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
 
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false
-      renderApp(['/dashboard'])
+      renderApp(['/overview'])
       expect(screen.getByTestId('org-redirect')).toBeInTheDocument()
     })
   })
@@ -751,11 +790,11 @@ describe('App - Routing & Navigation', () => {
       renderApp(['/login'])
       expect(screen.getByTestId('login-page')).toBeInTheDocument()
 
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
 
-      renderApp(['/dashboard'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      renderApp(['/overview'])
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
     })
   })
 
@@ -771,7 +810,7 @@ describe('App - Routing & Navigation', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('org-redirect')).toBeInTheDocument()
     })
 
@@ -786,16 +825,16 @@ describe('App - Routing & Navigation', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = 1
 
-      renderApp(['/dashboard'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      renderApp(['/overview'])
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
       cleanup()
 
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
       cleanup()
 
-      renderApp(['/dashboard'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      renderApp(['/overview'])
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
     })
   })
 })

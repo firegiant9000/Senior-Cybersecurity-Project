@@ -22,7 +22,7 @@ interface InventoryHealth {
 }
 
 export function assetsLinkTarget(assetsTotal: number): string {
-  return assetsTotal > 0 ? "/dashboard?tab=assets" : "/inventory/upload";
+  return assetsTotal > 0 ? "/org/assets" : "/org/assets/upload";
 }
 
 function relativeTime(iso: string): string {

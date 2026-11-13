@@ -19,8 +19,8 @@ vi.mock('firebase/app', () => ({
   initializeApp: vi.fn(() => ({})),
 }))
 
-vi.mock('./Dashboard.tsx', () => ({
-  default: () => <div data-testid="dashboard">Dashboard</div>,
+vi.mock('./pages/OverviewPage.tsx', () => ({
+  default: () => <div data-testid="overview-page">Overview</div>,
 }))
 
 import App from './App'
@@ -48,6 +48,6 @@ describe('App', () => {
     )
 
     expect(await screen.findByRole('heading', { name: /know your cyber risk/i })).toBeInTheDocument()
-    expect(screen.queryByTestId('dashboard')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('overview-page')).not.toBeInTheDocument()
   })
 })

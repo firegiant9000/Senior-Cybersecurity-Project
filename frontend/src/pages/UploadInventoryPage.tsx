@@ -160,7 +160,7 @@ export default function UploadInventoryPage() {
 
   return (
     <div className="dashboard-page" style={{ padding: 24, maxWidth: 960, margin: "0 auto" }}>
-      <Link to="/dashboard?tab=assets">← Assets</Link>
+      <Link to="/org/assets">← Assets</Link>
       <h1>Upload asset inventory</h1>
       <p style={{ color: "#555" }}>
         Upload a CSV of your assets and installed software. The columns we expect are documented in{" "}
@@ -349,7 +349,7 @@ export default function UploadInventoryPage() {
               Rolled back. Rows this upload created have been removed.
             </div>
           )}
-          <Link to="/assets">View assets →</Link>
+          <Link to="/org/assets">View assets →</Link>
           <span style={{ margin: "0 12px" }}>·</span>
           <button type="button" onClick={reset}>
             Upload another

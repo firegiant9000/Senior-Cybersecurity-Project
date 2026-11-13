@@ -11,7 +11,7 @@ export default function LoginPage({ defaultSignUp = false }: { defaultSignUp?: b
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   // Decoded once by URLSearchParams; navigate with exactly what safeNextPath returns.
-  const dest = safeNextPath(searchParams.get("next")) ?? "/dashboard";
+  const dest = safeNextPath(searchParams.get("next")) ?? "/overview";
 
   const [isSignUp, setIsSignUp] = useState(defaultSignUp);
   const [isForgotPassword, setIsForgotPassword] = useState(false);

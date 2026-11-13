@@ -18,12 +18,12 @@ import { assetsLinkTarget } from "../InventoryHealthCard";
 describe("Overview links", () => {
   it("next steps point at real routes", () => {
     const to = Object.fromEntries(NEXT_STEPS.map((s) => [s.title, s.to]));
-    expect(to["Upload CSV inventory"]).toBe("/inventory/upload");
-    expect(to["Connect Microsoft 365"]).toBe("/integrations");
+    expect(to["Upload CSV inventory"]).toBe("/org/assets/upload");
+    expect(to["Connect Microsoft 365"]).toBe("/settings/integrations");
   });
 
-  it("assets link keeps the tab", () => {
-    expect(assetsLinkTarget(3)).toBe("/dashboard?tab=assets");
-    expect(assetsLinkTarget(0)).toBe("/inventory/upload");
+  it("assets link goes to the assets list, or to upload when there are none", () => {
+    expect(assetsLinkTarget(3)).toBe("/org/assets");
+    expect(assetsLinkTarget(0)).toBe("/org/assets/upload");
   });
 });

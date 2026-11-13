@@ -48,13 +48,13 @@ describe('PrivacyPage', () => {
     expect(screen.getByText("Each provider's own")).toBeInTheDocument();
   });
 
-  it('Back goes to the dashboard when signed in', () => {
+  it('Back goes to the overview when signed in', () => {
     mockUser = signedInUser;
     renderPrivacy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
 
-    expect(screen.getByTestId('location').textContent).toBe('/dashboard');
+    expect(screen.getByTestId('location').textContent).toBe('/overview');
   });
 
   it('Back goes to the landing page when signed out', () => {

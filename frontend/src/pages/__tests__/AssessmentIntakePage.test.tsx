@@ -422,7 +422,7 @@ describe('AssessmentIntakePage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Complete/i }))
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
+      expect(mockNavigate).toHaveBeenCalledWith('/overview')
     })
   })
 

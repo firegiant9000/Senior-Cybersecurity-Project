@@ -55,7 +55,7 @@ export default function AssessmentDebugPage() {
     <>
       <h1>Assessment Debug View</h1>
       <nav className="settings-page-links" aria-label="Related pages">
-        <Link to="/settings">Back to Settings</Link>
+        <Link to="/settings/account">Back to Settings</Link>
       </nav>
 
       <div className="settings-page settings-page--embedded">
@@ -431,7 +431,7 @@ function FindingsSection({ readiness }: { readiness: FindingsReadinessBlock }) {
           Complete your organization profile to reach Enhanced tier and unlock findings.
         </p>
         <div style={{ marginTop: "0.75rem" }}>
-          <Link to="/org-profile" className="action-btn" style={{ textDecoration: "none" }}>
+          <Link to="/settings/organisation" className="action-btn" style={{ textDecoration: "none" }}>
             Go to Organization Profile
           </Link>
         </div>

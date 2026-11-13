@@ -1,5 +1,5 @@
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { render, screen, waitFor, fireEvent, within, act } from '@testing-library/react'
+import { MemoryRouter, useNavigate } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Characterisation tests: pin the current behaviour of OrgProfilePage so it can
@@ -117,7 +117,7 @@ function jsonResponse(body: unknown, ok = true) {
 
 let profile = makeProfile()
 
-function setup(route = '/org-profile') {
+function setup(route = '/settings/organisation') {
   return render(
     <MemoryRouter initialEntries={[route]}>
       <OrgProfilePage />
@@ -205,7 +205,7 @@ describe('OrgProfilePage characterisation', () => {
   it('1c. has an h1, an Account Settings link and no Back to Dashboard control', async () => {
     await loaded()
     expect(screen.getByRole('heading', { level: 1, name: 'Organization Profile' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Account Settings' })).toHaveAttribute('href', '/settings')
+    expect(screen.getByRole('link', { name: 'Account Settings' })).toHaveAttribute('href', '/settings/account')
     expect(screen.queryByText(/Back to Dashboard/i)).not.toBeInTheDocument()
   })
 
@@ -390,8 +390,8 @@ describe('OrgProfilePage characterisation', () => {
     await waitFor(() => expect(mockDeleteUpload).toHaveBeenCalledWith(ORG_ID, 31))
   })
 
-  it('6. rendering at #section-vendors opens the Technology Stack section', async () => {
-    await loaded('/org-profile#section-vendors')
+  it('6. rendering at /settings/technology opens the Technology Stack section', async () => {
+    await loaded('/settings/technology')
     const sec = section('section-vendors')
     await waitFor(() =>
       expect(within(sec).getByPlaceholderText('Vendor name')).toBeInTheDocument(),
@@ -399,6 +399,56 @@ describe('OrgProfilePage characterisation', () => {
     expect(within(sec).getByRole('button', { name: /Technology Stack/ })).toHaveAttribute('aria-expanded', 'true')
     // other sections stay closed
     expect(within(section('section-domains')).queryByPlaceholderText('example.com')).toBeNull()
+  })
+
+  it('6b. /settings/domains opens Domains and scrolls to it', async () => {
+    const scrolled: Element[] = []
+    Element.prototype.scrollIntoView = vi.fn(function (this: Element) {
+      scrolled.push(this)
+    })
+    await loaded('/settings/domains')
+    const sec = section('section-domains')
+    expect(within(sec).getByRole('button', { name: /Organization Domains/ })).toHaveAttribute('aria-expanded', 'true')
+    await waitFor(() => expect(scrolled).toContain(sec))
+  })
+
+  it('6c. #security-profile opens Security Profile and scrolls to it', async () => {
+    const scrolled: Element[] = []
+    Element.prototype.scrollIntoView = vi.fn(function (this: Element) {
+      scrolled.push(this)
+    })
+    await loaded('/settings/organisation#security-profile')
+    const sec = section('section-security-profile')
+    expect(within(sec).getByRole('button', { name: /Security Profile/ })).toHaveAttribute('aria-expanded', 'true')
+    await waitFor(() => expect(scrolled).toContain(sec))
+  })
+
+  it('6d. navigating to the same URL re-opens a collapsed section', async () => {
+    const scrolled: Element[] = []
+    Element.prototype.scrollIntoView = vi.fn(function (this: Element) {
+      scrolled.push(this)
+    })
+    let go: (to: string) => void = () => {}
+    function Nav() {
+      const navigate = useNavigate()
+      go = (to) => navigate(to)
+      return null
+    }
+    render(
+      <MemoryRouter initialEntries={['/settings/technology']}>
+        <Nav />
+        <OrgProfilePage />
+      </MemoryRouter>,
+    )
+    await screen.findByLabelText(/^Company Name/)
+    const header = within(section('section-vendors')).getByRole('button', { name: /Technology Stack/ })
+    expect(header).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(header)
+    expect(header).toHaveAttribute('aria-expanded', 'false')
+    scrolled.length = 0
+    act(() => go('/settings/technology'))
+    await waitFor(() => expect(header).toHaveAttribute('aria-expanded', 'true'))
+    await waitFor(() => expect(scrolled).toContain(section('section-vendors')))
   })
 
   it('7a. the readiness widget renders when org_id is set', async () => {

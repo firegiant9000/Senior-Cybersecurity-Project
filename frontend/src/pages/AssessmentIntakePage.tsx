@@ -441,7 +441,7 @@ export default function AssessmentIntakePage() {
           payload: { step: stepKey, step_index: step },
         });
       }
-      navigate("/dashboard");
+      navigate("/overview");
     } finally {
       setAdvancing(false);
     }
@@ -481,7 +481,7 @@ export default function AssessmentIntakePage() {
         }
       }
 
-      navigate("/dashboard");
+      navigate("/overview");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
