@@ -1,5 +1,5 @@
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
-import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { render, screen, waitFor, fireEvent, within, act } from '@testing-library/react'
+import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Company, Security Profile, readiness and validation behaviour of OrganisationPage,
@@ -180,7 +180,7 @@ describe('OrganisationPage', () => {
 
   it('1d. a non-admin (role user, org role member) sees no Security Profile section and no edit controls', async () => {
     authState.role = 'user'
-    authState.orgRole = 'member'
+    authState.orgRole = null
     await loaded()
     expect(document.getElementById('security-profile')).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Security Profile' })).not.toBeInTheDocument()
@@ -322,6 +322,58 @@ describe('OrganisationPage', () => {
     expect(userContextState.value.organization).toEqual({ ...baseOrg, name: 'Acme Ltd' })
     // The page re-renders with the new organisation once the save bumps the readiness key.
     await waitFor(() => expect(screen.getByTestId('readiness-widget')).toHaveAttribute('data-refresh-key', '1'))
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1)
+  })
+
+  it('6d. re-scrolls on each in-place navigation to #security-profile', async () => {
+    let go: (to: string) => void = () => {}
+    function Nav() {
+      const navigate = useNavigate()
+      go = (to) => navigate(to)
+      return null
+    }
+    render(
+      <MemoryRouter initialEntries={['/settings/organisation']}>
+        <Nav />
+        <Routes>
+          <Route element={<SettingsLayout />}>
+            <Route path="/settings/organisation" element={<OrganisationPage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByLabelText(/^Company Name/)
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(0)
+
+    act(() => go('/settings/organisation#security-profile'))
+    await waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1))
+
+    act(() => go('/settings/organisation#security-profile'))
+    await waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(2))
+  })
+
+  it('6e. cold load scrolls once the organisation arrives', async () => {
+    userContextState.value = { ...userContextState.value, organization: null }
+    // A fresh element each call: rerender with the identical element would bail out.
+    const tree = () => (
+      <MemoryRouter initialEntries={['/settings/organisation#security-profile']}>
+        <Routes>
+          <Route element={<SettingsLayout />}>
+            <Route path="/settings/organisation" element={<OrganisationPage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    )
+    const utils = render(tree())
+    await screen.findByRole('heading', { name: 'Company profile' })
+    expect(screen.queryByLabelText(/^Company Name/)).toBeNull()
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(0)
+
+    userContextState.value = { ...userContextState.value, organization: baseOrg }
+    utils.rerender(tree())
+    await screen.findByLabelText(/^Company Name/)
+    await waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1))
+    await new Promise((r) => setTimeout(r, 50))
     expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1)
   })
 

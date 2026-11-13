@@ -106,5 +106,6 @@ describe('AccountPage', () => {
     await waitFor(() => {
       expect(screen.getByText('user@example.com')).toBeInTheDocument()
     })
+    expect(screen.getByRole('heading', { name: 'Your account' })).toBeInTheDocument()
   })
 })
