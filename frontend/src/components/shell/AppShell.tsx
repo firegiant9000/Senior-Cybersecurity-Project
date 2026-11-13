@@ -34,9 +34,13 @@ export default function AppShell(): React.JSX.Element {
   const sectionItems = visibleGroup?.items ?? [];
   const activeItemId = visibleGroup ? (active.item?.id ?? null) : null;
 
+  // A group the user cannot see renders the not-found page, so the title must say so too.
+  const hiddenGroup = active.group !== null && visibleGroup === null;
+
   useEffect(() => {
-    document.title = `${titleFor(pathname, search)} · Hacker Tracker`;
-  }, [pathname, search]);
+    const title = hiddenGroup ? 'Page not found' : titleFor(pathname, search);
+    document.title = `${title} · Hacker Tracker`;
+  }, [pathname, search, hiddenGroup]);
 
   // Focus moves on path changes only (not tab changes within a page, not the session's first mount).
   // Comparing against the last pathname seen (not a first-run flag) keeps StrictMode's double

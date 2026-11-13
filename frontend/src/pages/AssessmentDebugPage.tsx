@@ -49,7 +49,7 @@ export default function AssessmentDebugPage() {
   }, [authLoading, canAccess]);
 
   if (authLoading) return null;
-  if (!canAccess) return <NotFoundPage />;
+  if (!canAccess) return <NotFoundPage embedded />;
 
   return (
     <>

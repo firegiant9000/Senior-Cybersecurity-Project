@@ -224,6 +224,17 @@ describe('AppShell', () => {
     expect(document.title).toBe('Findings · Hacker Tracker');
   });
 
+  it('titles a hidden Admin URL as not found for a member', () => {
+    renderShell('/dashboard?tab=admin');
+    expect(document.title).toBe('Page not found · Hacker Tracker');
+  });
+
+  it('titles the Admin URL normally for a platform admin', () => {
+    authValue.role = 'admin';
+    renderShell('/dashboard?tab=admin');
+    expect(document.title).toBe('Pipeline Health · Hacker Tracker');
+  });
+
   it('moves focus to main on navigation but not on first mount', () => {
     renderShell('/dashboard');
     expect(document.activeElement).not.toBe(screen.getByRole('main'));

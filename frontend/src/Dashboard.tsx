@@ -80,7 +80,7 @@ const Dashboard: React.FC = () => {
     // Known tab (or sub-tab) the user may not see: render NotFound. ProtectedRoute holds rendering
     // while the organisation loads, so this cannot flash for org tabs during load.
     if ((knownGroupDef && !activeGroupDef) || knownSubHidden) {
-        return <NotFoundPage />;
+        return <NotFoundPage embedded />;
     }
 
     // The component key to render — for standalone groups it's the group id,

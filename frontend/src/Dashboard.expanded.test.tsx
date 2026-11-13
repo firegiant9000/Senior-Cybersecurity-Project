@@ -154,7 +154,7 @@ describe('Dashboard - Navigation & Rendering', () => {
     it('renders admin for a global admin', async () => {
       mockAuthValues.role = 'admin'
       renderDashboard(['/dashboard?tab=admin'])
-      await waitFor(() => expect(screen.getByTestId('pipeline-health')).toBeInTheDocument())
+      expect(await screen.findByTestId('pipeline-health', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('renders not-found at admin for an org admin who is not a platform admin', () => {
@@ -180,57 +180,57 @@ describe('Dashboard - Navigation & Rendering', () => {
 
     it('can navigate to threats tab with threatIntel sub-tab', async () => {
       renderDashboard(['/dashboard?tab=threats&sub=threatIntel'])
-      await waitFor(() => expect(screen.getByTestId('threat-intel')).toBeInTheDocument())
+      expect(await screen.findByTestId('threat-intel', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('can navigate to riskScoring sub-tab', async () => {
       renderDashboard(['/dashboard?tab=threats&sub=riskScoring'])
-      await waitFor(() => expect(screen.getByTestId('risk-scoring')).toBeInTheDocument())
+      expect(await screen.findByTestId('risk-scoring', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('can navigate to assessment/findings', async () => {
       renderDashboard(['/dashboard?tab=assessment&sub=findings'])
-      await waitFor(() => expect(screen.getByTestId('findings')).toBeInTheDocument())
+      expect(await screen.findByTestId('findings', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('can navigate to assessment/aiSummary', async () => {
       renderDashboard(['/dashboard?tab=assessment&sub=aiSummary'])
-      await waitFor(() => expect(screen.getByTestId('ai-summary')).toBeInTheDocument())
+      expect(await screen.findByTestId('ai-summary', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('can navigate to assessment/smbAdvisor', async () => {
       renderDashboard(['/dashboard?tab=assessment&sub=smbAdvisor'])
-      await waitFor(() => expect(screen.getByTestId('smb-advisor')).toBeInTheDocument())
+      expect(await screen.findByTestId('smb-advisor', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('can navigate to vendorAlerts tab', async () => {
       renderDashboard(['/dashboard?tab=vendorAlerts'])
-      await waitFor(() => expect(screen.getByTestId('vendor-alerts')).toBeInTheDocument())
+      expect(await screen.findByTestId('vendor-alerts', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('can navigate to trends sub-tab', async () => {
       renderDashboard(['/dashboard?tab=trendsData&sub=trends'])
-      await waitFor(() => expect(screen.getByTestId('trends')).toBeInTheDocument())
+      expect(await screen.findByTestId('trends', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('can navigate to dataSources sub-tab', async () => {
       renderDashboard(['/dashboard?tab=trendsData&sub=dataSources'])
-      await waitFor(() => expect(screen.getByTestId('data-sources')).toBeInTheDocument())
+      expect(await screen.findByTestId('data-sources', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('can navigate to pipelineHealth (admin sub-tab)', async () => {
       renderDashboard(['/dashboard?tab=admin&sub=pipelineHealth'])
-      await waitFor(() => expect(screen.getByTestId('pipeline-health')).toBeInTheDocument())
+      expect(await screen.findByTestId('pipeline-health', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('can navigate to normalizationLog (admin sub-tab)', async () => {
       renderDashboard(['/dashboard?tab=admin&sub=normalizationLog'])
-      await waitFor(() => expect(screen.getByTestId('normalization-log')).toBeInTheDocument())
+      expect(await screen.findByTestId('normalization-log', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('falls back to overview when accessing non-existent tab', async () => {
       renderDashboard(['/dashboard?tab=nope'])
-      await waitFor(() => expect(screen.getByTestId('overview-tab')).toBeInTheDocument())
+      expect(await screen.findByTestId('overview-tab', {}, { timeout: 3000 })).toBeInTheDocument()
       expect(screen.queryByTestId('not-found-page')).toBeNull()
     })
 
@@ -252,7 +252,7 @@ describe('Dashboard - Navigation & Rendering', () => {
       mockAuthValues.orgId = 42
       mockAuthValues.orgLoading = false
       const warm = renderDashboard([`/dashboard?tab=${tab}`])
-      await waitFor(() => expect(screen.getByTestId(testId)).toBeInTheDocument())
+      expect(await screen.findByTestId(testId, {}, { timeout: 3000 })).toBeInTheDocument()
       warm.unmount()
       gatedRenders.vendorAlerts = 0
       gatedRenders.assets = 0
@@ -301,62 +301,62 @@ describe('Dashboard - Navigation & Rendering', () => {
 
     it('renders OverviewTab content when viewing overview', async () => {
       renderDashboard(['/dashboard'])
-      await waitFor(() => expect(screen.getByTestId('overview-tab')).toBeInTheDocument())
+      expect(await screen.findByTestId('overview-tab', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('renders RiskScoringTable when viewing threats/riskScoring', async () => {
       renderDashboard(['/dashboard?tab=threats&sub=riskScoring'])
-      await waitFor(() => expect(screen.getByTestId('risk-scoring')).toBeInTheDocument())
+      expect(await screen.findByTestId('risk-scoring', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('renders ThreatIntelTab when viewing threats/threatIntel', async () => {
       renderDashboard(['/dashboard?tab=threats&sub=threatIntel'])
-      await waitFor(() => expect(screen.getByTestId('threat-intel')).toBeInTheDocument())
+      expect(await screen.findByTestId('threat-intel', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('renders TrendsTab when viewing trendsData/trends', async () => {
       renderDashboard(['/dashboard?tab=trendsData&sub=trends'])
-      await waitFor(() => expect(screen.getByTestId('trends')).toBeInTheDocument())
+      expect(await screen.findByTestId('trends', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('renders PipelineHealthTab when viewing admin/pipelineHealth', async () => {
       renderDashboard(['/dashboard?tab=admin&sub=pipelineHealth'])
-      await waitFor(() => expect(screen.getByTestId('pipeline-health')).toBeInTheDocument())
+      expect(await screen.findByTestId('pipeline-health', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('renders NormalizationLogTab when viewing admin/normalizationLog', async () => {
       renderDashboard(['/dashboard?tab=admin&sub=normalizationLog'])
-      await waitFor(() => expect(screen.getByTestId('normalization-log')).toBeInTheDocument())
+      expect(await screen.findByTestId('normalization-log', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('renders SmBAdvisorTab when viewing assessment/smbAdvisor', async () => {
       renderDashboard(['/dashboard?tab=assessment&sub=smbAdvisor'])
-      await waitFor(() => expect(screen.getByTestId('smb-advisor')).toBeInTheDocument())
+      expect(await screen.findByTestId('smb-advisor', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('renders FindingsTab when viewing assessment/findings', async () => {
       renderDashboard(['/dashboard?tab=assessment&sub=findings'])
-      await waitFor(() => expect(screen.getByTestId('findings')).toBeInTheDocument())
+      expect(await screen.findByTestId('findings', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('renders AISummaryTab when viewing assessment/aiSummary', async () => {
       renderDashboard(['/dashboard?tab=assessment&sub=aiSummary'])
-      await waitFor(() => expect(screen.getByTestId('ai-summary')).toBeInTheDocument())
+      expect(await screen.findByTestId('ai-summary', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('renders DataSourcesTab when viewing trendsData/dataSources', async () => {
       renderDashboard(['/dashboard?tab=trendsData&sub=dataSources'])
-      await waitFor(() => expect(screen.getByTestId('data-sources')).toBeInTheDocument())
+      expect(await screen.findByTestId('data-sources', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('renders VendorAlertsTab when viewing vendorAlerts', async () => {
       renderDashboard(['/dashboard?tab=vendorAlerts'])
-      await waitFor(() => expect(screen.getByTestId('vendor-alerts')).toBeInTheDocument())
+      expect(await screen.findByTestId('vendor-alerts', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('renders AnomaliesTab when viewing threats/anomalies', async () => {
       renderDashboard(['/dashboard?tab=threats&sub=anomalies'])
-      await waitFor(() => expect(screen.getByTestId('anomalies')).toBeInTheDocument())
+      expect(await screen.findByTestId('anomalies', {}, { timeout: 3000 })).toBeInTheDocument()
     })
   })
 
@@ -369,7 +369,7 @@ describe('Dashboard - Navigation & Rendering', () => {
 
     it('defaults to the first sub-tab when none is specified', async () => {
       renderDashboard(['/dashboard?tab=assessment'])
-      await waitFor(() => expect(screen.getByTestId('smb-advisor')).toBeInTheDocument())
+      expect(await screen.findByTestId('smb-advisor', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('renders not-found for a legacy sub-tab id the user cannot see', () => {
@@ -410,52 +410,52 @@ describe('Dashboard - Navigation & Rendering', () => {
 
     it('maps legacy findings tab to assessment/findings', async () => {
       renderDashboard(['/dashboard?tab=findings'])
-      await waitFor(() => expect(screen.getByTestId('findings')).toBeInTheDocument())
+      expect(await screen.findByTestId('findings', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('maps legacy smbAdvisor to assessment/smbAdvisor', async () => {
       renderDashboard(['/dashboard?tab=smbAdvisor'])
-      await waitFor(() => expect(screen.getByTestId('smb-advisor')).toBeInTheDocument())
+      expect(await screen.findByTestId('smb-advisor', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('maps legacy aiSummary to assessment/aiSummary', async () => {
       renderDashboard(['/dashboard?tab=aiSummary'])
-      await waitFor(() => expect(screen.getByTestId('ai-summary')).toBeInTheDocument())
+      expect(await screen.findByTestId('ai-summary', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('maps legacy threatIntel to threats/threatIntel', async () => {
       renderDashboard(['/dashboard?tab=threatIntel'])
-      await waitFor(() => expect(screen.getByTestId('threat-intel')).toBeInTheDocument())
+      expect(await screen.findByTestId('threat-intel', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('maps legacy riskScoring to threats/riskScoring', async () => {
       renderDashboard(['/dashboard?tab=riskScoring'])
-      await waitFor(() => expect(screen.getByTestId('risk-scoring')).toBeInTheDocument())
+      expect(await screen.findByTestId('risk-scoring', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('maps legacy anomalies to threats/anomalies', async () => {
       renderDashboard(['/dashboard?tab=anomalies'])
-      await waitFor(() => expect(screen.getByTestId('anomalies')).toBeInTheDocument())
+      expect(await screen.findByTestId('anomalies', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('maps legacy trends to trendsData/trends', async () => {
       renderDashboard(['/dashboard?tab=trends'])
-      await waitFor(() => expect(screen.getByTestId('trends')).toBeInTheDocument())
+      expect(await screen.findByTestId('trends', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('maps legacy dataSources to trendsData/dataSources', async () => {
       renderDashboard(['/dashboard?tab=dataSources'])
-      await waitFor(() => expect(screen.getByTestId('data-sources')).toBeInTheDocument())
+      expect(await screen.findByTestId('data-sources', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('maps legacy pipelineHealth to admin/pipelineHealth', async () => {
       renderDashboard(['/dashboard?tab=pipelineHealth'])
-      await waitFor(() => expect(screen.getByTestId('pipeline-health')).toBeInTheDocument())
+      expect(await screen.findByTestId('pipeline-health', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('maps legacy normalizationLog to admin/normalizationLog', async () => {
       renderDashboard(['/dashboard?tab=normalizationLog'])
-      await waitFor(() => expect(screen.getByTestId('normalization-log')).toBeInTheDocument())
+      expect(await screen.findByTestId('normalization-log', {}, { timeout: 3000 })).toBeInTheDocument()
     })
   })
 
@@ -465,7 +465,7 @@ describe('Dashboard - Navigation & Rendering', () => {
       mockAuthValues.role = 'admin'
       mockAuthValues.orgRole = 'admin'
       renderDashboard(['/dashboard?tab=admin&sub=pipelineHealth'])
-      await waitFor(() => expect(screen.getByTestId('pipeline-health')).toBeInTheDocument())
+      expect(await screen.findByTestId('pipeline-health', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('resolves assessment but not admin for an org member without global admin', async () => {
@@ -475,7 +475,7 @@ describe('Dashboard - Navigation & Rendering', () => {
       renderDashboard(['/dashboard?tab=admin'])
       expect(screen.getByTestId('not-found-page')).toBeInTheDocument()
       renderDashboard(['/dashboard?tab=assessment&sub=smbAdvisor'])
-      await waitFor(() => expect(screen.getByTestId('smb-advisor')).toBeInTheDocument())
+      expect(await screen.findByTestId('smb-advisor', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('renders not-found at admin for an org owner (owner does not satisfy requiresAdmin)', () => {
@@ -494,14 +494,14 @@ describe('Dashboard - Navigation & Rendering', () => {
       expect(screen.getByTestId('overview-tab')).toBeInTheDocument()
     })
 
-    it('handles switching between users with different roles', () => {
+    it('handles switching between users with different roles', async () => {
       mockAuthValues.orgId = 42
       mockAuthValues.role = 'viewer'
       renderDashboard()
-      
+
       mockAuthValues.role = 'admin'
       renderDashboard(['/dashboard?tab=pipelineHealth'])
-      expect(screen.getByTestId('pipeline-health')).toBeInTheDocument()
+      expect(await screen.findByTestId('pipeline-health', {}, { timeout: 3000 })).toBeInTheDocument()
     })
 
     it('persists tab selection across navigation', () => {

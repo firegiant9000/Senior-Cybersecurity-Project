@@ -283,7 +283,18 @@ describe('AssessmentDebugPage', () => {
       renderPage()
 
       expect(screen.queryByTestId('not-found-page')).not.toBeInTheDocument()
+      expect(screen.queryByText(/Assessment Debug View/i)).not.toBeInTheDocument()
       expect(mockFetchDebug).not.toHaveBeenCalled()
+    })
+
+    it('renders not-found without its own main landmark (embedded in the shell)', () => {
+      mockAuthValues.role = null
+      mockAuthValues.orgRole = 'member'
+
+      renderPage()
+
+      expect(screen.getByTestId('not-found-page')).toBeInTheDocument()
+      expect(screen.queryByRole('main')).not.toBeInTheDocument()
     })
   })
 
