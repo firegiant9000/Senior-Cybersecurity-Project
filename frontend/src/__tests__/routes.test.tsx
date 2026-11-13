@@ -52,10 +52,21 @@ const { stub } = vi.hoisted(() => ({
 
 vi.mock('../pages/LoginPage.tsx', () => stub('login-page'))
 vi.mock('../pages/LandingPage.tsx', () => stub('landing-page'))
-vi.mock('../pages/SettingsPage.tsx', () => stub('settings-page'))
+vi.mock('../pages/settings/pages.tsx', async () => {
+  const React = await import('react')
+  const page = (id: string) => () => React.createElement('div', { 'data-testid': id }, id)
+  return {
+    AccountPage: page('account-page'),
+    OrganisationPage: page('organisation-page'),
+    TechnologyPage: page('technology-page'),
+    DomainsPage: page('domains-page'),
+    UploadsPage: page('uploads-page'),
+    TeamPage: page('team-page'),
+    AgentsPage: page('agents-page'),
+  }
+})
 vi.mock('../pages/AssessmentDebugPage.tsx', () => stub('assessment-debug-page'))
 vi.mock('../pages/AssessmentIntakePage.tsx', () => stub('onboarding-page'))
-vi.mock('../pages/OrgProfilePage.tsx', () => stub('org-profile-page'))
 vi.mock('../pages/AcceptInvitePage.tsx', () => stub('accept-invite-page'))
 vi.mock('../pages/ExecutiveReportPage.tsx', () => stub('executive-report-page'))
 vi.mock('../pages/GlossaryPage.tsx', () => stub('glossary-page'))
@@ -131,15 +142,27 @@ const PATHS: Array<[string, string, boolean]> = [
   ['/admin/pipeline', 'pipeline-health-tab', true],
   ['/admin/normalization-log', 'normalization-log-tab', true],
   ['/admin/assessment-debug', 'assessment-debug-page', true],
-  ['/settings/account', 'settings-page', true],
-  ['/settings/team', 'settings-page', true],
-  ['/settings/agents', 'settings-page', true],
-  ['/settings/organisation', 'org-profile-page', true],
-  ['/settings/technology', 'org-profile-page', true],
-  ['/settings/domains', 'org-profile-page', true],
-  ['/settings/uploads', 'org-profile-page', true],
+  ['/settings/account', 'account-page', true],
+  ['/settings/team', 'team-page', true],
+  ['/settings/agents', 'agents-page', true],
+  ['/settings/organisation', 'organisation-page', true],
+  ['/settings/technology', 'technology-page', true],
+  ['/settings/domains', 'domains-page', true],
+  ['/settings/uploads', 'uploads-page', true],
   ['/settings/integrations', 'integrations-page', true],
   ['/org/report', 'executive-report-page', false],
+]
+
+// The eight settings paths, each inside the settings nav.
+const SETTINGS_PATHS: Array<[string, string]> = [
+  ['/settings/account', 'account-page'],
+  ['/settings/organisation', 'organisation-page'],
+  ['/settings/technology', 'technology-page'],
+  ['/settings/domains', 'domains-page'],
+  ['/settings/uploads', 'uploads-page'],
+  ['/settings/team', 'team-page'],
+  ['/settings/agents', 'agents-page'],
+  ['/settings/integrations', 'integrations-page'],
 ]
 
 // Legacy table (Task 2G): [input URL, final pathname, stub, final search, final hash]
@@ -181,14 +204,14 @@ const LEGACY: Array<[string, string, string, string, string]> = [
   ['/integrations', '/settings/integrations', 'integrations-page', '', ''],
   ['/integrations?m365=connected&message=x', '/settings/integrations', 'integrations-page', '?m365=connected&message=x', ''],
   ['/report/executive?autoprint=1', '/org/report', 'executive-report-page', '?autoprint=1', ''],
-  ['/settings', '/settings/account', 'settings-page', '', ''],
-  ['/Settings', '/settings/account', 'settings-page', '', ''],
+  ['/settings', '/settings/account', 'account-page', '', ''],
+  ['/Settings', '/settings/account', 'account-page', '', ''],
   ['/settings/assessment-debug', '/admin/assessment-debug', 'assessment-debug-page', '', ''],
-  ['/org-profile', '/settings/organisation', 'org-profile-page', '', ''],
-  ['/org-profile#section-security-profile', '/settings/organisation', 'org-profile-page', '', '#security-profile'],
-  ['/org-profile#section-vendors', '/settings/technology', 'org-profile-page', '', ''],
-  ['/org-profile#section-domains', '/settings/domains', 'org-profile-page', '', ''],
-  ['/org-profile#section-uploads', '/settings/uploads', 'org-profile-page', '', ''],
+  ['/org-profile', '/settings/organisation', 'organisation-page', '', ''],
+  ['/org-profile#section-security-profile', '/settings/organisation', 'organisation-page', '', '#security-profile'],
+  ['/org-profile#section-vendors', '/settings/technology', 'technology-page', '', ''],
+  ['/org-profile#section-domains', '/settings/domains', 'domains-page', '', ''],
+  ['/org-profile#section-uploads', '/settings/uploads', 'uploads-page', '', ''],
   ['/assessment-intake', '/onboarding', 'onboarding-page', '', ''],
   ['/intel/anomalies', '/intel/anomalies/ic3', 'anomalies-tab', '', ''],
   ['/intel/reference', '/intel/reference/ic3', 'data-sources-tab', '', ''],
@@ -227,6 +250,22 @@ describe('routes', () => {
         expect(container.querySelector('#main')).toBeNull()
       }
       expect(pathname()).toBe(path)
+    })
+  })
+
+  describe('settings paths render inside the settings nav', () => {
+    it.each(SETTINGS_PATHS)('%s -> %s inside main, nav marks it current', async (path, testId) => {
+      signedIn()
+      const { container } = renderApp(path)
+      const el = await screen.findByTestId(testId)
+      const main = container.querySelector('#main')
+      expect(main).not.toBeNull()
+      expect(main!.contains(el)).toBe(true)
+      const nav = screen.getByRole('navigation', { name: 'Settings' })
+      expect(main!.contains(nav)).toBe(true)
+      const current = nav.querySelectorAll('a[aria-current="page"]')
+      expect(current).toHaveLength(1)
+      expect(current[0].getAttribute('href')).toBe(path)
     })
   })
 
@@ -272,6 +311,13 @@ describe('routes', () => {
       expect(pathname()).toBe('/onboarding')
     })
 
+    it('/settings/team goes to onboarding', async () => {
+      signedIn({ orgId: null })
+      renderApp('/settings/team')
+      expect(await screen.findByTestId('onboarding-page')).toBeInTheDocument()
+      expect(pathname()).toBe('/onboarding')
+    })
+
     it('/glossary renders with no navigation', async () => {
       signedIn({ orgId: null })
       renderApp('/glossary')
@@ -286,6 +332,13 @@ describe('routes', () => {
       expect(await screen.findByTestId('login-page')).toBeInTheDocument()
       expect(pathname()).toBe('/login')
       expect(search()).toBe('?next=%2Forg%2Ffindings')
+    })
+
+    it('/settings/team goes to login and remembers the target', async () => {
+      renderApp('/settings/team')
+      expect(await screen.findByTestId('login-page')).toBeInTheDocument()
+      expect(pathname()).toBe('/login')
+      expect(search()).toBe('?next=%2Fsettings%2Fteam')
     })
   })
 
@@ -308,6 +361,13 @@ describe('routes', () => {
       renderApp('/org/vendor-alerts')
       expect(await screen.findByText('Loading...')).toBeInTheDocument()
       expect(screen.queryByTestId('vendor-alerts-tab')).not.toBeInTheDocument()
+    })
+
+    it('/settings/team while the org is loading shows the loading state, not the screen', async () => {
+      signedIn({ orgLoading: true })
+      renderApp('/settings/team')
+      expect(await screen.findByText('Loading...')).toBeInTheDocument()
+      expect(screen.queryByTestId('team-page')).not.toBeInTheDocument()
     })
 
     it('document title at /org/vendor-alerts', async () => {

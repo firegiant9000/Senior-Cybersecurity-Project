@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { NAV_GROUPS, AVATAR_ITEMS, visibleNav, activeNav } from './navigation';
+import { NAV_GROUPS, AVATAR_ITEMS, SETTINGS_ITEMS, visibleNav, activeNav } from './navigation';
 import { titleFor } from './pageTitles';
 
 describe('NAV_GROUPS', () => {
@@ -117,8 +117,24 @@ describe('titleFor with navigation labels', () => {
 
   it('keeps static titles first for other paths', () => {
     expect(titleFor('/org/assets/upload')).toBe('Upload inventory');
-    expect(titleFor('/settings/account')).toBe('Settings');
-    expect(titleFor('/settings/technology')).toBe('Organisation profile');
+    expect(titleFor('/settings/account')).toBe('Account');
+    expect(titleFor('/settings/technology')).toBe('Technology stack');
+    expect(titleFor('/settings/integrations')).toBe('Integrations');
+  });
+});
+
+describe('SETTINGS_ITEMS', () => {
+  it('pins every settings item label and target in order', () => {
+    expect(SETTINGS_ITEMS.map((i) => ({ label: i.label, to: i.to }))).toEqual([
+      { label: 'Account', to: '/settings/account' },
+      { label: 'Organisation', to: '/settings/organisation' },
+      { label: 'Technology stack', to: '/settings/technology' },
+      { label: 'Domains', to: '/settings/domains' },
+      { label: 'File uploads', to: '/settings/uploads' },
+      { label: 'Team', to: '/settings/team' },
+      { label: 'Scanner agents', to: '/settings/agents' },
+      { label: 'Integrations', to: '/settings/integrations' },
+    ]);
   });
 });
 
