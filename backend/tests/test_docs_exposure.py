@@ -48,3 +48,16 @@ async def test_docs_enabled_in_development(path):
         resp = await client.get(path)
 
     assert resp.status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("app_env", "has_docs_links"), [("production", False), ("development", True)]
+)
+async def test_root_lists_docs_links_only_when_docs_enabled(app_env, has_docs_links):
+    app = _create_app_for(app_env)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.get("/")
+
+    assert resp.status_code == 200
+    assert ("docs" in resp.json()) is has_docs_links
+    assert ("openapi" in resp.json()) is has_docs_links

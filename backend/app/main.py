@@ -239,14 +239,16 @@ def create_app() -> FastAPI:
 
     @fastapi_app.get("/")
     async def root() -> dict[str, str]:
-        """Root endpoint with quick API links."""
-        return {
+        """Root endpoint with quick API links; docs links only where docs are served."""
+        links = {
             "service": settings.APP_NAME,
             "health": "/health",
             "api_base": settings.API_PREFIX,
-            "docs": "/docs",
-            "openapi": "/openapi.json",
         }
+        if docs_enabled:
+            links["docs"] = "/docs"
+            links["openapi"] = "/openapi.json"
+        return links
 
     return fastapi_app
 
