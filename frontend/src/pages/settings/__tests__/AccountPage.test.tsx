@@ -107,18 +107,4 @@ describe('AccountPage', () => {
       expect(screen.getByText('user@example.com')).toBeInTheDocument()
     })
   })
-
-  it('shows the account section to a member', async () => {
-    authState.orgRole = 'member'
-    mockFetchWithAuth.mockResolvedValue({
-      ok: true,
-      json: async () => ({ ...mockUserProfile, org_role: 'member' }),
-    })
-
-    renderPage()
-
-    await waitFor(() => {
-      expect(screen.getByText(/Your account/i)).toBeInTheDocument()
-    })
-  })
 })

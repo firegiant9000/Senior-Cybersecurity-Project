@@ -19,6 +19,7 @@ import '../SettingsPage.css';
 
 const noop = () => {};
 const ADMIN_ONLY_TEAM = 'Only organisation admins can manage the team.';
+const ADMIN_ONLY_AGENTS = 'Only organisation admins can manage scanner agents.';
 
 function Frame({ children }: { children: ReactNode }) {
   return (
@@ -30,10 +31,10 @@ function Frame({ children }: { children: ReactNode }) {
   );
 }
 
-function AdminOnly() {
+function AdminOnly({ message }: { message: string }) {
   return (
     <Frame>
-      <p>{ADMIN_ONLY_TEAM}</p>
+      <p>{message}</p>
     </Frame>
   );
 }
@@ -179,7 +180,7 @@ export function TeamPage() {
   const { orgId, role, orgRole } = useAuth();
   const canEdit = isOrgAdmin(role, orgRole);
 
-  if (!canEdit) return <AdminOnly />;
+  if (!canEdit) return <AdminOnly message={ADMIN_ONLY_TEAM} />;
   if (orgId == null) return null;
   return (
     <Frame>
@@ -190,7 +191,7 @@ export function TeamPage() {
 
 export function AgentsPage() {
   const { canEdit } = useSettingsAuth();
-  if (!canEdit) return <AdminOnly />;
+  if (!canEdit) return <AdminOnly message={ADMIN_ONLY_AGENTS} />;
   return (
     <Frame>
       <AgentsSection />

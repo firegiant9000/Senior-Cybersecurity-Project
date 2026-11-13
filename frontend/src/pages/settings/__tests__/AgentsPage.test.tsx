@@ -7,7 +7,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 // ─────────────────────────────────────────────────────────────────────────────
 
 const {
-  mockLogout,
   mockFetchWithAuth,
   mockListAgents,
   mockEnrollAgent,
@@ -16,7 +15,6 @@ const {
   mockEndAgentGrace,
   authState,
 } = vi.hoisted(() => ({
-  mockLogout: vi.fn(),
   mockFetchWithAuth: vi.fn(),
   mockListAgents: vi.fn(),
   mockEnrollAgent: vi.fn(),
@@ -64,7 +62,6 @@ vi.mock('../../../context/AuthContext', () => ({
     orgId: authState.orgId,
     role: authState.role,
     orgRole: authState.orgRole,
-    logout: mockLogout,
   }),
   AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
@@ -85,7 +82,7 @@ vi.mock('../../../api/agents', () => ({
 
 // Import components AFTER mocks
 import SettingsLayout from '../SettingsLayout'
-import { AgentsPage, TeamPage } from '../pages'
+import { AgentsPage } from '../pages'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper Functions
@@ -96,7 +93,6 @@ function renderPage() {
     <MemoryRouter initialEntries={['/settings/agents']}>
       <Routes>
         <Route element={<SettingsLayout />}>
-          <Route path="/settings/team" element={<TeamPage />} />
           <Route path="/settings/agents" element={<AgentsPage />} />
         </Route>
       </Routes>
@@ -128,7 +124,7 @@ describe('AgentsPage - Scanner Agents', () => {
 
     renderPage()
 
-    expect(screen.getByText('Only organisation admins can manage the team.')).toBeInTheDocument()
+    expect(screen.getByText('Only organisation admins can manage scanner agents.')).toBeInTheDocument()
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(mockListAgents).not.toHaveBeenCalled()
     expect(mockFetchWithAuth).not.toHaveBeenCalled()
