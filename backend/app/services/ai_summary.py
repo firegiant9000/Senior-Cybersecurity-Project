@@ -17,6 +17,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.logging import safe_http_error
 from app.db.organization import Organization
 from app.repositories.ai_summary_generation import SqlAISummaryGenerationRepository
 from app.schemas.ai_summary import AISummaryResponse, StructuredSummary
@@ -598,9 +599,13 @@ class AISummaryService:
             except GeminiInvalidOutputError as e:
                 # Truncated or schema-invalid output: the template, never the
                 # raw text, and not an older summary either.
-                logger.warning("Gemini output unusable for org %s; using the template", org.id)
+                logger.warning(
+                    "Gemini output unusable for org %s; using the template",
+                    org.id,
+                    extra={"error": safe_http_error(e)},
+                )
                 parsed = None
-                error_message = f"{type(e).__name__}: {e}"
+                error_message = type(e).__name__
                 narrative = _build_fallback(org, report, risk_score)
                 status = "fallback_used"
                 source = "fallback"
@@ -610,7 +615,7 @@ class AISummaryService:
                 output_format = "prose"
             except Exception as e:
                 logger.exception("Gemini API call failed for org %s — using fallback", org.id)
-                error_message = str(e)
+                error_message = type(e).__name__
                 # Try last successful Gemini generation before falling to the template
                 try:
                     last_good = await SqlAISummaryGenerationRepository(

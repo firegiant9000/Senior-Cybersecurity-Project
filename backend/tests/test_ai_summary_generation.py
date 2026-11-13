@@ -509,3 +509,102 @@ async def test_service_output_format_prose_when_parse_fails():
     assert result.notable_risks is None
     assert result.data_gaps is None
     assert result.next_steps is None
+
+
+# ---------------------------------------------------------------------------
+# Failure detail: only the exception class is stored and returned (#210)
+# ---------------------------------------------------------------------------
+
+
+async def _build_with_gemini_error(org_id: int, exc: Exception):
+    from app.services.ai_summary import AISummaryService
+
+    org, mock_report, mock_db = _base_service_patches("")
+    org.id = org_id
+
+    with (
+        patch("app.services.ai_summary.FindingsEngine") as mock_eng,
+        patch("app.services.ai_summary._get_feedback_meta", new=AsyncMock(return_value=None)),
+        patch("app.services.ai_summary._call_gemini", new=AsyncMock(side_effect=exc)),
+        patch("app.services.ai_summary.settings") as mock_settings,
+        patch("app.services.ai_summary.SqlAISummaryGenerationRepository") as mock_repo_cls,
+    ):
+        mock_eng.return_value.build = AsyncMock(return_value=mock_report)
+        mock_settings.AI_SUMMARY_ENABLED = True
+        mock_settings.GEMINI_API_KEY = "key"
+        mock_settings.GEMINI_MODEL = "gemini-2.5-flash"
+        mock_settings.AI_SUMMARY_CACHE_TTL = 3600
+
+        mock_repo = AsyncMock()
+        mock_repo.get_last_successful_gemini.return_value = None
+        mock_repo_cls.return_value = mock_repo
+
+        await AISummaryService(mock_db).build(org)
+    return mock_repo.create.call_args.kwargs
+
+
+@pytest.mark.asyncio
+async def test_failed_generation_stores_class_name_only():
+    kwargs = await _build_with_gemini_error(
+        7101, RuntimeError("secret endpoint https://x/y?key=abc")
+    )
+    assert kwargs["error_message"] == "RuntimeError"
+
+
+@pytest.mark.asyncio
+async def test_invalid_output_stores_class_name():
+    from app.services.ai_summary import GeminiInvalidOutputError
+
+    kwargs = await _build_with_gemini_error(
+        7102, GeminiInvalidOutputError("truncated key=abc https://internal")
+    )
+    assert kwargs["error_message"] == "GeminiInvalidOutputError"
+
+
+@pytest.mark.asyncio
+async def test_history_response_has_no_raw_exception_text(client):
+    from datetime import UTC, datetime
+
+    from app.api.routes.v1.auth import get_current_user
+    from app.core.dependencies import get_current_org
+    from app.db.engine import get_session
+    from app.db.organization import Organization
+    from app.main import app
+
+    org_mock = MagicMock(spec=Organization)
+    org_mock.id = 10
+    row = _make_row(
+        status="fallback_used",
+        error_message="ValueError: key=abc at https://internal",
+        generated_at=datetime(2026, 4, 17, tzinfo=UTC),
+        output_format="prose",
+    )
+
+    async def _mock_org():
+        return org_mock
+
+    async def _mock_admin():
+        # A global admin passes require_org_role("admin")
+        return MagicMock(role="admin", org_id=10)
+
+    async def _mock_session():
+        return MagicMock()
+
+    app.dependency_overrides[get_current_org] = _mock_org
+    app.dependency_overrides[get_current_user] = _mock_admin
+    app.dependency_overrides[get_session] = _mock_session
+    try:
+        with patch(
+            "app.repositories.ai_summary_generation.SqlAISummaryGenerationRepository.list_by_org",
+            new=AsyncMock(return_value=([row], 1)),
+        ):
+            resp = await client.get("/api/v1/organizations/mine/ai-summary/history")
+    finally:
+        app.dependency_overrides.pop(get_current_org, None)
+        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_session, None)
+
+    assert resp.status_code == 200
+    assert resp.json()["items"][0]["error_message"] == "error"
+    assert "key=abc" not in resp.text
+    assert "https://internal" not in resp.text
