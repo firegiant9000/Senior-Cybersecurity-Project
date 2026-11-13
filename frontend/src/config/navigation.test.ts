@@ -22,6 +22,48 @@ describe('NAV_GROUPS', () => {
       'AI Briefing',
     ]);
   });
+
+  const pairs = (id: string) =>
+    NAV_GROUPS.find((g) => g.id === id)!.items.map((i) => ({ label: i.label, to: i.to }));
+
+  it('pins org item targets', () => {
+    expect(pairs('org')).toEqual([
+      { label: 'Assets', to: '/org/assets' },
+      { label: 'Findings', to: '/org/findings' },
+      { label: 'Vendor Alerts', to: '/org/vendor-alerts' },
+      { label: 'Risk Profile', to: '/org/risk' },
+      { label: 'AI Briefing', to: '/org/briefing' },
+    ]);
+  });
+
+  it('pins merged intel items and drops the old labels', () => {
+    expect(pairs('intel')).toEqual([
+      { label: 'Vulnerabilities', to: '/intel/vulnerabilities' },
+      { label: 'Anomalies', to: '/intel/anomalies' },
+      { label: 'Incident Trends', to: '/intel/trends' },
+      { label: 'Reference Data', to: '/intel/reference' },
+    ]);
+    const labels = pairs('intel').map((i) => i.label);
+    expect(labels).not.toContain('Recent Vulnerabilities');
+    expect(labels).not.toContain('Vulnerability Scoring');
+  });
+
+  it('pins admin item targets', () => {
+    expect(pairs('admin')).toEqual([
+      { label: 'Pipeline Health', to: '/admin/pipeline' },
+      { label: 'Normalization Log', to: '/admin/normalization-log' },
+      { label: 'Assessment Debug', to: '/admin/assessment-debug' },
+    ]);
+  });
+
+  it('pins group targets', () => {
+    expect(NAV_GROUPS.map((g) => ({ id: g.id, to: g.to }))).toEqual([
+      { id: 'overview', to: '/overview' },
+      { id: 'org', to: '/org/assets' },
+      { id: 'intel', to: '/intel/vulnerabilities' },
+      { id: 'admin', to: '/admin/pipeline' },
+    ]);
+  });
 });
 
 describe('visibleNav', () => {
@@ -81,6 +123,18 @@ describe('titleFor with navigation labels', () => {
 });
 
 describe('AVATAR_ITEMS', () => {
+  it('pins every avatar item label and target', () => {
+    expect(AVATAR_ITEMS.map((i) => ({ label: i.label, to: i.to }))).toEqual([
+      { label: 'Organisation profile', to: '/settings/organisation' },
+      { label: 'Team and agents', to: '/settings/team' },
+      { label: 'Integrations', to: '/settings/integrations' },
+      { label: 'Account', to: '/settings/account' },
+      { label: 'Glossary', to: '/glossary' },
+      { label: 'Privacy', to: '/privacy' },
+      { label: 'Data handling', to: '/data-handling' },
+    ]);
+  });
+
   it('points at the settings paths', () => {
     expect(AVATAR_ITEMS.filter((i) => i.to.startsWith('/settings/')).map((i) => i.to)).toEqual([
       '/settings/organisation',

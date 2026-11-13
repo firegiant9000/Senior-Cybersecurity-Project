@@ -147,10 +147,16 @@ vi.mock('../pages/AcceptInvitePage', () => ({
 }))
 
 vi.mock('../components/ProtectedRoute', () => ({
-  default: ({ children }: { children: ReactNode }) => {
+  default: ({ children, requireOrg = true }: { children: ReactNode; requireOrg?: boolean }) => {
     const auth = mockAuthContext
     if (!auth.user && !auth.loading) {
       return <div data-testid="redirect-login">Redirecting...</div>
+    }
+    if (requireOrg && auth.orgLoading) {
+      return <div data-testid="org-loading">Loading org...</div>
+    }
+    if (requireOrg && !auth.orgId) {
+      return <div data-testid="org-redirect">Redirecting to onboarding...</div>
     }
     return <>{children}</>
   },
@@ -431,18 +437,19 @@ describe('Integration Tests - User Flows', () => {
   })
 
   describe('User Without Organization Flow', () => {
-    it('new user sees org-join CTA on the overview', () => {
+    it('new user without an org is redirected to onboarding from the overview', () => {
       setupAuthenticatedUser()
       mockAuthContext.orgId = null
       renderApp(['/overview'])
-      // Component would show CTA
-      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
+      expect(screen.getByTestId('org-redirect')).toBeInTheDocument()
+      expect(screen.queryByTestId('overview-page')).not.toBeInTheDocument()
     })
 
     it('user without org cannot access org-only settings', () => {
       setupAuthenticatedUser()
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('org-redirect')).toBeInTheDocument()
+      expect(screen.queryByTestId('settings-page')).not.toBeInTheDocument()
     })
 
     it('user navigates from onboarding to settings after joining org', () => {
@@ -559,7 +566,7 @@ describe('Integration Tests - User Flows', () => {
       expect(screen.getByTestId('landing-page')).toBeInTheDocument()
     })
 
-    it('user can recover from org access loss', () => {
+    it('user who loses org access is redirected to onboarding', () => {
       setupUserWithOrg(1, 'member')
       renderApp(['/overview'])
       expect(screen.getByTestId('overview-page')).toBeInTheDocument()
@@ -569,16 +576,17 @@ describe('Integration Tests - User Flows', () => {
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false
       renderApp(['/overview'])
-      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
+      expect(screen.getByTestId('org-redirect')).toBeInTheDocument()
+      expect(screen.queryByTestId('overview-page')).not.toBeInTheDocument()
     })
 
     it('admin can access pages after role change', async () => {
       setupAdminUser()
+      mockAuthContext.orgId = 1
       renderApp(['/overview'])
       expect(screen.getByTestId('overview-page')).toBeInTheDocument()
       cleanup()
 
-      mockAuthContext.orgId = 1
       renderApp(['/admin/pipeline'])
       expect(await screen.findByTestId('pipeline-health-tab')).toBeInTheDocument()
     })
@@ -625,6 +633,7 @@ describe('Integration Tests - User Flows', () => {
       mockAuthContext.orgLoading = true
       renderApp(['/overview'])
       // Should wait for org load before showing restricted content
+      expect(screen.queryByTestId('overview-page')).not.toBeInTheDocument()
     })
 
     it('handles completion of loading states', async () => {

@@ -571,7 +571,7 @@ describe('App - Routing & Navigation', () => {
       expect(document.getElementById('main')).toContainElement(screen.getByTestId('assessment-debug-page'))
     })
 
-    it('keeps /report/executive outside the shell', () => {
+    it('keeps /org/report outside the shell', () => {
       mockAuthContext.user = { uid: 'user1', email: 'user@example.com' } as unknown
       mockAuthContext.orgId = 1
       renderApp(['/org/report'])
@@ -592,7 +592,7 @@ describe('App - Routing & Navigation', () => {
       expect(document.getElementById('main')).toBeNull()
     })
 
-    it('still requires an organisation for /settings', () => {
+    it('still requires an organisation for /settings/account', () => {
       mockAuthContext.user = { uid: 'user1', email: 'user@example.com' } as unknown
       mockAuthContext.orgId = null
       renderApp(['/settings/account'])
