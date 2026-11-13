@@ -68,6 +68,7 @@ _ORGS = f"{_V1}/organizations"
 _MINE = f"{_ORGS}/mine"
 
 _PUBLIC = RouteSpec("public")
+_DOCS_NOTE = "dev/test only; disabled in production (T-PLAT-08)"
 _VIEWER = RouteSpec("authenticated-global", min_role="viewer")
 _SIGNED_IN = RouteSpec("authenticated-global")
 _ADMIN = RouteSpec("administrator", min_role="admin")
@@ -110,10 +111,10 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
         ("GET", "/", _PUBLIC),
         ("GET", "/health", _PUBLIC),
         ("GET", f"{_V1}/health", _PUBLIC),
-        ("GET", "/docs", RouteSpec("public", note="T-PLAT-08 accepted")),
-        ("GET", "/docs/oauth2-redirect", RouteSpec("public", note="T-PLAT-08 accepted")),
-        ("GET", "/redoc", RouteSpec("public", note="T-PLAT-08 accepted")),
-        ("GET", "/openapi.json", RouteSpec("public", note="T-PLAT-08 accepted")),
+        ("GET", "/docs", RouteSpec("public", note=_DOCS_NOTE)),
+        ("GET", "/docs/oauth2-redirect", RouteSpec("public", note=_DOCS_NOTE)),
+        ("GET", "/redoc", RouteSpec("public", note=_DOCS_NOTE)),
+        ("GET", "/openapi.json", RouteSpec("public", note=_DOCS_NOTE)),
         # --- auth / public data -----------------------------------------------------
         (
             "GET",

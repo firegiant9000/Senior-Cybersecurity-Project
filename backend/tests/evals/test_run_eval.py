@@ -360,8 +360,12 @@ def test_dry_run_is_offline_and_writes_every_field(env, monkeypatch, capsys):
 
 def test_cli_dry_run_in_a_fresh_process(env):
     # A fresh interpreter has none of the app imports the test session has,
-    # and neither a key nor DATABASE_URL in its environment.
-    clean_env = {k: v for k, v in os.environ.items() if k not in ("GEMINI_API_KEY", "DATABASE_URL")}
+    # and none of a key, DATABASE_URL or APP_ENV in its environment.
+    clean_env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in ("GEMINI_API_KEY", "DATABASE_URL", "APP_ENV")
+    }
     result = subprocess.run(
         [
             sys.executable,

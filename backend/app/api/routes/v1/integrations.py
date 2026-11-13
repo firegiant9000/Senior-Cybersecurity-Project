@@ -120,7 +120,7 @@ async def _persist_devices_as_assets(
             org_id,
             ScanRunUpdate(
                 status="failed",
-                error_message="device persistence failed",
+                error_message="DevicePersistenceFailed",
                 finished_at=datetime.now(UTC),
             ),
         )

@@ -17,6 +17,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.logging import safe_http_error
 from app.db.organization import Organization
 from app.repositories.ai_summary_generation import SqlAISummaryGenerationRepository
 from app.schemas.ai_summary import AISummaryResponse, StructuredSummary
@@ -524,6 +525,7 @@ class AISummaryService:
         org: Organization,
         *,
         triggered_by_user_id: int | None = None,
+        forced: bool = False,
     ) -> AISummaryResponse:
         from datetime import UTC, datetime
 
@@ -598,9 +600,13 @@ class AISummaryService:
             except GeminiInvalidOutputError as e:
                 # Truncated or schema-invalid output: the template, never the
                 # raw text, and not an older summary either.
-                logger.warning("Gemini output unusable for org %s; using the template", org.id)
+                logger.warning(
+                    "Gemini output unusable for org %s; using the template",
+                    org.id,
+                    extra={"error": safe_http_error(e)},
+                )
                 parsed = None
-                error_message = f"{type(e).__name__}: {e}"
+                error_message = type(e).__name__
                 narrative = _build_fallback(org, report, risk_score)
                 status = "fallback_used"
                 source = "fallback"
@@ -608,9 +614,14 @@ class AISummaryService:
                 model_used = None
                 raw = narrative
                 output_format = "prose"
-            except Exception as e:
-                logger.exception("Gemini API call failed for org %s — using fallback", org.id)
-                error_message = str(e)
+            except Exception as e:  # noqa: BLE001 - any SDK failure falls back to the template
+                # ERROR level so Sentry alerts on a revoked key, quota or outage
+                logger.error(
+                    "Gemini API call failed for org %s; using fallback",
+                    org.id,
+                    extra={"error": safe_http_error(e)},
+                )
+                error_message = type(e).__name__
                 # Try last successful Gemini generation before falling to the template
                 try:
                     last_good = await SqlAISummaryGenerationRepository(
@@ -671,6 +682,9 @@ class AISummaryService:
                 rendered_prompt=rendered_prompt,
                 output_text=raw,
                 output_format=output_format,
+                # Marks force_refresh builds on every outcome path; the T-AI-09 quota
+                # counts rows carrying it (output_meta is otherwise unused).
+                output_meta={"forced": True} if forced else None,
                 findings_snapshot_id=snap_id,
                 triggered_by_user_id=triggered_by_user_id,
                 latency_ms=latency_ms,

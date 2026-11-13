@@ -15,7 +15,7 @@ browser or the `gh`/`curl` CLI.
 | Frontend (Firebase Hosting) | `https://hacker-tracker-75f91.web.app` |
 | Backend (Render) | `https://hacker-tracker-backend.onrender.com` |
 | Backend health | `https://hacker-tracker-backend.onrender.com/health` |
-| Backend OpenAPI | `https://hacker-tracker-backend.onrender.com/docs` (auth-gated) |
+| Backend OpenAPI | Not served in production (T-PLAT-08); development and testing only |
 
 Sentry, if configured, surfaces backend + frontend exceptions to the
 project's Sentry org — check it in parallel with each step.

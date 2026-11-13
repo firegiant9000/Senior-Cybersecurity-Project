@@ -2,8 +2,9 @@
 
 from datetime import datetime
 from typing import ClassVar
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.db.enums import (
     INDUSTRY_TO_IC3_SECTOR,
@@ -68,6 +69,22 @@ class OrganizationUpdate(BaseModel):
     incident_history: str | None = None
 
     _server_derived: ClassVar[set[str]] = {"ic3_sector"}
+
+    @field_validator("logo_url")
+    @classmethod
+    def _logo_url_http_only(cls, v: str | None) -> str | None:
+        """Accept only http(s) URLs with a host; empty means no logo."""
+        if v is None:
+            return None
+        v = v.strip()
+        if v == "":
+            return None
+        if any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in v):
+            raise ValueError("logo_url must not contain whitespace or control characters")
+        parts = urlsplit(v)
+        if parts.scheme not in ("http", "https") or not parts.hostname:
+            raise ValueError("logo_url must be an http(s) URL")
+        return v
 
     @model_validator(mode="after")
     def _derive_ic3_sector(self):
