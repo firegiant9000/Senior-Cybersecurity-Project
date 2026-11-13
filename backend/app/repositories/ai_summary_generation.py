@@ -50,27 +50,29 @@ class SqlAISummaryGenerationRepository:
         )
         return result.scalar_one_or_none()
 
-    async def count_gemini_since(self, org_id: int, since: datetime) -> int:
-        """Count Gemini generations for an org at or after ``since``."""
+    async def count_forced_since(self, org_id: int, since: datetime) -> int:
+        """Count force_refresh attempts for an org at or after ``since``, any outcome."""
         result = await self._session.execute(
-            select(func.count(AISummaryGeneration.id)).where(
-                AISummaryGeneration.org_id == org_id,
-                AISummaryGeneration.source == "gemini",
-                AISummaryGeneration.generated_at >= since,
-            )
+            select(func.count(AISummaryGeneration.id)).where(*self._forced_since(org_id, since))
         )
         return int(result.scalar_one())
 
-    async def oldest_gemini_since(self, org_id: int, since: datetime) -> datetime | None:
-        """Timestamp of the oldest Gemini generation at or after ``since`` (for Retry-After)."""
+    async def oldest_forced_since(self, org_id: int, since: datetime) -> datetime | None:
+        """Timestamp of the oldest counted forced refresh (for Retry-After)."""
         result = await self._session.execute(
             select(func.min(AISummaryGeneration.generated_at)).where(
-                AISummaryGeneration.org_id == org_id,
-                AISummaryGeneration.source == "gemini",
-                AISummaryGeneration.generated_at >= since,
+                *self._forced_since(org_id, since)
             )
         )
         return result.scalar_one_or_none()
+
+    @staticmethod
+    def _forced_since(org_id: int, since: datetime) -> tuple:
+        return (
+            AISummaryGeneration.org_id == org_id,
+            AISummaryGeneration.output_meta.contains({"forced": True}),
+            AISummaryGeneration.generated_at >= since,
+        )
 
     async def get_last_successful_gemini(self, org_id: int) -> AISummaryGeneration | None:
         """Return the most recent successful Gemini generation for an org, if any."""

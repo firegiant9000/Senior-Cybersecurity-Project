@@ -525,6 +525,7 @@ class AISummaryService:
         org: Organization,
         *,
         triggered_by_user_id: int | None = None,
+        forced: bool = False,
     ) -> AISummaryResponse:
         from datetime import UTC, datetime
 
@@ -680,6 +681,9 @@ class AISummaryService:
                 rendered_prompt=rendered_prompt,
                 output_text=raw,
                 output_format=output_format,
+                # Marks force_refresh builds on every outcome path; the T-AI-09 quota
+                # counts rows carrying it (output_meta is otherwise unused).
+                output_meta={"forced": True} if forced else None,
                 findings_snapshot_id=snap_id,
                 triggered_by_user_id=triggered_by_user_id,
                 latency_ms=latency_ms,

@@ -609,14 +609,15 @@ async def get_ai_summary(
             ),
         )
     if force_refresh:
-        # Quota check precedes invalidate and any Gemini call. Count-then-generate is not
-        # atomic, so concurrent requests can overshoot the limit by a call or two.
+        # Quota check precedes invalidate and any Gemini call. It counts forced refresh
+        # attempts (any outcome); plain cache-miss builds are not counted. The row is
+        # written after Gemini returns, so concurrent requests in flight can overshoot.
         window = timedelta(hours=settings.AI_FORCE_REFRESH_WINDOW_HOURS)
         now = datetime.now(UTC)
         repo = SqlAISummaryGenerationRepository(db)
-        used = await repo.count_gemini_since(org.id, now - window)
+        used = await repo.count_forced_since(org.id, now - window)
         if used >= settings.AI_FORCE_REFRESH_ORG_LIMIT:
-            oldest = await repo.oldest_gemini_since(org.id, now - window)
+            oldest = await repo.oldest_forced_since(org.id, now - window)
             retry_after = 1
             if oldest is not None:
                 if oldest.tzinfo is None:
@@ -631,7 +632,7 @@ async def get_ai_summary(
         service = AISummaryService(db)
         if force_refresh:
             service.invalidate(org.id)
-        return await service.build(org, triggered_by_user_id=current_user.id)
+        return await service.build(org, triggered_by_user_id=current_user.id, forced=force_refresh)
     except Exception:
         logger.exception("Failed to build AI summary for org %s", org.id)
         raise HTTPException(status_code=500, detail="Failed to generate AI summary")
