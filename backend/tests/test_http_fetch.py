@@ -1,5 +1,6 @@
 """Tests for the size-capped streaming JSON fetch helper (T-ING-06)."""
 
+import asyncio
 import gzip
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -7,7 +8,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from app.core.http_fetch import FEED_TIMEOUT, ResponseTooLargeError, get_json_capped
+from app.core.http_fetch import (
+    FEED_DEADLINE_SECONDS,
+    FEED_TIMEOUT,
+    FeedDeadlineError,
+    ResponseTooLargeError,
+    get_json_capped,
+)
 
 URL = "https://feed.example.test/data.json"
 
@@ -46,6 +53,26 @@ async def test_raises_when_streamed_body_exceeds_cap():
             await get_json_capped(client, URL, max_bytes=cap)
     assert len(consumed) == cap // 1024 + 1
     assert "xxxx" not in str(exc.value)
+
+
+async def test_raises_when_overall_deadline_expires_on_trickling_body():
+    async def body():
+        yield b'{"a":'
+        await asyncio.sleep(5)  # cancelled by the deadline long before this ends
+        yield b"1}"
+
+    def handler(request):
+        return httpx.Response(200, content=body())
+
+    async with _client(handler) as client:
+        with pytest.raises(FeedDeadlineError) as exc:
+            await get_json_capped(client, URL, max_bytes=1024, deadline=0.05)
+    assert URL not in str(exc.value)
+    assert "feed.example.test" not in str(exc.value)
+
+
+def test_default_deadline_is_generous_but_finite():
+    assert 60 <= FEED_DEADLINE_SECONDS <= 600
 
 
 async def test_raises_fast_on_content_length_over_cap():

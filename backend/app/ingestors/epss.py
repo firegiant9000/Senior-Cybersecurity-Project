@@ -16,7 +16,7 @@ import httpx
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.http_fetch import ResponseTooLargeError, get_json_capped
+from app.core.http_fetch import FeedDeadlineError, ResponseTooLargeError, get_json_capped
 from app.core.logging import safe_http_error
 from app.db.models import CVE
 
@@ -95,7 +95,7 @@ async def ingest_epss(db: AsyncSession) -> int:  # noqa: C901
                         skipped_invalid,
                         skipped_unrequested,
                     )
-            except (httpx.HTTPError, ResponseTooLargeError, ValueError) as exc:
+            except (httpx.HTTPError, ResponseTooLargeError, FeedDeadlineError, ValueError) as exc:
                 logger.warning("EPSS batch %d failed: %s", i // BATCH_SIZE, safe_http_error(exc))
                 continue
             await asyncio.sleep(0.5)

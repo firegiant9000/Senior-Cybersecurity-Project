@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.http_fetch import ResponseTooLargeError, get_json_capped
+from app.core.http_fetch import FeedDeadlineError, ResponseTooLargeError, get_json_capped
 from app.core.logging import safe_http_error
 from app.db.models import EconomicIndicator
 from app.schemas.validators import EconomicIndicatorValidationSchema
@@ -253,7 +253,7 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:  # noqa
             f"✓ Ingested economic data for {indicators_added} states from Census API, validated {indicators_validated}"
         )
 
-    except (httpx.HTTPError, ResponseTooLargeError, ValueError) as e:
+    except (httpx.HTTPError, ResponseTooLargeError, FeedDeadlineError, ValueError) as e:
         census_error = safe_http_error(e)
         logger.warning("Census API error: %s", census_error)
 
