@@ -201,6 +201,7 @@ jobs:
       # the unauthenticated seed URLs first; ZAP passively scans every response.
       - name: Write ZAP seed hook
         run: |
+          rm -rf zap-wrk
           mkdir -p zap-wrk
           cat > zap-wrk/seed_hook.py <<'EOF'
           SEEDS = [

@@ -7,8 +7,8 @@
 # Needs Docker Compose >= 2.24 for the !reset / !override tags.
 #
 # Purpose: a backend that is reachable only on the compose network (ZAP joins
-# <project>_cyber_threat_network), with no outbound feed calls, no credentials and
-# no source bind mounts. Nothing in docker-compose.yml changes.
+# <project>_cyber_threat_network), with no internet egress (the network is internal,
+# so startup seeding attempts fail), no credentials and no source bind mounts. Nothing in docker-compose.yml changes.
 #
 # Network isolation: the compose network is internal, so nothing in the stack can
 # reach the internet. The backend still runs its startup ingest catch-up (no flag
