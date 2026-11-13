@@ -64,10 +64,6 @@ vi.mock('../../context/AuthContext', () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
 
-vi.mock('../../hooks/useDarkMode', () => ({
-  useDarkMode: () => [false, vi.fn()],
-}))
-
 vi.mock('../../api/assessmentDebug', () => ({
   fetchAssessmentDebug: (...args: unknown[]) => mockFetchDebug(...args),
 }))
@@ -246,65 +242,71 @@ function mockSuccessfulDebugFetch() {
 describe('AssessmentDebugPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockAuthValues.role = null
+    mockAuthValues.role = 'admin'
     mockAuthValues.orgRole = 'admin'
     mockAuthValues.loading = false
     mockSuccessfulDebugFetch()
   })
 
   describe('Access Control', () => {
-    it('redirects to settings when user is not admin', () => {
-      mockAuthValues.orgRole = 'viewer'
+    it.each(['viewer', 'member', 'admin', 'owner'])(
+      'renders not-found, without navigating or fetching, for a non-platform user with orgRole %s',
+      (orgRole) => {
+        mockAuthValues.role = null
+        mockAuthValues.orgRole = orgRole
+
+        renderPage()
+
+        expect(screen.getByTestId('not-found-page')).toBeInTheDocument()
+        expect(screen.queryByText(/Assessment Debug View/i)).not.toBeInTheDocument()
+        expect(mockNavigate).not.toHaveBeenCalled()
+        expect(mockFetchDebug).not.toHaveBeenCalled()
+      },
+    )
+
+    it('allows access when role is admin', async () => {
+      mockAuthValues.role = 'admin'
+      mockAuthValues.orgRole = null
 
       renderPage()
 
-      expect(mockNavigate).toHaveBeenCalledWith('/settings')
+      await waitFor(() => {
+        expect(screen.getByText(/Assessment Debug View/i)).toBeInTheDocument()
+      })
+      expect(screen.queryByTestId('not-found-page')).not.toBeInTheDocument()
     })
 
-    it('redirects to settings when user is member', () => {
+    it('renders nothing while auth is loading', () => {
+      mockAuthValues.loading = true
+      mockAuthValues.role = null
+
+      renderPage()
+
+      expect(screen.queryByTestId('not-found-page')).not.toBeInTheDocument()
+      expect(screen.queryByText(/Assessment Debug View/i)).not.toBeInTheDocument()
+      expect(mockFetchDebug).not.toHaveBeenCalled()
+    })
+
+    it('renders not-found without its own main landmark (embedded in the shell)', () => {
+      mockAuthValues.role = null
       mockAuthValues.orgRole = 'member'
 
       renderPage()
 
-      expect(mockNavigate).toHaveBeenCalledWith('/settings')
-    })
-
-    it('allows access when role is admin', async () => {
-      mockAuthValues.role = 'admin'
-
-      renderPage()
-
-      await waitFor(() => {
-        expect(screen.getByText(/Assessment Debug View/i)).toBeInTheDocument()
-      })
-    })
-
-    it('allows access when orgRole is admin', async () => {
-      mockAuthValues.orgRole = 'admin'
-
-      renderPage()
-
-      await waitFor(() => {
-        expect(screen.getByText(/Assessment Debug View/i)).toBeInTheDocument()
-      })
-    })
-
-    it('allows access when orgRole is owner', async () => {
-      mockAuthValues.orgRole = 'owner'
-
-      renderPage()
-
-      await waitFor(() => {
-        expect(screen.getByText(/Assessment Debug View/i)).toBeInTheDocument()
-      })
+      expect(screen.getByTestId('not-found-page')).toBeInTheDocument()
+      expect(screen.queryByRole('main')).not.toBeInTheDocument()
     })
   })
 
   describe('Loading & Error States', () => {
-    it('shows loading state initially', () => {
+    it('shows loading state initially', async () => {
       renderPage()
 
       expect(screen.getByText(/Loading debug snapshot/i)).toBeInTheDocument()
+      // Let the fetch settle inside act so the state update is not left dangling.
+      await waitFor(() => {
+        expect(screen.queryByText(/Loading debug snapshot/i)).not.toBeInTheDocument()
+      })
     })
 
     it('shows error message when fetch fails', async () => {
@@ -350,32 +352,26 @@ describe('AssessmentDebugPage', () => {
       })
     })
 
-    it('has back to dashboard button', async () => {
+    it('renders the title as the page h1', async () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Back to Dashboard/i })).toBeInTheDocument()
+        expect(
+          screen.getByRole('heading', { level: 1, name: /Assessment Debug View/i }),
+        ).toBeInTheDocument()
       })
     })
 
-    it('has back to settings button', async () => {
+    it('has a back to settings link and no back to dashboard control', async () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Back to Settings/i })).toBeInTheDocument()
+        expect(screen.getByRole('link', { name: /Back to Settings/i })).toHaveAttribute(
+          'href',
+          '/settings',
+        )
       })
-    })
-
-    it('navigates to dashboard when clicking back to dashboard', async () => {
-      renderPage()
-
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Back to Dashboard/i })).toBeInTheDocument()
-      })
-
-      fireEvent.click(screen.getByRole('button', { name: /Back to Dashboard/i }))
-
-      expect(mockNavigate).toHaveBeenCalledWith('/')
+      expect(screen.queryByText(/Back to Dashboard/i)).not.toBeInTheDocument()
     })
   })
 

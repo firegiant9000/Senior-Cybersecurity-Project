@@ -1,0 +1,74 @@
+# CI-only override for the ZAP baseline scan (.github/workflows/security.yml, job
+# "zap-baseline"). Never used for local development.
+#
+#   docker compose -p ht-zap -f docker-compose.yml -f docker-compose.ci.yml \
+#     up -d --wait postgres backend
+#
+# Needs Docker Compose >= 2.24 for the !reset / !override tags.
+#
+# Purpose: a backend that is reachable only on the compose network (ZAP joins
+# <project>_cyber_threat_network), with no internet egress (the network is internal,
+# so startup seeding attempts fail), no credentials and no source bind mounts. Nothing in docker-compose.yml changes.
+#
+# Network isolation: the compose network is internal, so nothing in the stack can
+# reach the internet. The backend still runs its startup ingest catch-up (no flag
+# disables it) and tries to seed the empty DB from the public feeds; with no egress
+# those attempts fail fast (DNS/connect errors) and are recorded as failed runs, so
+# the scan never calls the live feeds or hits NVD rate limits.
+networks:
+  cyber_threat_network:
+    internal: true
+
+services:
+  postgres:
+    # Distinct names so a local run cannot collide with a dev stack.
+    container_name: ht_zap_postgres
+    # postgres:15-alpine pinned by digest (the digest this stack was tested with,
+    # 2026-11-12; the tag has since moved). Bump by hand.
+    image: postgres:15-alpine@sha256:f7d23353e1b15400d22ebe31189f4d314b87a4c129cc400c8c2d8d4ca127bf81
+    # The scan does not need host ports (ZAP is on the compose network); dropping
+    # them also avoids clashes with other local services.
+    ports: !reset []
+
+  backend:
+    container_name: ht_zap_backend
+    # Ignore any local backend/.env (the base env_file); CI and local scans then match.
+    # The file must still exist for the base file to parse, so CI touches it.
+    env_file: !reset []
+    ports: !reset []
+    environment:
+      APP_ENV: development
+      # No scheduler, no catch-up schedule and no cron entries. (The startup catch-up
+      # still runs; the internal network above is what stops outbound feed calls.)
+      SCHEDULER_ENABLED: "false"
+      INGEST_CATCHUP_ON_STARTUP: "false"
+      INGEST_SCHEDULE_NVD: ""
+      INGEST_SCHEDULE_KEV: ""
+      INGEST_SCHEDULE_IC3: ""
+      INGEST_SCHEDULE_ECONOMICS: ""
+      INGEST_SCHEDULE_EPSS: ""
+      # No Firebase or Gemini credentials are provided. Firebase init fails, the app
+      # logs a warning and continues in development; only unauthenticated routes are scanned.
+      GOOGLE_APPLICATION_CREDENTIALS: ""
+    # Use the code baked into the image: no source bind mounts and no
+    # service-account.json mount (only the uploads volume is kept).
+    volumes: !override
+      - backend_uploads:/app/uploads
+    # No --reload.
+    command: !override
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s

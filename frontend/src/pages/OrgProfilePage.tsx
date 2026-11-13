@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useUserContext } from "../context/UserContext";
 import { API_BASE_URL, fetchWithAuth } from "../api/fetchWithAuth";
 import { isOrgAdmin } from "../utils/roleUtils";
@@ -26,7 +26,6 @@ interface UserProfile {
 
 export default function OrgProfilePage() {
   const { organization, refreshOrganization } = useUserContext();
-  const navigate = useNavigate();
   const location = useLocation();
 
   // Scroll to a specific section when navigated here from AssessmentReadiness Fix button
@@ -114,18 +113,11 @@ export default function OrgProfilePage() {
   }, []);
 
   return (
-    <div className="dashboard-container">
-      <header className="dashboard-header">
-        <h1>Organization Profile</h1>
-        <div className="header-buttons">
-          <button type="button" onClick={() => navigate("/")}>
-            Back to Dashboard
-          </button>
-          <button type="button" onClick={() => navigate("/settings")}>
-            Account Settings
-          </button>
-        </div>
-      </header>
+    <>
+      <h1>Organization Profile</h1>
+      <nav className="settings-page-links" aria-label="Related pages">
+        <Link to="/settings">Account Settings</Link>
+      </nav>
 
       <div className="settings-page settings-page--embedded">
         <div className="settings-card settings-card--wide">
@@ -226,6 +218,6 @@ export default function OrgProfilePage() {
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 }

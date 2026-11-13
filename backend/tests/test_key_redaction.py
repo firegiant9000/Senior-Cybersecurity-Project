@@ -17,6 +17,7 @@ from app.ingestors import econ
 FAKE_KEY = "FAKEKEY-0123456789abcdef"
 CENSUS_URL = f"https://api.census.gov/data/2023/cbp?get=ESTAB&for=state:*&key={FAKE_KEY}"
 BEA_URL = f"https://apps.bea.gov/api/data?UserID={FAKE_KEY}&Method=GetData&ResultFormat=JSON"
+_RealAsyncClient = httpx.AsyncClient
 
 
 def _status_error(url: str, status: int = 503) -> httpx.HTTPStatusError:
@@ -128,7 +129,7 @@ async def test_census_ingest_failure_log_omits_key(caplog, monkeypatch):
         async def __aexit__(self, *exc):
             return False
 
-        async def get(self, *args, **kwargs):
+        def stream(self, *args, **kwargs):
             raise _status_error(CENSUS_URL, 429)
 
     monkeypatch.setattr(econ.httpx, "AsyncClient", _Client)
@@ -146,20 +147,16 @@ async def test_census_ingest_failure_log_omits_key(caplog, monkeypatch):
 
 
 def _json_client(body):
-    class _Client:
-        def __init__(self, *args, **kwargs):
-            pass
+    """AsyncClient replacement serving ``body`` through a real (streamed) mock transport."""
 
-        async def __aenter__(self):
-            return self
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=body, request=request)
 
-        async def __aexit__(self, *exc):
-            return False
+    def factory(*args, **kwargs):
+        kwargs["transport"] = httpx.MockTransport(handler)
+        return _RealAsyncClient(*args, **kwargs)
 
-        async def get(self, *args, **kwargs):
-            return httpx.Response(200, json=body, request=httpx.Request("GET", CENSUS_URL))
-
-    return _Client
+    return factory
 
 
 async def test_census_non_list_body_raises(monkeypatch):

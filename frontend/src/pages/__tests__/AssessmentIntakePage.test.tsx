@@ -212,7 +212,7 @@ describe('AssessmentIntakePage', () => {
     renderPage()
     await waitFor(() => {
       expect(
-        screen.getByRole('heading', { level: 1, name: /Assessment Intake Wizard/i }),
+        screen.getByRole('heading', { level: 1, name: 'Set up your organisation' }),
       ).toBeInTheDocument()
     })
   })
@@ -347,6 +347,30 @@ describe('AssessmentIntakePage', () => {
     })
   })
 
+  it('sends null, not "", for unset values when advancing with only a name', async () => {
+    renderPage()
+    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
+
+    fireEvent.change(screen.getByLabelText(/Company Name/i), {
+      target: { value: 'Test Corp' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Next/i }))
+
+    await waitFor(() => {
+      const put = mockFetchWithAuth.mock.calls.find(
+        ([url, opts]) =>
+          /\/organizations\/\d+$/.test(url as string) &&
+          (opts as { method?: string })?.method === 'PUT',
+      )
+      expect(put).toBeDefined()
+      const body = JSON.parse((put![1] as { body: string }).body)
+      expect(body.name).toBe('Test Corp')
+      expect(body.industry_label).toBeNull()
+      expect(body.primary_state).toBeNull()
+      expect(body.employee_range).toBeNull()
+    })
+  })
+
   it('retains form data when navigating back', async () => {
     renderPage()
     await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
@@ -371,7 +395,7 @@ describe('AssessmentIntakePage', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole('heading', { level: 1, name: /Assessment Intake Wizard/i }),
+        screen.getByRole('heading', { level: 1, name: 'Set up your organisation' }),
       ).toBeInTheDocument()
     })
     expect(mockNavigate).not.toHaveBeenCalledWith('/onboarding')

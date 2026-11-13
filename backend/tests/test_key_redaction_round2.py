@@ -187,7 +187,7 @@ async def test_census_csv_fallback_failure_does_not_chain_keyed_url(monkeypatch)
         async def __aexit__(self, *exc):
             return False
 
-        async def get(self, *a, **k):
+        def stream(self, *a, **k):
             request = httpx.Request("GET", url)
             raise httpx.HTTPStatusError(
                 f"error for url '{url}'",

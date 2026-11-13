@@ -10,11 +10,12 @@ import ProgressSummary from "../components/shared/ProgressSummary";
 import IntakeProgressIndicator from "../components/shared/IntakeProgressIndicator";
 import RequiredBadge from "../components/shared/RequiredBadge";
 import {
+  OrgBasicsFields,
+  type OrgBasicsValue,
+} from "../components/org/OrgBasicsFields";
+import { RevenueField, toNullable } from "../components/org/RevenueField";
+import {
   type AssessmentIntakeFormData,
-  INDUSTRY_OPTIONS,
-  EMPLOYEE_RANGES,
-  REVENUE_RANGES,
-  US_STATES,
   COMPLIANCE_FRAMEWORKS,
   COMPLIANCE_FRAMEWORK_EXCLUSIVE,
   DATA_TYPES,
@@ -270,11 +271,11 @@ export default function AssessmentIntakePage() {
 
   const buildPayload = () => ({
     name: form.name.trim(),
-    industry_label: form.industry_label,
-    primary_state: form.primary_state,
-    employee_range: form.employee_range,
-    primary_domain: form.primary_domain.trim() || null,
-    revenue_range: form.revenue_range || null,
+    industry_label: toNullable(form.industry_label),
+    primary_state: toNullable(form.primary_state),
+    employee_range: toNullable(form.employee_range),
+    primary_domain: toNullable(form.primary_domain),
+    revenue_range: toNullable(form.revenue_range),
     security_controls:
       Object.keys(form.security_controls).length > 0 ? form.security_controls : null,
     compliance_frameworks:
@@ -498,103 +499,20 @@ export default function AssessmentIntakePage() {
               description="Enter basic details about your organization"
               required
             >
-              <div className="intake-form-group">
-                <label htmlFor="name">
-                  Company Name
-                  <RequiredBadge required />
-                </label>
-                <input
-                  id="name"
-                  type="text"
-                  value={form.name}
-                  onChange={(e) => updateField("name", e.target.value)}
-                  placeholder="Acme Corporation"
-                  maxLength={255}
-                  autoFocus
-                />
-              </div>
-
-              <div className="intake-form-group">
-                <label htmlFor="industry">
-                  Industry
-                  <RequiredBadge required />
-                </label>
-                <select
-                  id="industry"
-                  value={form.industry_label}
-                  onChange={(e) => updateField("industry_label", e.target.value)}
-                >
-                  <option value="">Select your industry</option>
-                  {INDUSTRY_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="intake-form-group">
-                <label htmlFor="state">
-                  Primary State
-                  <RequiredBadge required />
-                </label>
-                <select
-                  id="state"
-                  value={form.primary_state}
-                  onChange={(e) => updateField("primary_state", e.target.value)}
-                >
-                  <option value="">Select your state</option>
-                  {US_STATES.map((s) => (
-                    <option key={s.code} value={s.code}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="intake-form-group">
-                <label htmlFor="employees">
-                  Number of Employees
-                  <RequiredBadge required />
-                </label>
-                <select
-                  id="employees"
-                  value={form.employee_range}
-                  onChange={(e) => updateField("employee_range", e.target.value)}
-                >
-                  <option value="">Select company size</option>
-                  {EMPLOYEE_RANGES.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt} employees
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="intake-form-group">
-                <label htmlFor="primary_domain">
-                  Primary Domain
-                  <RequiredBadge optional />
-                </label>
-                <p className="intake-field-hint">
-                  Used for domain-based threat exposure checks (DNS, SSL, breach data).
-                </p>
-                <input
-                  id="primary_domain"
-                  type="text"
-                  value={form.primary_domain}
-                  onChange={(e) => updateField("primary_domain", e.target.value)}
-                  placeholder="acme.com"
-                  maxLength={255}
-                  autoComplete="off"
-                />
-                {form.primary_domain.trim() !== "" &&
-                  !domainIsValid(form.primary_domain) && (
-                    <p className="intake-field-error">
-                      Enter a valid domain (e.g. acme.com).
-                    </p>
-                  )}
-              </div>
+              <OrgBasicsFields
+                value={form}
+                onChange={(patch) =>
+                  (Object.keys(patch) as (keyof OrgBasicsValue)[]).forEach((k) =>
+                    updateField(k, patch[k]),
+                  )
+                }
+                autoFocusName
+                domainError={
+                  form.primary_domain.trim() !== "" && !domainIsValid(form.primary_domain)
+                    ? "Enter a valid domain (e.g. acme.com)."
+                    : undefined
+                }
+              />
 
               <div className="intake-form-group">
                 <label htmlFor="primary_vendor">
@@ -650,27 +568,10 @@ export default function AssessmentIntakePage() {
               description="Optional: Helps improve economic impact analysis"
               required={false}
             >
-              <div className="intake-form-group">
-                <label htmlFor="revenue">
-                  Annual Revenue
-                  <RequiredBadge optional />
-                </label>
-                <p className="intake-field-hint intake-field-hint--optional">
-                  Optional — affects loss-projection accuracy.
-                </p>
-                <select
-                  id="revenue"
-                  value={form.revenue_range}
-                  onChange={(e) => updateField("revenue_range", e.target.value)}
-                >
-                  <option value="">Prefer not to say</option>
-                  {REVENUE_RANGES.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <RevenueField
+                value={form.revenue_range}
+                onChange={(v) => updateField("revenue_range", v)}
+              />
 
               <div className="intake-form-group">
                 <label>
@@ -956,7 +857,7 @@ export default function AssessmentIntakePage() {
     <div className="intake-page">
       <div className="intake-container">
         <header className="intake-header">
-          <h1>Assessment Intake Wizard</h1>
+          <h1>Set up your organisation</h1>
           <p className="intake-header-subtitle">
             Tell us about your organization to unlock actionable threat intelligence
           </p>

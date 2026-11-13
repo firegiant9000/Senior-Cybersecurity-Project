@@ -49,24 +49,20 @@ vi.mock('./hooks/useDashboardData', () => ({
 vi.mock('./hooks/useDarkMode', () => ({ useDarkMode: () => [false, vi.fn()] }))
 vi.mock('./components/dashboard/OverviewTab', () => ({ default: () => <div>Overview</div> }))
 vi.mock('./components/dashboard/DashboardHeader', () => ({ default: () => <div>Header</div> }))
-vi.mock('./components/dashboard/TabBar', () => ({
-  default: ({ groups }: { groups: { id: string; label: string; subTabs?: { id: string; label: string }[] }[] }) => (
-    <nav>
-      {groups.flatMap(g => [
-        <span key={g.id} data-testid={`tab-${g.id}`}>{g.label}</span>,
-        ...(g.subTabs ?? []).map(s => <span key={s.id} data-testid={`tab-${s.id}`}>{s.label}</span>),
-      ])}
-    </nav>
-  ),
-}))
+vi.mock('./pages/NotFoundPage', () => ({ default: () => <div data-testid="not-found-page">Not found</div> }))
+vi.mock('./components/tabs/SmBAdvisorTab', () => ({ default: () => <div data-testid="tab-smbAdvisor">SMB</div> }))
+vi.mock('./components/tabs/FindingsTab', () => ({ default: () => <div data-testid="tab-findings">Findings</div> }))
+vi.mock('./components/tabs/AISummaryTab', () => ({ default: () => <div data-testid="tab-aiSummary">AI</div> }))
+vi.mock('./components/tabs/VendorAlertsTab', () => ({ default: () => <div data-testid="tab-vendorAlerts">Vendor</div> }))
+vi.mock('./components/tabs/PipelineHealthTab', () => ({ default: () => <div data-testid="tab-pipelineHealth">Pipeline</div> }))
 vi.mock('./api/fetchWithAuth', () => ({ API_BASE_URL: '', fetchWithAuth: vi.fn(), getJsonAuth: vi.fn() }))
 vi.mock('./components/shared/WidgetSkeleton', () => ({ default: () => null }))
 
 import Dashboard from './Dashboard'
 
-function renderDashboard() {
+function renderDashboard(url = '/dashboard') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[url]}>
       <Dashboard />
     </MemoryRouter>
   )
@@ -80,52 +76,54 @@ describe('Dashboard tab filtering', () => {
     mockAuthValues.orgRole = null
   })
 
-  it('hides org-only tabs when user has no org', () => {
-    renderDashboard()
-    expect(screen.queryByTestId('tab-smbAdvisor')).toBeNull()
-    expect(screen.queryByTestId('tab-findings')).toBeNull()
-    expect(screen.queryByTestId('tab-aiSummary')).toBeNull()
-    expect(screen.queryByTestId('tab-vendorAlerts')).toBeNull()
-  })
+  it.each(['smbAdvisor', 'findings', 'aiSummary', 'vendorAlerts'])(
+    'renders not-found for org-only %s when user has no org',
+    (tab) => {
+      renderDashboard(`/dashboard?tab=${tab}`)
+      expect(screen.getByTestId('not-found-page')).toBeTruthy()
+      expect(screen.queryByTestId(`tab-${tab}`)).toBeNull()
+    },
+  )
 
-  it('shows org-only tabs when user has an org', () => {
-    mockAuthValues.orgId = 42
-    renderDashboard()
-    expect(screen.getByTestId('tab-smbAdvisor')).toBeTruthy()
-    expect(screen.getByTestId('tab-findings')).toBeTruthy()
-    expect(screen.getByTestId('tab-aiSummary')).toBeTruthy()
-    expect(screen.getByTestId('tab-vendorAlerts')).toBeTruthy()
-  })
+  it.each(['smbAdvisor', 'findings', 'aiSummary', 'vendorAlerts'])(
+    'renders org-only %s when user has an org',
+    async (tab) => {
+      mockAuthValues.orgId = 42
+      renderDashboard(`/dashboard?tab=${tab}`)
+      expect(await screen.findByTestId(`tab-${tab}`)).toBeTruthy()
+    },
+  )
 
-  it('hides pipelineHealth for a regular org member', () => {
+  it('renders not-found for pipelineHealth for a regular org member', () => {
     mockAuthValues.orgId = 42
     mockAuthValues.role = 'viewer'
     mockAuthValues.orgRole = 'member'
-    renderDashboard()
+    renderDashboard('/dashboard?tab=pipelineHealth')
+    expect(screen.getByTestId('not-found-page')).toBeTruthy()
     expect(screen.queryByTestId('tab-pipelineHealth')).toBeNull()
   })
 
-  it('shows pipelineHealth for a global admin', () => {
+  it('renders pipelineHealth for a global admin', async () => {
     mockAuthValues.role = 'admin'
     mockAuthValues.orgRole = null
-    renderDashboard()
-    expect(screen.getByTestId('tab-pipelineHealth')).toBeTruthy()
+    renderDashboard('/dashboard?tab=pipelineHealth')
+    expect(await screen.findByTestId('tab-pipelineHealth')).toBeTruthy()
   })
 
-  it('hides pipelineHealth for an org admin who is not a platform admin', () => {
+  it('renders not-found for pipelineHealth for an org admin who is not a platform admin', () => {
     mockAuthValues.orgId = 42
     mockAuthValues.role = 'viewer'
     mockAuthValues.orgRole = 'admin'
-    renderDashboard()
-    expect(screen.queryByTestId('tab-pipelineHealth')).toBeNull()
+    renderDashboard('/dashboard?tab=pipelineHealth')
+    expect(screen.getByTestId('not-found-page')).toBeTruthy()
   })
 
-  it('hides all org-only and pipelineHealth tabs while orgLoading', () => {
+  it('renders not-found for org-only and pipelineHealth tabs while orgLoading, but not the overview', () => {
     mockAuthValues.orgLoading = true
-    renderDashboard()
-    expect(screen.queryByTestId('tab-smbAdvisor')).toBeNull()
-    expect(screen.queryByTestId('tab-pipelineHealth')).toBeNull()
-    // Non-org tabs should still be visible
-    expect(screen.getByTestId('tab-overview')).toBeTruthy()
+    const { unmount } = renderDashboard('/dashboard?tab=smbAdvisor')
+    expect(screen.getByTestId('not-found-page')).toBeTruthy()
+    unmount()
+    renderDashboard('/dashboard')
+    expect(screen.getByText('Overview')).toBeTruthy()
   })
 })

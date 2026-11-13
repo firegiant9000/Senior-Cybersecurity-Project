@@ -12,10 +12,12 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.http_fetch import FeedDeadlineError, ResponseTooLargeError, get_json_capped
 from app.core.limiter import limiter
 from app.core.logging import safe_http_error
 from app.db.engine import get_session
 from app.db.models import EconomicIndicator
+from app.ingestors.econ import CENSUS_MAX_BYTES
 from app.schemas.economics import (
     ALLOWED_SORT_FIELDS,
     EconomicIndicatorItem,
@@ -28,6 +30,7 @@ router = APIRouter()
 
 # BEA Regional API for state-level economic data
 BEA_API_URL = "https://apps.bea.gov/api/data"
+BEA_MAX_BYTES = 1024 * 1024  # one state GDP record
 BEA_DATASET = "Regional"
 BEA_TABLE = "CAGDP2"  # County GDP (provides state-level aggregates)
 BEA_LINECODE = "1"  # GDP: All industry total
@@ -109,9 +112,7 @@ async def _load_census_establishment_counts(
     if settings.CENSUS_API_KEY:
         params["key"] = settings.CENSUS_API_KEY
 
-    response = await client.get(CBP_API_URL, params=params)
-    response.raise_for_status()
-    raw_rows = response.json()
+    raw_rows = await get_json_capped(client, CBP_API_URL, max_bytes=CENSUS_MAX_BYTES, params=params)
 
     # Header row followed by rows: [ESTAB, NAME, NAICS2017, state]
     rows = raw_rows[1:] if isinstance(raw_rows, list) else []
@@ -141,8 +142,10 @@ async def _load_bea_cache():
             establishments_by_state = await _load_census_establishment_counts(client)
 
             for fips_code, state_name in STATE_FIPS_CODES.items():
-                response = await client.get(
+                data = await get_json_capped(
+                    client,
                     BEA_API_URL,
+                    max_bytes=BEA_MAX_BYTES,
                     params={
                         "UserID": settings.BEA_API_KEY,
                         "Method": "GetData",
@@ -154,8 +157,6 @@ async def _load_bea_cache():
                         "ResultFormat": "JSON",
                     },
                 )
-                response.raise_for_status()
-                data = response.json()
 
                 # Extract GDP value from BEA response
                 gdp_billions = None
@@ -202,7 +203,14 @@ async def _load_bea_cache():
         logger.info("BEA cache loaded: %s states", len(items))
         return items
 
-    except (httpx.HTTPError, ValueError, TypeError, KeyError) as e:
+    except (
+        httpx.HTTPError,
+        ResponseTooLargeError,
+        FeedDeadlineError,
+        ValueError,
+        TypeError,
+        KeyError,
+    ) as e:
         if isinstance(e, httpx.HTTPError):
             logger.error("Failed to load BEA cache: %s", safe_http_error(e))
         else:

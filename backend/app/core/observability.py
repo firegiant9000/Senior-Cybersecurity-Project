@@ -25,6 +25,10 @@ _log = logging.getLogger(__name__)
 # Header names accepted as the inbound correlation ID. First match wins.
 _INBOUND_REQUEST_ID_HEADERS = ("x-request-id", "x-correlation-id")
 _OUTBOUND_REQUEST_ID_HEADER = "x-request-id"
+# Inbound ids are trusted only if they match this whole value (T-PLAT-13: CR/LF
+# or other control characters in a logged id would forge log lines). Use
+# fullmatch: `$` also matches before a trailing newline.
+_REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 
 # Keys whose values must be redacted from any Sentry event before leaving the
 # process. Match is substring + case-insensitive against both event dict paths
@@ -187,9 +191,10 @@ def init_sentry() -> bool:
 class RequestContextMiddleware(BaseHTTPMiddleware):
     """Attach a request_id to every request and bind it to logging context.
 
-    Honors an inbound X-Request-ID / X-Correlation-ID header if present (for
-    upstream proxies / load tests); otherwise generates a UUID4. The value is
-    echoed back on the response so callers can correlate.
+    Honors the first inbound X-Request-ID / X-Correlation-ID header whose value
+    fully matches ``_REQUEST_ID_RE`` (for upstream proxies / load tests);
+    otherwise generates a UUID4. Values that don't match are discarded, never
+    truncated. The value is echoed back on the response so callers can correlate.
     """
 
     def __init__(self, app: ASGIApp) -> None:
@@ -199,8 +204,8 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         rid = ""
         for header in _INBOUND_REQUEST_ID_HEADERS:
             value = request.headers.get(header)
-            if value:
-                rid = value[:128]  # cap; protects logs/Sentry from absurd values
+            if value and _REQUEST_ID_RE.fullmatch(value):
+                rid = value
                 break
         if not rid:
             rid = uuid.uuid4().hex

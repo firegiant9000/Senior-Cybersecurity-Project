@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, Fragment } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { useDarkMode } from "../hooks/useDarkMode";
 import {
   fetchAssessmentDebug,
   type DebugAssessmentResponse,
@@ -17,27 +16,22 @@ import type { AssessmentValidation } from "../api/assessmentValidation";
 import type { FindingsReport } from "../api/findings";
 import SeverityBadge from "../components/shared/SeverityBadge";
 import InfoTip from "../components/shared/InfoTip";
-import { isOrgAdmin } from "../utils/roleUtils";
+import { isPlatformAdmin } from "../utils/roleUtils";
+import NotFoundPage from "./NotFoundPage";
 import "../Dashboard.css";
 import "./SettingsPage.css";
 
 export default function AssessmentDebugPage() {
-  const { role, orgRole, loading: authLoading } = useAuth();
-  const navigate = useNavigate();
-  useDarkMode();
+  const { role, loading: authLoading } = useAuth();
 
   const [data, setData] = useState<DebugAssessmentResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const canAccess = isOrgAdmin(role, orgRole);
+  const canAccess = isPlatformAdmin(role);
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!canAccess) {
-      navigate("/settings");
-      return;
-    }
+    if (authLoading || !canAccess) return;
     const ac = new AbortController();
     setLoading(true);
     fetchAssessmentDebug(ac.signal)
@@ -52,24 +46,17 @@ export default function AssessmentDebugPage() {
       })
       .finally(() => setLoading(false));
     return () => ac.abort();
-  }, [authLoading, canAccess, navigate]);
+  }, [authLoading, canAccess]);
 
   if (authLoading) return null;
-  if (!canAccess) return null;
+  if (!canAccess) return <NotFoundPage embedded />;
 
   return (
-    <div className="dashboard-container">
-      <header className="dashboard-header">
-        <h1>Assessment Debug View</h1>
-        <div className="header-buttons">
-          <button type="button" onClick={() => navigate("/")}>
-            Back to Dashboard
-          </button>
-          <button type="button" onClick={() => navigate("/settings")}>
-            Back to Settings
-          </button>
-        </div>
-      </header>
+    <>
+      <h1>Assessment Debug View</h1>
+      <nav className="settings-page-links" aria-label="Related pages">
+        <Link to="/settings">Back to Settings</Link>
+      </nav>
 
       <div className="settings-page settings-page--embedded">
         <div className="settings-card settings-card--wide">
@@ -91,7 +78,7 @@ export default function AssessmentDebugPage() {
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

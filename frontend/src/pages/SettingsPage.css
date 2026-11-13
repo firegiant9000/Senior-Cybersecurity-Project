@@ -13,6 +13,13 @@
   background: transparent;
 }
 
+.settings-page-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 0 0 1rem;
+}
+
 .settings-card {
   background: var(--card-bg, #1e293b);
   border: 1px solid var(--border, #334155);
@@ -65,6 +72,61 @@
 .company-profile-input:disabled {
   opacity: 0.65;
   cursor: not-allowed;
+}
+
+/* Shared organisation field groups (components/org) inside the Company section.
+   Scoped here so the wizard's stylesheet is untouched. */
+.company-section .intake-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.company-section .intake-form-group label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  align-self: flex-start;
+  color: var(--text-muted, #64748b);
+  font-size: 0.9rem;
+}
+
+.company-section .intake-form-group input,
+.company-section .intake-form-group select {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg, #0f172a);
+  border: 1px solid var(--border, #334155);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  color: var(--text-primary, #e2e8f0);
+  font-size: 0.9rem;
+}
+
+.company-section .intake-form-group input:disabled,
+.company-section .intake-form-group select:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.company-section .intake-field-hint {
+  margin: 0;
+  color: var(--text-muted, #64748b);
+  font-size: 0.8rem;
+}
+
+.company-section .required-badge {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  color: var(--text-muted, #64748b);
+  border: 1px solid var(--border, #334155);
 }
 
 .company-logo-preview {

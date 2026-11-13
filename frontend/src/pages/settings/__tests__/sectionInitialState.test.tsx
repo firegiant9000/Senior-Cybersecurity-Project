@@ -53,7 +53,7 @@ function company(reads: string[]) {
   return (
     <>
       <CompanySection orgId={7} canEdit onChanged={() => {}} />
-      <ReadOnFirstCommit id="company-name" reads={reads} />
+      <ReadOnFirstCommit id="name" reads={reads} />
     </>
   )
 }
@@ -104,17 +104,33 @@ describe('organisation fields hold organisation values from the first commit tha
   it('keeps an edit while the organisation object is unchanged', () => {
     ctx.organization = makeOrg()
     const { rerender } = render(<CompanySection orgId={7} canEdit onChanged={() => {}} />)
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Draft' } })
+    fireEvent.change(screen.getByLabelText(/^Company Name/), { target: { value: 'Draft' } })
     rerender(<CompanySection orgId={7} canEdit onChanged={() => {}} />)
-    expect(field('company-name').value).toBe('Draft')
+    expect(field('name').value).toBe('Draft')
   })
 
   it('re-syncs the fields when a different organisation object arrives', () => {
     ctx.organization = makeOrg()
     const { rerender } = render(<CompanySection orgId={7} canEdit onChanged={() => {}} />)
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Draft' } })
+    fireEvent.change(screen.getByLabelText(/^Company Name/), { target: { value: 'Draft' } })
     ctx.organization = { ...makeOrg(), name: 'Acme Renamed' }
     rerender(<CompanySection orgId={7} canEdit onChanged={() => {}} />)
-    expect(field('company-name').value).toBe('Acme Renamed')
+    expect(field('name').value).toBe('Acme Renamed')
+  })
+
+  it('re-syncs state, employee range and revenue when a different organisation object arrives', () => {
+    ctx.organization = makeOrg()
+    const { rerender } = render(<CompanySection orgId={7} canEdit onChanged={() => {}} />)
+    fireEvent.change(screen.getByLabelText(/^Primary State/), { target: { value: 'CA' } })
+    ctx.organization = {
+      ...makeOrg(),
+      primary_state: 'TX',
+      employee_range: '51-200',
+      revenue_range: '$1M-$5M',
+    }
+    rerender(<CompanySection orgId={7} canEdit onChanged={() => {}} />)
+    expect(field('state').value).toBe('TX')
+    expect(field('employees').value).toBe('51-200')
+    expect(field('revenue').value).toBe('$1M-$5M')
   })
 })

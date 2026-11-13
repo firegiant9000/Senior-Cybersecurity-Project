@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { resetShellFocusForTests } from '../components/shell/AppShell'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hoisted Mocks
@@ -198,6 +199,7 @@ function setupAdminUser(email = 'admin@example.com') {
 describe('Integration Tests - User Flows', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetShellFocusForTests()
     mockAuthContext.user = null
     mockAuthContext.loading = false
     mockAuthContext.orgId = null

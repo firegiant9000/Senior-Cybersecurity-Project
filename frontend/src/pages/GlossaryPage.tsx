@@ -1,23 +1,12 @@
-import { useNavigate } from 'react-router-dom';
 import { getGlossaryEntries } from '../components/shared/InfoTip';
-import '../Dashboard.css';
-import '../components/dashboard/DashboardHeader.css';
 import './GlossaryPage.css';
 
 export default function GlossaryPage() {
-  const navigate = useNavigate();
   const entries = getGlossaryEntries();
 
   return (
-    <div className="dashboard-container">
-      <header className="dashboard-header">
-        <h1>Glossary</h1>
-        <div className="header-buttons">
-          <button type="button" onClick={() => navigate('/')}>
-            Back to Dashboard
-          </button>
-        </div>
-      </header>
+    <>
+      <h1>Glossary</h1>
 
       <div className="glossary-page">
         <div className="glossary-card">
@@ -35,6 +24,6 @@ export default function GlossaryPage() {
           </dl>
         </div>
       </div>
-    </div>
+    </>
   );
 }
