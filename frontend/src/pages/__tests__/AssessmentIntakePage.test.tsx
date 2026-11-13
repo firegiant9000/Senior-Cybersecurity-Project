@@ -212,7 +212,7 @@ describe('AssessmentIntakePage', () => {
     renderPage()
     await waitFor(() => {
       expect(
-        screen.getByRole('heading', { level: 1, name: /Assessment Intake Wizard/i }),
+        screen.getByRole('heading', { level: 1, name: 'Set up your organisation' }),
       ).toBeInTheDocument()
     })
   })
@@ -371,7 +371,7 @@ describe('AssessmentIntakePage', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole('heading', { level: 1, name: /Assessment Intake Wizard/i }),
+        screen.getByRole('heading', { level: 1, name: 'Set up your organisation' }),
       ).toBeInTheDocument()
     })
     expect(mockNavigate).not.toHaveBeenCalledWith('/onboarding')

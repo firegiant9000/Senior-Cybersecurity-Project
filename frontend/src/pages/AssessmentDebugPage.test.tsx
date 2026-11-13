@@ -2,10 +2,6 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("../hooks/useDarkMode", () => ({
-  useDarkMode: () => [false, vi.fn()],
-}));
-
 vi.mock("firebase/auth", () => ({
   getAuth: vi.fn(() => ({ currentUser: null })),
   onAuthStateChanged: vi.fn((_a: unknown, cb: (u: null) => void) => { cb(null); return vi.fn(); }),
@@ -110,9 +106,11 @@ describe("AssessmentDebugPage", () => {
     });
   });
 
-  it("shows loading state initially", () => {
+  it("shows loading state initially", async () => {
     const { getByText } = renderPage();
     expect(getByText(/Loading debug snapshot/i)).toBeTruthy();
+    // Let the fetch settle inside act so the state update is not left dangling.
+    await waitFor(() => expect(screen.queryByText(/Loading debug snapshot/i)).toBeNull());
   });
 
   it("shows not-ready message when findings readiness is false", async () => {

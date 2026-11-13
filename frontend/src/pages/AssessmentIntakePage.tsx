@@ -956,7 +956,7 @@ export default function AssessmentIntakePage() {
     <div className="intake-page">
       <div className="intake-container">
         <header className="intake-header">
-          <h1>Assessment Intake Wizard</h1>
+          <h1>Set up your organisation</h1>
           <p className="intake-header-subtitle">
             Tell us about your organization to unlock actionable threat intelligence
           </p>

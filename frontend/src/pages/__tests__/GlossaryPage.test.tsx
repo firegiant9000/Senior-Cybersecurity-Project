@@ -1,13 +1,6 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, it, expect, vi } from 'vitest';
-
-const { mockNavigate } = vi.hoisted(() => ({ mockNavigate: vi.fn() }));
-
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
-  return { ...actual, useNavigate: () => mockNavigate };
-});
+import { describe, it, expect } from 'vitest';
 
 import GlossaryPage from '../GlossaryPage';
 import { getGlossaryEntries } from '../../components/shared/InfoTip';
@@ -34,17 +27,14 @@ describe('GlossaryPage', () => {
     expect(screen.getByText('RISK SCORE')).toBeInTheDocument();
   });
 
-  it('renders the Back to Dashboard button and navigates on click', () => {
+  it('renders a Glossary h1 and no Back to Dashboard button (the shell provides navigation)', () => {
     render(
       <MemoryRouter>
         <GlossaryPage />
       </MemoryRouter>
     );
 
-    const backBtn = screen.getByRole('button', { name: /back to dashboard/i });
-    expect(backBtn).toBeInTheDocument();
-
-    fireEvent.click(backBtn);
-    expect(mockNavigate).toHaveBeenCalledWith('/');
+    expect(screen.getByRole('heading', { level: 1, name: 'Glossary' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /back to dashboard/i })).not.toBeInTheDocument();
   });
 });

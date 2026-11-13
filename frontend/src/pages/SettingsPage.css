@@ -13,6 +13,13 @@
   background: transparent;
 }
 
+.settings-page-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 0 0 1rem;
+}
+
 .settings-card {
   background: var(--card-bg, #1e293b);
   border: 1px solid var(--border, #334155);

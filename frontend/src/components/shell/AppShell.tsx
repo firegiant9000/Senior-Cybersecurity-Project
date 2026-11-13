@@ -9,7 +9,7 @@ import './AppShell.css';
 
 export default function AppShell(): React.JSX.Element {
   const [dark, toggleDark] = useDarkMode();
-  const { user, logout } = useAuth();
+  const { user, logout, orgId } = useAuth();
   const { pathname, search } = useLocation();
   const mainRef = useRef<HTMLElement | null>(null);
   const prevPath = useRef(pathname);
@@ -29,7 +29,7 @@ export default function AppShell(): React.JSX.Element {
   return (
     <div className="dashboard-container">
       <a className="skip-link" href="#main">Skip to content</a>
-      <DashboardHeader dark={dark} onToggleDark={toggleDark} user={user} onLogout={logout} />
+      <DashboardHeader dark={dark} onToggleDark={toggleDark} user={user} onLogout={logout} minimal={orgId == null} />
       <main id="main" ref={mainRef} tabIndex={-1} className="dashboard-content">
         <Outlet />
       </main>

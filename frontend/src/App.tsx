@@ -36,81 +36,17 @@ function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<LoginPage defaultSignUp={true} />} />
       <Route
-        path="/onboarding"
         element={
           <ProtectedRoute requireOrg={false}>
-            <AssessmentIntakePage />
+            <AppShell />
           </ProtectedRoute>
         }
-      />
-      <Route
-        path="/invites/:token"
-        element={
-          <ProtectedRoute requireOrg={false}>
-            <AcceptInvitePage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/settings"
-        element={
-          <ProtectedRoute>
-            <SettingsPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/settings/assessment-debug"
-        element={
-          <ProtectedRoute>
-            <AssessmentDebugPage />
-          </ProtectedRoute>
-        }
-      />
+      >
+        <Route path="/onboarding" element={<AssessmentIntakePage />} />
+        <Route path="/invites/:token" element={<AcceptInvitePage />} />
+        <Route path="/glossary" element={<GlossaryPage />} />
+      </Route>
       <Route path="/assessment-intake" element={<Navigate to="/onboarding" replace />} />
-      <Route
-        path="/org-profile"
-        element={
-          <ProtectedRoute>
-            <OrgProfilePage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/report/executive"
-        element={
-          <ProtectedRoute>
-            <ExecutiveReportPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/glossary"
-        element={
-          <ProtectedRoute requireOrg={false}>
-            <GlossaryPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route path="/privacy" element={<PrivacyPage />} />
-      <Route path="/data-handling" element={<DataHandlingPage />} />
-      <Route
-        path="/inventory/upload"
-        element={
-          <ProtectedRoute>
-            <UploadInventoryPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route path="/assets" element={<Navigate to="/dashboard?tab=assets" replace />} />
-      <Route
-        path="/integrations"
-        element={
-          <ProtectedRoute>
-            <IntegrationsPage />
-          </ProtectedRoute>
-        }
-      />
       <Route
         element={
           <ProtectedRoute>
@@ -119,7 +55,23 @@ function App() {
         }
       >
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/settings/assessment-debug" element={<AssessmentDebugPage />} />
+        <Route path="/org-profile" element={<OrgProfilePage />} />
+        <Route path="/inventory/upload" element={<UploadInventoryPage />} />
+        <Route path="/integrations" element={<IntegrationsPage />} />
       </Route>
+      <Route
+        path="/report/executive"
+        element={
+          <ProtectedRoute>
+            <ExecutiveReportPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/data-handling" element={<DataHandlingPage />} />
+      <Route path="/assets" element={<Navigate to="/dashboard?tab=assets" replace />} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
     </>
