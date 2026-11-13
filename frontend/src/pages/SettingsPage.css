@@ -20,6 +20,43 @@
   margin: 0 0 1rem;
 }
 
+.settings-area-body {
+  display: flex;
+  gap: 2rem;
+  align-items: flex-start;
+}
+
+@media (max-width: 768px) {
+  .settings-area-body {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.settings-area-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 12rem;
+}
+
+.settings-area-menu a {
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.settings-area-menu a[aria-current='page'] {
+  background: var(--card-bg, #1e293b);
+  font-weight: 600;
+}
+
+.settings-area-content {
+  flex: 1;
+  min-width: 0;
+}
+
 .settings-card {
   background: var(--card-bg, #1e293b);
   border: 1px solid var(--border, #334155);
