@@ -17,9 +17,19 @@ interface OrgBasicsFieldsProps {
   value: OrgBasicsValue;
   onChange: (patch: Partial<OrgBasicsValue>) => void;
   disabled?: boolean;
+  /** Focus the name input on mount (wizard only). */
+  autoFocusName?: boolean;
+  /** Caller-owned validation message shown under the domain input. */
+  domainError?: string;
 }
 
-export function OrgBasicsFields({ value, onChange, disabled }: OrgBasicsFieldsProps) {
+export function OrgBasicsFields({
+  value,
+  onChange,
+  disabled,
+  autoFocusName,
+  domainError,
+}: OrgBasicsFieldsProps) {
   return (
     <>
       <div className="intake-form-group">
@@ -35,6 +45,7 @@ export function OrgBasicsFields({ value, onChange, disabled }: OrgBasicsFieldsPr
           placeholder="Acme Corporation"
           maxLength={255}
           disabled={disabled}
+          autoFocus={autoFocusName}
         />
       </div>
 
@@ -116,6 +127,7 @@ export function OrgBasicsFields({ value, onChange, disabled }: OrgBasicsFieldsPr
           autoComplete="off"
           disabled={disabled}
         />
+        {domainError && <p className="intake-field-error">{domainError}</p>}
       </div>
     </>
   );
