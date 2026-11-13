@@ -2,10 +2,18 @@ import { lazy } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./pages/LoginPage.tsx";
 import LandingPage from "./pages/LandingPage.tsx";
-import SettingsPage from "./pages/SettingsPage.tsx";
+import SettingsLayout from "./pages/settings/SettingsLayout.tsx";
+import {
+  AccountPage,
+  OrganisationPage,
+  TechnologyPage,
+  DomainsPage,
+  UploadsPage,
+  TeamPage,
+  AgentsPage,
+} from "./pages/settings/pages.tsx";
 import AssessmentDebugPage from "./pages/AssessmentDebugPage.tsx";
 import AssessmentIntakePage from "./pages/AssessmentIntakePage.tsx";
-import OrgProfilePage from "./pages/OrgProfilePage.tsx";
 import AcceptInvitePage from "./pages/AcceptInvitePage.tsx";
 import ExecutiveReportPage from "./pages/ExecutiveReportPage.tsx";
 import GlossaryPage from "./pages/GlossaryPage.tsx";
@@ -114,14 +122,16 @@ function App() {
             </RequirePlatformAdmin>
           }
         />
-        <Route path="/settings/account" element={<SettingsPage />} />
-        <Route path="/settings/team" element={<SettingsPage />} />
-        <Route path="/settings/agents" element={<SettingsPage />} />
-        <Route path="/settings/organisation" element={<OrgProfilePage />} />
-        <Route path="/settings/technology" element={<OrgProfilePage />} />
-        <Route path="/settings/domains" element={<OrgProfilePage />} />
-        <Route path="/settings/uploads" element={<OrgProfilePage />} />
-        <Route path="/settings/integrations" element={<IntegrationsPage />} />
+        <Route element={<SettingsLayout />}>
+          <Route path="/settings/account" element={<AccountPage />} />
+          <Route path="/settings/organisation" element={<OrganisationPage />} />
+          <Route path="/settings/technology" element={<TechnologyPage />} />
+          <Route path="/settings/domains" element={<DomainsPage />} />
+          <Route path="/settings/uploads" element={<UploadsPage />} />
+          <Route path="/settings/team" element={<TeamPage />} />
+          <Route path="/settings/agents" element={<AgentsPage />} />
+          <Route path="/settings/integrations" element={<IntegrationsPage />} />
+        </Route>
       </Route>
       <Route
         path="/org/report"
