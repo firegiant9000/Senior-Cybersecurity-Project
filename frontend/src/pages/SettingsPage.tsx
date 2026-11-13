@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { isOrgAdmin } from "../utils/roleUtils";
+import { isOrgAdmin, isPlatformAdmin } from "../utils/roleUtils";
 import { useAccountProfile } from "./settings/useAccountProfile";
 import AccountSection from "./settings/AccountSection";
 import TeamSection from "./settings/TeamSection";
@@ -21,7 +21,7 @@ export default function SettingsPage() {
       {profile?.org_id != null && (
         <nav className="settings-page-links" aria-label="Related pages">
           <Link to="/org-profile">Organization Profile</Link>
-          {canManageMembers && <Link to="/settings/assessment-debug">Assessment Debug</Link>}
+          {isPlatformAdmin(profile.role) && <Link to="/settings/assessment-debug">Assessment Debug</Link>}
         </nav>
       )}
 

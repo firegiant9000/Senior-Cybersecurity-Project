@@ -247,7 +247,21 @@ describe('SettingsPage - Member Management', () => {
       })
     })
 
-    it('has an h1, cross-links for an org admin and no Back to Dashboard control', async () => {
+    it('hides the Assessment Debug link from an org admin who is not a platform admin', async () => {
+      mockFetchWithAuth.mockResolvedValue({
+        ok: true,
+        json: async () => ({ ...mockUserProfile, org_role: 'admin', role: 'user' }),
+      })
+
+      renderPage()
+
+      await waitFor(() => {
+        expect(screen.getByRole('link', { name: 'Organization Profile' })).toBeInTheDocument()
+      })
+      expect(screen.queryByRole('link', { name: 'Assessment Debug' })).not.toBeInTheDocument()
+    })
+
+    it('has an h1, cross-links for an org owner and no Back to Dashboard control', async () => {
       renderPage()
 
       expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument()
@@ -257,11 +271,24 @@ describe('SettingsPage - Member Management', () => {
           '/org-profile',
         )
       })
-      expect(screen.getByRole('link', { name: 'Assessment Debug' })).toHaveAttribute(
-        'href',
-        '/settings/assessment-debug',
-      )
+      expect(screen.queryByRole('link', { name: 'Assessment Debug' })).not.toBeInTheDocument()
       expect(screen.queryByText(/Back to Dashboard/i)).not.toBeInTheDocument()
+    })
+
+    it('shows the Assessment Debug link only to a platform admin', async () => {
+      mockFetchWithAuth.mockResolvedValue({
+        ok: true,
+        json: async () => ({ ...mockUserProfile, role: 'admin' }),
+      })
+
+      renderPage()
+
+      await waitFor(() => {
+        expect(screen.getByRole('link', { name: 'Assessment Debug' })).toHaveAttribute(
+          'href',
+          '/settings/assessment-debug',
+        )
+      })
     })
 
     it('shows loading state initially', () => {
