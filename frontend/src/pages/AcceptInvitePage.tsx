@@ -78,10 +78,8 @@ export default function AcceptInvitePage() {
   };
 
   return (
-    <div className="dashboard-container">
-      <header className="dashboard-header">
-        <h1>Organization Invite</h1>
-      </header>
+    <>
+      <h1>Organization Invite</h1>
 
       <div className="settings-page settings-page--embedded">
         <div
@@ -143,6 +141,6 @@ export default function AcceptInvitePage() {
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 }

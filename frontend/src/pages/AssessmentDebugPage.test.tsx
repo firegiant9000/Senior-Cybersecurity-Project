@@ -2,10 +2,6 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("../hooks/useDarkMode", () => ({
-  useDarkMode: () => [false, vi.fn()],
-}));
-
 vi.mock("firebase/auth", () => ({
   getAuth: vi.fn(() => ({ currentUser: null })),
   onAuthStateChanged: vi.fn((_a: unknown, cb: (u: null) => void) => { cb(null); return vi.fn(); }),
@@ -96,8 +92,8 @@ function renderPage() {
 
 describe("AssessmentDebugPage", () => {
   beforeEach(() => {
-    mockAuthValues.role = null;
-    mockAuthValues.orgRole = "admin";
+    mockAuthValues.role = "admin";
+    mockAuthValues.orgRole = null;
   });
 
   it("renders all four section headings after load", async () => {
@@ -110,9 +106,19 @@ describe("AssessmentDebugPage", () => {
     });
   });
 
-  it("shows loading state initially", () => {
+  it("renders not-found for an org owner who is not a platform admin", () => {
+    mockAuthValues.role = null;
+    mockAuthValues.orgRole = "owner";
+    renderPage();
+    expect(screen.getByText("Page not found")).toBeTruthy();
+    expect(screen.queryByText("Raw Inputs")).toBeNull();
+  });
+
+  it("shows loading state initially", async () => {
     const { getByText } = renderPage();
     expect(getByText(/Loading debug snapshot/i)).toBeTruthy();
+    // Let the fetch settle inside act so the state update is not left dangling.
+    await waitFor(() => expect(screen.queryByText(/Loading debug snapshot/i)).toBeNull());
   });
 
   it("shows not-ready message when findings readiness is false", async () => {

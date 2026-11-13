@@ -27,21 +27,21 @@ for human review and audit purposes.
 
 | Dataset key                  | Widget / surface                          | Status   | Source                                                                |
 |------------------------------|-------------------------------------------|----------|-----------------------------------------------------------------------|
-| `nvd_cves`                   | NVD CVE catalog, totals, severity bars   | real     | NIST National Vulnerability Database (scheduled ingest)              |
-| `kev`                        | KEV count, CVEs Exploited card           | real     | CISA KEV catalog (scheduled ingest)                                  |
+| `nvd_cves`                   | NVD table; Vulnerabilities summary strip | real     | NIST National Vulnerability Database (scheduled ingest)              |
+| `kev`                        | KEV table; Threat Overview; Emerging Threats | real     | CISA KEV catalog (scheduled ingest)                                  |
 | `epss`                       | Exploitability column in NVD table       | real     | FIRST.org EPSS API — daily scheduled ingest                          |
-| `ic3_incidents`              | IC3 incident list + most stat cards      | static   | FBI IC3 2023 annual report (static summary)                          |
-| `ic3_geographic`             | Cyber Crime Map, States with Incidents   | static   | FBI IC3 2023 annual report (static summary)                          |
-| `ic3_sector_attack_matrix`   | Sector × Attack heatmap, Incident Mgmt   | static   | FBI IC3 2023 annual report (static summary)                          |
-| `ic3_temporal_trends`        | YoY trend lines, Escalating Sectors      | static   | FBI IC3 annual reports (multi-year static)                           |
+| `ic3_incidents`              | IC3 incident list; Incident landscape tables and charts | static   | FBI IC3 2023 annual report (static summary)                          |
+| `ic3_geographic`             | Cyber Crime Map (Incident Trends)        | static   | FBI IC3 2023 annual report (static summary)                          |
+| `ic3_sector_attack_matrix`   | Sector × Attack heatmap (Incident Trends) | static   | FBI IC3 2023 annual report (static summary)                          |
+| `ic3_temporal_trends`        | YoY trend lines                          | static   | FBI IC3 annual reports (multi-year static)                           |
 | `bea_economics`              | Economic indicators tab                  | real     | U.S. Bureau of Economic Analysis API                                 |
-| `executive_summary`          | Executive Summary card                   | real     | Derived from org profile + NVD/KEV/IC3 aggregates                    |
-| `risk_score`                 | Avg CVE Risk Score, CVE Risk Distribution| real     | Derived from CVSS + KEV signals                                      |
+| `executive_summary`          | Printable executive report               | real     | Derived from org profile + NVD/KEV/IC3 aggregates                    |
+| `risk_score`                 | Vulnerabilities summary strip; Threat Overview | real     | Derived from CVSS + KEV signals                                      |
 | `vendor_alerts`              | Vendor Alerts card                       | real     | KEV matches against the org's declared vendor stack                  |
 | `loss_projection`            | Projected Annual Loss card               | static   | Statistical model over IC3 sector benchmarks                         |
 | `ai_summary`                 | AI Summary tab                           | real     | LLM-generated summary over current dashboard signals                 |
-| `domain_checks`              | Domain reputation tab                    | pending  | HIBP / Shodan / OTX — Month 1 Phase E (#110)                         |
-| `anomalies_ic3`              | State Threat Anomalies card              | static   | Statistical z-score over IC3 static dataset                          |
+| `domain_checks`              | Findings: sources used in this scan      | pending  | HIBP / Shodan / OTX — Month 1 Phase E (#110)                         |
+| `anomalies_ic3`              | Anomalies: IC3 State Anomalies           | static   | Statistical z-score over IC3 static dataset                          |
 | `anomalies_vendors`          | Vendor anomaly tab                       | real     | Derived from live KEV / NVD signals                                  |
 | `assets_inventory`           | Assets tab, Inventory Health card        | real     | User-uploaded CSV (Phase C) + M365 sync (Phase E, behind flag)       |
 | `asset_software`             | Per-asset software list, drill-down      | real     | Derived from uploaded inventory                                      |

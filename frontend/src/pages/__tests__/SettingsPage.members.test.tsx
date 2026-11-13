@@ -247,6 +247,50 @@ describe('SettingsPage - Member Management', () => {
       })
     })
 
+    it('hides the Assessment Debug link from an org admin who is not a platform admin', async () => {
+      mockFetchWithAuth.mockResolvedValue({
+        ok: true,
+        json: async () => ({ ...mockUserProfile, org_role: 'admin', role: 'user' }),
+      })
+
+      renderPage()
+
+      await waitFor(() => {
+        expect(screen.getByRole('link', { name: 'Organization Profile' })).toBeInTheDocument()
+      })
+      expect(screen.queryByRole('link', { name: 'Assessment Debug' })).not.toBeInTheDocument()
+    })
+
+    it('has an h1, cross-links for an org owner and no Back to Dashboard control', async () => {
+      renderPage()
+
+      expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.getByRole('link', { name: 'Organization Profile' })).toHaveAttribute(
+          'href',
+          '/org-profile',
+        )
+      })
+      expect(screen.queryByRole('link', { name: 'Assessment Debug' })).not.toBeInTheDocument()
+      expect(screen.queryByText(/Back to Dashboard/i)).not.toBeInTheDocument()
+    })
+
+    it('shows the Assessment Debug link only to a platform admin', async () => {
+      mockFetchWithAuth.mockResolvedValue({
+        ok: true,
+        json: async () => ({ ...mockUserProfile, role: 'admin' }),
+      })
+
+      renderPage()
+
+      await waitFor(() => {
+        expect(screen.getByRole('link', { name: 'Assessment Debug' })).toHaveAttribute(
+          'href',
+          '/settings/assessment-debug',
+        )
+      })
+    })
+
     it('shows loading state initially', () => {
       renderPage()
 
@@ -325,6 +369,22 @@ describe('SettingsPage - Member Management', () => {
         expect(screen.getByText(/Members/i)).toBeInTheDocument()
         expect(screen.getByText(/Invitations/i)).toBeInTheDocument()
       })
+    })
+
+    it('renders no related-pages nav while loading or when the user has no organisation', async () => {
+      const noOrgProfile = { ...mockUserProfile, org_id: null, org_role: null }
+      mockFetchWithAuth.mockResolvedValue({
+        ok: true,
+        json: async () => noOrgProfile,
+      })
+
+      renderPage()
+
+      expect(screen.queryByRole('navigation', { name: 'Related pages' })).not.toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.queryByText(/Loading profile/i)).not.toBeInTheDocument()
+      })
+      expect(screen.queryByRole('navigation', { name: 'Related pages' })).not.toBeInTheDocument()
     })
 
     it('hides member management when org_id is null', async () => {
