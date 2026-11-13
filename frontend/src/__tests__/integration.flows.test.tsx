@@ -347,14 +347,14 @@ describe('Integration Tests - User Flows', () => {
 
     it('org owner can access member management in settings', () => {
       setupUserWithOrg(1, 'owner')
-      renderApp(['/settings/account'])
-      expect(screen.getByTestId('account-page')).toBeInTheDocument()
+      renderApp(['/settings/team'])
+      expect(screen.getByTestId('team-page')).toBeInTheDocument()
     })
 
     it('org member cannot access org settings (requires admin/owner)', () => {
       setupUserWithOrg(1, 'member')
-      renderApp(['/settings/account'])
-      expect(screen.getByTestId('account-page')).toBeInTheDocument()
+      renderApp(['/settings/team'])
+      expect(screen.getByTestId('team-page')).toBeInTheDocument()
       // The page would load but member management sections would be hidden
     })
 
@@ -362,8 +362,8 @@ describe('Integration Tests - User Flows', () => {
       setupUserWithOrg(1, 'owner')
       mockCreateInvite.mockResolvedValue(undefined)
 
-      renderApp(['/settings/account'])
-      expect(screen.getByTestId('account-page')).toBeInTheDocument()
+      renderApp(['/settings/team'])
+      expect(screen.getByTestId('team-page')).toBeInTheDocument()
 
       await waitFor(() => {
         expect(mockCreateInvite).toBeDefined()
@@ -374,16 +374,16 @@ describe('Integration Tests - User Flows', () => {
       setupUserWithOrg(1, 'admin')
       mockUpdateMemberRole.mockResolvedValue(undefined)
 
-      renderApp(['/settings/account'])
-      expect(screen.getByTestId('account-page')).toBeInTheDocument()
+      renderApp(['/settings/team'])
+      expect(screen.getByTestId('team-page')).toBeInTheDocument()
     })
 
     it('owner can remove members from org', () => {
       setupUserWithOrg(1, 'owner')
       mockRemoveMember.mockResolvedValue(undefined)
 
-      renderApp(['/settings/account'])
-      expect(screen.getByTestId('account-page')).toBeInTheDocument()
+      renderApp(['/settings/team'])
+      expect(screen.getByTestId('team-page')).toBeInTheDocument()
     })
   })
 
@@ -604,14 +604,14 @@ describe('Integration Tests - User Flows', () => {
   describe('Concurrent User Scenarios', () => {
     it('different users have different permission levels on same routes', () => {
       setupUserWithOrg(1, 'member')
-      renderApp(['/settings/account'])
-      expect(screen.getByTestId('account-page')).toBeInTheDocument()
+      renderApp(['/settings/team'])
+      expect(screen.getByTestId('team-page')).toBeInTheDocument()
       cleanup()
 
       // Switch to owner
       mockAuthContext.orgRole = 'owner'
-      renderApp(['/settings/account'])
-      expect(screen.getByTestId('account-page')).toBeInTheDocument()
+      renderApp(['/settings/team'])
+      expect(screen.getByTestId('team-page')).toBeInTheDocument()
       // Same page but owner would see member management
     })
 

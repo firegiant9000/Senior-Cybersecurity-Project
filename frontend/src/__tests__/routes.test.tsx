@@ -263,9 +263,9 @@ describe('routes', () => {
       expect(main!.contains(el)).toBe(true)
       const nav = screen.getByRole('navigation', { name: 'Settings' })
       expect(main!.contains(nav)).toBe(true)
-      const current = nav.querySelector('a[aria-current="page"]')
-      expect(current).not.toBeNull()
-      expect(current!.getAttribute('href')).toBe(path)
+      const current = nav.querySelectorAll('a[aria-current="page"]')
+      expect(current).toHaveLength(1)
+      expect(current[0].getAttribute('href')).toBe(path)
     })
   })
 
@@ -311,6 +311,13 @@ describe('routes', () => {
       expect(pathname()).toBe('/onboarding')
     })
 
+    it('/settings/team goes to onboarding', async () => {
+      signedIn({ orgId: null })
+      renderApp('/settings/team')
+      expect(await screen.findByTestId('onboarding-page')).toBeInTheDocument()
+      expect(pathname()).toBe('/onboarding')
+    })
+
     it('/glossary renders with no navigation', async () => {
       signedIn({ orgId: null })
       renderApp('/glossary')
@@ -325,6 +332,13 @@ describe('routes', () => {
       expect(await screen.findByTestId('login-page')).toBeInTheDocument()
       expect(pathname()).toBe('/login')
       expect(search()).toBe('?next=%2Forg%2Ffindings')
+    })
+
+    it('/settings/team goes to login and remembers the target', async () => {
+      renderApp('/settings/team')
+      expect(await screen.findByTestId('login-page')).toBeInTheDocument()
+      expect(pathname()).toBe('/login')
+      expect(search()).toBe('?next=%2Fsettings%2Fteam')
     })
   })
 
@@ -347,6 +361,13 @@ describe('routes', () => {
       renderApp('/org/vendor-alerts')
       expect(await screen.findByText('Loading...')).toBeInTheDocument()
       expect(screen.queryByTestId('vendor-alerts-tab')).not.toBeInTheDocument()
+    })
+
+    it('/settings/team while the org is loading shows the loading state, not the screen', async () => {
+      signedIn({ orgLoading: true })
+      renderApp('/settings/team')
+      expect(await screen.findByText('Loading...')).toBeInTheDocument()
+      expect(screen.queryByTestId('team-page')).not.toBeInTheDocument()
     })
 
     it('document title at /org/vendor-alerts', async () => {
