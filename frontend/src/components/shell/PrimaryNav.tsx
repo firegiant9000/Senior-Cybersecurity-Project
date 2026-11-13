@@ -31,13 +31,15 @@ const PrimaryNav: React.FC<Props> = ({ groups, activeGroupId, activeItemId = nul
         ))}
       </div>
 
-      {/* Mobile: native select listing every visible item */}
+      {/* Mobile: native select listing every visible item. With no active page (e.g. /settings)
+          a disabled placeholder keeps "Overview" selectable. */}
       <select
         className="tabs-select"
         value={selectValue}
         onChange={(e) => navigate(e.target.value)}
         aria-label="Navigate to page"
       >
+        {selectValue === '' && <option value="" disabled>Choose a page</option>}
         {groups.map(({ id, label, to, items }) =>
           items.length > 0 ? (
             <optgroup key={id} label={label}>

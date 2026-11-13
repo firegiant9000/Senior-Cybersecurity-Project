@@ -133,6 +133,35 @@ describe('AppShell', () => {
     ]);
   });
 
+  it('shows a disabled placeholder in the mobile select on a page outside the nav, and Overview is selectable', () => {
+    render(
+      <MemoryRouter initialEntries={['/settings']}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route path="/settings" element={<p>settings page</p>} />
+            <Route path="/dashboard" element={<p>dash page</p>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    const select = screen.getByRole('combobox', { name: 'Navigate to page' });
+    expect(select).toHaveValue('');
+    expect(within(select).getByRole('option', { name: 'Choose a page' })).toBeDisabled();
+    fireEvent.change(select, { target: { value: '/dashboard' } });
+    expect(screen.getByText('dash page')).toBeInTheDocument();
+  });
+
+  it('gives an org admin the same avatar items and no Assessment Debug', () => {
+    authValue.orgRole = 'admin';
+    renderShell('/dashboard');
+    const labels = menuLabels();
+    expect(labels).toEqual([
+      'Organisation profile', 'Team and agents', 'Integrations', 'Account',
+      'Glossary', 'Privacy', 'Data handling', 'Log Out',
+    ]);
+    expect(labels).not.toContain('Assessment Debug');
+  });
+
   it('renders no nav at all without an organisation', () => {
     authValue.orgId = null;
     renderShell('/dashboard');

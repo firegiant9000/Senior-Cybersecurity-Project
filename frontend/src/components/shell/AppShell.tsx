@@ -41,6 +41,8 @@ export default function AppShell(): React.JSX.Element {
   // Focus moves on path changes only (not tab changes within a page, not the session's first mount).
   // Comparing against the last pathname seen (not a first-run flag) keeps StrictMode's double
   // effect run harmless and survives AppShell remounting across sibling layout routes.
+  // It spans the whole SPA session, including non-shell detours and logout: /dashboard -> /privacy
+  // -> /dashboard therefore does not move focus on return, as the previous path was /dashboard.
   useEffect(() => {
     if (lastPathSeen === pathname) return;
     const hadPrevious = lastPathSeen !== null;
