@@ -92,7 +92,7 @@ describe('AppShell', () => {
 
   it('sets the document title from the dashboard sub-tab', () => {
     renderShell('/dashboard?tab=assessment&sub=findings');
-    expect(document.title).toBe('Security Findings · Hacker Tracker');
+    expect(document.title).toBe('Findings · Hacker Tracker');
   });
 
   it('moves focus to main on navigation but not on first mount', () => {
@@ -129,7 +129,7 @@ describe('AppShell', () => {
         </Routes>
       </MemoryRouter>,
     );
-    expect(document.title).toBe('Security Findings · Hacker Tracker');
+    expect(document.title).toBe('Findings · Hacker Tracker');
     fireEvent.click(screen.getByText('go vendor'));
     expect(document.title).toBe('Vendor Alerts · Hacker Tracker');
     expect(document.activeElement).not.toBe(screen.getByRole('main'));
@@ -153,8 +153,8 @@ describe('AppShell', () => {
 
 describe('titleFor', () => {
   it('resolves dashboard sub-tabs, groups and legacy flat ids', () => {
-    expect(titleFor('/dashboard', '?tab=assessment&sub=findings')).toBe('Security Findings');
-    expect(titleFor('/dashboard', '?tab=findings')).toBe('Security Findings');
+    expect(titleFor('/dashboard', '?tab=assessment&sub=findings')).toBe('Findings');
+    expect(titleFor('/dashboard', '?tab=findings')).toBe('Findings');
     expect(titleFor('/dashboard', '?tab=vendorAlerts')).toBe('Vendor Alerts');
     expect(titleFor('/dashboard', '?tab=assessment')).toBe('Risk Profile');
     expect(titleFor('/dashboard', '')).toBe('Overview');
