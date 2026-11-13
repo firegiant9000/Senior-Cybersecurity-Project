@@ -1,7 +1,11 @@
-import { render, screen, waitFor, cleanup } from '@testing-library/react'
+import { render, screen, waitFor, cleanup, configure } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { resetShellFocusForTests } from '../components/shell/AppShell'
+
+// Screens are lazy-loaded behind one Suspense; under a full parallel run a cold dynamic
+// import can take longer than the 1 s default. File-scoped (Vitest isolates test files).
+configure({ asyncUtilTimeout: 5000 })
 
 // Route-level tests: <App /> in a MemoryRouter, every screen a data-testid stub,
 // ProtectedRoute / AppShell / LegacyRedirect / RequirePlatformAdmin real.

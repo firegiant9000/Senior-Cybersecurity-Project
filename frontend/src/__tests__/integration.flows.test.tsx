@@ -1,8 +1,11 @@
 import type { ReactNode } from 'react'
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup, configure } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { resetShellFocusForTests } from '../components/shell/AppShell'
+
+// Screens are lazy-loaded; a cold dynamic import can exceed the 1 s default under a full run.
+configure({ asyncUtilTimeout: 5000 })
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hoisted Mocks
