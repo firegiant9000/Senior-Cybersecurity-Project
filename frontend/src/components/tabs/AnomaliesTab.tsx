@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { NavLink, Navigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   fetchIC3Anomalies,
@@ -21,6 +22,10 @@ const VENDOR_EXPOSURE_TIP =
 
 type SubTab = 'ic3' | 'trends' | 'vendors';
 
+function isSubTab(value: string | undefined): value is SubTab {
+  return value === 'ic3' || value === 'trends' || value === 'vendors';
+}
+
 function pct(val: number | null): string {
   if (val === null) return '—';
   const sign = val >= 0 ? '+' : '';
@@ -36,7 +41,8 @@ function zColor(z: number): string {
 
 const AnomaliesTab: React.FC = () => {
   const { user } = useAuth();
-  const [subTab, setSubTab] = useState<SubTab>('ic3');
+  const { view } = useParams<{ view: string }>();
+  const subTab = isSubTab(view) ? view : null;
 
   const [ic3Data, setIC3Data] = useState<IC3AnomalyResponse | null>(null);
   const [trendsData, setTrendsData] = useState<TrendAnomalyResponse | null>(null);
@@ -64,7 +70,11 @@ const AnomaliesTab: React.FC = () => {
     }
   }, [user, ic3Data, trendsData, vendorData]);
 
-  useEffect(() => { load(subTab); }, [subTab, load]);
+  useEffect(() => { if (subTab) load(subTab); }, [subTab, load]);
+
+  if (!subTab) {
+    return <Navigate to="/intel/anomalies/ic3" replace />;
+  }
 
   if (!user) {
     return <div className="tab-page"><p>Please log in to view anomaly detection.</p></div>;
@@ -75,6 +85,7 @@ const AnomaliesTab: React.FC = () => {
     borderRadius: 6,
     border: 'none',
     cursor: 'pointer',
+    textDecoration: 'none',
     fontWeight: subTab === id ? 700 : 400,
     background: subTab === id ? 'var(--accent, #3b82f6)' : 'var(--card-bg, #ffffff)',
     color: subTab === id ? '#fff' : 'var(--text-secondary, #555)',
@@ -94,11 +105,11 @@ const AnomaliesTab: React.FC = () => {
       </div>
 
       {/* Sub-tab bar */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: '1.25rem' }}>
-        <button style={subTabStyle('ic3')} onClick={() => setSubTab('ic3')}>IC3 State Anomalies</button>
-        <button style={subTabStyle('trends')} onClick={() => setSubTab('trends')}>YoY Trends</button>
-        <button style={subTabStyle('vendors')} onClick={() => setSubTab('vendors')}>Vendor Exposure</button>
-      </div>
+      <nav aria-label="Anomaly views" style={{ display: 'flex', gap: 8, marginBottom: '1.25rem' }}>
+        <NavLink to="/intel/anomalies/ic3" style={subTabStyle('ic3')}>IC3 State Anomalies</NavLink>
+        <NavLink to="/intel/anomalies/trends" style={subTabStyle('trends')}>YoY Trends</NavLink>
+        <NavLink to="/intel/anomalies/vendors" style={subTabStyle('vendors')}>Vendor Exposure</NavLink>
+      </nav>
 
       {loading && <p style={{ color: 'var(--text-secondary, #555)', fontSize: 13 }}>Loading...</p>}
       {error && <p style={{ color: '#d32f2f' }}>{error}</p>}
