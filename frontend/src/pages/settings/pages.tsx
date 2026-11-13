@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useUserContext } from '../../context/UserContext';
@@ -30,6 +30,14 @@ function Frame({ children }: { children: ReactNode }) {
   );
 }
 
+function AdminOnly() {
+  return (
+    <Frame>
+      <p>{ADMIN_ONLY_TEAM}</p>
+    </Frame>
+  );
+}
+
 function useSettingsAuth() {
   const { orgId, role, orgRole } = useAuth();
   return { orgId, canEdit: isOrgAdmin(role, orgRole) };
@@ -56,6 +64,7 @@ export function OrganisationPage() {
   const { orgId, canEdit } = useSettingsAuth();
   const { organization, refreshOrganization } = useUserContext();
   const location = useLocation();
+  const scrolledKey = useRef<string | null>(null);
 
   // The intake wizard writes through PUT without notifying UserContext, so the cached
   // org can be stale; refresh on mount so the form reflects the server state.
@@ -69,13 +78,14 @@ export function OrganisationPage() {
   const bump = useCallback(() => setReadinessKey((k) => k + 1), []);
 
   // location.key changes on every navigation (even to the same URL), so a Fix click re-scrolls;
-  // `organization` lets a cold load scroll once the section mounts.
+  // `organization` lets a cold load scroll once the section mounts. scrolledKey stops a save
+  // (which replaces `organization`) from scrolling the page again within the same navigation.
   useEffect(() => {
-    if (location.hash === '#security-profile') {
-      document
-        .getElementById('security-profile')
-        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    if (location.hash !== '#security-profile' || scrolledKey.current === location.key) return;
+    const target = document.getElementById('security-profile');
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    scrolledKey.current = location.key;
   }, [location.hash, location.key, organization]);
 
   if (orgId == null) return null;
@@ -142,29 +152,45 @@ export function UploadsPage() {
   );
 }
 
-export function TeamPage() {
-  const { orgId, role, orgRole } = useAuth();
-  const canEdit = isOrgAdmin(role, orgRole);
-  // Hook runs unconditionally; the admin gate below prevents rendering TeamSection (and its
-  // members request) for non-admins. userId (backend id) only comes from the account profile.
+// Only admins fetch the account profile: userId (backend id) comes from it, and the
+// profile request is not needed for members who cannot see TeamSection.
+function TeamAdmin({
+  orgId,
+  role,
+  orgRole,
+}: {
+  orgId: number;
+  role: string | null;
+  orgRole: string | null;
+}) {
   const { profile, loading, error } = useAccountProfile();
-
-  if (!canEdit) return <p>{ADMIN_ONLY_TEAM}</p>;
-  if (orgId == null) return null;
   return (
-    <Frame>
+    <>
       {loading && <p className="settings-loading">Loading profile...</p>}
       {error && <div className="settings-error">{error}</div>}
       {!loading && !error && profile && (
         <TeamSection orgId={orgId} userId={profile.id} role={role} orgRole={orgRole} />
       )}
+    </>
+  );
+}
+
+export function TeamPage() {
+  const { orgId, role, orgRole } = useAuth();
+  const canEdit = isOrgAdmin(role, orgRole);
+
+  if (!canEdit) return <AdminOnly />;
+  if (orgId == null) return null;
+  return (
+    <Frame>
+      <TeamAdmin orgId={orgId} role={role} orgRole={orgRole} />
     </Frame>
   );
 }
 
 export function AgentsPage() {
   const { canEdit } = useSettingsAuth();
-  if (!canEdit) return <p>{ADMIN_ONLY_TEAM}</p>;
+  if (!canEdit) return <AdminOnly />;
   return (
     <Frame>
       <AgentsSection />
