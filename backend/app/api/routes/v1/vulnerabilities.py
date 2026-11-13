@@ -8,6 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import settings
 from app.core.limiter import limiter
+from app.core.logging import safe_http_error
 from app.repositories.exploited_vuln import (
     JsonExploitedVulnRepository,
     SqlExploitedVulnRepository,
@@ -74,11 +75,11 @@ async def list_exploited_vulnerabilities(
             severity=severity,
         )
     except FileNotFoundError as exc:
-        logger.error("Fixture file missing: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        logger.warning("Fixture file missing", extra={"error": safe_http_error(exc)})
+        raise HTTPException(status_code=500, detail="Internal error") from exc
     except NotImplementedError as exc:
-        logger.error("Repository not implemented: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        logger.warning("Repository not implemented", extra={"error": safe_http_error(exc)})
+        raise HTTPException(status_code=500, detail="Internal error") from exc
     except SQLAlchemyError as exc:
         logger.error("Database error in exploited vulnerabilities route: %s", exc)
         raise HTTPException(status_code=500, detail="Internal server error") from exc
@@ -112,11 +113,11 @@ async def exploited_severity_summary(
     try:
         return await repo.severity_summary(search=search, severity=severity)
     except FileNotFoundError as exc:
-        logger.error("Fixture file missing: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        logger.warning("Fixture file missing", extra={"error": safe_http_error(exc)})
+        raise HTTPException(status_code=500, detail="Internal error") from exc
     except NotImplementedError as exc:
-        logger.error("Repository not implemented: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        logger.warning("Repository not implemented", extra={"error": safe_http_error(exc)})
+        raise HTTPException(status_code=500, detail="Internal error") from exc
     except SQLAlchemyError as exc:
         logger.error("Database error in severity summary: %s", exc)
         raise HTTPException(status_code=500, detail="Internal server error") from exc
@@ -195,11 +196,11 @@ async def list_risk_scored_vulnerabilities(
             search=search,
         )
     except FileNotFoundError as exc:
-        logger.error("Fixture file missing: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        logger.warning("Fixture file missing", extra={"error": safe_http_error(exc)})
+        raise HTTPException(status_code=500, detail="Internal error") from exc
     except NotImplementedError as exc:
-        logger.error("Repository not implemented: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        logger.warning("Repository not implemented", extra={"error": safe_http_error(exc)})
+        raise HTTPException(status_code=500, detail="Internal error") from exc
     except SQLAlchemyError as exc:
         logger.error("Database error in risk-scored vulnerabilities route: %s", exc)
         raise HTTPException(status_code=500, detail="Internal server error") from exc

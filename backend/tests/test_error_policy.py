@@ -114,3 +114,32 @@ async def test_csv_import_failure_stores_only_the_class_name(client: AsyncClient
     assert "password=" not in resp.text
     failed = [c.args[2] for c in update.await_args_list if c.args[2].status == "failed"]
     assert [u.error_message for u in failed] == ["SQLAlchemyError"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("exc_type", [FileNotFoundError, NotImplementedError])
+@pytest.mark.parametrize(
+    ("path", "method"),
+    [
+        ("/api/v1/vulnerabilities/exploited", "list_exploited"),
+        ("/api/v1/vulnerabilities/exploited/severity-summary", "severity_summary"),
+        ("/api/v1/vulnerabilities/risk-scored", "list_risk_scored"),
+    ],
+)
+async def test_vulnerabilities_500_detail_is_generic(
+    client: AsyncClient, path: str, method: str, exc_type: type[Exception]
+):
+    from app.main import app
+    from app.repositories.exploited_vuln import get_exploited_repo
+
+    repo = MagicMock()
+    setattr(
+        repo, method, AsyncMock(side_effect=exc_type("/srv/fixtures/kev.json password=hunter2"))
+    )
+    app.dependency_overrides[get_exploited_repo] = lambda: repo
+    try:
+        resp = await client.get(path)
+    finally:
+        app.dependency_overrides.pop(get_exploited_repo, None)
+    assert resp.status_code == 500
+    assert resp.json() == {"detail": "Internal error"}
