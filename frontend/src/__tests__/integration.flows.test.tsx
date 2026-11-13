@@ -105,12 +105,16 @@ vi.mock('react-router-dom', async () => {
   return { ...actual, useNavigate: () => mockNavigate }
 })
 
+vi.mock('../components/tabs/PipelineHealthTab', () => ({
+  default: () => <div data-testid="pipeline-health-tab">Pipeline Health</div>,
+}))
+
 vi.mock('../hooks/useDarkMode', () => ({
   useDarkMode: () => [false, vi.fn()],
 }))
 
-vi.mock('../Dashboard', () => ({
-  default: () => <div data-testid="dashboard">Dashboard</div>,
+vi.mock('../pages/OverviewPage', () => ({
+  default: () => <div data-testid="overview-page">Overview</div>,
 }))
 
 vi.mock('../pages/LoginPage', () => ({
@@ -275,8 +279,8 @@ describe('Integration Tests - User Flows', () => {
       fireEvent.click(completeBtn)
 
       // After completion, user has org and can access dashboard
-      renderApp(['/dashboard'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      renderApp(['/overview'])
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
     })
 
     it('prevents unauthenticated users from accessing onboarding', () => {
@@ -305,7 +309,7 @@ describe('Integration Tests - User Flows', () => {
 
       // After acceptance, user has org
       mockAuthContext.orgId = 42
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
     })
 
@@ -328,13 +332,13 @@ describe('Integration Tests - User Flows', () => {
 
     it('org owner can access member management in settings', () => {
       setupUserWithOrg(1, 'owner')
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
     })
 
     it('org member cannot access org settings (requires admin/owner)', () => {
       setupUserWithOrg(1, 'member')
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
       // The page would load but member management sections would be hidden
     })
@@ -343,7 +347,7 @@ describe('Integration Tests - User Flows', () => {
       setupUserWithOrg(1, 'owner')
       mockCreateInvite.mockResolvedValue(undefined)
 
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
 
       await waitFor(() => {
@@ -355,7 +359,7 @@ describe('Integration Tests - User Flows', () => {
       setupUserWithOrg(1, 'admin')
       mockUpdateMemberRole.mockResolvedValue(undefined)
 
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
     })
 
@@ -363,7 +367,7 @@ describe('Integration Tests - User Flows', () => {
       setupUserWithOrg(1, 'owner')
       mockRemoveMember.mockResolvedValue(undefined)
 
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
     })
   })
@@ -403,39 +407,41 @@ describe('Integration Tests - User Flows', () => {
     })
   })
 
-  describe('Admin Dashboard Access Flow', () => {
-    it('global admin can access admin-only dashboard tabs', () => {
+  describe('Admin Area Access Flow', () => {
+    it('global admin can access the admin pipeline page', async () => {
       setupAdminUser()
-      renderApp(['/dashboard?tab=admin&sub=pipelineHealth'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      mockAuthContext.orgId = 1
+      renderApp(['/admin/pipeline'])
+      expect(await screen.findByTestId('pipeline-health-tab')).toBeInTheDocument()
     })
 
-    it('org member cannot access admin-only tabs', () => {
+    it('org member cannot access admin pages', () => {
       setupUserWithOrg(1, 'member')
-      // User would see dashboard but admin tabs hidden
-      renderApp(['/dashboard'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      renderApp(['/admin/pipeline'])
+      expect(screen.queryByTestId('pipeline-health-tab')).not.toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument()
     })
 
-    it('org admin can access admin tabs', () => {
+    it('org admin without a platform role cannot access admin pages', () => {
       setupUserWithOrg(1, 'admin')
-      renderApp(['/dashboard?tab=admin&sub=pipelineHealth'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      renderApp(['/admin/pipeline'])
+      expect(screen.queryByTestId('pipeline-health-tab')).not.toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument()
     })
   })
 
   describe('User Without Organization Flow', () => {
-    it('new user sees org-join CTA on dashboard', () => {
+    it('new user sees org-join CTA on the overview', () => {
       setupAuthenticatedUser()
       mockAuthContext.orgId = null
-      renderApp(['/dashboard'])
+      renderApp(['/overview'])
       // Component would show CTA
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
     })
 
     it('user without org cannot access org-only settings', () => {
       setupAuthenticatedUser()
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
     })
 
@@ -446,7 +452,7 @@ describe('Integration Tests - User Flows', () => {
       cleanup()
 
       mockAuthContext.orgId = 1
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
     })
   })
@@ -456,8 +462,8 @@ describe('Integration Tests - User Flows', () => {
       setupUserWithOrg(1, 'owner')
       mockLogout.mockClear()
 
-      renderApp(['/dashboard'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      renderApp(['/overview'])
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
 
       // Simulate logout
       mockAuthContext.user = null
@@ -476,58 +482,64 @@ describe('Integration Tests - User Flows', () => {
       // User creates/joins org
       mockAuthContext.orgId = 42
       mockAuthContext.orgRole = 'owner'
-      renderApp(['/dashboard'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      renderApp(['/overview'])
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
     })
 
-    it('handles role elevation', () => {
+    it('handles role elevation', async () => {
       setupUserWithOrg(1, 'member')
-      renderApp(['/dashboard'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      renderApp(['/overview'])
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
       cleanup()
 
-      // Admin promotes user to admin
+      // Promotion to org admin does not unlock the platform admin area
       mockAuthContext.orgRole = 'admin'
-      renderApp(['/dashboard?tab=admin'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      renderApp(['/admin/pipeline'])
+      expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument()
+      cleanup()
+
+      // A platform admin role does
+      mockAuthContext.role = 'admin'
+      renderApp(['/admin/pipeline'])
+      expect(await screen.findByTestId('pipeline-health-tab')).toBeInTheDocument()
     })
   })
 
   describe('Cross-Page Navigation', () => {
-    it('user can navigate from dashboard to settings', () => {
+    it('user can navigate from the overview to settings', () => {
       setupUserWithOrg(1, 'owner')
-      renderApp(['/dashboard'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      renderApp(['/overview'])
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
 
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
     })
 
     it('user can navigate from settings to assessment', () => {
       setupUserWithOrg(1, 'owner')
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
 
       renderApp(['/assessment-intake'])
       expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
     })
 
-    it('user can navigate back to dashboard from any page', () => {
+    it('user can navigate back to the overview from any page', () => {
       setupUserWithOrg(1, 'owner')
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
 
-      renderApp(['/dashboard'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      renderApp(['/overview'])
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
     })
 
     it('user can access all org-specific pages in sequence', () => {
       setupUserWithOrg(1, 'owner')
 
-      renderApp(['/dashboard'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      renderApp(['/overview'])
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
 
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
 
       renderApp(['/assessment-intake'])
@@ -538,8 +550,8 @@ describe('Integration Tests - User Flows', () => {
   describe('Error Recovery Flows', () => {
     it('user can recover from authentication timeout', () => {
       setupUserWithOrg(1, 'member')
-      renderApp(['/dashboard'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      renderApp(['/overview'])
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
 
       // Simulate auth timeout
       mockAuthContext.user = null
@@ -549,51 +561,52 @@ describe('Integration Tests - User Flows', () => {
 
     it('user can recover from org access loss', () => {
       setupUserWithOrg(1, 'member')
-      renderApp(['/dashboard'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      renderApp(['/overview'])
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
       cleanup()
 
       // User loses org access (kicked out)
       mockAuthContext.orgId = null
       mockAuthContext.orgLoading = false
-      renderApp(['/dashboard'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      renderApp(['/overview'])
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
     })
 
-    it('admin can access pages after role change', () => {
+    it('admin can access pages after role change', async () => {
       setupAdminUser()
-      renderApp(['/dashboard'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      renderApp(['/overview'])
+      expect(screen.getByTestId('overview-page')).toBeInTheDocument()
       cleanup()
 
-      renderApp(['/dashboard?tab=admin'])
-      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+      mockAuthContext.orgId = 1
+      renderApp(['/admin/pipeline'])
+      expect(await screen.findByTestId('pipeline-health-tab')).toBeInTheDocument()
     })
   })
 
   describe('Concurrent User Scenarios', () => {
     it('different users have different permission levels on same routes', () => {
       setupUserWithOrg(1, 'member')
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
       cleanup()
 
       // Switch to owner
       mockAuthContext.orgRole = 'owner'
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
       // Same page but owner would see member management
     })
 
     it('users from different orgs cannot access each others data', () => {
       setupUserWithOrg(1, 'member')
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
       cleanup()
 
       // User switches to different org
       mockAuthContext.orgId = 2
-      renderApp(['/settings'])
+      renderApp(['/settings/account'])
       expect(screen.getByTestId('settings-page')).toBeInTheDocument()
       // Would show different org's data
     })
@@ -610,7 +623,7 @@ describe('Integration Tests - User Flows', () => {
     it('shows loading state while org loads', () => {
       setupAuthenticatedUser()
       mockAuthContext.orgLoading = true
-      renderApp(['/dashboard'])
+      renderApp(['/overview'])
       // Should wait for org load before showing restricted content
     })
 

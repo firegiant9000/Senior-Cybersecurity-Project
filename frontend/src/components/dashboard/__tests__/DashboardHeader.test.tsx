@@ -32,6 +32,6 @@ describe('DashboardHeader avatar menu', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open profile menu' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Integrations' }));
 
-    expect(mockNavigate).toHaveBeenCalledWith('/integrations');
+    expect(mockNavigate).toHaveBeenCalledWith('/settings/integrations');
   });
 });
