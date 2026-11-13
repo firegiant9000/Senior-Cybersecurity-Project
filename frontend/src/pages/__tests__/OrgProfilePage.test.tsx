@@ -424,6 +424,10 @@ describe('OrgProfilePage characterisation', () => {
   })
 
   it('6d. navigating to the same URL re-opens a collapsed section', async () => {
+    const scrolled: Element[] = []
+    Element.prototype.scrollIntoView = vi.fn(function (this: Element) {
+      scrolled.push(this)
+    })
     let go: (to: string) => void = () => {}
     function Nav() {
       const navigate = useNavigate()
@@ -441,8 +445,10 @@ describe('OrgProfilePage characterisation', () => {
     expect(header).toHaveAttribute('aria-expanded', 'true')
     fireEvent.click(header)
     expect(header).toHaveAttribute('aria-expanded', 'false')
+    scrolled.length = 0
     act(() => go('/settings/technology'))
     await waitFor(() => expect(header).toHaveAttribute('aria-expanded', 'true'))
+    await waitFor(() => expect(scrolled).toContain(section('section-vendors')))
   })
 
   it('7a. the readiness widget renders when org_id is set', async () => {

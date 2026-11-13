@@ -116,7 +116,7 @@ function jsonResponse(body: unknown, ok = true) {
 
 let profile = makeProfile()
 
-function setup(route = '/org-profile') {
+function setup(route = '/settings/organisation') {
   return render(
     <MemoryRouter initialEntries={[route]}>
       <OrgProfilePage />

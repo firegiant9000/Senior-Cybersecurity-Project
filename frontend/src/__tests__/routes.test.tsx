@@ -78,11 +78,12 @@ vi.mock('../components/intel/VulnerabilitiesScreen', () => stub('vulnerabilities
 import App from '../App'
 
 function LocationProbe() {
-  const { pathname, search } = useLocation()
+  const { pathname, search, hash } = useLocation()
   return (
     <>
       <div data-testid="probe-pathname">{pathname}</div>
       <div data-testid="probe-search">{search}</div>
+      <div data-testid="probe-hash">{hash}</div>
     </>
   )
 }
@@ -108,6 +109,7 @@ const signedIn = (over: Partial<typeof mockAuthContext> = {}) => {
 
 const pathname = () => screen.getByTestId('probe-pathname').textContent
 const search = () => screen.getByTestId('probe-search').textContent
+const hash = () => screen.getByTestId('probe-hash').textContent
 
 // Every path from Task 5A.1 -> its stub. `inMain` is false only for the report.
 const PATHS: Array<[string, string, boolean]> = [
@@ -136,56 +138,56 @@ const PATHS: Array<[string, string, boolean]> = [
   ['/org/report', 'executive-report-page', false],
 ]
 
-// Legacy table (Task 2G): [input URL, final pathname, stub, final search]
-const LEGACY: Array<[string, string, string, string]> = [
-  ['/dashboard', '/overview', 'overview-page', ''],
-  ['/dashboard/', '/overview', 'overview-page', ''],
-  ['/dashboard?tab=overview', '/overview', 'overview-page', ''],
-  ['/dashboard?tab=assessment', '/org/risk', 'smb-advisor-tab', ''],
-  ['/dashboard?tab=assessment&sub=smbAdvisor', '/org/risk', 'smb-advisor-tab', ''],
-  ['/dashboard?tab=smbAdvisor', '/org/risk', 'smb-advisor-tab', ''],
-  ['/dashboard?tab=assessment&sub=nope', '/org/risk', 'smb-advisor-tab', ''],
-  ['/dashboard?tab=assessment&sub=findings', '/org/findings', 'findings-tab', ''],
-  ['/dashboard?tab=findings', '/org/findings', 'findings-tab', ''],
-  ['/dashboard?tab=assessment&sub=aiSummary', '/org/briefing', 'ai-summary-tab', ''],
-  ['/dashboard?tab=aiSummary', '/org/briefing', 'ai-summary-tab', ''],
-  ['/dashboard?tab=vendorAlerts', '/org/vendor-alerts', 'vendor-alerts-tab', ''],
-  ['/dashboard?tab=assets', '/org/assets', 'assets-page', ''],
-  ['/dashboard?tab=threats', '/intel/vulnerabilities', 'vulnerabilities-screen', ''],
-  ['/dashboard?tab=threats&sub=threatIntel', '/intel/vulnerabilities', 'vulnerabilities-screen', ''],
-  ['/dashboard?tab=threatIntel', '/intel/vulnerabilities', 'vulnerabilities-screen', ''],
-  ['/dashboard?tab=threats&sub=nope', '/intel/vulnerabilities', 'vulnerabilities-screen', ''],
-  ['/dashboard?tab=threats&sub=riskScoring', '/intel/vulnerabilities', 'vulnerabilities-screen', '?source=scored'],
-  ['/dashboard?tab=riskScoring', '/intel/vulnerabilities', 'vulnerabilities-screen', '?source=scored'],
-  ['/dashboard?tab=threats&sub=anomalies', '/intel/anomalies/ic3', 'anomalies-tab', ''],
-  ['/dashboard?tab=anomalies', '/intel/anomalies/ic3', 'anomalies-tab', ''],
-  ['/dashboard?tab=trendsData', '/intel/trends', 'trends-tab', ''],
-  ['/dashboard?tab=trendsData&sub=trends', '/intel/trends', 'trends-tab', ''],
-  ['/dashboard?tab=trends', '/intel/trends', 'trends-tab', ''],
-  ['/dashboard?tab=trendsData&sub=dataSources', '/intel/reference/ic3', 'data-sources-tab', ''],
-  ['/dashboard?tab=dataSources', '/intel/reference/ic3', 'data-sources-tab', ''],
-  ['/dashboard?tab=admin', '/admin/pipeline', 'pipeline-health-tab', ''],
-  ['/dashboard?tab=admin&sub=pipelineHealth', '/admin/pipeline', 'pipeline-health-tab', ''],
-  ['/dashboard?tab=pipelineHealth', '/admin/pipeline', 'pipeline-health-tab', ''],
-  ['/dashboard?tab=admin&sub=normalizationLog', '/admin/normalization-log', 'normalization-log-tab', ''],
-  ['/dashboard?tab=normalizationLog', '/admin/normalization-log', 'normalization-log-tab', ''],
-  ['/dashboard?tab=nope&x=1', '/overview', 'overview-page', ''],
-  ['/assets', '/org/assets', 'assets-page', ''],
-  ['/inventory/upload', '/org/assets/upload', 'upload-inventory-page', ''],
-  ['/integrations', '/settings/integrations', 'integrations-page', ''],
-  ['/integrations?m365=connected&message=x', '/settings/integrations', 'integrations-page', '?m365=connected&message=x'],
-  ['/report/executive?autoprint=1', '/org/report', 'executive-report-page', '?autoprint=1'],
-  ['/settings', '/settings/account', 'settings-page', ''],
-  ['/Settings', '/settings/account', 'settings-page', ''],
-  ['/settings/assessment-debug', '/admin/assessment-debug', 'assessment-debug-page', ''],
-  ['/org-profile', '/settings/organisation', 'org-profile-page', ''],
-  ['/org-profile#section-security-profile', '/settings/organisation', 'org-profile-page', ''],
-  ['/org-profile#section-vendors', '/settings/technology', 'org-profile-page', ''],
-  ['/org-profile#section-domains', '/settings/domains', 'org-profile-page', ''],
-  ['/org-profile#section-uploads', '/settings/uploads', 'org-profile-page', ''],
-  ['/assessment-intake', '/onboarding', 'onboarding-page', ''],
-  ['/intel/anomalies', '/intel/anomalies/ic3', 'anomalies-tab', ''],
-  ['/intel/reference', '/intel/reference/ic3', 'data-sources-tab', ''],
+// Legacy table (Task 2G): [input URL, final pathname, stub, final search, final hash]
+const LEGACY: Array<[string, string, string, string, string]> = [
+  ['/dashboard', '/overview', 'overview-page', '', ''],
+  ['/dashboard/', '/overview', 'overview-page', '', ''],
+  ['/dashboard?tab=overview', '/overview', 'overview-page', '', ''],
+  ['/dashboard?tab=assessment', '/org/risk', 'smb-advisor-tab', '', ''],
+  ['/dashboard?tab=assessment&sub=smbAdvisor', '/org/risk', 'smb-advisor-tab', '', ''],
+  ['/dashboard?tab=smbAdvisor', '/org/risk', 'smb-advisor-tab', '', ''],
+  ['/dashboard?tab=assessment&sub=nope', '/org/risk', 'smb-advisor-tab', '', ''],
+  ['/dashboard?tab=assessment&sub=findings', '/org/findings', 'findings-tab', '', ''],
+  ['/dashboard?tab=findings', '/org/findings', 'findings-tab', '', ''],
+  ['/dashboard?tab=assessment&sub=aiSummary', '/org/briefing', 'ai-summary-tab', '', ''],
+  ['/dashboard?tab=aiSummary', '/org/briefing', 'ai-summary-tab', '', ''],
+  ['/dashboard?tab=vendorAlerts', '/org/vendor-alerts', 'vendor-alerts-tab', '', ''],
+  ['/dashboard?tab=assets', '/org/assets', 'assets-page', '', ''],
+  ['/dashboard?tab=threats', '/intel/vulnerabilities', 'vulnerabilities-screen', '', ''],
+  ['/dashboard?tab=threats&sub=threatIntel', '/intel/vulnerabilities', 'vulnerabilities-screen', '', ''],
+  ['/dashboard?tab=threatIntel', '/intel/vulnerabilities', 'vulnerabilities-screen', '', ''],
+  ['/dashboard?tab=threats&sub=nope', '/intel/vulnerabilities', 'vulnerabilities-screen', '', ''],
+  ['/dashboard?tab=threats&sub=riskScoring', '/intel/vulnerabilities', 'vulnerabilities-screen', '?source=scored', ''],
+  ['/dashboard?tab=riskScoring', '/intel/vulnerabilities', 'vulnerabilities-screen', '?source=scored', ''],
+  ['/dashboard?tab=threats&sub=anomalies', '/intel/anomalies/ic3', 'anomalies-tab', '', ''],
+  ['/dashboard?tab=anomalies', '/intel/anomalies/ic3', 'anomalies-tab', '', ''],
+  ['/dashboard?tab=trendsData', '/intel/trends', 'trends-tab', '', ''],
+  ['/dashboard?tab=trendsData&sub=trends', '/intel/trends', 'trends-tab', '', ''],
+  ['/dashboard?tab=trends', '/intel/trends', 'trends-tab', '', ''],
+  ['/dashboard?tab=trendsData&sub=dataSources', '/intel/reference/ic3', 'data-sources-tab', '', ''],
+  ['/dashboard?tab=dataSources', '/intel/reference/ic3', 'data-sources-tab', '', ''],
+  ['/dashboard?tab=admin', '/admin/pipeline', 'pipeline-health-tab', '', ''],
+  ['/dashboard?tab=admin&sub=pipelineHealth', '/admin/pipeline', 'pipeline-health-tab', '', ''],
+  ['/dashboard?tab=pipelineHealth', '/admin/pipeline', 'pipeline-health-tab', '', ''],
+  ['/dashboard?tab=admin&sub=normalizationLog', '/admin/normalization-log', 'normalization-log-tab', '', ''],
+  ['/dashboard?tab=normalizationLog', '/admin/normalization-log', 'normalization-log-tab', '', ''],
+  ['/dashboard?tab=nope&x=1', '/overview', 'overview-page', '', ''],
+  ['/assets', '/org/assets', 'assets-page', '', ''],
+  ['/inventory/upload', '/org/assets/upload', 'upload-inventory-page', '', ''],
+  ['/integrations', '/settings/integrations', 'integrations-page', '', ''],
+  ['/integrations?m365=connected&message=x', '/settings/integrations', 'integrations-page', '?m365=connected&message=x', ''],
+  ['/report/executive?autoprint=1', '/org/report', 'executive-report-page', '?autoprint=1', ''],
+  ['/settings', '/settings/account', 'settings-page', '', ''],
+  ['/Settings', '/settings/account', 'settings-page', '', ''],
+  ['/settings/assessment-debug', '/admin/assessment-debug', 'assessment-debug-page', '', ''],
+  ['/org-profile', '/settings/organisation', 'org-profile-page', '', ''],
+  ['/org-profile#section-security-profile', '/settings/organisation', 'org-profile-page', '', '#security-profile'],
+  ['/org-profile#section-vendors', '/settings/technology', 'org-profile-page', '', ''],
+  ['/org-profile#section-domains', '/settings/domains', 'org-profile-page', '', ''],
+  ['/org-profile#section-uploads', '/settings/uploads', 'org-profile-page', '', ''],
+  ['/assessment-intake', '/onboarding', 'onboarding-page', '', ''],
+  ['/intel/anomalies', '/intel/anomalies/ic3', 'anomalies-tab', '', ''],
+  ['/intel/reference', '/intel/reference/ic3', 'data-sources-tab', '', ''],
 ]
 
 describe('routes', () => {
@@ -225,12 +227,13 @@ describe('routes', () => {
   })
 
   describe('legacy URLs redirect end to end', () => {
-    it.each(LEGACY)('%s -> %s', async (from, to, testId, toSearch) => {
+    it.each(LEGACY)('%s -> %s', async (from, to, testId, toSearch, toHash) => {
       signedIn()
       renderApp(from)
       await screen.findByTestId(testId)
       expect(pathname()).toBe(to)
       expect(search()).toBe(toSearch)
+      expect(hash()).toBe(toHash)
     })
   })
 
@@ -246,6 +249,7 @@ describe('routes', () => {
       signedIn({ role: null, orgRole: 'admin' })
       renderApp('/dashboard?tab=admin')
       expect(await screen.findByTestId('not-found-page')).toBeInTheDocument()
+      expect(pathname()).toBe('/admin/pipeline')
       expect(screen.queryByTestId('pipeline-health-tab')).not.toBeInTheDocument()
     })
 
@@ -293,6 +297,13 @@ describe('routes', () => {
       signedIn()
       renderApp('/nope')
       expect(await screen.findByTestId('not-found-page')).toBeInTheDocument()
+    })
+
+    it('/org/vendor-alerts while the org is loading shows the loading state, not the screen', async () => {
+      signedIn({ orgLoading: true })
+      renderApp('/org/vendor-alerts')
+      expect(await screen.findByText('Loading...')).toBeInTheDocument()
+      expect(screen.queryByTestId('vendor-alerts-tab')).not.toBeInTheDocument()
     })
 
     it('document title at /org/vendor-alerts', async () => {
