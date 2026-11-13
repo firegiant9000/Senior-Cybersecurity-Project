@@ -170,6 +170,7 @@ jobs:
   zap-baseline:
     name: ZAP baseline (local stack)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       COMPOSE_PROJECT_NAME: ht-zap
       # ZAP stable, resolved 2026-11-12 (ghcr.io/zaproxy/zaproxy:stable). Bump by hand.
@@ -213,8 +214,13 @@ jobs:
 
 
           def zap_started(zap, target):
-              for path in SEEDS:
-                  zap.core.access_url(target.rstrip("/") + path, followredirects="true")
+              wanted = [target.rstrip("/") + p for p in SEEDS]
+              for url in wanted:
+                  zap.core.access_url(url, followredirects="true")
+              # Marker file: written only if every seed is in ZAP's site tree.
+              seen = set(zap.core.urls())
+              if all(url in seen for url in wanted):
+                  open("/zap/wrk/seeds.ok", "w").close()
           EOF
           # The ZAP container runs as uid 1000 and must write the reports here.
           chmod a+w zap-wrk
@@ -228,6 +234,11 @@ jobs:
           "$ZAP_IMAGE"
           zap-baseline.py -t http://backend:8000 -J zap-report.json -r zap-report.html
           --hook /zap/wrk/seed_hook.py -I
+
+      # Fail loudly if the hook did not run or a seed was not requested, so the job
+      # cannot pass with less coverage than intended.
+      - name: Check all seed URLs were requested
+        run: test -f zap-wrk/seeds.ok
 
       - name: Check exception list (format and expiry)
         run: python .github/scripts/scan_exceptions.py check

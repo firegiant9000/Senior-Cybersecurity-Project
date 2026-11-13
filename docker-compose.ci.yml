@@ -9,6 +9,16 @@
 # Purpose: a backend that is reachable only on the compose network (ZAP joins
 # <project>_cyber_threat_network), with no outbound feed calls, no credentials and
 # no source bind mounts. Nothing in docker-compose.yml changes.
+#
+# Network isolation: the compose network is internal, so nothing in the stack can
+# reach the internet. The backend still runs its startup ingest catch-up (no flag
+# disables it) and tries to seed the empty DB from the public feeds; with no egress
+# those attempts fail fast (DNS/connect errors) and are recorded as failed runs, so
+# the scan never calls the live feeds or hits NVD rate limits.
+networks:
+  cyber_threat_network:
+    internal: true
+
 services:
   postgres:
     # Distinct names so a local run cannot collide with a dev stack.
@@ -22,7 +32,8 @@ services:
     ports: !reset []
     environment:
       APP_ENV: development
-      # No scheduler, no startup catch-up and no cron entries: no outbound feed calls.
+      # No scheduler, no catch-up schedule and no cron entries. (The startup catch-up
+      # still runs; the internal network above is what stops outbound feed calls.)
       SCHEDULER_ENABLED: "false"
       INGEST_CATCHUP_ON_STARTUP: "false"
       INGEST_SCHEDULE_NVD: ""
