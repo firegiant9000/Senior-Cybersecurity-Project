@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -44,6 +46,28 @@ class SqlAISummaryGenerationRepository:
             select(AISummaryGeneration).where(
                 AISummaryGeneration.id == generation_id,
                 AISummaryGeneration.org_id == org_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def count_gemini_since(self, org_id: int, since: datetime) -> int:
+        """Count Gemini generations for an org at or after ``since``."""
+        result = await self._session.execute(
+            select(func.count(AISummaryGeneration.id)).where(
+                AISummaryGeneration.org_id == org_id,
+                AISummaryGeneration.source == "gemini",
+                AISummaryGeneration.generated_at >= since,
+            )
+        )
+        return int(result.scalar_one())
+
+    async def oldest_gemini_since(self, org_id: int, since: datetime) -> datetime | None:
+        """Timestamp of the oldest Gemini generation at or after ``since`` (for Retry-After)."""
+        result = await self._session.execute(
+            select(func.min(AISummaryGeneration.generated_at)).where(
+                AISummaryGeneration.org_id == org_id,
+                AISummaryGeneration.source == "gemini",
+                AISummaryGeneration.generated_at >= since,
             )
         )
         return result.scalar_one_or_none()

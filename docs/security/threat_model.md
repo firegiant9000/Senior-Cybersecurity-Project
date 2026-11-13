@@ -235,7 +235,7 @@ This section builds on the S5a case study, [docs/ai/case-study.md](../ai/case-st
 | T-AI-06 | T | A schema-valid, grounded but misleading briefing gets through. | ACCEPTED | reason: model behaviour can't be proven; the S5a held-out run had 0 of 10 attacks succeed, readers see the cited findings next to the text, and the model has no tools; owner: Arlo; review: 2027-04-22 | |
 | T-AI-07 | T | Model output carries script into the browser (XSS). | CONTROL | `frontend/src/components/tabs/AISummaryTab.tsx::AISummaryTab` (L314) | Rendered as plain JSX text with no markdown renderer. There is no `dangerouslySetInnerHTML` anywhere in `frontend/src`. |
 | T-AI-08 | I | One org's summary or generation history is served to another org. | CONTROL | `backend/app/repositories/ai_summary_generation.py::SqlAISummaryGenerationRepository.get` (L42) | Filters by `(id, org_id)`. `test_ai_summary_generation.py::test_repository_get_returns_none_for_wrong_org` runs against a mocked session, so it can't catch a missing filter. The route takes the org from the caller (`organizations.py::get_ai_summary`); the HTTP path is part of T-TEN-12; covered under real verification by `tests/authz/tenancy/`. |
-| T-AI-09 | D | Repeated forced refreshes run up Gemini spend. | OPEN | milestone: S5; item: manual AppSec findings (per-user or per-org quota on `force_refresh`) | 5/minute per IP, per process; any org member can force a refresh. |
+| T-AI-09 | D | Repeated forced refreshes run up Gemini spend. | TEST | `backend/tests/test_ai_force_refresh_quota.py::test_force_refresh_rejected_at_limit_with_retry_after` | `force_refresh=true` is capped at 10 Gemini generations per org per rolling 24 h (`AI_FORCE_REFRESH_ORG_LIMIT`, `AI_FORCE_REFRESH_WINDOW_HOURS`), counted from `ai_summary_generations` rows with `source = 'gemini'`. Over the cap returns 429 with `Retry-After` before `invalidate` or any Gemini call; plain requests are never blocked. The count-then-generate check is not atomic, so concurrent requests can allow one extra call. The 5/minute per-IP limit stays. Route tests mock the repository; the query filters are checked on the compiled statement. |
 | T-AI-10 | I | Org data sent to Gemini leaves our control. | ACCEPTED | reason: documented in pii_inventory.md; only org-level fields and findings are sent, no user identifiers; owner: Arlo; review: 2027-04-22 | |
 | T-AI-11 | I | The Gemini API key is exposed. | CONTROL | `backend/app/core/config.py::GEMINI_API_KEY` (L109) | Read from the environment (`sync: false` on Render) and passed only to the SDK client. |
 
@@ -311,7 +311,7 @@ These are what writing the model surfaced that wasn't already known or documente
 | Milestone | Rows |
 |-----------|------|
 | S4 (authorization assurance) | none: all 14 rows closed in S4 (stages A–E); T-UPL-09 reached operators with agent-v0.1.1 |
-| S5 (DAST and manual AppSec) | T-ING-04, T-ING-06, T-ING-07, T-ING-10, T-DOM-08, T-AI-09, T-PLAT-03, T-PLAT-05, T-PLAT-10, T-PLAT-13, T-TEN-14, T-TEN-16, T-TEN-17, T-TEN-18 |
+| S5 (DAST and manual AppSec) | T-ING-04, T-ING-06, T-ING-07, T-ING-10, T-DOM-08, T-PLAT-03, T-PLAT-05, T-PLAT-10, T-PLAT-13, T-TEN-14, T-TEN-16, T-TEN-17, T-TEN-18 |
 | OWNER (repo hardening, Arlo) | T-REL-03, T-CI-02, T-CI-04 |
 
 ## ACCEPTED RISK register

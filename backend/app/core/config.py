@@ -161,6 +161,9 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     GEMINI_MODEL: str = "gemini-3.6-flash"
     AI_SUMMARY_ENABLED: bool = True
     AI_SUMMARY_CACHE_TTL: int = 3600  # seconds (1 hour)
+    # Cap on Gemini generations triggered by force_refresh=true, per org, rolling window.
+    AI_FORCE_REFRESH_ORG_LIMIT: int = 10
+    AI_FORCE_REFRESH_WINDOW_HOURS: int = 24
 
     # Ingestion
     FORCE_SEED: bool = False

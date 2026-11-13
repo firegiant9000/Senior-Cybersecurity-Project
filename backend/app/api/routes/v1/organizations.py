@@ -1,7 +1,8 @@
 """Organization routes — v1."""
 
 import logging
-from datetime import datetime
+import math
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -18,6 +19,7 @@ from app.db.engine import get_session
 from app.db.membership import Membership
 from app.db.organization import Organization
 from app.db.user import User
+from app.repositories.ai_summary_generation import SqlAISummaryGenerationRepository
 from app.repositories.finding_status_repository import (
     ALLOWED_STATUSES,
     SqlFindingStatusRepository,
@@ -585,7 +587,9 @@ async def get_ai_summary(
     Uses Google Gemini to synthesize findings into a plain-language narrative.
     Falls back to a template-based summary if Gemini is unavailable or disabled.
     Responses are cached per org for AI_SUMMARY_CACHE_TTL seconds (default 1 hour).
-    Pass force_refresh=true to bypass the cache and regenerate immediately.
+    Pass force_refresh=true to bypass the cache and regenerate immediately; each org
+    is capped at AI_FORCE_REFRESH_ORG_LIMIT Gemini generations per rolling
+    AI_FORCE_REFRESH_WINDOW_HOURS (429 with Retry-After beyond that).
 
     Rate limit: 5/minute per client address, counted in memory by each worker
     process (slowapi with no shared storage), so N workers allow up to 5×N.
@@ -604,6 +608,25 @@ async def get_ai_summary(
                 "before generating an AI summary."
             ),
         )
+    if force_refresh:
+        # Quota check precedes invalidate and any Gemini call. Count-then-generate is not
+        # atomic, so concurrent requests can overshoot the limit by a call or two.
+        window = timedelta(hours=settings.AI_FORCE_REFRESH_WINDOW_HOURS)
+        now = datetime.now(UTC)
+        repo = SqlAISummaryGenerationRepository(db)
+        used = await repo.count_gemini_since(org.id, now - window)
+        if used >= settings.AI_FORCE_REFRESH_ORG_LIMIT:
+            oldest = await repo.oldest_gemini_since(org.id, now - window)
+            retry_after = 1
+            if oldest is not None:
+                if oldest.tzinfo is None:
+                    oldest = oldest.replace(tzinfo=UTC)
+                retry_after = max(1, math.ceil((oldest + window - now).total_seconds()))
+            raise HTTPException(
+                status_code=429,
+                detail="AI summary refresh limit reached for this organization",
+                headers={"Retry-After": str(retry_after)},
+            )
     try:
         service = AISummaryService(db)
         if force_refresh:
