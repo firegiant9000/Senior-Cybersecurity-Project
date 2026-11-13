@@ -12,11 +12,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.http_fetch import FeedDeadlineError, ResponseTooLargeError, get_json_capped
 from app.core.logging import safe_http_error
 from app.db.models import EconomicIndicator
 from app.schemas.validators import EconomicIndicatorValidationSchema
 
 logger = logging.getLogger(__name__)
+
+CENSUS_MAX_BYTES = 8 * 1024 * 1024  # state-level tables are a few KB
 
 
 async def _upsert_economic_indicator(
@@ -182,13 +185,12 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:  # noqa
             if api_key:
                 income_params["key"] = api_key
 
-            cbp_resp = await client.get(cbp_url, params=cbp_params)
-            cbp_resp.raise_for_status()
-            cbp_data = cbp_resp.json()
-
-            income_resp = await client.get(income_url, params=income_params)
-            income_resp.raise_for_status()
-            income_data = income_resp.json()
+            cbp_data = await get_json_capped(
+                client, cbp_url, max_bytes=CENSUS_MAX_BYTES, params=cbp_params
+            )
+            income_data = await get_json_capped(
+                client, income_url, max_bytes=CENSUS_MAX_BYTES, params=income_params
+            )
 
             if not isinstance(cbp_data, list) or not isinstance(income_data, list):
                 raise RuntimeError("Census response was not a list")
@@ -251,7 +253,7 @@ async def ingest_region_economics_from_census(db: AsyncSession) -> None:  # noqa
             f"✓ Ingested economic data for {indicators_added} states from Census API, validated {indicators_validated}"
         )
 
-    except (httpx.HTTPError, ValueError) as e:
+    except (httpx.HTTPError, ResponseTooLargeError, FeedDeadlineError, ValueError) as e:
         census_error = safe_http_error(e)
         logger.warning("Census API error: %s", census_error)
 
