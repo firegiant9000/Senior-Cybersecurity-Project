@@ -52,12 +52,12 @@ const AnomaliesTab: React.FC = () => {
   const [error, setError] = useState('');
 
   // Which views already hold data; read by the effect so a resolved fetch does not re-trigger it.
-  const loaded = useRef<Record<SubTab, boolean>>({ ic3: false, trends: false, vendors: false });
+  const loaded = useRef<Set<SubTab>>(new Set());
 
   useEffect(() => {
     if (!subTab || !user) return;
     setError('');
-    if (loaded.current[subTab]) {
+    if (loaded.current.has(subTab)) {
       setLoading(false);
       return;
     }
@@ -74,7 +74,7 @@ const AnomaliesTab: React.FC = () => {
         } else {
           setVendorData(await fetchVendorAnomalies());
         }
-        loaded.current[subTab] = true;
+        loaded.current.add(subTab);
       } catch (err) {
         if (!ignore) setError(err instanceof Error ? err.message : 'Failed to load');
       } finally {
