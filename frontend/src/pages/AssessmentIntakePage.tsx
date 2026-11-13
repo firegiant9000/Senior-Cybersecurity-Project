@@ -248,7 +248,7 @@ export default function AssessmentIntakePage() {
     const vendorSyncKey = productName ? `${vendorName}::${productName}` : vendorName;
     if (vendorName && vendorSyncedRef.current !== vendorSyncKey) {
       try {
-        // idempotent=true so re-runs of the wizard don't 409 on the same vendor.
+        // idempotent=true so a retried Next click after a partial failure doesn't 409 on a vendor already created.
         await createVendor(targetOrgId, vendorName, productName, { idempotent: true });
       } catch (vendorErr) {
         console.warn("Failed to add primary vendor:", vendorErr);

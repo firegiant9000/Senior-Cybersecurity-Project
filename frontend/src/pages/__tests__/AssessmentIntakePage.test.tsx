@@ -91,20 +91,19 @@ vi.mock('../../api/assessmentIntake', () => ({
     next_tier_progress: 0,
     fields_to_advance: [],
   }),
+  // Imported by AssessmentIntakePage; without these stubs vitest logs a
+  // "No export defined" warning whenever the wizard reaches them.
+  completeIntake: vi.fn().mockResolvedValue(undefined),
+  skipIntakeStep: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('../../api/vendors', () => ({
   createVendor: (...args: unknown[]) => mockCreateVendor(...args),
-  listVendors: vi.fn().mockResolvedValue({
-    total: 0,
-    page: 1,
-    page_size: 100,
-    items: [],
-  }),
 }))
 
 // Import component AFTER mocks
 import AssessmentIntakePage from '../AssessmentIntakePage'
+import { completeIntake } from '../../api/assessmentIntake'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper Functions
@@ -126,11 +125,12 @@ function renderPage() {
   )
 }
 
-// What refreshProfile does after the wizard creates the organisation: orgId
-// becomes set in the auth context and subscribers re-render.
-async function setOrgId(id: number | null) {
+// Changes the auth context the way a real auth refresh would and re-renders
+// subscribers. refreshProfile uses it to set orgId after the wizard creates
+// the organisation; entry-capture tests use it to finish loading.
+async function setAuth(patch: { orgLoading?: boolean; orgId?: number | null }) {
   await act(async () => {
-    mockAuthValues.orgId = id
+    Object.assign(mockAuthValues, patch)
     authStore.version += 1
     authStore.listeners.forEach((l) => l())
   })
@@ -139,25 +139,8 @@ async function setOrgId(id: number | null) {
 // Matches /organizations/{orgId} but not sub-resource URLs like /organizations/1/domains
 const isMainOrgUrl = (url: string) => /\/organizations\/(\d+|mine)$/.test(url)
 
-function mockSuccessfulOrgFetch(orgData: Record<string, unknown> = {}) {
+function mockSuccessfulOrgFetch() {
   mockFetchWithAuth.mockImplementation((url: string, options?: Record<string, unknown>) => {
-    if (isMainOrgUrl(url) && (!options?.method || options.method === 'GET')) {
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({
-          name: '',
-          industry_label: '',
-          primary_state: '',
-          employee_range: '',
-          primary_domain: '',
-          security_controls: {},
-          compliance_frameworks: [],
-          data_types: [],
-          cloud_providers: [],
-          ...orgData,
-        }),
-      })
-    }
     if (isMainOrgUrl(url) && options?.method === 'PUT') {
       return Promise.resolve({
         ok: true,
@@ -224,7 +207,8 @@ describe('AssessmentIntakePage', () => {
     // The wizard is first-run only: it is entered with no organisation, creates
     // one on step 1 and sees orgId become set from then on.
     mockAuthValues.orgId = null
-    mockAuthValues.refreshProfile = vi.fn(() => setOrgId(7))
+    mockAuthValues.orgLoading = false
+    mockAuthValues.refreshProfile = vi.fn(() => setAuth({ orgId: 7 }))
     mockFetchIntake.mockResolvedValue({
       current_tier: 'basic',
       tiers: [
@@ -445,19 +429,35 @@ describe('AssessmentIntakePage', () => {
     expect(nameInput.value).toBe('Test Corp')
   })
 
-  it('renders the intake form when user has no org (new-user creation flow)', async () => {
-    // orgId === null is valid: the wizard creates the org on first Next click.
-    // No redirect happens — the page stays mounted so the user can fill step 1.
+  it('redirects when the organisation exists once auth finishes loading', async () => {
+    // Entry is captured when orgLoading first turns false, so the user had an
+    // organisation at entry and is sent to settings.
+    mockAuthValues.orgLoading = true
     mockAuthValues.orgId = null
 
     renderPage()
+    await setAuth({ orgLoading: false, orgId: 1 })
 
     await waitFor(() => {
-      expect(
-        screen.getByRole('heading', { level: 1, name: 'Set up your organisation' }),
-      ).toBeInTheDocument()
+      expect(screen.getByTestId('location')).toHaveTextContent('/settings/organisation')
     })
-    expect(mockNavigate).not.toHaveBeenCalledWith('/onboarding')
+  })
+
+  it('stays on the wizard when the organisation is created after entry', async () => {
+    // No organisation at entry (orgId null when loading finishes); creating one
+    // during step 1 sets orgId but must not redirect the user away mid-wizard.
+    mockAuthValues.orgLoading = true
+    mockAuthValues.orgId = null
+
+    renderPage()
+    await setAuth({ orgLoading: false, orgId: null })
+    await expectOnStep(1)
+    await setAuth({ orgId: 7 })
+
+    expect(screen.getByTestId('location')).toHaveTextContent('/onboarding')
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Set up your organisation' }),
+    ).toBeInTheDocument()
   })
 
   it('navigates to dashboard on form submission', async () => {
@@ -483,6 +483,7 @@ describe('AssessmentIntakePage', () => {
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/overview')
     })
+    expect(completeIntake).toHaveBeenCalledTimes(1)
   })
 
   it('shows error message on submission failure', async () => {
@@ -500,22 +501,6 @@ describe('AssessmentIntakePage', () => {
           })
         }
         return Promise.resolve({ ok: true, json: async () => ({}) })
-      }
-      if (isMainOrgUrl(url)) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({
-            name: '',
-            industry_label: '',
-            primary_state: '',
-            employee_range: '',
-            primary_domain: '',
-            security_controls: {},
-            compliance_frameworks: [],
-            data_types: [],
-            cloud_providers: [],
-          }),
-        })
       }
       return Promise.resolve({ ok: true, json: async () => ({}) })
     })
