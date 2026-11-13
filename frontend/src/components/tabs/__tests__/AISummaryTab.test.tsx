@@ -109,7 +109,7 @@ describe('AISummaryTab (characterisation)', () => {
     expect(await screen.findByText('Exposed VPN gateway', {}, FIND_TIMEOUT)).toBeInTheDocument()
   }, 15000)
 
-  it('a 422 shows the profile prompt linking to /org-profile', async () => {
+  it('a 422 shows the profile prompt linking to /settings/organisation', async () => {
     routeFetch(() =>
       jsonResponse(
         {
@@ -123,7 +123,7 @@ describe('AISummaryTab (characterisation)', () => {
     renderTab()
 
     expect(await screen.findByText('Setup Required', {}, FIND_TIMEOUT)).toBeInTheDocument()
-    const link = document.querySelector('a[href="/org-profile"]')
+    const link = document.querySelector('a[href="/settings/organisation"]')
     expect(link).not.toBeNull()
     // No narrative is rendered in this state.
     expect(screen.queryByText('Your external exposure is moderate.')).not.toBeInTheDocument()

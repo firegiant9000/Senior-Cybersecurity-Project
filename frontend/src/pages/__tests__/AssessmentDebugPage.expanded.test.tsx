@@ -368,7 +368,7 @@ describe('AssessmentDebugPage', () => {
       await waitFor(() => {
         expect(screen.getByRole('link', { name: /Back to Settings/i })).toHaveAttribute(
           'href',
-          '/settings',
+          '/settings/account',
         )
       })
       expect(screen.queryByText(/Back to Dashboard/i)).not.toBeInTheDocument()

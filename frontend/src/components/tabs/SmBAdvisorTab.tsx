@@ -813,12 +813,12 @@ function OrgRiskScoreCard() {
       <h3 className="smb-section-title">🎯 Your Organization's Risk Score</h3>
       <p className="smb-section-sub">
         Calculated from your org's industry and employee range.{' '}
-        <Link to="/org-profile" style={{ color: 'var(--accent)', textDecoration: 'underline', fontSize: 'inherit' }}>
+        <Link to="/settings/organisation" style={{ color: 'var(--accent)', textDecoration: 'underline', fontSize: 'inherit' }}>
           Edit organisation profile
         </Link>{' '}
         to recalculate, or{' '}
         <Link
-          to="/dashboard?tab=assessment&sub=findings"
+          to="/org/findings"
           style={{ color: 'var(--accent)', textDecoration: 'underline', fontSize: 'inherit' }}
         >
           check off findings
@@ -830,7 +830,7 @@ function OrgRiskScoreCard() {
       ) : !data ? null : (
         <div className="smb-org-risk-body">
           <Link
-            to="/dashboard?tab=assessment&sub=findings"
+            to="/org/findings"
             className="smb-org-risk-gauge smb-org-risk-gauge--linked"
             title={
               hasCredit
@@ -1017,7 +1017,7 @@ const SmBAdvisorTab: React.FC = () => {
         {(!selectedSector || !selectedState) && !loading && (
           <p className="smb-profile-hint">
             ⚙️ Industry or state not configured.{' '}
-            <Link to="/org-profile" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>
+            <Link to="/settings/organisation" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>
               Edit organisation profile
             </Link>{' '}
             to unlock your full personalized risk report.
@@ -1025,7 +1025,7 @@ const SmBAdvisorTab: React.FC = () => {
         )}
         {selectedSector && selectedState && !loading && (
           <p className="smb-profile-hint" style={{ marginTop: 4 }}>
-            <Link to="/org-profile" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>
+            <Link to="/settings/organisation" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>
               Edit organisation profile
             </Link>{' '}
             to change your industry or state.

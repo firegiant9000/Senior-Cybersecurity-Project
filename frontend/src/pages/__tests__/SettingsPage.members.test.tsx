@@ -268,7 +268,7 @@ describe('SettingsPage - Member Management', () => {
       await waitFor(() => {
         expect(screen.getByRole('link', { name: 'Organization Profile' })).toHaveAttribute(
           'href',
-          '/org-profile',
+          '/settings/organisation',
         )
       })
       expect(screen.queryByRole('link', { name: 'Assessment Debug' })).not.toBeInTheDocument()
@@ -286,7 +286,7 @@ describe('SettingsPage - Member Management', () => {
       await waitFor(() => {
         expect(screen.getByRole('link', { name: 'Assessment Debug' })).toHaveAttribute(
           'href',
-          '/settings/assessment-debug',
+          '/admin/assessment-debug',
         )
       })
     })

@@ -205,7 +205,7 @@ describe('OrgProfilePage characterisation', () => {
   it('1c. has an h1, an Account Settings link and no Back to Dashboard control', async () => {
     await loaded()
     expect(screen.getByRole('heading', { level: 1, name: 'Organization Profile' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Account Settings' })).toHaveAttribute('href', '/settings')
+    expect(screen.getByRole('link', { name: 'Account Settings' })).toHaveAttribute('href', '/settings/account')
     expect(screen.queryByText(/Back to Dashboard/i)).not.toBeInTheDocument()
   })
 

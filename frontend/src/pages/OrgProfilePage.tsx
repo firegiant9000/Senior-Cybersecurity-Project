@@ -119,7 +119,7 @@ export default function OrgProfilePage() {
     <>
       <h1>Organization Profile</h1>
       <nav className="settings-page-links" aria-label="Related pages">
-        <Link to="/settings">Account Settings</Link>
+        <Link to="/settings/account">Account Settings</Link>
       </nav>
 
       <div className="settings-page settings-page--embedded">
@@ -133,7 +133,7 @@ export default function OrgProfilePage() {
                 <div className="settings-section">
                   <p style={{ color: 'var(--text-secondary, #555)', fontSize: 14, lineHeight: 1.6 }}>
                     You are not part of an organization yet.{' '}
-                    <a href="/settings" style={{ color: 'var(--accent, #0b1060)', fontWeight: 600 }}>
+                    <a href="/settings/account"style={{ color: 'var(--accent, #0b1060)', fontWeight: 600 }}>
                       Create or join an organization
                     </a>{' '}
                     to manage your profile, vendors, and domains.

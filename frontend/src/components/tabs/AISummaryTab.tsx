@@ -186,7 +186,7 @@ const AISummaryTab: React.FC = () => {
                 <li>At least one domain</li>
                 <li>At least one security question answered</li>
               </ul>
-              <Link to="/org-profile" className="ai-summary-error-action">
+              <Link to="/settings/organisation" className="ai-summary-error-action">
                 Edit organisation profile
               </Link>
             </>
@@ -227,7 +227,7 @@ const AISummaryTab: React.FC = () => {
           <p className="ai-summary-error-detail">
             Complete your organization profile and submit an assessment to generate an AI executive summary.
           </p>
-          <Link to="/org-profile" className="ai-summary-error-action">
+          <Link to="/settings/organisation" className="ai-summary-error-action">
             Edit organisation profile
           </Link>
         </div>
@@ -280,7 +280,7 @@ const AISummaryTab: React.FC = () => {
           <button
             type="button"
             className="ai-summary-print-btn"
-            onClick={() => window.open('/report/executive?autoprint=1', '_blank')}
+            onClick={() => window.open('/org/report?autoprint=1', '_blank')}
           >
             Open executive report
           </button>
