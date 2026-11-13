@@ -171,11 +171,16 @@ def create_app() -> FastAPI:
             "Set a strong SECRET_KEY in your environment before deploying to production."
         )
 
+    # OpenAPI schema and Swagger/ReDoc UI are served only outside production (Task 13).
+    docs_enabled = settings.is_dev_or_test
     fastapi_app = FastAPI(
         title=settings.APP_NAME,
         version="0.1.0",
         description="Cyber Threat Intelligence & Anomaly Detection Platform",
         lifespan=lifespan,
+        docs_url="/docs" if docs_enabled else None,
+        redoc_url="/redoc" if docs_enabled else None,
+        openapi_url="/openapi.json" if docs_enabled else None,
     )
 
     # The body cap must be the INNERMOST middleware: add_middleware prepends, so it is added
@@ -210,6 +215,8 @@ def create_app() -> FastAPI:
     )
 
     # Outermost (added last): errors, preflights and the 413 all carry the security headers.
+    # FastAPI keeps swagger_ui_oauth2_redirect_url set even when docs are off, so gate it too:
+    # in production no docs path may get the looser docs CSP, not even a 404.
     docs_paths = frozenset(
         p
         for p in (
@@ -217,7 +224,7 @@ def create_app() -> FastAPI:
             fastapi_app.redoc_url,
             fastapi_app.swagger_ui_oauth2_redirect_url,
         )
-        if p
+        if p and docs_enabled
     )
     fastapi_app.add_middleware(SecurityHeadersMiddleware, docs_paths=docs_paths)
 
