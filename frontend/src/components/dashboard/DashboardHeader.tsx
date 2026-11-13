@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { isOrgAdmin } from '../../utils/roleUtils';
+import { AVATAR_ITEMS } from '../../config/navigation';
 import './DashboardHeader.css';
 
 interface Props {
@@ -18,7 +18,6 @@ const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout, 
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement | null>(null);
 
-    const canDebug = isOrgAdmin(role, orgRole);
     const displayRole = orgRole ?? role ?? 'User';
 
     useEffect(() => {
@@ -76,26 +75,11 @@ const DashboardHeader: React.FC<Props> = ({ dark, onToggleDark, user, onLogout, 
                                 <div className="user-dropdown-item role" role="none">{displayRole}</div>
                                 {!minimal && (
                                     <>
-                                        <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/org-profile'); }}>
-                                            Organization Profile
-                                        </button>
-                                        <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/settings'); }}>
-                                            Settings
-                                        </button>
-                                        <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/integrations'); }}>
-                                            Integrations
-                                        </button>
-                                        {canDebug && (
-                                            <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/settings/assessment-debug'); }}>
-                                                Assessment Debug
+                                        {AVATAR_ITEMS.map((item) => (
+                                            <button key={item.id} className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate(item.to); }}>
+                                                {item.label}
                                             </button>
-                                        )}
-                                        <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/data-handling'); }}>
-                                            Data Handling
-                                        </button>
-                                        <button className="user-dropdown-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/privacy'); }}>
-                                            Privacy
-                                        </button>
+                                        ))}
                                     </>
                                 )}
                                 <button className="user-dropdown-item" role="menuitem" onClick={async () => { await onLogout(); navigate('/'); }}>

@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { resetShellFocusForTests } from './components/shell/AppShell'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hoisted Mocks
@@ -167,6 +168,7 @@ function renderApp(initialEntries = ['/']) {
 describe('App - Routing & Navigation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetShellFocusForTests()
     mockAuthContext.user = null
     mockAuthContext.loading = false
     mockAuthContext.orgId = null

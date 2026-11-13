@@ -127,7 +127,7 @@ function setup(route = '/org-profile') {
 
 async function loaded(route?: string) {
   const utils = setup(route)
-  await screen.findByLabelText('Name')
+  await screen.findByLabelText(/^Company Name/)
   return utils
 }
 
@@ -176,10 +176,13 @@ beforeEach(() => {
 describe('OrgProfilePage characterisation', () => {
   it('1a. owner sees Company fields enabled and the Security Profile section', async () => {
     await loaded()
-    expect(screen.getByLabelText('Name')).toBeEnabled()
+    expect(screen.getByLabelText(/^Company Name/)).toBeEnabled()
     expect(screen.getByLabelText('Logo')).toBeEnabled()
-    expect(screen.getByLabelText('Domain')).toBeEnabled()
-    expect(screen.getByLabelText('Industry')).toBeEnabled()
+    expect(screen.getByLabelText(/^Primary Domain/)).toBeEnabled()
+    expect(screen.getByLabelText(/^Industry/)).toBeEnabled()
+    expect(screen.getByLabelText(/^Primary State/)).toBeEnabled()
+    expect(screen.getByLabelText(/^Number of Employees/)).toBeEnabled()
+    expect(screen.getByLabelText(/^Annual Revenue/)).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Save company profile' })).toBeInTheDocument()
     expect(document.getElementById('section-security-profile')).not.toBeNull()
   })
@@ -187,10 +190,13 @@ describe('OrgProfilePage characterisation', () => {
   it('1b. member sees Company fields disabled and no Security Profile section', async () => {
     profile = makeProfile({ org_role: 'member' })
     await loaded()
-    expect(screen.getByLabelText('Name')).toBeDisabled()
+    expect(screen.getByLabelText(/^Company Name/)).toBeDisabled()
     expect(screen.getByLabelText('Logo')).toBeDisabled()
-    expect(screen.getByLabelText('Domain')).toBeDisabled()
-    expect(screen.getByLabelText('Industry')).toBeDisabled()
+    expect(screen.getByLabelText(/^Primary Domain/)).toBeDisabled()
+    expect(screen.getByLabelText(/^Industry/)).toBeDisabled()
+    expect(screen.getByLabelText(/^Primary State/)).toBeDisabled()
+    expect(screen.getByLabelText(/^Number of Employees/)).toBeDisabled()
+    expect(screen.getByLabelText(/^Annual Revenue/)).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Save company profile' })).not.toBeInTheDocument()
     expect(document.getElementById('section-security-profile')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Save security profile' })).not.toBeInTheDocument()
@@ -203,12 +209,14 @@ describe('OrgProfilePage characterisation', () => {
     expect(screen.queryByText(/Back to Dashboard/i)).not.toBeInTheDocument()
   })
 
-  it('2. saving Company sends exactly name, logo_url, primary_domain, industry_label', async () => {
+  it('2. saving Company sends exactly its seven fields, null for each empty value', async () => {
     await loaded()
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: '  Acme Ltd  ' } })
+    fireEvent.change(screen.getByLabelText(/^Company Name/), { target: { value: '  Acme Ltd  ' } })
     fireEvent.change(screen.getByLabelText('Logo'), { target: { value: '' } })
-    fireEvent.change(screen.getByLabelText('Domain'), { target: { value: 'acme.example' } })
-    fireEvent.change(screen.getByLabelText('Industry'), { target: { value: 'Education' } })
+    fireEvent.change(screen.getByLabelText(/^Primary Domain/), { target: { value: 'acme.example' } })
+    fireEvent.change(screen.getByLabelText(/^Industry/), { target: { value: 'Education' } })
+    fireEvent.change(screen.getByLabelText(/^Primary State/), { target: { value: 'TX' } })
+    fireEvent.change(screen.getByLabelText(/^Number of Employees/), { target: { value: '11-50' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save company profile' }))
 
     await waitFor(() => expect(putCalls()).toHaveLength(1))
@@ -219,11 +227,51 @@ describe('OrgProfilePage characterisation', () => {
       logo_url: null,
       primary_domain: 'acme.example',
       industry_label: 'Education',
+      primary_state: 'TX',
+      employee_range: '11-50',
+      revenue_range: null,
     })
     expect(Object.keys(JSON.parse(init.body)).sort()).toEqual(
-      ['industry_label', 'logo_url', 'name', 'primary_domain'],
+      [
+        'employee_range',
+        'industry_label',
+        'logo_url',
+        'name',
+        'primary_domain',
+        'primary_state',
+        'revenue_range',
+      ],
     )
     await waitFor(() => expect(mockRefreshOrganization).toHaveBeenCalledTimes(2)) // mount + after save
+  })
+
+  it('2b. an organisation loaded with primary_state TX shows it selected', async () => {
+    userContextState.value = {
+      ...userContextState.value,
+      organization: { ...baseOrg, primary_state: 'TX', employee_range: '51-200', revenue_range: '$1M-$5M' },
+    }
+    await loaded()
+    expect(screen.getByLabelText(/^Primary State/)).toHaveValue('TX')
+    expect(screen.getByLabelText(/^Number of Employees/)).toHaveValue('51-200')
+    expect(screen.getByLabelText(/^Annual Revenue/)).toHaveValue('$1M-$5M')
+  })
+
+  it('2c. Security Profile compliance options include Unsure and None clears the others', async () => {
+    await loaded()
+    const sec = await openSection(/Security Profile/, 'section-security-profile')
+    expect(within(sec).getByLabelText('Unsure')).not.toBeChecked()
+    expect(within(sec).getByLabelText('HIPAA')).toBeChecked()
+    fireEvent.click(within(sec).getByLabelText('None'))
+    expect(within(sec).getByLabelText('None')).toBeChecked()
+    expect(within(sec).getByLabelText('HIPAA')).not.toBeChecked()
+    // a framework after "None" clears "None"
+    fireEvent.click(within(sec).getByLabelText('HIPAA'))
+    expect(within(sec).getByLabelText('HIPAA')).toBeChecked()
+    expect(within(sec).getByLabelText('None')).not.toBeChecked()
+    // "Unsure" after a framework clears the framework
+    fireEvent.click(within(sec).getByLabelText('Unsure'))
+    expect(within(sec).getByLabelText('Unsure')).toBeChecked()
+    expect(within(sec).getByLabelText('HIPAA')).not.toBeChecked()
   })
 
   it('3. saving Security Profile sends exactly its six fields, then createVendor per cloud provider', async () => {

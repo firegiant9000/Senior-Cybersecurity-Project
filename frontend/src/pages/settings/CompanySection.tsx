@@ -2,25 +2,9 @@ import { useState } from "react";
 import { useUserContext } from "../../context/UserContext";
 import { updateOrganization } from "../../api/organizations";
 import { httpUrlOrNull } from "../../utils/safeUrl";
+import { OrgBasicsFields } from "../../components/org/OrgBasicsFields";
+import { RevenueField, toNullable } from "../../components/org/RevenueField";
 import type { SectionProps } from "./types";
-
-const INDUSTRY_OPTIONS = [
-  "Finance & Insurance",
-  "Healthcare",
-  "Tech & Software",
-  "Government",
-  "Retail & E-Commerce",
-  "Education",
-  "Manufacturing",
-  "Professional Services",
-  "Real Estate",
-  "Construction",
-  "Legal Services",
-  "Transportation",
-  "Hospitality",
-  "Non-Profit",
-  "Other",
-] as const;
 
 export default function CompanySection({ orgId, canEdit, onChanged }: SectionProps) {
   const {
@@ -34,6 +18,9 @@ export default function CompanySection({ orgId, canEdit, onChanged }: SectionPro
   const [logoUrlField, setLogoUrlField] = useState(() => organization?.logo_url ?? "");
   const [primaryDomainField, setPrimaryDomainField] = useState(() => organization?.primary_domain ?? "");
   const [industryLabelField, setIndustryLabelField] = useState(() => organization?.industry_label ?? "");
+  const [primaryStateField, setPrimaryStateField] = useState(() => organization?.primary_state ?? "");
+  const [employeeRangeField, setEmployeeRangeField] = useState(() => organization?.employee_range ?? "");
+  const [revenueRangeField, setRevenueRangeField] = useState(() => organization?.revenue_range ?? "");
   const [companySaveMsg, setCompanySaveMsg] = useState("");
   const [companySaveErr, setCompanySaveErr] = useState("");
   const [companySaving, setCompanySaving] = useState(false);
@@ -48,6 +35,9 @@ export default function CompanySection({ orgId, canEdit, onChanged }: SectionPro
     setLogoUrlField(organization.logo_url ?? "");
     setPrimaryDomainField(organization.primary_domain ?? "");
     setIndustryLabelField(organization.industry_label ?? "");
+    setPrimaryStateField(organization.primary_state ?? "");
+    setEmployeeRangeField(organization.employee_range ?? "");
+    setRevenueRangeField(organization.revenue_range ?? "");
   }
 
   const companyFieldsDisabled = orgLoading || !organization || !canEdit;
@@ -61,9 +51,12 @@ export default function CompanySection({ orgId, canEdit, onChanged }: SectionPro
     try {
       await updateOrganization(orgId, {
         name: companyNameField.trim(),
-        logo_url: logoUrlField.trim() || null,
-        primary_domain: primaryDomainField.trim() || null,
-        industry_label: industryLabelField || null,
+        logo_url: toNullable(logoUrlField),
+        primary_domain: toNullable(primaryDomainField),
+        industry_label: toNullable(industryLabelField),
+        primary_state: toNullable(primaryStateField),
+        employee_range: toNullable(employeeRangeField),
+        revenue_range: toNullable(revenueRangeField),
       });
       setCompanySaveMsg("Company profile saved.");
       await refreshOrganization();
@@ -76,7 +69,7 @@ export default function CompanySection({ orgId, canEdit, onChanged }: SectionPro
   };
 
   return (
-    <div className="section-accordion-body">
+    <div className="section-accordion-body company-section">
       {!canEdit && (
         <p className="settings-readonly-hint">
           Only organization owners, organization admins, or platform
@@ -106,18 +99,23 @@ export default function CompanySection({ orgId, canEdit, onChanged }: SectionPro
               {companySaveErr}
             </div>
           )}
-          <div className="settings-field company-profile-field">
-            <label htmlFor="company-name">Name</label>
-            <input
-              id="company-name"
-              className="company-profile-input"
-              type="text"
-              value={companyNameField}
-              onChange={(e) => setCompanyNameField(e.target.value)}
-              disabled={companyFieldsDisabled}
-              autoComplete="organization"
-            />
-          </div>
+          <OrgBasicsFields
+            value={{
+              name: companyNameField,
+              industry_label: industryLabelField,
+              primary_state: primaryStateField,
+              employee_range: employeeRangeField,
+              primary_domain: primaryDomainField,
+            }}
+            onChange={(patch) => {
+              if (patch.name !== undefined) setCompanyNameField(patch.name);
+              if (patch.industry_label !== undefined) setIndustryLabelField(patch.industry_label);
+              if (patch.primary_state !== undefined) setPrimaryStateField(patch.primary_state);
+              if (patch.employee_range !== undefined) setEmployeeRangeField(patch.employee_range);
+              if (patch.primary_domain !== undefined) setPrimaryDomainField(patch.primary_domain);
+            }}
+            disabled={companyFieldsDisabled}
+          />
           <div className="settings-field company-profile-field">
             <label htmlFor="company-logo">Logo</label>
             <div className="company-logo-input-col">
@@ -142,36 +140,11 @@ export default function CompanySection({ orgId, canEdit, onChanged }: SectionPro
               )}
             </div>
           </div>
-          <div className="settings-field company-profile-field">
-            <label htmlFor="company-domain">Domain</label>
-            <input
-              id="company-domain"
-              className="company-profile-input"
-              type="text"
-              placeholder="example.com"
-              value={primaryDomainField}
-              onChange={(e) =>
-                setPrimaryDomainField(e.target.value)
-              }
-              disabled={companyFieldsDisabled}
-              autoCapitalize="none"
-            />
-          </div>
-          <div className="settings-field company-profile-field">
-            <label htmlFor="company-industry">Industry</label>
-            <select
-              id="company-industry"
-              className="company-profile-input"
-              value={industryLabelField}
-              onChange={(e) => setIndustryLabelField(e.target.value)}
-              disabled={companyFieldsDisabled}
-            >
-              <option value="">Select industry…</option>
-              {INDUSTRY_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
-            </select>
-          </div>
+          <RevenueField
+            value={revenueRangeField}
+            onChange={setRevenueRangeField}
+            disabled={companyFieldsDisabled}
+          />
           {canEdit && (
             <div
               className="settings-actions"
