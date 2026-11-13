@@ -242,57 +242,59 @@ function mockSuccessfulDebugFetch() {
 describe('AssessmentDebugPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockAuthValues.role = null
+    mockAuthValues.role = 'admin'
     mockAuthValues.orgRole = 'admin'
     mockAuthValues.loading = false
     mockSuccessfulDebugFetch()
   })
 
   describe('Access Control', () => {
-    it('redirects to settings when user is not admin', () => {
-      mockAuthValues.orgRole = 'viewer'
+    it.each(['viewer', 'member', 'admin', 'owner'])(
+      'renders not-found, without navigating or fetching, for a non-platform user with orgRole %s',
+      (orgRole) => {
+        mockAuthValues.role = null
+        mockAuthValues.orgRole = orgRole
+
+        renderPage()
+
+        expect(screen.getByTestId('not-found-page')).toBeInTheDocument()
+        expect(screen.queryByText(/Assessment Debug View/i)).not.toBeInTheDocument()
+        expect(mockNavigate).not.toHaveBeenCalled()
+        expect(mockFetchDebug).not.toHaveBeenCalled()
+      },
+    )
+
+    it('allows access when role is admin', async () => {
+      mockAuthValues.role = 'admin'
+      mockAuthValues.orgRole = null
 
       renderPage()
 
-      expect(mockNavigate).toHaveBeenCalledWith('/settings')
+      await waitFor(() => {
+        expect(screen.getByText(/Assessment Debug View/i)).toBeInTheDocument()
+      })
+      expect(screen.queryByTestId('not-found-page')).not.toBeInTheDocument()
     })
 
-    it('redirects to settings when user is member', () => {
+    it('renders nothing while auth is loading', () => {
+      mockAuthValues.loading = true
+      mockAuthValues.role = null
+
+      renderPage()
+
+      expect(screen.queryByTestId('not-found-page')).not.toBeInTheDocument()
+      expect(screen.queryByText(/Assessment Debug View/i)).not.toBeInTheDocument()
+      expect(mockFetchDebug).not.toHaveBeenCalled()
+    })
+
+    it('renders not-found without its own main landmark (embedded in the shell)', () => {
+      mockAuthValues.role = null
       mockAuthValues.orgRole = 'member'
 
       renderPage()
 
-      expect(mockNavigate).toHaveBeenCalledWith('/settings')
-    })
-
-    it('allows access when role is admin', async () => {
-      mockAuthValues.role = 'admin'
-
-      renderPage()
-
-      await waitFor(() => {
-        expect(screen.getByText(/Assessment Debug View/i)).toBeInTheDocument()
-      })
-    })
-
-    it('allows access when orgRole is admin', async () => {
-      mockAuthValues.orgRole = 'admin'
-
-      renderPage()
-
-      await waitFor(() => {
-        expect(screen.getByText(/Assessment Debug View/i)).toBeInTheDocument()
-      })
-    })
-
-    it('allows access when orgRole is owner', async () => {
-      mockAuthValues.orgRole = 'owner'
-
-      renderPage()
-
-      await waitFor(() => {
-        expect(screen.getByText(/Assessment Debug View/i)).toBeInTheDocument()
-      })
+      expect(screen.getByTestId('not-found-page')).toBeInTheDocument()
+      expect(screen.queryByRole('main')).not.toBeInTheDocument()
     })
   })
 

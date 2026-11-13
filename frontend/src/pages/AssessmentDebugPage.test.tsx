@@ -92,8 +92,8 @@ function renderPage() {
 
 describe("AssessmentDebugPage", () => {
   beforeEach(() => {
-    mockAuthValues.role = null;
-    mockAuthValues.orgRole = "admin";
+    mockAuthValues.role = "admin";
+    mockAuthValues.orgRole = null;
   });
 
   it("renders all four section headings after load", async () => {
@@ -104,6 +104,14 @@ describe("AssessmentDebugPage", () => {
       expect(screen.getByText("Validation")).toBeTruthy();
       expect(screen.getByText(/Exposure/)).toBeTruthy();
     });
+  });
+
+  it("renders not-found for an org owner who is not a platform admin", () => {
+    mockAuthValues.role = null;
+    mockAuthValues.orgRole = "owner";
+    renderPage();
+    expect(screen.getByText("Page not found")).toBeTruthy();
+    expect(screen.queryByText("Raw Inputs")).toBeNull();
   });
 
   it("shows loading state initially", async () => {
