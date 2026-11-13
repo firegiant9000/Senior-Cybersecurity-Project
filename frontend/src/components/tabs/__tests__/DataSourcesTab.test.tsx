@@ -32,7 +32,7 @@ describe('DataSourcesTab', () => {
     await screen.findByTestId('ic3-table')
 
     const nav = screen.getByRole('navigation', { name: 'Reference datasets' })
-    expect(screen.queryByRole('tab', { name: 'Domain Intelligence' })).not.toBeInTheDocument()
+    expect(within(nav).queryByRole('link', { name: 'Domain Intelligence' })).not.toBeInTheDocument()
     expect(within(nav).getAllByRole('link').map((l) => l.textContent)).toEqual([
       'IC3 Incidents',
       'Economics',
@@ -58,6 +58,8 @@ describe('DataSourcesTab', () => {
 
     expect(await screen.findByTestId('economics-table')).toBeInTheDocument()
     expect(screen.getByTestId('location')).toHaveTextContent('/intel/reference/economics')
+    expect(screen.getByRole('link', { name: 'Economics' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'IC3 Incidents' })).not.toHaveAttribute('aria-current')
   })
 
   it('sends /intel/reference/cisa to the KEV view on Vulnerabilities', async () => {
