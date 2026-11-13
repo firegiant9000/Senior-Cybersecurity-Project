@@ -1,16 +1,9 @@
-import { activeNav } from './navigation';
+import { activeNav, SETTINGS_ITEMS } from './navigation';
 
 const DEFAULT_TITLE = 'Hacker Tracker';
 
 const STATIC_TITLES: Record<string, string> = {
-  '/settings/account': 'Settings',
-  '/settings/team': 'Settings',
-  '/settings/agents': 'Settings',
-  '/settings/organisation': 'Organisation profile',
-  '/settings/technology': 'Organisation profile',
-  '/settings/domains': 'Organisation profile',
-  '/settings/uploads': 'Organisation profile',
-  '/settings/integrations': 'Integrations',
+  ...Object.fromEntries(SETTINGS_ITEMS.map((i) => [i.to, i.label])),
   '/org/assets/upload': 'Upload inventory',
   '/glossary': 'Glossary',
   '/onboarding': 'Set up your organisation',

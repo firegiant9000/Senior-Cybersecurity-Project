@@ -68,6 +68,17 @@ export const AVATAR_ITEMS: NavItem[] = [
   { id: 'dataHandling', label: 'Data handling', to: '/data-handling' },
 ];
 
+export const SETTINGS_ITEMS: NavItem[] = [
+  { id: 'account', label: 'Account', to: '/settings/account' },
+  { id: 'organisation', label: 'Organisation', to: '/settings/organisation' },
+  { id: 'technology', label: 'Technology stack', to: '/settings/technology' },
+  { id: 'domains', label: 'Domains', to: '/settings/domains' },
+  { id: 'uploads', label: 'File uploads', to: '/settings/uploads' },
+  { id: 'team', label: 'Team', to: '/settings/team' },
+  { id: 'agents', label: 'Scanner agents', to: '/settings/agents' },
+  { id: 'integrations', label: 'Integrations', to: '/settings/integrations' },
+];
+
 export function visibleNav(ctx: { role: string | null; orgId: number | null }): NavGroup[] {
   const allowed = (r?: Requirement): boolean => {
     if (r === 'org') return ctx.orgId !== null;
