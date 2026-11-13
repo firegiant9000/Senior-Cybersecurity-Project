@@ -108,4 +108,28 @@ describe('AnomaliesTab view routing', () => {
     expect(screen.getByText(/No vendors configured/)).toBeInTheDocument();
     expect(fetchVendorAnomalies).toHaveBeenCalledTimes(1);
   });
+
+  it('does not refetch the current view when a fetch from a view the user left resolves', async () => {
+    let resolveIC3: (value: unknown) => void = () => {};
+    let resolveVendors: (value: unknown) => void = () => {};
+    vi.mocked(fetchIC3Anomalies).mockReturnValue(
+      new Promise((resolve) => { resolveIC3 = resolve; }) as never,
+    );
+    vi.mocked(fetchVendorAnomalies).mockReturnValue(
+      new Promise((resolve) => { resolveVendors = resolve; }) as never,
+    );
+
+    renderAt('/intel/anomalies/ic3');
+    fireEvent.click(screen.getByRole('link', { name: 'Vendor Exposure' }));
+    await waitFor(() => expect(fetchVendorAnomalies).toHaveBeenCalledTimes(1));
+
+    await act(async () => { resolveIC3({ total: 0, threshold: 2, items: [] }); });
+    expect(fetchVendorAnomalies).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveVendors({ has_vendors: false, items: [], org_total_matches: 0, global_avg_total: 0, threshold: 2 });
+    });
+    expect(await screen.findByText(/No vendors configured/)).toBeInTheDocument();
+    expect(fetchVendorAnomalies).toHaveBeenCalledTimes(1);
+  });
 });
