@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 
 const { mockUser } = vi.hoisted(() => ({ mockUser: { id: 'u1', email: 'user@example.com' } }));
@@ -76,5 +76,36 @@ describe('AnomaliesTab view routing', () => {
     expect(screen.getByRole('link', { name: 'IC3 State Anomalies' })).toHaveAttribute('href', '/intel/anomalies/ic3');
     expect(screen.getByRole('link', { name: 'YoY Trends' })).toHaveAttribute('href', '/intel/anomalies/trends');
     expect(screen.getByRole('link', { name: 'Vendor Exposure' })).toHaveAttribute('href', '/intel/anomalies/vendors');
+  });
+
+  it('fetches each view once when switching ic3 -> vendors -> ic3', async () => {
+    renderAt('/intel/anomalies/ic3');
+    expect(await screen.findByText(/No anomalies detected at the current threshold/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Vendor Exposure' }));
+    expect(await screen.findByText(/No vendors configured/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('link', { name: 'IC3 State Anomalies' }));
+    expect(await screen.findByText(/No anomalies detected at the current threshold/)).toBeInTheDocument();
+
+    expect(fetchIC3Anomalies).toHaveBeenCalledTimes(1);
+    expect(fetchVendorAnomalies).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a rejected fetch from a view the user already left', async () => {
+    let rejectIC3: (reason: Error) => void = () => {};
+    vi.mocked(fetchIC3Anomalies).mockReturnValue(
+      new Promise((_resolve, reject) => { rejectIC3 = reject; }) as never,
+    );
+
+    renderAt('/intel/anomalies/ic3');
+    fireEvent.click(screen.getByRole('link', { name: 'Vendor Exposure' }));
+    expect(await screen.findByText(/No vendors configured/)).toBeInTheDocument();
+
+    await act(async () => { rejectIC3(new Error('ic3 exploded')); });
+
+    expect(screen.queryByText(/ic3 exploded/)).not.toBeInTheDocument();
+    expect(screen.getByText(/No vendors configured/)).toBeInTheDocument();
+    expect(fetchVendorAnomalies).toHaveBeenCalledTimes(1);
   });
 });

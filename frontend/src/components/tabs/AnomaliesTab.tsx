@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NavLink, Navigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -51,26 +51,38 @@ const AnomaliesTab: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const load = useCallback(async (tab: SubTab) => {
-    if (!user) return;
-    setLoading(true);
-    setError('');
-    try {
-      if (tab === 'ic3' && !ic3Data) {
-        setIC3Data(await fetchIC3Anomalies());
-      } else if (tab === 'trends' && !trendsData) {
-        setTrendsData(await fetchTrendAnomalies());
-      } else if (tab === 'vendors' && !vendorData) {
-        setVendorData(await fetchVendorAnomalies());
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load');
-    } finally {
-      setLoading(false);
-    }
-  }, [user, ic3Data, trendsData, vendorData]);
+  // Which views already hold data; read by the effect so a resolved fetch does not re-trigger it.
+  const loaded = useRef<Record<SubTab, boolean>>({ ic3: false, trends: false, vendors: false });
 
-  useEffect(() => { if (subTab) load(subTab); }, [subTab, load]);
+  useEffect(() => {
+    if (!subTab || !user) return;
+    setError('');
+    if (loaded.current[subTab]) {
+      setLoading(false);
+      return;
+    }
+    // Set when the user leaves this view or the component unmounts: a stale run must not touch loading/error.
+    let ignore = false;
+    setLoading(true);
+    (async () => {
+      try {
+        // Resolved data is valid for its own view, so it is stored even when ignored.
+        if (subTab === 'ic3') {
+          setIC3Data(await fetchIC3Anomalies());
+        } else if (subTab === 'trends') {
+          setTrendsData(await fetchTrendAnomalies());
+        } else {
+          setVendorData(await fetchVendorAnomalies());
+        }
+        loaded.current[subTab] = true;
+      } catch (err) {
+        if (!ignore) setError(err instanceof Error ? err.message : 'Failed to load');
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    })();
+    return () => { ignore = true; };
+  }, [subTab, user]);
 
   if (!subTab) {
     return <Navigate to="/intel/anomalies/ic3" replace />;
