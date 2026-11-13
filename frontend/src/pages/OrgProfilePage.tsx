@@ -28,15 +28,6 @@ export default function OrgProfilePage() {
   const { organization, refreshOrganization } = useUserContext();
   const location = useLocation();
 
-  // Scroll to a specific section when navigated here from AssessmentReadiness Fix button
-  useEffect(() => {
-    const state = location.state as { scrollTo?: string } | null;
-    if (state?.scrollTo) {
-      const el = document.getElementById(state.scrollTo);
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [location.state]);
-
   // UserContext caches the org from first load; the assessment intake wizard
   // writes through PUT but doesn't notify the context, so the cache can be
   // stale on first navigation here. Force a refresh on mount so the form
@@ -79,13 +70,22 @@ export default function OrgProfilePage() {
     };
     const lastSegment = location.pathname.split('/').filter(Boolean).pop() ?? '';
     const pathSection = pathToSection[lastSegment];
-    if (pathSection) setOpenSections(prev => ({ ...prev, [pathSection]: true }));
+    // Only ever opens a section. location.key changes on every navigation (even to the
+    // same URL), so Fix buttons re-open and scroll; it does not change on user toggles.
+    let target: string | null = null;
+    if (pathSection) {
+      setOpenSections(prev => ({ ...prev, [pathSection]: true }));
+      target = `section-${pathSection}`;
+    }
     if (location.hash === '#security-profile') {
       setOpenSections(prev => ({ ...prev, security: true }));
-      const el = document.getElementById('section-security-profile');
+      target = 'section-security-profile';
+    }
+    if (target) {
+      const el = document.getElementById(target);
       if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-  }, [location.pathname, location.hash, loading]);
+  }, [location.pathname, location.hash, location.key, loading]);
 
   const canEditOrgProfile =
     profile != null &&
@@ -133,7 +133,7 @@ export default function OrgProfilePage() {
                 <div className="settings-section">
                   <p style={{ color: 'var(--text-secondary, #555)', fontSize: 14, lineHeight: 1.6 }}>
                     You are not part of an organization yet.{' '}
-                    <a href="/settings/account"style={{ color: 'var(--accent, #0b1060)', fontWeight: 600 }}>
+                    <a href="/settings/account" style={{ color: 'var(--accent, #0b1060)', fontWeight: 600 }}>
                       Create or join an organization
                     </a>{' '}
                     to manage your profile, vendors, and domains.

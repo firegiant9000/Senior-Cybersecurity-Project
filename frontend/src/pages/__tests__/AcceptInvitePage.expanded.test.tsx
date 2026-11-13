@@ -423,7 +423,7 @@ describe('AcceptInvitePage', () => {
       })
     })
 
-    it('navigates to home when declining invite', async () => {
+    it('navigates to the overview when declining invite', async () => {
       renderPage()
 
       await waitFor(() => {

@@ -1,5 +1,5 @@
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { render, screen, waitFor, fireEvent, within, act } from '@testing-library/react'
+import { MemoryRouter, useNavigate } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Characterisation tests: pin the current behaviour of OrgProfilePage so it can
@@ -117,7 +117,7 @@ function jsonResponse(body: unknown, ok = true) {
 
 let profile = makeProfile()
 
-function setup(route = '/org-profile') {
+function setup(route = '/settings/organisation') {
   return render(
     <MemoryRouter initialEntries={[route]}>
       <OrgProfilePage />
@@ -399,6 +399,50 @@ describe('OrgProfilePage characterisation', () => {
     expect(within(sec).getByRole('button', { name: /Technology Stack/ })).toHaveAttribute('aria-expanded', 'true')
     // other sections stay closed
     expect(within(section('section-domains')).queryByPlaceholderText('example.com')).toBeNull()
+  })
+
+  it('6b. /settings/domains opens Domains and scrolls to it', async () => {
+    const scrolled: Element[] = []
+    Element.prototype.scrollIntoView = vi.fn(function (this: Element) {
+      scrolled.push(this)
+    })
+    await loaded('/settings/domains')
+    const sec = section('section-domains')
+    expect(within(sec).getByRole('button', { name: /Organization Domains/ })).toHaveAttribute('aria-expanded', 'true')
+    await waitFor(() => expect(scrolled).toContain(sec))
+  })
+
+  it('6c. #security-profile opens Security Profile and scrolls to it', async () => {
+    const scrolled: Element[] = []
+    Element.prototype.scrollIntoView = vi.fn(function (this: Element) {
+      scrolled.push(this)
+    })
+    await loaded('/settings/organisation#security-profile')
+    const sec = section('section-security-profile')
+    expect(within(sec).getByRole('button', { name: /Security Profile/ })).toHaveAttribute('aria-expanded', 'true')
+    await waitFor(() => expect(scrolled).toContain(sec))
+  })
+
+  it('6d. navigating to the same URL re-opens a collapsed section', async () => {
+    let go: (to: string) => void = () => {}
+    function Nav() {
+      const navigate = useNavigate()
+      go = (to) => navigate(to)
+      return null
+    }
+    render(
+      <MemoryRouter initialEntries={['/settings/technology']}>
+        <Nav />
+        <OrgProfilePage />
+      </MemoryRouter>,
+    )
+    await screen.findByLabelText(/^Company Name/)
+    const header = within(section('section-vendors')).getByRole('button', { name: /Technology Stack/ })
+    expect(header).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(header)
+    expect(header).toHaveAttribute('aria-expanded', 'false')
+    act(() => go('/settings/technology'))
+    await waitFor(() => expect(header).toHaveAttribute('aria-expanded', 'true'))
   })
 
   it('7a. the readiness widget renders when org_id is set', async () => {
