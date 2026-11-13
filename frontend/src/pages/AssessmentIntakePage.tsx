@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useAssessmentIntake } from "../hooks/useAssessmentIntake";
 import { useIntakePreview } from "../hooks/useIntakePreview";
@@ -23,8 +23,8 @@ import {
   SECURITY_CONTROLS,
   DOMAIN_PATTERN,
 } from "../types/assessmentIntake";
-import { createVendor, listVendors } from "../api/vendors";
-import { addDomain, listDomains } from "../api/domains";
+import { createVendor } from "../api/vendors";
+import { addDomain } from "../api/domains";
 import { skipIntakeStep, completeIntake } from "../api/assessmentIntake";
 import { logActivationEvent } from "../api/analytics";
 import "./AssessmentIntakePage.css";
@@ -71,7 +71,14 @@ const STEPS = [
 
 export default function AssessmentIntakePage() {
   const navigate = useNavigate();
-  const { user, orgId, refreshProfile } = useAuth();
+  const { user, orgId, orgLoading, refreshProfile } = useAuth();
+  // The wizard is first-run only. Capture, once auth has finished loading,
+  // whether the user already had an organisation on entry. Creating the org in
+  // step 1 sets orgId later, but that must not eject the user from the wizard.
+  const hadOrgAtEntry = useRef<boolean | null>(null);
+  if (hadOrgAtEntry.current === null && !orgLoading) {
+    hadOrgAtEntry.current = Boolean(orgId);
+  }
   const { data: intakeData, loading: intakeLoading, refresh: refreshIntake } = useAssessmentIntake();
 
   const [step, setStep] = useState(1);
@@ -110,74 +117,6 @@ export default function AssessmentIntakePage() {
   useEffect(() => {
     if (step === 5) refreshIntake();
   }, [step, refreshIntake]);
-
-  // Load existing org data
-  useEffect(() => {
-    const loadOrgData = async () => {
-      if (!orgId) return;
-      try {
-        const resp = await fetchWithAuth(`${API_BASE_URL}/api/v1/organizations/${orgId}`, {
-          method: "GET",
-        });
-        if (resp.ok) {
-          const org = await resp.json();
-          setForm((prev) => ({
-            ...prev,
-            name: org.name || "",
-            industry_label: org.industry_label || "",
-            primary_state: org.primary_state || "",
-            employee_range: org.employee_range || "",
-            primary_domain: org.primary_domain || "",
-            primary_vendor: prev.primary_vendor,
-            primary_product: prev.primary_product,
-            revenue_range: org.revenue_range || "",
-            // Merge so any control the backend doesn't have yet falls back
-            // to the "unsure" default rather than dropping out of state.
-            security_controls: { ...defaultSecurityControls(), ...(org.security_controls || {}) },
-            compliance_frameworks: org.compliance_frameworks || [],
-            data_types: org.data_types || [],
-            cloud_providers: org.cloud_providers || [],
-          }));
-        }
-      } catch (err) {
-        console.error("Failed to load org data:", err);
-      }
-
-      // Pre-seed the sync refs from existing rows so we don't POST duplicates
-      // (and pop a 409 in the network tab) on a returning user's wizard run.
-      try {
-        const [domainList, vendorList] = await Promise.all([
-          listDomains(orgId, 1, 100),
-          listVendors(orgId, 1, 100),
-        ]);
-        const domains = new Set(
-          (domainList.items || []).map((d) => d.domain_name.toLowerCase()),
-        );
-        const vendors = new Set(
-          (vendorList.items || []).map((v) => v.vendor_name.toLowerCase()),
-        );
-        // Mark any matching primary_* as already synced.
-        // (Match against current form state via setForm so we don't race the
-        // org GET above.)
-        setForm((prev) => {
-          if (prev.primary_domain && domains.has(prev.primary_domain.trim().toLowerCase())) {
-            domainSyncedRef.current = prev.primary_domain.trim();
-          }
-          if (prev.primary_vendor && vendors.has(prev.primary_vendor.trim().toLowerCase())) {
-            vendorSyncedRef.current = prev.primary_vendor.trim();
-          }
-          return prev;
-        });
-      } catch (err) {
-        // Non-fatal — worst case we'll still try to POST and swallow the 409.
-        console.warn("Failed to pre-seed vendor/domain sync refs:", err);
-      }
-    };
-
-    if (user && orgId) {
-      loadOrgData();
-    }
-  }, [user, orgId]);
 
   // Live tier preview: send the in-progress form to the backend (debounced) so
   // the sidebar reflects "what tier would I have right now if I submitted?".
@@ -850,6 +789,8 @@ export default function AssessmentIntakePage() {
         return null;
     }
   };
+
+  if (hadOrgAtEntry.current) return <Navigate to="/settings/organisation" replace />;
 
   if (!user) return null;
 

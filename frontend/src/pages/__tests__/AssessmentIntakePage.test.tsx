@@ -1,13 +1,16 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hoisted Mocks
 // ─────────────────────────────────────────────────────────────────────────────
 
-const { mockNavigate, mockAuthValues, mockFetchWithAuth, mockFetchIntake, mockCreateVendor } = vi.hoisted(() => {
+const { mockNavigate, mockAuthValues, authStore, mockFetchWithAuth, mockFetchIntake, mockCreateVendor } = vi.hoisted(() => {
   const mockNavigate = vi.fn()
+  // Lets a test change mockAuthValues mid-render (e.g. orgId becoming set once
+  // the wizard has created the organisation) and have the page re-render.
+  const authStore = { version: 0, listeners: new Set<() => void>() }
   const mockAuthValues = {
     user: { uid: 'u1', email: 'user@example.com' } as unknown,
     loading: false,
@@ -26,7 +29,7 @@ const { mockNavigate, mockAuthValues, mockFetchWithAuth, mockFetchIntake, mockCr
   const mockFetchIntake = vi.fn()
   const mockCreateVendor = vi.fn()
 
-  return { mockNavigate, mockAuthValues, mockFetchWithAuth, mockFetchIntake, mockCreateVendor }
+  return { mockNavigate, mockAuthValues, authStore, mockFetchWithAuth, mockFetchIntake, mockCreateVendor }
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -53,10 +56,22 @@ vi.mock('react-router-dom', async () => {
   return { ...actual, useNavigate: () => mockNavigate }
 })
 
-vi.mock('../../context/AuthContext', () => ({
-  useAuth: () => mockAuthValues,
-  AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}))
+vi.mock('../../context/AuthContext', async () => {
+  const { useSyncExternalStore } = await import('react')
+  return {
+    useAuth: () => {
+      useSyncExternalStore(
+        (cb) => {
+          authStore.listeners.add(cb)
+          return () => authStore.listeners.delete(cb)
+        },
+        () => authStore.version,
+      )
+      return mockAuthValues
+    },
+    AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  }
+})
 
 vi.mock('../../api/fetchWithAuth', () => ({
   API_BASE_URL: '',
@@ -95,12 +110,30 @@ import AssessmentIntakePage from '../AssessmentIntakePage'
 // Helper Functions
 // ─────────────────────────────────────────────────────────────────────────────
 
+function LocationProbe() {
+  return <div data-testid="location">{useLocation().pathname}</div>
+}
+
 function renderPage() {
   return render(
-    <MemoryRouter>
-      <AssessmentIntakePage />
+    <MemoryRouter initialEntries={['/onboarding']}>
+      <Routes>
+        <Route path="/onboarding" element={<AssessmentIntakePage />} />
+        <Route path="/settings/organisation" element={<div>Organisation settings</div>} />
+      </Routes>
+      <LocationProbe />
     </MemoryRouter>,
   )
+}
+
+// What refreshProfile does after the wizard creates the organisation: orgId
+// becomes set in the auth context and subscribers re-render.
+async function setOrgId(id: number | null) {
+  await act(async () => {
+    mockAuthValues.orgId = id
+    authStore.version += 1
+    authStore.listeners.forEach((l) => l())
+  })
 }
 
 // Matches /organizations/{orgId} but not sub-resource URLs like /organizations/1/domains
@@ -188,7 +221,10 @@ describe('AssessmentIntakePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockAuthValues.user = { uid: 'u1', email: 'user@example.com' } as unknown
-    mockAuthValues.orgId = 1
+    // The wizard is first-run only: it is entered with no organisation, creates
+    // one on step 1 and sees orgId become set from then on.
+    mockAuthValues.orgId = null
+    mockAuthValues.refreshProfile = vi.fn(() => setOrgId(7))
     mockFetchIntake.mockResolvedValue({
       current_tier: 'basic',
       tiers: [
@@ -234,7 +270,7 @@ describe('AssessmentIntakePage', () => {
     renderPage()
 
     // Wait for org load to settle so it doesn't overwrite our values mid-test.
-    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
+    await expectOnStep(1)
 
     const nextBtn = screen.getByRole('button', { name: /Next/i })
     expect(nextBtn).toBeDisabled()
@@ -246,7 +282,7 @@ describe('AssessmentIntakePage', () => {
 
   it('advances to step 2 with valid step 1 data', async () => {
     renderPage()
-    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
+    await expectOnStep(1)
 
     fillStep1()
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
@@ -256,7 +292,7 @@ describe('AssessmentIntakePage', () => {
 
   it('shows previous button on step 2+', async () => {
     renderPage()
-    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
+    await expectOnStep(1)
 
     expect(screen.getByRole('button', { name: /Previous/i })).toBeDisabled()
 
@@ -270,7 +306,7 @@ describe('AssessmentIntakePage', () => {
 
   it('navigates back to previous step', async () => {
     renderPage()
-    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
+    await expectOnStep(1)
 
     fillStep1()
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
@@ -282,7 +318,7 @@ describe('AssessmentIntakePage', () => {
 
   it('shows Financial & Compliance section on step 2', async () => {
     renderPage()
-    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
+    await expectOnStep(1)
 
     fillStep1()
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
@@ -293,7 +329,7 @@ describe('AssessmentIntakePage', () => {
 
   it('shows Security Controls on step 3', async () => {
     renderPage()
-    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
+    await expectOnStep(1)
 
     fillStep1()
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
@@ -305,7 +341,7 @@ describe('AssessmentIntakePage', () => {
 
   it('requires security control selection on step 3', async () => {
     renderPage()
-    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
+    await expectOnStep(1)
 
     fillStep1()
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
@@ -318,43 +354,66 @@ describe('AssessmentIntakePage', () => {
     expect(nextBtn).not.toBeDisabled()
   })
 
-  it('loads existing organization data', async () => {
-    mockSuccessfulOrgFetch({
-      name: 'Existing Corp',
-      industry_label: 'Healthcare',
-    })
+  it('redirects a user who already has an organisation to /settings/organisation without loading it', async () => {
+    mockAuthValues.orgId = 1
 
     renderPage()
 
     await waitFor(() => {
-      const nameInput = screen.getByLabelText(/Company Name/i) as HTMLInputElement
-      expect(nameInput.value).toBe('Existing Corp')
+      expect(screen.getByTestId('location')).toHaveTextContent('/settings/organisation')
     })
+    expect(screen.getByText('Organisation settings')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { level: 1, name: 'Set up your organisation' }),
+    ).not.toBeInTheDocument()
+    // No organisation GET (or any other request) is made by the wizard.
+    expect(mockFetchWithAuth).not.toHaveBeenCalled()
   })
 
-  it('saves form data when advancing steps', async () => {
+  it('stays on step 2 after creating the organisation, and step 2 saves with PUT', async () => {
     renderPage()
-    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
+    await expectOnStep(1)
 
     fillStep1()
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
+    await expectOnStep(2)
 
-    await waitFor(() => {
-      expect(mockFetchWithAuth).toHaveBeenCalledWith(
-        expect.stringMatching(/\/organizations\/\d+$/),
-        expect.objectContaining({ method: 'PUT' }),
-      )
-    })
+    // Org created via POST; orgId is now set but the wizard was not redirected.
+    expect(mockAuthValues.orgId).toBe(7)
+    expect(screen.getByTestId('location')).toHaveTextContent('/onboarding')
+    expect(mockFetchWithAuth).toHaveBeenCalledWith(
+      expect.stringMatching(/\/onboarding\/complete$/),
+      expect.objectContaining({ method: 'POST' }),
+    )
+    expect(
+      mockFetchWithAuth.mock.calls.some(
+        ([url, opts]) =>
+          /\/organizations\/\d+$/.test(url as string) &&
+          (opts as { method?: string })?.method === 'PUT',
+      ),
+    ).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: /Next/i }))
+    await expectOnStep(3)
+
+    expect(mockFetchWithAuth).toHaveBeenCalledWith(
+      '/api/v1/organizations/7',
+      expect.objectContaining({ method: 'PUT' }),
+    )
+    expect(screen.getByTestId('location')).toHaveTextContent('/onboarding')
   })
 
-  it('sends null, not "", for unset values when advancing with only a name', async () => {
+  it('sends null, not "", for unset values when step 2 saves after creating with only a name', async () => {
     renderPage()
-    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
+    await expectOnStep(1)
 
     fireEvent.change(screen.getByLabelText(/Company Name/i), {
       target: { value: 'Test Corp' },
     })
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
+    await expectOnStep(2)
+    fireEvent.click(screen.getByRole('button', { name: /Next/i }))
+    await expectOnStep(3)
 
     await waitFor(() => {
       const put = mockFetchWithAuth.mock.calls.find(
@@ -373,7 +432,7 @@ describe('AssessmentIntakePage', () => {
 
   it('retains form data when navigating back', async () => {
     renderPage()
-    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
+    await expectOnStep(1)
 
     fillStep1()
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
@@ -403,7 +462,7 @@ describe('AssessmentIntakePage', () => {
 
   it('navigates to dashboard on form submission', async () => {
     renderPage()
-    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
+    await expectOnStep(1)
 
     fillStep1()
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
@@ -428,13 +487,13 @@ describe('AssessmentIntakePage', () => {
 
   it('shows error message on submission failure', async () => {
     // The component PUTs to /api/v1/organizations/{orgId} (not PATCH to /mine).
-    // Advancement steps: 1→2, 2→3, 3→4, 4→5 (4 PUTs) + Complete (1 PUT) = 5 total.
-    // Fail the 5th PUT so the final submission surfaces the error.
+    // Step 1→2 creates the org (POST); 2→3, 3→4, 4→5 are 3 PUTs + Complete (1 PUT) = 4 total.
+    // Fail the 4th PUT so the final submission surfaces the error.
     let putCount = 0
     mockFetchWithAuth.mockImplementation((url: string, options?: Record<string, unknown>) => {
       if (isMainOrgUrl(url) && options?.method === 'PUT') {
         putCount += 1
-        if (putCount >= 5) {
+        if (putCount >= 4) {
           return Promise.resolve({
             ok: false,
             json: async () => ({ detail: 'Validation failed' }),
@@ -462,7 +521,7 @@ describe('AssessmentIntakePage', () => {
     })
 
     renderPage()
-    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled())
+    await expectOnStep(1)
 
     fillStep1()
     fireEvent.click(screen.getByRole('button', { name: /Next/i }))
