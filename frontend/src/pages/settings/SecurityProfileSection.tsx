@@ -2,44 +2,14 @@ import { useState } from "react";
 import { useUserContext } from "../../context/UserContext";
 import { updateOrganization } from "../../api/organizations";
 import { createVendor } from "../../api/vendors";
+import {
+  CLOUD_PROVIDERS,
+  COMPLIANCE_FRAMEWORKS,
+  COMPLIANCE_FRAMEWORK_EXCLUSIVE,
+  DATA_TYPES,
+  SECURITY_CONTROLS,
+} from "../../types/assessmentIntake";
 import type { SectionProps } from "./types";
-
-const CLOUD_PROVIDERS = [
-  "AWS", "Azure", "GCP", "Microsoft 365", "Google Workspace",
-  "Salesforce", "Shopify", "QuickBooks", "Dropbox", "Slack", "Zoom",
-] as const;
-
-const COMPLIANCE_FRAMEWORKS = [
-  "HIPAA", "PCI-DSS", "SOC 2", "CMMC", "NIST CSF", "ISO 27001", "None",
-] as const;
-
-const DATA_TYPES = [
-  "PII (names, SSNs)",
-  "PHI (health records)",
-  "Payment card data",
-  "Intellectual property",
-  "Customer financial data",
-  "None of these",
-] as const;
-
-const SECURITY_CONTROLS = [
-  { key: "mfa_enabled", label: "MFA enabled for all users", category: "Identity & Access" },
-  { key: "password_policy", label: "Password policy enforced", category: "Identity & Access" },
-  { key: "sso_in_use", label: "SSO in use", category: "Identity & Access" },
-  { key: "edr_deployed", label: "EDR/antivirus deployed", category: "Endpoint Protection" },
-  { key: "devices_encrypted", label: "Devices encrypted", category: "Endpoint Protection" },
-  { key: "auto_patching", label: "Auto-patching enabled", category: "Endpoint Protection" },
-  { key: "email_filtering", label: "Email filtering / gateway", category: "Email Security" },
-  { key: "phishing_training", label: "Phishing training conducted", category: "Email Security" },
-  { key: "firewall_in_place", label: "Firewall in place", category: "Network" },
-  { key: "vpn_remote_access", label: "VPN for remote access", category: "Network" },
-  { key: "network_segmentation", label: "Network segmentation", category: "Network" },
-  { key: "regular_backups", label: "Regular data backups", category: "Data Protection" },
-  { key: "backup_testing", label: "Backup restoration tested", category: "Data Protection" },
-  { key: "data_classification", label: "Data classification policy", category: "Data Protection" },
-  { key: "ir_plan_documented", label: "IR plan documented", category: "Incident Response" },
-  { key: "ir_plan_tested", label: "IR plan tested within 12 months", category: "Incident Response" },
-] as const;
 
 const DEVICE_COUNT_RANGES = [
   "1-10", "11-50", "51-200", "201-500", "501-1000", "1001+",
@@ -101,7 +71,14 @@ export default function SecurityProfileSection({
       dataTypes: setDataTypes,
     };
     setters[field]((prev) => {
-      return prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value];
+      const isOn = prev.includes(value);
+      const next = isOn ? prev.filter((v) => v !== value) : [...prev, value];
+      if (field === "complianceFrameworks" && !isOn) {
+        const exclusives = COMPLIANCE_FRAMEWORK_EXCLUSIVE as readonly string[];
+        // "None" and "Unsure" clear every other choice; a framework clears them.
+        return exclusives.includes(value) ? [value] : next.filter((v) => !exclusives.includes(v));
+      }
+      return next;
     });
   };
 
