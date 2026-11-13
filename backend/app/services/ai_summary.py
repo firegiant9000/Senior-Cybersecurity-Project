@@ -615,7 +615,8 @@ class AISummaryService:
                 raw = narrative
                 output_format = "prose"
             except Exception as e:  # noqa: BLE001 - any SDK failure falls back to the template
-                logger.warning(
+                # ERROR level so Sentry alerts on a revoked key, quota or outage
+                logger.error(
                     "Gemini API call failed for org %s; using fallback",
                     org.id,
                     extra={"error": safe_http_error(e)},

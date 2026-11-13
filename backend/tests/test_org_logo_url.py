@@ -28,3 +28,32 @@ def test_logo_url_protocol_relative_rejected():
 
 def test_logo_url_empty_becomes_none():
     assert OrganizationUpdate(logo_url="").logo_url is None
+
+
+@pytest.mark.parametrize(
+    ("raw", "stored"),
+    [
+        ("HTTPS://a.test/x", "HTTPS://a.test/x"),
+        ("  https://a.test/x  ", "https://a.test/x"),
+        ("https://a.test/x\n", "https://a.test/x"),
+        ("   ", None),
+    ],
+)
+def test_logo_url_stripped_and_accepted(raw, stored):
+    assert OrganizationUpdate(logo_url=raw).logo_url == stored
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "http:///p",
+        "https://",
+        "http://a b",
+        "https://a.test/x y",
+        "https://a.test/\tx",
+        "https://a.test/\x00",
+    ],
+)
+def test_logo_url_malformed_rejected(raw):
+    with pytest.raises(ValidationError):
+        OrganizationUpdate(logo_url=raw)

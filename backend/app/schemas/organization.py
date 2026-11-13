@@ -74,8 +74,13 @@ class OrganizationUpdate(BaseModel):
     @classmethod
     def _logo_url_http_only(cls, v: str | None) -> str | None:
         """Accept only http(s) URLs with a host; empty means no logo."""
-        if v is None or v == "":
+        if v is None:
             return None
+        v = v.strip()
+        if v == "":
+            return None
+        if any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in v):
+            raise ValueError("logo_url must not contain whitespace or control characters")
         parts = urlsplit(v)
         if parts.scheme not in ("http", "https") or not parts.hostname:
             raise ValueError("logo_url must be an http(s) URL")
