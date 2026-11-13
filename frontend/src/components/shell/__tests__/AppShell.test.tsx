@@ -13,7 +13,8 @@ const authValue = {
   user: stableUser,
   logout: mockLogout,
   role: null,
-  orgRole: 'member',
+  orgRole: 'member' as string | null,
+  orgId: 1 as number | null,
 };
 
 vi.mock('../../../context/AuthContext', () => ({
@@ -53,6 +54,27 @@ describe('AppShell', () => {
     mockToggle.mockClear();
     mockLogout.mockClear();
     document.title = '';
+    authValue.orgId = 1;
+    authValue.orgRole = 'member';
+  });
+
+  it('shows a minimal menu (email, role, Log Out only) and no glossary button without an organisation', () => {
+    authValue.orgId = null;
+    authValue.orgRole = null;
+    renderShell('/dashboard');
+    fireEvent.click(screen.getByRole('button', { name: 'Open profile menu' }));
+    expect(screen.getByRole('menuitem', { name: 'Log Out' })).toBeInTheDocument();
+    expect(screen.getAllByRole('menuitem')).toHaveLength(1);
+    expect(screen.queryByRole('menuitem', { name: 'Settings' })).not.toBeInTheDocument();
+    expect(screen.getByText('member@example.com', { selector: '.email' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open glossary' })).not.toBeInTheDocument();
+  });
+
+  it('shows the full menu and glossary button with an organisation', () => {
+    renderShell('/dashboard');
+    fireEvent.click(screen.getByRole('button', { name: 'Open profile menu' }));
+    expect(screen.getByRole('menuitem', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open glossary' })).toBeInTheDocument();
   });
 
   it('renders a skip link to #main', () => {

@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, Fragment } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { useDarkMode } from "../hooks/useDarkMode";
 import {
   fetchAssessmentDebug,
   type DebugAssessmentResponse,
@@ -24,7 +23,6 @@ import "./SettingsPage.css";
 export default function AssessmentDebugPage() {
   const { role, orgRole, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  useDarkMode();
 
   const [data, setData] = useState<DebugAssessmentResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,18 +56,11 @@ export default function AssessmentDebugPage() {
   if (!canAccess) return null;
 
   return (
-    <div className="dashboard-container">
-      <header className="dashboard-header">
-        <h1>Assessment Debug View</h1>
-        <div className="header-buttons">
-          <button type="button" onClick={() => navigate("/")}>
-            Back to Dashboard
-          </button>
-          <button type="button" onClick={() => navigate("/settings")}>
-            Back to Settings
-          </button>
-        </div>
-      </header>
+    <>
+      <h1>Assessment Debug View</h1>
+      <nav className="settings-page-links" aria-label="Related pages">
+        <Link to="/settings">Back to Settings</Link>
+      </nav>
 
       <div className="settings-page settings-page--embedded">
         <div className="settings-card settings-card--wide">
@@ -91,7 +82,7 @@ export default function AssessmentDebugPage() {
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

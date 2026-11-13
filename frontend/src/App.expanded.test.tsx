@@ -121,6 +121,14 @@ vi.mock('./pages/AcceptInvitePage.tsx', () => ({
   default: () => <div data-testid="accept-invite-page">Accept Invite</div>,
 }))
 
+vi.mock('./pages/GlossaryPage.tsx', () => ({
+  default: () => <div data-testid="glossary-page">Glossary</div>,
+}))
+
+vi.mock('./pages/ExecutiveReportPage.tsx', () => ({
+  default: () => <div data-testid="executive-report-page">Executive Report</div>,
+}))
+
 vi.mock('./components/ProtectedRoute.tsx', () => ({
   default: ({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) => {
     const authContext = mockAuthContext
@@ -487,6 +495,71 @@ describe('App - Routing & Navigation', () => {
       mockAuthContext.orgId = 1
       renderApp(['/dashboard'])
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+    })
+  })
+
+  describe('Shell membership', () => {
+    it('renders /glossary inside #main for a user with no organisation', () => {
+      mockAuthContext.user = { uid: 'user1', email: 'user@example.com' } as unknown
+      mockAuthContext.orgId = null
+      renderApp(['/glossary'])
+      expect(document.getElementById('main')).toContainElement(screen.getByTestId('glossary-page'))
+    })
+
+    it('renders /onboarding and /invites/:token inside #main without an organisation', () => {
+      mockAuthContext.user = { uid: 'user1', email: 'user@example.com' } as unknown
+      mockAuthContext.orgId = null
+      renderApp(['/onboarding'])
+      expect(document.getElementById('main')).toContainElement(screen.getByTestId('assessment-intake-page'))
+      cleanup()
+      renderApp(['/invites/tok'])
+      expect(document.getElementById('main')).toContainElement(screen.getByTestId('accept-invite-page'))
+    })
+
+    it('renders /settings inside #main', () => {
+      mockAuthContext.user = { uid: 'user1', email: 'user@example.com' } as unknown
+      mockAuthContext.orgId = 1
+      renderApp(['/settings'])
+      expect(document.getElementById('main')).toContainElement(screen.getByTestId('settings-page'))
+    })
+
+    it('renders /org-profile and /settings/assessment-debug inside #main', () => {
+      mockAuthContext.user = { uid: 'user1', email: 'user@example.com' } as unknown
+      mockAuthContext.orgId = 1
+      renderApp(['/org-profile'])
+      expect(document.getElementById('main')).toContainElement(screen.getByTestId('org-profile-page'))
+      cleanup()
+      renderApp(['/settings/assessment-debug'])
+      expect(document.getElementById('main')).toContainElement(screen.getByTestId('assessment-debug-page'))
+    })
+
+    it('keeps /report/executive outside the shell', () => {
+      mockAuthContext.user = { uid: 'user1', email: 'user@example.com' } as unknown
+      mockAuthContext.orgId = 1
+      renderApp(['/report/executive'])
+      expect(screen.getByTestId('executive-report-page')).toBeInTheDocument()
+      expect(document.getElementById('main')).toBeNull()
+    })
+
+    it('keeps /login outside the shell', () => {
+      mockAuthContext.user = { uid: 'user1', email: 'user@example.com' } as unknown
+      renderApp(['/login'])
+      expect(screen.getByTestId('login-page')).toBeInTheDocument()
+      expect(document.getElementById('main')).toBeNull()
+    })
+
+    it('still guards moved routes: signed-out user sees no shell', () => {
+      renderApp(['/glossary'])
+      expect(screen.getByTestId('protected-redirect')).toBeInTheDocument()
+      expect(document.getElementById('main')).toBeNull()
+    })
+
+    it('still requires an organisation for /settings', () => {
+      mockAuthContext.user = { uid: 'user1', email: 'user@example.com' } as unknown
+      mockAuthContext.orgId = null
+      renderApp(['/settings'])
+      expect(screen.getByTestId('org-redirect')).toBeInTheDocument()
+      expect(document.getElementById('main')).toBeNull()
     })
   })
 

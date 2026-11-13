@@ -174,10 +174,12 @@ describe('AcceptInvitePage', () => {
   })
 
   describe('Loading & Error States', () => {
-    it('shows loading state initially', () => {
+    it('shows loading state initially', async () => {
       renderPage()
 
       expect(screen.getByText(/Loading invite/i)).toBeInTheDocument()
+      // Let the invite fetch settle so its state updates land inside the test.
+      expect(await screen.findByRole('button', { name: /Accept & Join/i })).toBeInTheDocument()
     })
 
     it('shows error when token is missing', async () => {
@@ -463,7 +465,9 @@ describe('AcceptInvitePage', () => {
       renderPage()
 
       await waitFor(() => {
-        expect(screen.getByText(/Organization Invite/i)).toBeInTheDocument()
+        expect(
+          screen.getByRole('heading', { level: 1, name: /Organization Invite/i }),
+        ).toBeInTheDocument()
       })
     })
 
