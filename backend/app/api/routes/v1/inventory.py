@@ -30,6 +30,7 @@ from app.core.body_limit import REQUEST_TOO_LARGE
 from app.core.config import settings
 from app.core.dependencies import check_org_access, check_org_role, get_agent_from_token
 from app.core.limiter import agent_token_key, limiter
+from app.core.logging import safe_http_error
 from app.db.agent_enrollment import AgentEnrollment
 from app.db.audit_log import AuditLog
 from app.db.engine import get_session
@@ -321,13 +322,17 @@ async def import_inventory_csv(
         await session.commit()
     except SQLAlchemyError as exc:
         await session.rollback()
-        logger.exception("inventory import failed for org %s", org_id)
+        logger.warning(
+            "inventory import failed for org %s",
+            org_id,
+            extra={"error": safe_http_error(exc)},
+        )
         await scan_repo.update(
             scan_run_id,
             org_id,
             ScanRunUpdate(
                 status="failed",
-                error_message=str(exc)[:1900],
+                error_message=type(exc).__name__,
                 finished_at=datetime.now(UTC),
             ),
         )
@@ -716,12 +721,16 @@ async def upload_agent_scan(
         ) from exc
     except SQLAlchemyError as exc:
         await session.rollback()
-        logger.exception("agent scan import failed for org %s", org_id)
+        logger.warning(
+            "agent scan import failed for org %s",
+            org_id,
+            extra={"error": safe_http_error(exc)},
+        )
         await scan_repo.update(
             scan_run_id,
             org_id,
             ScanRunUpdate(
-                status="failed", error_message=str(exc)[:1900], finished_at=datetime.now(UTC)
+                status="failed", error_message=type(exc).__name__, finished_at=datetime.now(UTC)
             ),
         )
         raise HTTPException(status_code=500, detail="Failed to import scan") from exc
