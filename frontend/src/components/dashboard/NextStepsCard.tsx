@@ -34,7 +34,7 @@ export const NEXT_STEPS: NextStep[] = [
     title: "Upload CSV inventory",
     description:
       "Drop a list of assets and we'll match them against KEV and NVD in seconds.",
-    to: "/inventory/upload",
+    to: "/org/assets/upload",
     primary: true,
   },
   {
@@ -42,7 +42,7 @@ export const NEXT_STEPS: NextStep[] = [
     title: "Connect Microsoft 365",
     description:
       "Pull devices automatically from Intune. Spike — see your devices appear without typing them.",
-    to: "/integrations",
+    to: "/settings/integrations",
   },
   {
     key: "complete_profile",

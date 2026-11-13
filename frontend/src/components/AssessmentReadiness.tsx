@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   fetchAssessmentReadiness,
   type AssessmentReadiness,
@@ -26,23 +26,18 @@ const TIER_CLASS: Record<string, string> = {
   incomplete: "readiness-tier--minimal",
 };
 
-// Maps readiness key → section element ID on /org-profile (for scroll-to behavior)
-const SETTINGS_SECTION_ID: Record<string, string> = {
-  vendors: "section-vendors",
-  domains: "section-domains",
-  uploads: "section-uploads",
-  security_controls: "section-security-profile",
-  compliance_frameworks: "section-security-profile",
-  data_types: "section-security-profile",
+// Maps readiness key → settings route opened by the "Fix" button
+const SETTINGS_PATH: Record<string, string> = {
+  vendors: "/settings/technology",
+  domains: "/settings/domains",
+  uploads: "/settings/uploads",
+  security_controls: "/settings/organisation#security-profile",
+  compliance_frameworks: "/settings/organisation#security-profile",
+  data_types: "/settings/organisation#security-profile",
 };
 
-function handleFix(key: string, navigate: ReturnType<typeof useNavigate>, location: { pathname: string }) {
-  const sectionId = SETTINGS_SECTION_ID[key];
-  if (location.pathname === "/org-profile" && sectionId) {
-    document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  } else {
-    navigate("/org-profile", { state: { scrollTo: sectionId } });
-  }
+function handleFix(key: string, navigate: ReturnType<typeof useNavigate>) {
+  navigate(SETTINGS_PATH[key] ?? "/settings/organisation");
 }
 
 interface AssessmentReadinessWidgetProps {
@@ -52,7 +47,6 @@ interface AssessmentReadinessWidgetProps {
 
 export default function AssessmentReadinessWidget({ refreshKey = 0 }: AssessmentReadinessWidgetProps = {}) {
   const navigate = useNavigate();
-  const location = useLocation();
   const [data, setData] = useState<AssessmentReadiness | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -116,10 +110,10 @@ export default function AssessmentReadinessWidget({ refreshKey = 0 }: Assessment
             </span>
             <span className="readiness-label">{item.label}</span>
             <span className="readiness-detail">{item.detail}</span>
-            {!item.complete && SETTINGS_SECTION_ID[item.key] && (
+            {!item.complete && SETTINGS_PATH[item.key] && (
               <button
                 className="readiness-fix-btn"
-                onClick={() => handleFix(item.key, navigate, location)}
+                onClick={() => handleFix(item.key, navigate)}
               >
                 Fix
               </button>
@@ -140,10 +134,10 @@ export default function AssessmentReadinessWidget({ refreshKey = 0 }: Assessment
               </span>
               <span className="readiness-label">{item.label}</span>
               <span className="readiness-detail">{item.detail}</span>
-              {!item.complete && SETTINGS_SECTION_ID[item.key] && (
+              {!item.complete && SETTINGS_PATH[item.key] && (
                 <button
                   className="readiness-fix-btn"
-                  onClick={() => handleFix(item.key, navigate, location)}
+                  onClick={() => handleFix(item.key, navigate)}
                 >
                   Fix
                 </button>

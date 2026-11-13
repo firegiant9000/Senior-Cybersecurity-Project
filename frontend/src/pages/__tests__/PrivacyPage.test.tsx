@@ -54,7 +54,7 @@ describe('PrivacyPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
 
-    expect(screen.getByTestId('location').textContent).toBe('/dashboard');
+    expect(screen.getByTestId('location').textContent).toBe('/overview');
   });
 
   it('Back goes to the landing page when signed out', () => {

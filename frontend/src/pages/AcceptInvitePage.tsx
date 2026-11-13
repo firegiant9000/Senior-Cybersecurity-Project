@@ -64,7 +64,7 @@ export default function AcceptInvitePage() {
       await acceptInvite(token);
       setAccepted(true);
       await refreshProfile();
-      redirectTimer.current = setTimeout(() => navigate("/"), 1500);
+      redirectTimer.current = setTimeout(() => navigate("/overview"), 1500);
     } catch (err) {
       if (err instanceof ForbiddenError && err.message === EMAIL_NOT_VERIFIED_DETAIL) {
         // Verify, then retry the accept (a mismatch 403 keeps the plain-text error below).
@@ -123,7 +123,7 @@ export default function AcceptInvitePage() {
                   >
                     {accepting ? "Joining..." : "Accept & Join"}
                   </button>
-                  <button className="action-btn" onClick={() => navigate("/")}>
+                  <button className="action-btn" onClick={() => navigate("/overview")}>
                     Decline
                   </button>
                 </div>

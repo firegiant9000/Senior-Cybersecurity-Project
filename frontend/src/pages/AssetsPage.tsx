@@ -326,7 +326,7 @@ export default function AssetsPage() {
     <div className="dashboard-page" style={{ padding: 24, maxWidth: 1100, margin: "0 auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h1>Assets</h1>
-        <Link to="/inventory/upload">
+        <Link to="/org/assets/upload">
           <button type="button">Upload CSV</button>
         </Link>
       </div>
@@ -544,7 +544,7 @@ export default function AssetsPage() {
         <p>Loading…</p>
       ) : visible.length === 0 ? (
         <p>
-          No assets yet. <Link to="/inventory/upload">Upload a CSV</Link> to populate this list.
+          No assets yet. <Link to="/org/assets/upload">Upload a CSV</Link> to populate this list.
         </p>
       ) : (
         <table style={{ width: "100%", borderCollapse: "collapse" }}>

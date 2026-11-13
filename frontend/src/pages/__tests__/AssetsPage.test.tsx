@@ -132,12 +132,12 @@ describe('AssetsPage (characterisation)', () => {
     )
   })
 
-  it('the Upload CSV link points at /inventory/upload', async () => {
+  it('the Upload CSV link points at /org/assets/upload', async () => {
     renderPage()
     await screen.findByText('alpha-host')
     expect(screen.getByRole('link', { name: 'Upload CSV' })).toHaveAttribute(
       'href',
-      '/inventory/upload',
+      '/org/assets/upload',
     )
   })
 
@@ -174,7 +174,7 @@ describe('AssetsPage (characterisation)', () => {
     mockListAssets.mockResolvedValue({ total: 0, page: 1, page_size: 50, items: [] })
     renderPage()
     const link = await screen.findByRole('link', { name: 'Upload a CSV' })
-    expect(link).toHaveAttribute('href', '/inventory/upload')
+    expect(link).toHaveAttribute('href', '/org/assets/upload')
     await waitFor(() => expect(screen.queryByText('alpha-host')).not.toBeInTheDocument())
   })
 })

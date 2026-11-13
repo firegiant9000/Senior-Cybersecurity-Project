@@ -410,7 +410,7 @@ describe('AcceptInvitePage', () => {
 
       vi.advanceTimersByTime(1500)
 
-      expect(mockNavigate).toHaveBeenCalledWith('/')
+      expect(mockNavigate).toHaveBeenCalledWith('/overview')
     })
   })
 
@@ -432,7 +432,7 @@ describe('AcceptInvitePage', () => {
 
       fireEvent.click(screen.getByRole('button', { name: /Decline/i }))
 
-      expect(mockNavigate).toHaveBeenCalledWith('/')
+      expect(mockNavigate).toHaveBeenCalledWith('/overview')
     })
 
     it('does not call acceptInvite when declining', async () => {
@@ -608,7 +608,7 @@ describe('AcceptInvitePage', () => {
       unmount()
       vi.advanceTimersByTime(2000)
 
-      expect(mockNavigate).not.toHaveBeenCalledWith('/')
+      expect(mockNavigate).not.toHaveBeenCalledWith('/overview')
     })
 
     it('prevents state updates after unmount', () => {

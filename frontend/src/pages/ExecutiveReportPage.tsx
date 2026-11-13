@@ -135,7 +135,7 @@ const ExecutiveReportPage: React.FC = () => {
             // dashboard); otherwise fall back to in-app navigation so we
             // don't tear down SPA state with a full reload.
             window.close();
-            navigate('/dashboard');
+            navigate('/overview');
           }}
         >
           Close
