@@ -15,7 +15,7 @@ from app.main import app
 from app.services import health as health_service
 from app.services.health import cached_database_reachable, database_reachable
 
-KNOWN_ENVIRONMENTS = {"development", "staging", "production", "test", "testing", "local"}
+KNOWN_ENVIRONMENTS = {"development", "testing", "production"}
 SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+")
 
 

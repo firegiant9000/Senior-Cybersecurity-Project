@@ -10,9 +10,12 @@ from typing import Any
 import httpx
 from cachetools import TTLCache  # type: ignore[import-not-found]
 
+from app.core.http_fetch import FeedDeadlineError, ResponseTooLargeError, get_json_capped
+
 _log = logging.getLogger(__name__)
 
 CVE_ORG_API_URL = "https://cveawg.mitre.org/api/cve"
+CVE_ORG_MAX_BYTES = 1024 * 1024  # one CVE record; real ones are a few KB to ~100KB
 
 # Reuse a single client across all calls to avoid repeated SSL handshakes
 _http_client: httpx.AsyncClient | None = None
@@ -215,9 +218,12 @@ async def fetch_cve_org_enrichment(cve_id: str, *, timeout: float = 8.0) -> CveO
 
     try:
         client = _get_client()
-        response = await client.get(f"{CVE_ORG_API_URL}/{normalized_cve_id}", timeout=timeout)
-        response.raise_for_status()
-        payload = response.json()
+        payload = await get_json_capped(
+            client,
+            f"{CVE_ORG_API_URL}/{normalized_cve_id}",
+            max_bytes=CVE_ORG_MAX_BYTES,
+            timeout=timeout,
+        )
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code == 404:
             _log.debug("CVE.org has no record for %s (404)", normalized_cve_id)
@@ -226,7 +232,7 @@ async def fetch_cve_org_enrichment(cve_id: str, *, timeout: float = 8.0) -> CveO
         enrichment = CveOrgEnrichment()
         _enrichment_cache[normalized_cve_id] = enrichment
         return enrichment
-    except (httpx.HTTPError, ValueError) as exc:
+    except (httpx.HTTPError, ResponseTooLargeError, FeedDeadlineError, ValueError) as exc:
         _log.warning("CVE.org enrichment failed for %s: %s", normalized_cve_id, exc)
         enrichment = CveOrgEnrichment()
         _enrichment_cache[normalized_cve_id] = enrichment

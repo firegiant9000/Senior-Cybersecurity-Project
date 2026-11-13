@@ -1,7 +1,10 @@
 """Core configuration and settings."""
 
+import ipaddress
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import model_validator
 
@@ -11,6 +14,30 @@ try:
     )
 except ImportError:  # pragma: no cover - fallback for older environments
     from pydantic import BaseSettings  # type: ignore
+
+
+def _production_cors_origin_problem(origin: str) -> "str | None":
+    """Return why an origin is unacceptable in production, or None if it is acceptable."""
+    try:
+        parts = urlsplit(origin)
+        host = parts.hostname or ""
+    except ValueError:
+        return "origin is malformed"
+    if parts.scheme != "https":
+        return "scheme must be https"
+    if not host or "*" in host:
+        return "host must be an explicit name without wildcards"
+    if host == "localhost":
+        return "localhost is not allowed"
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    else:
+        return "IP literal hosts are not allowed"
+    if parts.path not in ("", "/"):
+        return "path must be empty"
+    return None
 
 
 class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
@@ -27,7 +54,8 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
 
     # Application
     APP_NAME: str = "Cyber Threat Intelligence Platform"
-    APP_ENV: str = "development"
+    # Required, no default: a deploy that forgets it must fail at import, not run as development.
+    APP_ENV: Literal["development", "testing", "production"]
     API_PREFIX: str = "/api/v1"
 
     # Server
@@ -40,6 +68,11 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     # /health: bound on the SELECT 1 and how long a result is shared between callers.
     HEALTH_DB_TIMEOUT_SECONDS: float = 2.0
     HEALTH_CACHE_SECONDS: float = 2.0
+
+    @property
+    def is_dev_or_test(self) -> bool:
+        """True only for development/testing; production-only guards key off this."""
+        return self.APP_ENV in ("development", "testing")
 
     @model_validator(mode="after")
     def _normalize_database_url(self) -> "Settings":
@@ -74,13 +107,14 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
 
     @model_validator(mode="after")
     def _validate_production_cors(self) -> "Settings":
-        if self.APP_ENV not in ("development", "testing"):
-            localhost_origins = [o for o in self.CORS_ORIGINS if "localhost" in o]
-            if localhost_origins:
+        if self.is_dev_or_test:
+            return self
+        for origin in self.CORS_ORIGINS:
+            problem = _production_cors_origin_problem(origin)
+            if problem is not None:
                 raise ValueError(
-                    f"CORS_ORIGINS contains localhost entries {localhost_origins} "
-                    f"but APP_ENV={self.APP_ENV!r}. "
-                    "Set CORS_ORIGINS to production domains only."
+                    f"CORS_ORIGINS entry {origin!r} is not allowed when APP_ENV={self.APP_ENV!r}: "
+                    f"{problem}. Set CORS_ORIGINS to exact https production origins only."
                 )
         return self
 
@@ -127,6 +161,9 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     GEMINI_MODEL: str = "gemini-3.6-flash"
     AI_SUMMARY_ENABLED: bool = True
     AI_SUMMARY_CACHE_TTL: int = 3600  # seconds (1 hour)
+    # Cap on Gemini generations triggered by force_refresh=true, per org, rolling window.
+    AI_FORCE_REFRESH_ORG_LIMIT: int = 10
+    AI_FORCE_REFRESH_WINDOW_HOURS: int = 24
 
     # Ingestion
     FORCE_SEED: bool = False

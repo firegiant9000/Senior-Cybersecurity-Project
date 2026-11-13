@@ -99,4 +99,4 @@ async def test_replay_backstop_unique_constraint(world, authz_client, monkeypatc
     assert nonces == 1
     assert newest is not None
     assert newest.status == "failed"
-    assert newest.error_message == "duplicate scan submission"
+    assert newest.error_message == "DuplicateScanSubmission"

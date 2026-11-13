@@ -5,7 +5,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+from app.core.errors import public_error
 
 
 class AISummaryGenerationListItem(BaseModel):
@@ -22,6 +24,11 @@ class AISummaryGenerationListItem(BaseModel):
     findings_snapshot_id: int | None
 
     model_config = {"from_attributes": True}
+
+    @field_validator("error_message")
+    @classmethod
+    def _redact_error_message(cls, v: str | None) -> str | None:
+        return public_error(v)
 
 
 class AISummaryGenerationDetail(AISummaryGenerationListItem):

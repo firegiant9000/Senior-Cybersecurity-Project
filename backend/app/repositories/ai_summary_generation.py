@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -47,6 +49,30 @@ class SqlAISummaryGenerationRepository:
             )
         )
         return result.scalar_one_or_none()
+
+    async def count_forced_since(self, org_id: int, since: datetime) -> int:
+        """Count force_refresh attempts for an org at or after ``since``, any outcome."""
+        result = await self._session.execute(
+            select(func.count(AISummaryGeneration.id)).where(*self._forced_since(org_id, since))
+        )
+        return int(result.scalar_one())
+
+    async def oldest_forced_since(self, org_id: int, since: datetime) -> datetime | None:
+        """Timestamp of the oldest counted forced refresh (for Retry-After)."""
+        result = await self._session.execute(
+            select(func.min(AISummaryGeneration.generated_at)).where(
+                *self._forced_since(org_id, since)
+            )
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    def _forced_since(org_id: int, since: datetime) -> tuple:
+        return (
+            AISummaryGeneration.org_id == org_id,
+            AISummaryGeneration.output_meta.contains({"forced": True}),
+            AISummaryGeneration.generated_at >= since,
+        )
 
     async def get_last_successful_gemini(self, org_id: int) -> AISummaryGeneration | None:
         """Return the most recent successful Gemini generation for an org, if any."""

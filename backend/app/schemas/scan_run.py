@@ -3,7 +3,9 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+
+from app.core.errors import public_error
 
 ScanSource = Literal["csv_upload", "m365", "gws", "agent"]
 ScanStatus = Literal["pending", "running", "succeeded", "failed", "partial"]
@@ -43,6 +45,11 @@ class ScanRunRead(BaseModel):
         serialization_alias="metadata",
     )
     triggered_by_user_id: int | None
+
+    @field_validator("error_message")
+    @classmethod
+    def _redact_error_message(cls, v: str | None) -> str | None:
+        return public_error(v)
 
 
 class ScanRunListResponse(BaseModel):

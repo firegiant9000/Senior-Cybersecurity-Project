@@ -130,7 +130,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
             "Ensure GOOGLE_APPLICATION_CREDENTIALS is set correctly.",
             exc,
         )
-        if settings.APP_ENV not in ("development", "testing"):
+        if not settings.is_dev_or_test:
             raise SystemExit(
                 "FATAL: Firebase initialization failed. "
                 "See logs and verify your Google Cloud credentials."
@@ -159,7 +159,7 @@ def create_app() -> FastAPI:
     init_sentry()
 
     if settings.SECRET_KEY == "change-me-in-production":
-        if settings.APP_ENV not in ("development", "testing"):
+        if not settings.is_dev_or_test:
             raise SystemExit(
                 "FATAL: SECRET_KEY is set to the default insecure value "
                 f"and APP_ENV={settings.APP_ENV!r}. "
@@ -171,11 +171,16 @@ def create_app() -> FastAPI:
             "Set a strong SECRET_KEY in your environment before deploying to production."
         )
 
+    # OpenAPI schema and Swagger/ReDoc UI are served only outside production (Task 13).
+    docs_enabled = settings.is_dev_or_test
     fastapi_app = FastAPI(
         title=settings.APP_NAME,
         version="0.1.0",
         description="Cyber Threat Intelligence & Anomaly Detection Platform",
         lifespan=lifespan,
+        docs_url="/docs" if docs_enabled else None,
+        redoc_url="/redoc" if docs_enabled else None,
+        openapi_url="/openapi.json" if docs_enabled else None,
     )
 
     # The body cap must be the INNERMOST middleware: add_middleware prepends, so it is added
@@ -192,7 +197,7 @@ def create_app() -> FastAPI:
     fastapi_app.add_middleware(SlowAPIMiddleware)
 
     # Add CORS middleware
-    if settings.APP_ENV in ("development", "testing"):
+    if settings.is_dev_or_test:
         allowed_methods = ["*"]
         allowed_headers = ["*"]
     else:
@@ -210,6 +215,8 @@ def create_app() -> FastAPI:
     )
 
     # Outermost (added last): errors, preflights and the 413 all carry the security headers.
+    # FastAPI keeps swagger_ui_oauth2_redirect_url set even when docs are off, so gate it too:
+    # in production no docs path may get the looser docs CSP, not even a 404.
     docs_paths = frozenset(
         p
         for p in (
@@ -217,7 +224,7 @@ def create_app() -> FastAPI:
             fastapi_app.redoc_url,
             fastapi_app.swagger_ui_oauth2_redirect_url,
         )
-        if p
+        if p and docs_enabled
     )
     fastapi_app.add_middleware(SecurityHeadersMiddleware, docs_paths=docs_paths)
 
@@ -232,14 +239,16 @@ def create_app() -> FastAPI:
 
     @fastapi_app.get("/")
     async def root() -> dict[str, str]:
-        """Root endpoint with quick API links."""
-        return {
+        """Root endpoint with quick API links; docs links only where docs are served."""
+        links = {
             "service": settings.APP_NAME,
             "health": "/health",
             "api_base": settings.API_PREFIX,
-            "docs": "/docs",
-            "openapi": "/openapi.json",
         }
+        if docs_enabled:
+            links["docs"] = "/docs"
+            links["openapi"] = "/openapi.json"
+        return links
 
     return fastapi_app
 
