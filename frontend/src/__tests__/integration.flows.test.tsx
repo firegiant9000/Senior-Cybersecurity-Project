@@ -580,7 +580,7 @@ describe('Integration Tests - User Flows', () => {
       expect(screen.queryByTestId('overview-page')).not.toBeInTheDocument()
     })
 
-    it('admin can access pages after role change', async () => {
+    it('admin with an organisation can reach the overview and admin pages', async () => {
       setupAdminUser()
       mockAuthContext.orgId = 1
       renderApp(['/overview'])
@@ -633,6 +633,7 @@ describe('Integration Tests - User Flows', () => {
       mockAuthContext.orgLoading = true
       renderApp(['/overview'])
       // Should wait for org load before showing restricted content
+      expect(screen.getByTestId('org-loading')).toBeInTheDocument()
       expect(screen.queryByTestId('overview-page')).not.toBeInTheDocument()
     })
 
