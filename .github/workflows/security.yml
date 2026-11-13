@@ -60,6 +60,16 @@ jobs:
             echo "::error::grep failed (exit $rc); cannot verify docker pins."
             exit 1
           fi
+          # ZAP_IMAGE (used by `docker run`) must be pinned by image digest.
+          rc=0
+          grep -rnP '^\s*ZAP_IMAGE:[ \t]*+(?!\S+@sha256:[0-9a-f]{64}\s*$)' .github/workflows || rc=$?
+          if [ "$rc" -eq 0 ]; then
+            echo "::error::ZAP_IMAGE above is not pinned by @sha256 digest."
+            exit 1
+          elif [ "$rc" -ne 1 ]; then
+            echo "::error::grep failed (exit $rc); cannot verify ZAP image pin."
+            exit 1
+          fi
 
   pip-audit:
     name: pip-audit (backend)

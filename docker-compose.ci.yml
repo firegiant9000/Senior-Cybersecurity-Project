@@ -23,12 +23,18 @@ services:
   postgres:
     # Distinct names so a local run cannot collide with a dev stack.
     container_name: ht_zap_postgres
+    # postgres:15-alpine pinned by digest (the digest this stack was tested with,
+    # 2026-11-12; the tag has since moved). Bump by hand.
+    image: postgres:15-alpine@sha256:f7d23353e1b15400d22ebe31189f4d314b87a4c129cc400c8c2d8d4ca127bf81
     # The scan does not need host ports (ZAP is on the compose network); dropping
     # them also avoids clashes with other local services.
     ports: !reset []
 
   backend:
     container_name: ht_zap_backend
+    # Ignore any local backend/.env (the base env_file); CI and local scans then match.
+    # The file must still exist for the base file to parse, so CI touches it.
+    env_file: !reset []
     ports: !reset []
     environment:
       APP_ENV: development
