@@ -2,17 +2,19 @@ import { useNavigate } from "react-router-dom";
 import "../Dashboard.css";
 import "../components/dashboard/DashboardHeader.css";
 import "./TrustPage.css";
+import { useAuth } from "../context/AuthContext";
 
 export default function PrivacyPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
         <h1>Privacy</h1>
         <div className="header-buttons">
-          <button type="button" onClick={() => navigate("/")}>
-            Back to Dashboard
+          <button type="button" onClick={() => navigate(user ? "/dashboard" : "/")}>
+            Back
           </button>
         </div>
       </header>

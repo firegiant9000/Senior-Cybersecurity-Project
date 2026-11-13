@@ -4,9 +4,11 @@ import "../components/dashboard/DashboardHeader.css";
 import "./TrustPage.css";
 import { useDataStatus } from "../hooks/useDataStatus";
 import SourceBadge from "../components/shared/SourceBadge";
+import { useAuth } from "../context/AuthContext";
 
 export default function DataHandlingPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { items, loading, error } = useDataStatus();
 
   return (
@@ -14,8 +16,8 @@ export default function DataHandlingPage() {
       <header className="dashboard-header">
         <h1>Data Handling</h1>
         <div className="header-buttons">
-          <button type="button" onClick={() => navigate("/")}>
-            Back to Dashboard
+          <button type="button" onClick={() => navigate(user ? "/dashboard" : "/")}>
+            Back
           </button>
         </div>
       </header>

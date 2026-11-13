@@ -160,6 +160,7 @@ export default function UploadInventoryPage() {
 
   return (
     <div className="dashboard-page" style={{ padding: 24, maxWidth: 960, margin: "0 auto" }}>
+      <Link to="/dashboard?tab=assets">← Assets</Link>
       <h1>Upload asset inventory</h1>
       <p style={{ color: "#555" }}>
         Upload a CSV of your assets and installed software. The columns we expect are documented in{" "}
