@@ -1,14 +1,12 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hoisted Mocks
 // ─────────────────────────────────────────────────────────────────────────────
 
 const {
-  mockNavigate,
-  mockLogout,
   mockFetchWithAuth,
   mockListMembers,
   mockListInvites,
@@ -16,14 +14,8 @@ const {
   mockRevokeInvite,
   mockUpdateMemberRole,
   mockRemoveMember,
-  mockListAgents,
-  mockEnrollAgent,
-  mockRotateAgent,
-  mockRevokeAgent,
-  mockEndAgentGrace,
+  authState,
 } = vi.hoisted(() => {
-  const mockNavigate = vi.fn()
-  const mockLogout = vi.fn()
   const mockFetchWithAuth = vi.fn()
   const mockListMembers = vi.fn()
   const mockListInvites = vi.fn()
@@ -31,15 +23,14 @@ const {
   const mockRevokeInvite = vi.fn()
   const mockUpdateMemberRole = vi.fn()
   const mockRemoveMember = vi.fn()
-  const mockListAgents = vi.fn()
-  const mockEnrollAgent = vi.fn()
-  const mockRotateAgent = vi.fn()
-  const mockRevokeAgent = vi.fn()
-  const mockEndAgentGrace = vi.fn()
+  // useAuth() values are lower-cased by the real AuthContext.
+  const authState = {
+    orgId: 1 as number | null,
+    role: 'user' as string | null,
+    orgRole: 'owner' as string | null,
+  }
 
   return {
-    mockNavigate,
-    mockLogout,
     mockFetchWithAuth,
     mockListMembers,
     mockListInvites,
@@ -47,11 +38,7 @@ const {
     mockRevokeInvite,
     mockUpdateMemberRole,
     mockRemoveMember,
-    mockListAgents,
-    mockEnrollAgent,
-    mockRotateAgent,
-    mockRevokeAgent,
-    mockEndAgentGrace,
+    authState,
   }
 })
 
@@ -77,12 +64,7 @@ vi.mock('firebase/auth', () => ({
 
 vi.mock('firebase/app', () => ({ initializeApp: vi.fn(() => ({})) }))
 
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
-  return { ...actual, useNavigate: () => mockNavigate }
-})
-
-vi.mock('../../context/AuthContext', () => ({
+vi.mock('../../../context/AuthContext', () => ({
   useAuth: () => ({
     user: {
       uid: 'test-user-123',
@@ -90,18 +72,20 @@ vi.mock('../../context/AuthContext', () => ({
       emailVerified: false,
       metadata: { lastSignInTime: '2024-01-01' },
     },
-    logout: mockLogout,
+    orgId: authState.orgId,
+    role: authState.role,
+    orgRole: authState.orgRole,
   }),
   AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
 
-vi.mock('../../api/fetchWithAuth', () => ({
+vi.mock('../../../api/fetchWithAuth', () => ({
   API_BASE_URL: 'http://api',
   fetchWithAuth: (...args: unknown[]) => mockFetchWithAuth(...args),
   getJsonAuth: vi.fn(),
 }))
 
-vi.mock('../../api/members', () => ({
+vi.mock('../../../api/members', () => ({
   listMembers: (...args: unknown[]) => mockListMembers(...args),
   listInvites: (...args: unknown[]) => mockListInvites(...args),
   createInvite: (...args: unknown[]) => mockCreateInvite(...args),
@@ -110,16 +94,9 @@ vi.mock('../../api/members', () => ({
   removeMember: (...args: unknown[]) => mockRemoveMember(...args),
 }))
 
-vi.mock('../../api/agents', () => ({
-  listAgents: (...args: unknown[]) => mockListAgents(...args),
-  enrollAgent: (...args: unknown[]) => mockEnrollAgent(...args),
-  rotateAgent: (...args: unknown[]) => mockRotateAgent(...args),
-  revokeAgent: (...args: unknown[]) => mockRevokeAgent(...args),
-  endAgentGrace: (...args: unknown[]) => mockEndAgentGrace(...args),
-}))
-
-// Import component AFTER mocks
-import SettingsPage from '../SettingsPage'
+// Import components AFTER mocks
+import SettingsLayout from '../SettingsLayout'
+import { TeamPage } from '../pages'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mock Data
@@ -192,10 +169,19 @@ const mockInvitesData = {
 
 function renderPage() {
   return render(
-    <MemoryRouter>
-      <SettingsPage />
+    <MemoryRouter initialEntries={['/settings/team']}>
+      <Routes>
+        <Route element={<SettingsLayout />}>
+          <Route path="/settings/team" element={<TeamPage />} />
+        </Route>
+      </Routes>
     </MemoryRouter>,
   )
+}
+
+// useAuth() lower-cases role/orgRole; mirror that here.
+function setAuth(auth: { orgId?: number | null; role?: string | null; orgRole?: string | null }) {
+  Object.assign(authState, auth)
 }
 
 function mockSuccessfulProfileLoad() {
@@ -209,9 +195,12 @@ function mockSuccessfulProfileLoad() {
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('SettingsPage - Member Management', () => {
+describe('TeamPage - Member Management', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    authState.orgId = 1
+    authState.role = 'user'
+    authState.orgRole = 'owner'
     mockSuccessfulProfileLoad()
     mockListMembers.mockResolvedValue(mockMembersData)
     mockListInvites.mockResolvedValue(mockInvitesData)
@@ -229,13 +218,6 @@ describe('SettingsPage - Member Management', () => {
     mockRevokeInvite.mockResolvedValue(undefined)
     mockUpdateMemberRole.mockResolvedValue(undefined)
     mockRemoveMember.mockResolvedValue(undefined)
-    // The Month 4 agent-enrollment panel loads on mount for org owners/admins;
-    // default to an empty list so these member-focused tests aren't affected.
-    mockListAgents.mockResolvedValue({ items: [], total: 0 })
-    mockEnrollAgent.mockResolvedValue(undefined)
-    mockRotateAgent.mockResolvedValue(undefined)
-    mockRevokeAgent.mockResolvedValue(undefined)
-    mockEndAgentGrace.mockResolvedValue(undefined)
   })
 
   describe('Page Loading & Access Control', () => {
@@ -247,62 +229,53 @@ describe('SettingsPage - Member Management', () => {
       })
     })
 
-    it('hides the Assessment Debug link from an org admin who is not a platform admin', async () => {
-      mockFetchWithAuth.mockResolvedValue({
-        ok: true,
-        json: async () => ({ ...mockUserProfile, org_role: 'admin', role: 'user' }),
-      })
+    it('a member sees the admin-only line and no members request', async () => {
+      setAuth({ role: 'user', orgRole: 'member' })
 
       renderPage()
 
-      await waitFor(() => {
-        expect(screen.getByRole('link', { name: 'Organization Profile' })).toBeInTheDocument()
-      })
+      expect(screen.getByText('Only organisation admins can manage the team.')).toBeInTheDocument()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(mockListMembers).not.toHaveBeenCalled()
+      expect(mockListInvites).not.toHaveBeenCalled()
+      expect(mockFetchWithAuth).not.toHaveBeenCalled()
+    })
+
+    it('has no Assessment Debug or Organization Profile link for an org admin who is not a platform admin', async () => {
+      setAuth({ orgRole: 'admin', role: 'user' })
+
+      renderPage()
+
+      await screen.findByText('owner@example.com')
+      expect(screen.queryByRole('link', { name: 'Organization Profile' })).not.toBeInTheDocument()
       expect(screen.queryByRole('link', { name: 'Assessment Debug' })).not.toBeInTheDocument()
     })
 
-    it('has an h1, cross-links for an org owner and no Back to Dashboard control', async () => {
+    it('has an h1, the Settings nav and no Back to Dashboard control', async () => {
       renderPage()
 
       expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument()
-      await waitFor(() => {
-        expect(screen.getByRole('link', { name: 'Organization Profile' })).toHaveAttribute(
-          'href',
-          '/settings/organisation',
-        )
-      })
+      const nav = screen.getByRole('navigation', { name: 'Settings' })
+      expect(within(nav).getByRole('link', { name: 'Team' })).toHaveAttribute('href', '/settings/team')
+      await screen.findByText('owner@example.com')
+      expect(screen.queryByRole('link', { name: 'Organization Profile' })).not.toBeInTheDocument()
       expect(screen.queryByRole('link', { name: 'Assessment Debug' })).not.toBeInTheDocument()
       expect(screen.queryByText(/Back to Dashboard/i)).not.toBeInTheDocument()
     })
 
-    it('shows the Assessment Debug link only to a platform admin', async () => {
-      mockFetchWithAuth.mockResolvedValue({
-        ok: true,
-        json: async () => ({ ...mockUserProfile, role: 'admin' }),
-      })
+    it('no longer shows the Assessment Debug link, even to a platform admin', async () => {
+      setAuth({ role: 'admin' })
 
       renderPage()
 
-      await waitFor(() => {
-        expect(screen.getByRole('link', { name: 'Assessment Debug' })).toHaveAttribute(
-          'href',
-          '/admin/assessment-debug',
-        )
-      })
+      await screen.findByText('owner@example.com')
+      expect(screen.queryByRole('link', { name: 'Assessment Debug' })).not.toBeInTheDocument()
     })
 
     it('shows loading state initially', () => {
       renderPage()
 
       expect(screen.getByText(/Loading profile/i)).toBeInTheDocument()
-    })
-
-    it('shows profile data after loading', async () => {
-      renderPage()
-
-      await waitFor(() => {
-        expect(screen.getByText('user@example.com')).toBeInTheDocument()
-      })
     })
 
     it('shows error when profile load fails', async () => {
@@ -316,17 +289,13 @@ describe('SettingsPage - Member Management', () => {
     })
 
     it('hides member management sections when user is not admin', async () => {
-      const nonAdminProfile = { ...mockUserProfile, org_role: 'member' }
-      mockFetchWithAuth.mockResolvedValue({
-        ok: true,
-        json: async () => nonAdminProfile,
-      })
+      setAuth({ orgRole: 'member' })
 
       renderPage()
 
-      await waitFor(() => {
-        expect(screen.getByText(/Your account/i)).toBeInTheDocument()
-      })
+      expect(screen.getByText('Only organisation admins can manage the team.')).toBeInTheDocument()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(mockFetchWithAuth).not.toHaveBeenCalled()
 
       expect(screen.queryByText(/Members/i)).not.toBeInTheDocument()
       expect(screen.queryByText(/Invitations/i)).not.toBeInTheDocument()
@@ -342,11 +311,7 @@ describe('SettingsPage - Member Management', () => {
     })
 
     it('shows member management sections when user is org admin', async () => {
-      const adminProfile = { ...mockUserProfile, org_role: 'admin' }
-      mockFetchWithAuth.mockResolvedValue({
-        ok: true,
-        json: async () => adminProfile,
-      })
+      setAuth({ orgRole: 'admin' })
 
       renderPage()
 
@@ -357,11 +322,7 @@ describe('SettingsPage - Member Management', () => {
     })
 
     it('shows member management sections when user is system admin', async () => {
-      const adminProfile = { ...mockUserProfile, role: 'admin' }
-      mockFetchWithAuth.mockResolvedValue({
-        ok: true,
-        json: async () => adminProfile,
-      })
+      setAuth({ role: 'admin' })
 
       renderPage()
 
@@ -371,28 +332,17 @@ describe('SettingsPage - Member Management', () => {
       })
     })
 
-    it('renders no related-pages nav while loading or when the user has no organisation', async () => {
-      const noOrgProfile = { ...mockUserProfile, org_id: null, org_role: null }
-      mockFetchWithAuth.mockResolvedValue({
-        ok: true,
-        json: async () => noOrgProfile,
-      })
+    it('renders the Settings nav and no Related pages nav, also without an organisation', async () => {
+      setAuth({ orgId: null, orgRole: null })
 
       renderPage()
 
-      expect(screen.queryByRole('navigation', { name: 'Related pages' })).not.toBeInTheDocument()
-      await waitFor(() => {
-        expect(screen.queryByText(/Loading profile/i)).not.toBeInTheDocument()
-      })
+      expect(screen.getByRole('navigation', { name: 'Settings' })).toBeInTheDocument()
       expect(screen.queryByRole('navigation', { name: 'Related pages' })).not.toBeInTheDocument()
     })
 
     it('hides member management when org_id is null', async () => {
-      const noOrgProfile = { ...mockUserProfile, org_id: null, org_role: null }
-      mockFetchWithAuth.mockResolvedValue({
-        ok: true,
-        json: async () => noOrgProfile,
-      })
+      setAuth({ orgId: null, orgRole: null })
 
       renderPage()
 
@@ -400,6 +350,16 @@ describe('SettingsPage - Member Management', () => {
         expect(screen.queryByText(/Members/i)).not.toBeInTheDocument()
         expect(screen.queryByText(/Invitations/i)).not.toBeInTheDocument()
       })
+    })
+
+    it('renders nothing for the team when there is no organisation', async () => {
+      setAuth({ orgId: null, role: 'admin', orgRole: 'admin' })
+
+      renderPage()
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(mockFetchWithAuth).not.toHaveBeenCalled()
+      expect(screen.queryByRole('heading', { name: /Members/i })).not.toBeInTheDocument()
     })
   })
 
@@ -574,11 +534,7 @@ describe('SettingsPage - Member Management', () => {
     })
 
     it('disables role select for non-owners if user is not owner', async () => {
-      const adminProfile = { ...mockUserProfile, org_role: 'admin' }
-      mockFetchWithAuth.mockResolvedValue({
-        ok: true,
-        json: async () => adminProfile,
-      })
+      setAuth({ orgRole: 'admin' })
 
       renderPage()
 
@@ -1192,144 +1148,6 @@ describe('SettingsPage - Member Management', () => {
       await waitFor(() => {
         expect(mockListMembers).toHaveBeenCalledTimes(2)
       })
-    })
-  })
-
-  describe('Scanner Agents - Rotate', () => {
-    const agentWithStatus = (status: string) => ({
-      id: 31,
-      org_id: 1,
-      name: 'web-01',
-      token_prefix: 'deadbeef',
-      scopes: null,
-      created_by_user_id: 1,
-      created_at: '2024-01-15T00:00:00Z',
-      last_used_at: null,
-      revoked_at: null,
-      expires_at: null,
-      status,
-    })
-
-    it('hides Rotate for an agent in grace', async () => {
-      mockListAgents.mockResolvedValue({ items: [agentWithStatus('grace')], total: 1 })
-
-      renderPage()
-
-      await waitFor(() => {
-        expect(screen.getByTitle('Revoke agent')).toBeInTheDocument()
-      })
-      expect(screen.queryByTitle('Rotate token')).not.toBeInTheDocument()
-    })
-
-    it('shows Rotate for an active agent', async () => {
-      mockListAgents.mockResolvedValue({ items: [agentWithStatus('active')], total: 1 })
-
-      renderPage()
-
-      await waitFor(() => {
-        expect(screen.getByTitle('Rotate token')).toBeInTheDocument()
-      })
-      expect(screen.getByTitle('Revoke agent')).toBeInTheDocument()
-    })
-
-    it('shows End grace now only for an agent in grace', async () => {
-      mockListAgents.mockResolvedValue({ items: [agentWithStatus('grace')], total: 1 })
-
-      renderPage()
-
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'End grace now' })).toBeInTheDocument()
-      })
-    })
-
-    it('does not show End grace now for an active agent', async () => {
-      mockListAgents.mockResolvedValue({ items: [agentWithStatus('active')], total: 1 })
-
-      renderPage()
-
-      await waitFor(() => {
-        expect(screen.getByTitle('Rotate token')).toBeInTheDocument()
-      })
-      expect(screen.queryByRole('button', { name: 'End grace now' })).not.toBeInTheDocument()
-    })
-
-    describe('End grace confirmation', () => {
-      afterEach(() => {
-        vi.restoreAllMocks()
-      })
-
-      it('after confirming, calls the API client for that agent only', async () => {
-        const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
-        mockListAgents.mockResolvedValue({ items: [agentWithStatus('grace')], total: 1 })
-        renderPage()
-        const button = await screen.findByRole('button', { name: 'End grace now' })
-
-        fireEvent.click(button)
-
-        await waitFor(() => {
-          expect(mockEndAgentGrace).toHaveBeenCalledWith(31)
-        })
-        expect(String(confirmSpy.mock.calls[0][0])).toMatch(
-          /old token stops working now.*switched to the new token/i,
-        )
-        expect(mockRevokeAgent).not.toHaveBeenCalled()
-      })
-
-      it('cancelling does nothing', async () => {
-        const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
-        mockListAgents.mockResolvedValue({ items: [agentWithStatus('grace')], total: 1 })
-        renderPage()
-        const button = await screen.findByRole('button', { name: 'End grace now' })
-
-        fireEvent.click(button)
-
-        expect(confirmSpy).toHaveBeenCalledTimes(1)
-        expect(mockEndAgentGrace).not.toHaveBeenCalled()
-        expect(mockListAgents).toHaveBeenCalledTimes(1)
-      })
-    })
-
-    describe('Revoke confirmation', () => {
-      afterEach(() => {
-        vi.restoreAllMocks()
-      })
-
-      it('asks first, says it covers rotated tokens, and cancelling does nothing', async () => {
-        const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
-        mockListAgents.mockResolvedValue({ items: [agentWithStatus('active')], total: 1 })
-        renderPage()
-        const button = await screen.findByTitle('Revoke agent')
-
-        fireEvent.click(button)
-
-        expect(confirmSpy).toHaveBeenCalledTimes(1)
-        expect(String(confirmSpy.mock.calls[0][0])).toMatch(/every token rotated from this agent/i)
-        expect(mockRevokeAgent).not.toHaveBeenCalled()
-        expect(mockListAgents).toHaveBeenCalledTimes(1)
-      })
-
-      it('revokes after the user confirms', async () => {
-        vi.spyOn(window, 'confirm').mockReturnValue(true)
-        mockListAgents.mockResolvedValue({ items: [agentWithStatus('active')], total: 1 })
-        renderPage()
-        const button = await screen.findByTitle('Revoke agent')
-
-        fireEvent.click(button)
-
-        await waitFor(() => {
-          expect(mockRevokeAgent).toHaveBeenCalledWith(31)
-        })
-      })
-    })
-
-    it('does not promise that tokens rotated before the update are covered', async () => {
-      mockListAgents.mockResolvedValue({ items: [agentWithStatus('active')], total: 1 })
-
-      renderPage()
-
-      expect(
-        await screen.findByText(/tokens rotated before this update may not be linked/i),
-      ).toBeInTheDocument()
     })
   })
 

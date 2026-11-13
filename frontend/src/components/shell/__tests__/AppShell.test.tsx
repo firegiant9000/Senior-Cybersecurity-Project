@@ -308,10 +308,10 @@ describe('titleFor', () => {
   });
 
   it('uses the static map for other paths', () => {
-    expect(titleFor('/settings/account')).toBe('Settings');
-    expect(titleFor('/settings/team')).toBe('Settings');
+    expect(titleFor('/settings/account')).toBe('Account');
+    expect(titleFor('/settings/team')).toBe('Team');
     expect(titleFor('/admin/assessment-debug')).toBe('Assessment Debug');
-    expect(titleFor('/settings/organisation')).toBe('Organisation profile');
+    expect(titleFor('/settings/organisation')).toBe('Organisation');
     expect(titleFor('/glossary')).toBe('Glossary');
     expect(titleFor('/org/assets/upload')).toBe('Upload inventory');
     expect(titleFor('/settings/integrations')).toBe('Integrations');
