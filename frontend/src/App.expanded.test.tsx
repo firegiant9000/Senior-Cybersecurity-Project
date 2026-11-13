@@ -104,8 +104,14 @@ vi.mock('./pages/LandingPage.tsx', () => ({
   default: () => <div data-testid="landing-page">Landing Page</div>,
 }))
 
-vi.mock('./pages/SettingsPage.tsx', () => ({
-  default: () => <div data-testid="settings-page">Settings Page</div>,
+vi.mock('./pages/settings/pages.tsx', () => ({
+  AccountPage: () => <div data-testid="account-page">Account</div>,
+  OrganisationPage: () => <div data-testid="organisation-page">Organisation</div>,
+  TechnologyPage: () => <div data-testid="technology-page">Technology</div>,
+  DomainsPage: () => <div data-testid="domains-page">Domains</div>,
+  UploadsPage: () => <div data-testid="uploads-page">Uploads</div>,
+  TeamPage: () => <div data-testid="team-page">Team</div>,
+  AgentsPage: () => <div data-testid="agents-page">Agents</div>,
 }))
 
 vi.mock('./pages/AssessmentDebugPage.tsx', () => ({
@@ -119,10 +125,6 @@ vi.mock('./pages/AssessmentIntakePage.tsx', () => ({
       <button onClick={() => mockRefreshProfile()}>Complete Onboarding</button>
     </div>
   ),
-}))
-
-vi.mock('./pages/OrgProfilePage.tsx', () => ({
-  default: () => <div data-testid="org-profile-page">Org Profile</div>,
 }))
 
 vi.mock('./pages/AcceptInvitePage.tsx', () => ({
@@ -320,7 +322,7 @@ describe('App - Routing & Navigation', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = 1
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('account-page')).toBeInTheDocument()
     })
 
     it('requires authentication to access settings', () => {
@@ -342,7 +344,7 @@ describe('App - Routing & Navigation', () => {
       mockAuthContext.user = { uid: 'user1', email: 'user@example.com' } as unknown
       mockAuthContext.orgId = 42
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('account-page')).toBeInTheDocument()
     })
   })
 
@@ -416,14 +418,14 @@ describe('App - Routing & Navigation', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = 1
       renderApp(['/org-profile'])
-      expect(screen.getByTestId('org-profile-page')).toBeInTheDocument()
+      expect(screen.getByTestId('organisation-page')).toBeInTheDocument()
     })
 
     it('shows org profile page when authenticated and has org', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = 1
       renderApp(['/settings/organisation'])
-      expect(screen.getByTestId('org-profile-page')).toBeInTheDocument()
+      expect(screen.getByTestId('organisation-page')).toBeInTheDocument()
     })
 
     it('requires authentication', () => {
@@ -560,7 +562,7 @@ describe('App - Routing & Navigation', () => {
       mockAuthContext.user = { uid: 'user1', email: 'user@example.com' } as unknown
       mockAuthContext.orgId = 1
       renderApp(['/settings/account'])
-      expect(document.getElementById('main')).toContainElement(screen.getByTestId('settings-page'))
+      expect(document.getElementById('main')).toContainElement(screen.getByTestId('account-page'))
     })
 
     it('renders /settings/organisation and /admin/assessment-debug inside #main', () => {
@@ -568,7 +570,7 @@ describe('App - Routing & Navigation', () => {
       mockAuthContext.orgId = 1
       mockAuthContext.role = 'admin'
       renderApp(['/settings/organisation'])
-      expect(document.getElementById('main')).toContainElement(screen.getByTestId('org-profile-page'))
+      expect(document.getElementById('main')).toContainElement(screen.getByTestId('organisation-page'))
       cleanup()
       renderApp(['/admin/assessment-debug'])
       expect(document.getElementById('main')).toContainElement(screen.getByTestId('assessment-debug-page'))
@@ -673,7 +675,7 @@ describe('App - Routing & Navigation', () => {
 
       mockAuthContext.orgId = 1
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('account-page')).toBeInTheDocument()
     })
 
     it('supports navigation from the overview to settings', () => {
@@ -683,14 +685,14 @@ describe('App - Routing & Navigation', () => {
       expect(screen.getByTestId('overview-page')).toBeInTheDocument()
 
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('account-page')).toBeInTheDocument()
     })
 
     it('supports navigation from settings to assessment pages', () => {
       mockAuthContext.user = { uid: 'user1' } as unknown
       mockAuthContext.orgId = 1
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('account-page')).toBeInTheDocument()
 
       renderApp(['/assessment-intake'])
       expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
@@ -791,7 +793,7 @@ describe('App - Routing & Navigation', () => {
       expect(screen.getByTestId('login-page')).toBeInTheDocument()
 
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('account-page')).toBeInTheDocument()
 
       renderApp(['/overview'])
       expect(screen.getByTestId('overview-page')).toBeInTheDocument()
@@ -830,7 +832,7 @@ describe('App - Routing & Navigation', () => {
       cleanup()
 
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('account-page')).toBeInTheDocument()
       cleanup()
 
       renderApp(['/overview'])

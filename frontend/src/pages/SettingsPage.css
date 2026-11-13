@@ -26,6 +26,13 @@
   align-items: flex-start;
 }
 
+@media (max-width: 768px) {
+  .settings-area-body {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
 .settings-area-menu {
   display: flex;
   flex-direction: column;

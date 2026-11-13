@@ -132,8 +132,14 @@ vi.mock('../pages/LandingPage', () => ({
   default: () => <div data-testid="landing-page">Landing</div>,
 }))
 
-vi.mock('../pages/SettingsPage', () => ({
-  default: () => <div data-testid="settings-page">Settings</div>,
+vi.mock('../pages/settings/pages', () => ({
+  AccountPage: () => <div data-testid="account-page">Account</div>,
+  OrganisationPage: () => <div data-testid="organisation-page">Organisation</div>,
+  TechnologyPage: () => <div data-testid="technology-page">Technology</div>,
+  DomainsPage: () => <div data-testid="domains-page">Domains</div>,
+  UploadsPage: () => <div data-testid="uploads-page">Uploads</div>,
+  TeamPage: () => <div data-testid="team-page">Team</div>,
+  AgentsPage: () => <div data-testid="agents-page">Agents</div>,
 }))
 
 vi.mock('../pages/AssessmentIntakePage', () => ({
@@ -319,7 +325,7 @@ describe('Integration Tests - User Flows', () => {
       // After acceptance, user has org
       mockAuthContext.orgId = 42
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('account-page')).toBeInTheDocument()
     })
 
     it('prevents unauthenticated users from accessing invite', () => {
@@ -342,13 +348,13 @@ describe('Integration Tests - User Flows', () => {
     it('org owner can access member management in settings', () => {
       setupUserWithOrg(1, 'owner')
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('account-page')).toBeInTheDocument()
     })
 
     it('org member cannot access org settings (requires admin/owner)', () => {
       setupUserWithOrg(1, 'member')
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('account-page')).toBeInTheDocument()
       // The page would load but member management sections would be hidden
     })
 
@@ -357,7 +363,7 @@ describe('Integration Tests - User Flows', () => {
       mockCreateInvite.mockResolvedValue(undefined)
 
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('account-page')).toBeInTheDocument()
 
       await waitFor(() => {
         expect(mockCreateInvite).toBeDefined()
@@ -369,7 +375,7 @@ describe('Integration Tests - User Flows', () => {
       mockUpdateMemberRole.mockResolvedValue(undefined)
 
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('account-page')).toBeInTheDocument()
     })
 
     it('owner can remove members from org', () => {
@@ -377,7 +383,7 @@ describe('Integration Tests - User Flows', () => {
       mockRemoveMember.mockResolvedValue(undefined)
 
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('account-page')).toBeInTheDocument()
     })
   })
 
@@ -452,7 +458,7 @@ describe('Integration Tests - User Flows', () => {
       setupAuthenticatedUser()
       renderApp(['/settings/account'])
       expect(screen.getByTestId('org-redirect')).toBeInTheDocument()
-      expect(screen.queryByTestId('settings-page')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('account-page')).not.toBeInTheDocument()
     })
 
     it('user navigates from onboarding to settings after joining org', () => {
@@ -463,7 +469,7 @@ describe('Integration Tests - User Flows', () => {
 
       mockAuthContext.orgId = 1
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('account-page')).toBeInTheDocument()
     })
   })
 
@@ -522,13 +528,13 @@ describe('Integration Tests - User Flows', () => {
       expect(screen.getByTestId('overview-page')).toBeInTheDocument()
 
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('account-page')).toBeInTheDocument()
     })
 
     it('user can navigate from settings to assessment', () => {
       setupUserWithOrg(1, 'owner')
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('account-page')).toBeInTheDocument()
 
       renderApp(['/assessment-intake'])
       expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
@@ -537,7 +543,7 @@ describe('Integration Tests - User Flows', () => {
     it('user can navigate back to the overview from any page', () => {
       setupUserWithOrg(1, 'owner')
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('account-page')).toBeInTheDocument()
 
       renderApp(['/overview'])
       expect(screen.getByTestId('overview-page')).toBeInTheDocument()
@@ -550,7 +556,7 @@ describe('Integration Tests - User Flows', () => {
       expect(screen.getByTestId('overview-page')).toBeInTheDocument()
 
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('account-page')).toBeInTheDocument()
 
       renderApp(['/assessment-intake'])
       expect(screen.getByTestId('assessment-intake-page')).toBeInTheDocument()
@@ -599,26 +605,26 @@ describe('Integration Tests - User Flows', () => {
     it('different users have different permission levels on same routes', () => {
       setupUserWithOrg(1, 'member')
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('account-page')).toBeInTheDocument()
       cleanup()
 
       // Switch to owner
       mockAuthContext.orgRole = 'owner'
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('account-page')).toBeInTheDocument()
       // Same page but owner would see member management
     })
 
     it('users from different orgs cannot access each others data', () => {
       setupUserWithOrg(1, 'member')
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('account-page')).toBeInTheDocument()
       cleanup()
 
       // User switches to different org
       mockAuthContext.orgId = 2
       renderApp(['/settings/account'])
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument()
+      expect(screen.getByTestId('account-page')).toBeInTheDocument()
       // Would show different org's data
     })
   })

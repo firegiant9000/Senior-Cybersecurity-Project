@@ -4,7 +4,7 @@ import '../SettingsPage.css';
 
 export default function SettingsLayout() {
   return (
-    <div className="settings-area">
+    <div>
       <h1>Settings</h1>
       <div className="settings-area-body">
         <nav aria-label="Settings" className="settings-area-menu">
