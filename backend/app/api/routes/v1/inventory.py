@@ -712,7 +712,7 @@ async def upload_agent_scan(
             org_id,
             ScanRunUpdate(
                 status="failed",
-                error_message="duplicate scan submission",
+                error_message="DuplicateScanSubmission",
                 finished_at=datetime.now(UTC),
             ),
         )

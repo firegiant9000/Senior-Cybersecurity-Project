@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 import app.api.routes.v1.inventory as inventory_module
 from tests.test_agent_scan_routes import _clear, _nonce_repo, _override, _payload, _scan_run
@@ -57,3 +57,60 @@ async def test_scan_run_status_has_no_raw_exception_text(client: AsyncClient, mo
         assert "password=" not in legacy.text
     finally:
         _clear()
+
+
+@pytest.mark.asyncio
+async def test_duplicate_scan_reason_stays_readable(client: AsyncClient):
+    row = _scan_run(id=99, status="pending")
+
+    async def _update(scan_run_id, org_id, update):
+        for field in ("status", "error_message"):
+            value = getattr(update, field, None)
+            if value is not None:
+                setattr(row, field, value)
+        return row
+
+    scan_repo = MagicMock()
+    scan_repo.create = AsyncMock(return_value=row)
+    scan_repo.update = AsyncMock(side_effect=_update)
+    scan_repo.get_by_id = AsyncMock(side_effect=lambda *_: row)
+    nonce_repo = _nonce_repo()
+    nonce_repo.record = AsyncMock(side_effect=IntegrityError("INSERT", {}, Exception("dup")))
+
+    _override(scan_repo=scan_repo, nonce_repo=nonce_repo)
+    try:
+        with patch.object(inventory_module, "commit_inventory", AsyncMock(return_value=(1, 3))):
+            upload = await client.post("/api/v1/inventory/scans", json=_payload())
+        assert upload.status_code == 409
+        status = await client.get("/api/v1/inventory/scans/99")
+    finally:
+        _clear()
+    assert status.json()["error_message"] == "DuplicateScanSubmission"
+
+
+@pytest.mark.asyncio
+async def test_csv_import_failure_stores_only_the_class_name(client: AsyncClient):
+    update = AsyncMock(return_value=MagicMock())
+    pending = MagicMock(id=7)
+    with (
+        patch("app.api.routes.v1.inventory.check_org_access", new=AsyncMock(return_value=None)),
+        patch(
+            "app.repositories.scan_runs.SqlScanRunRepository.create",
+            AsyncMock(return_value=pending),
+        ),
+        patch("app.repositories.scan_runs.SqlScanRunRepository.update", update),
+        patch(
+            "app.api.routes.v1.inventory.commit_inventory",
+            new=AsyncMock(side_effect=SQLAlchemyError(RAW)),
+        ),
+    ):
+        resp = await client.post(
+            "/api/v1/organizations/1/inventory/uploads/csv/import?confirm=true",
+            files={
+                "file": ("inv.csv", b"hostname,vendor,product\nweb-1,nginx,nginx\n", "text/csv")
+            },
+        )
+    assert resp.status_code == 500
+    assert "password=" not in resp.text
+    failed = [c.args[2] for c in update.await_args_list if c.args[2].status == "failed"]
+    assert [u.error_message for u in failed] == ["SQLAlchemyError"]
