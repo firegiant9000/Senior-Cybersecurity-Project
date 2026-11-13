@@ -1,10 +1,9 @@
-import React, { Suspense, lazy, useEffect, useCallback, useMemo } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import './Dashboard.css';
 import { useAuth } from './context/AuthContext';
 import { useDashboardData } from './hooks/useDashboardData';
-import TabBar from './components/dashboard/TabBar';
-import SubTabBar from './components/dashboard/SubTabBar';
+import NotFoundPage from './pages/NotFoundPage';
 import OverviewTab from './components/dashboard/OverviewTab';
 import WidgetSkeleton from './components/shared/WidgetSkeleton';
 import { API_BASE_URL } from './api/fetchWithAuth';
@@ -26,7 +25,7 @@ const AnomaliesTab = lazy(() => import('./components/tabs/AnomaliesTab'));
 const AssetsPage = lazy(() => import('./pages/AssetsPage'));
 
 const Dashboard: React.FC = () => {
-    const [searchParams, setSearchParams] = useSearchParams();
+    const [searchParams] = useSearchParams();
     const { user, orgId, orgLoading, role, orgRole } = useAuth();
     const { data, loading, loadingHeavy, errors, lastUpdated, refresh, setOnProgress } = useDashboardData();
 
@@ -49,6 +48,13 @@ const Dashboard: React.FC = () => {
 
     const activeGroup = resolved.tab;
     const activeGroupDef = visibleGroups.find((g) => g.id === activeGroup);
+    // A known tab the user cannot see is "not found"; an unknown tab falls back to the overview.
+    const knownGroupDef = TAB_GROUPS.find((g) => g.id === activeGroup);
+    const knownSubHidden =
+        !!activeGroupDef?.subTabs &&
+        !!resolved.sub &&
+        !!knownGroupDef?.subTabs?.some((s) => s.id === resolved.sub) &&
+        !activeGroupDef.subTabs.some((s) => s.id === resolved.sub);
 
     const activeSubTab = useMemo(() => {
         if (!activeGroupDef?.subTabs) return activeGroup;
@@ -57,13 +63,6 @@ const Dashboard: React.FC = () => {
         }
         return activeGroupDef.subTabs[0].id;
     }, [activeGroupDef, activeGroup, resolved.sub]);
-
-    // If active group isn't visible, fall back to overview
-    useEffect(() => {
-        if (!activeGroupDef && visibleGroups.length > 0) {
-            setSearchParams({}, { replace: true });
-        }
-    }, [activeGroupDef, visibleGroups, setSearchParams]);
 
     // F4: emit `dashboard_first_view` at most once per browser session so the
     // funnel knows when a user actually reaches a populated dashboard.
@@ -78,46 +77,18 @@ const Dashboard: React.FC = () => {
         });
     }, [user, orgId]);
 
-    const handleGroupChange = useCallback(
-        (groupId: string) => {
-            const group = visibleGroups.find((g) => g.id === groupId);
-            const params: Record<string, string> = { tab: groupId };
-            if (group?.subTabs) {
-                params.sub = group.subTabs[0].id;
-            }
-            setSearchParams(params);
-        },
-        [visibleGroups, setSearchParams],
-    );
-
-    const handleSubTabChange = useCallback(
-        (subId: string, groupId?: string) => {
-            setSearchParams({ tab: groupId ?? activeGroup, sub: subId });
-        },
-        [activeGroup, setSearchParams],
-    );
+    // Known tab (or sub-tab) the user may not see: render NotFound. ProtectedRoute holds rendering
+    // while the organisation loads, so this cannot flash for org tabs during load.
+    if ((knownGroupDef && !activeGroupDef) || knownSubHidden) {
+        return <NotFoundPage />;
+    }
 
     // The component key to render — for standalone groups it's the group id,
-    // for groups with sub-tabs it's the active sub-tab id.
+    // for groups with sub-tabs it's the active sub-tab id. Unknown tabs fall back to the overview.
     const activeComponent = !activeGroupDef ? 'overview' : activeGroupDef.subTabs ? activeSubTab : activeGroup;
 
     return (
         <>
-            <TabBar
-                activeGroup={activeGroup}
-                activeSubTab={activeSubTab}
-                onGroupChange={handleGroupChange}
-                onSubTabChange={handleSubTabChange}
-                groups={visibleGroups}
-            />
-
-            {activeGroupDef?.subTabs && activeGroupDef.subTabs.length > 1 && (
-                <SubTabBar
-                    subTabs={activeGroupDef.subTabs}
-                    activeSubTab={activeSubTab}
-                    onSubTabChange={handleSubTabChange}
-                />
-            )}
 
                 {activeComponent === 'overview' && (
                     <OverviewTab

@@ -73,38 +73,8 @@ vi.mock('./components/dashboard/OverviewTab', () => ({
   default: () => <div data-testid="overview-tab">Overview Content</div>,
 }))
 
-vi.mock('./components/dashboard/TabBar', () => ({
-  default: ({ groups, activeGroup, onGroupChange }: { groups: Array<{ id: string; label: string }>; activeGroup: string; onGroupChange: (id: string) => void }) => (
-    <nav data-testid="tab-bar">
-      {groups.map((g) => (
-        <button
-          key={g.id}
-          data-testid={`tab-${g.id}`}
-          data-active={activeGroup === g.id}
-          onClick={() => onGroupChange(g.id)}
-        >
-          {g.label}
-        </button>
-      ))}
-    </nav>
-  ),
-}))
-
-vi.mock('./components/dashboard/SubTabBar', () => ({
-  default: ({ subTabs, activeSubTab, onSubTabChange }: { subTabs: Array<{ id: string; label: string }>; activeSubTab: string; onSubTabChange: (id: string) => void }) => (
-    <nav data-testid="sub-tab-bar">
-      {subTabs.map((s) => (
-        <button
-          key={s.id}
-          data-testid={`sub-tab-${s.id}`}
-          data-active={activeSubTab === s.id}
-          onClick={() => onSubTabChange(s.id)}
-        >
-          {s.label}
-        </button>
-      ))}
-    </nav>
-  ),
+vi.mock('./pages/NotFoundPage', () => ({
+  default: () => <div data-testid="not-found-page">Not found</div>,
 }))
 
 vi.mock('./components/shared/WidgetSkeleton', () => ({ default: () => null }))
@@ -162,64 +132,37 @@ describe('Dashboard - Navigation & Rendering', () => {
     mockAuthValues.orgRole = null
   })
 
-  describe('Tab Visibility by Organization Status', () => {
-    it('omits org-only tabs when user has no org', () => {
-      renderDashboard()
-      expect(screen.queryByTestId('tab-assessment')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('tab-vendorAlerts')).not.toBeInTheDocument()
+  describe('Visibility by organisation and role', () => {
+    it('renders not-found for an org-only tab when the user has no org', () => {
+      renderDashboard(['/dashboard?tab=assessment&sub=findings'])
+      expect(screen.getByTestId('not-found-page')).toBeInTheDocument()
     })
 
-    it('shows org-only tabs when user has an org', () => {
-      mockAuthValues.orgId = 42
+    it('renders overview for a user with no org at the default route', () => {
       renderDashboard()
-      expect(screen.getByTestId('tab-assessment')).toBeInTheDocument()
-      expect(screen.getByTestId('tab-vendorAlerts')).toBeInTheDocument()
+      expect(screen.getByTestId('overview-tab')).toBeInTheDocument()
     })
 
-    it('shows overview and public tabs regardless of org status', () => {
-      renderDashboard()
-      expect(screen.getByTestId('tab-overview')).toBeInTheDocument()
-      expect(screen.getByTestId('tab-threats')).toBeInTheDocument()
-      expect(screen.getByTestId('tab-trendsData')).toBeInTheDocument()
-    })
-  })
-
-  describe('Tab Visibility by Role', () => {
-    it('hides admin tabs for regular members without admin role', () => {
+    it('renders not-found at admin for a regular member', () => {
       mockAuthValues.orgId = 42
       mockAuthValues.role = 'viewer'
       mockAuthValues.orgRole = 'member'
-      renderDashboard()
-      expect(screen.queryByTestId('tab-admin')).toBeNull()
+      renderDashboard(['/dashboard?tab=admin'])
+      expect(screen.getByTestId('not-found-page')).toBeInTheDocument()
     })
 
-    it('shows admin tabs for global admin', () => {
+    it('renders admin for a global admin', async () => {
       mockAuthValues.role = 'admin'
-      renderDashboard()
-      expect(screen.getByTestId('tab-admin')).toBeInTheDocument()
+      renderDashboard(['/dashboard?tab=admin'])
+      await waitFor(() => expect(screen.getByTestId('pipeline-health')).toBeInTheDocument())
     })
 
-    it('hides admin tabs for org admin who is not a platform admin', () => {
+    it('renders not-found at admin for an org admin who is not a platform admin', () => {
       mockAuthValues.orgId = 42
-      mockAuthValues.role = 'viewer'
-      mockAuthValues.orgRole = 'admin'
-      renderDashboard()
-      expect(screen.queryByTestId('tab-admin')).not.toBeInTheDocument()
-    })
-
-    it('does not show admin tabs for org owner without admin role', () => {
-      mockAuthValues.orgId = 42
-      mockAuthValues.role = 'viewer'
-      mockAuthValues.orgRole = 'owner'
-      renderDashboard()
-      expect(screen.queryByTestId('tab-admin')).toBeNull()
-    })
-
-    it('hides admin tabs while org is loading and no admin role', () => {
-      mockAuthValues.orgLoading = true
       mockAuthValues.role = null
-      renderDashboard()
-      expect(screen.queryByTestId('tab-admin')).toBeNull()
+      mockAuthValues.orgRole = 'admin'
+      renderDashboard(['/dashboard?tab=admin'])
+      expect(screen.getByTestId('not-found-page')).toBeInTheDocument()
     })
   })
 
@@ -286,16 +229,19 @@ describe('Dashboard - Navigation & Rendering', () => {
     })
 
     it('falls back to overview when accessing non-existent tab', async () => {
-      renderDashboard(['/dashboard?tab=invalidTab'])
+      renderDashboard(['/dashboard?tab=nope'])
       await waitFor(() => expect(screen.getByTestId('overview-tab')).toBeInTheDocument())
+      expect(screen.queryByTestId('not-found-page')).toBeNull()
     })
 
-    it('falls back to overview at ?tab=admin for an org admin who is not a platform admin', async () => {
+    it('renders not-found at ?tab=admin for an org admin who is not a platform admin', () => {
       mockAuthValues.orgId = 42
       mockAuthValues.role = null
       mockAuthValues.orgRole = 'admin'
       renderDashboard(['/dashboard?tab=admin'])
-      await waitFor(() => expect(screen.getByTestId('overview-tab')).toBeInTheDocument())
+      expect(screen.getByTestId('not-found-page')).toBeInTheDocument()
+      expect(screen.queryByTestId('overview-tab')).toBeNull()
+      expect(screen.queryByTestId('pipeline-health')).toBeNull()
     })
 
     // Warm the lazy chunk (as a permitted user) so a gated mount would be immediate rather than
@@ -319,7 +265,7 @@ describe('Dashboard - Navigation & Rendering', () => {
       mockAuthValues.orgId = null
       renderDashboard(['/dashboard?tab=vendorAlerts'])
       expect(screen.queryByTestId('vendor-alerts')).toBeNull()
-      await waitFor(() => expect(screen.getByTestId('overview-tab')).toBeInTheDocument())
+      await waitFor(() => expect(screen.getByTestId('not-found-page')).toBeInTheDocument())
       expect(screen.queryByTestId('vendor-alerts')).toBeNull()
       expect(gatedRenders.vendorAlerts).toBe(0)
     })
@@ -329,7 +275,7 @@ describe('Dashboard - Navigation & Rendering', () => {
       mockAuthValues.orgId = null
       renderDashboard(['/dashboard?tab=assets'])
       expect(screen.queryByTestId('assets-page')).toBeNull()
-      await waitFor(() => expect(screen.getByTestId('overview-tab')).toBeInTheDocument())
+      await waitFor(() => expect(screen.getByTestId('not-found-page')).toBeInTheDocument())
       expect(screen.queryByTestId('assets-page')).toBeNull()
       expect(gatedRenders.assets).toBe(0)
     })
@@ -340,7 +286,7 @@ describe('Dashboard - Navigation & Rendering', () => {
       mockAuthValues.orgLoading = true
       renderDashboard(['/dashboard?tab=vendorAlerts'])
       expect(screen.queryByTestId('vendor-alerts')).toBeNull()
-      await waitFor(() => expect(screen.getByTestId('overview-tab')).toBeInTheDocument())
+      await waitFor(() => expect(screen.getByTestId('not-found-page')).toBeInTheDocument())
       expect(screen.queryByTestId('vendor-alerts')).toBeNull()
       expect(gatedRenders.vendorAlerts).toBe(0)
     })
@@ -414,61 +360,28 @@ describe('Dashboard - Navigation & Rendering', () => {
     })
   })
 
-  describe('Sub-Tab Navigation', () => {
+  describe('Sub-tab resolution', () => {
     beforeEach(() => {
       mockAuthValues.orgId = 42
       mockAuthValues.orgRole = 'owner'
       mockAuthValues.role = 'admin'
     })
 
-    it('shows sub-tab bar for tabs with subtabs', async () => {
-      renderDashboard(['/dashboard?tab=assessment&sub=findings'])
-      await waitFor(() => expect(screen.getByTestId('sub-tab-bar')).toBeInTheDocument())
-    })
-
-    it('defaults to first sub-tab when none specified', () => {
+    it('defaults to the first sub-tab when none is specified', async () => {
       renderDashboard(['/dashboard?tab=assessment'])
-      // Should default to first sub-tab
-      expect(screen.getByTestId('sub-tab-bar')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('smb-advisor')).toBeInTheDocument())
     })
 
-    it('navigates between sub-tabs in assessment group', async () => {
-      renderDashboard(['/dashboard?tab=assessment&sub=findings'])
-      await waitFor(() => expect(screen.getByTestId('findings')).toBeInTheDocument())
-    })
-
-    it('navigates between sub-tabs in threats group', async () => {
-      renderDashboard(['/dashboard?tab=threats&sub=threatIntel'])
-      await waitFor(() => expect(screen.getByTestId('threat-intel')).toBeInTheDocument())
-    })
-
-    it('navigates between sub-tabs in trendsData group', async () => {
-      renderDashboard(['/dashboard?tab=trendsData&sub=trends'])
-      await waitFor(() => expect(screen.getByTestId('trends')).toBeInTheDocument())
-    })
-
-    it('navigates between sub-tabs in admin group', async () => {
-      renderDashboard(['/dashboard?tab=admin&sub=pipelineHealth'])
-      await waitFor(() => expect(screen.getByTestId('pipeline-health')).toBeInTheDocument())
-    })
-
-    it('hides sub-tab bar for tabs without subtabs', () => {
-      renderDashboard(['/dashboard?tab=vendorAlerts'])
-      expect(screen.queryByTestId('sub-tab-bar')).toBeNull()
-    })
-
-    it('hides sub-tab bar for overview tab', () => {
-      renderDashboard(['/dashboard'])
-      expect(screen.queryByTestId('sub-tab-bar')).toBeNull()
+    it('renders not-found for a legacy sub-tab id the user cannot see', () => {
+      mockAuthValues.role = null
+      mockAuthValues.orgRole = 'member'
+      renderDashboard(['/dashboard?tab=normalizationLog'])
+      expect(screen.getByTestId('not-found-page')).toBeInTheDocument()
+      expect(screen.queryByTestId('normalization-log')).toBeNull()
     })
   })
 
   describe('Loading States', () => {
-    it('renders correctly while dashboard data is loading', () => {
-      renderDashboard()
-      expect(screen.getByTestId('tab-bar')).toBeInTheDocument()
-    })
-
     it('renders overview tab even when data is still loading', () => {
       renderDashboard()
       expect(screen.getByTestId('overview-tab')).toBeInTheDocument()
@@ -476,53 +389,15 @@ describe('Dashboard - Navigation & Rendering', () => {
   })
 
   describe('Error Handling', () => {
-    it('still renders navigation when user data is missing', () => {
+    it('still renders the overview when user data is missing', () => {
       mockAuthValues.user = null as unknown
       renderDashboard()
-      expect(screen.getByTestId('tab-bar')).toBeInTheDocument()
+      expect(screen.getByTestId('overview-tab')).toBeInTheDocument()
     })
 
     it('shows overview tab on error state', () => {
       renderDashboard()
       expect(screen.getByTestId('overview-tab')).toBeInTheDocument()
-    })
-  })
-
-  describe('Tab Active States', () => {
-    beforeEach(() => {
-      mockAuthValues.orgId = 42
-      mockAuthValues.orgRole = 'owner'
-      mockAuthValues.role = 'admin'
-    })
-
-    it('marks overview tab as active by default', () => {
-      renderDashboard()
-      const overviewTab = screen.getByTestId('tab-overview')
-      expect(overviewTab).toHaveAttribute('data-active', 'true')
-    })
-
-    it('marks threats tab as active when selected', () => {
-      renderDashboard(['/dashboard?tab=threats'])
-      const threatsTab = screen.getByTestId('tab-threats')
-      expect(threatsTab).toHaveAttribute('data-active', 'true')
-    })
-
-    it('marks assessment tab as active when on subtab', () => {
-      renderDashboard(['/dashboard?tab=assessment&sub=findings'])
-      const assessmentTab = screen.getByTestId('tab-assessment')
-      expect(assessmentTab).toHaveAttribute('data-active', 'true')
-    })
-
-    it('marks trendsData tab as active when on subtab', () => {
-      renderDashboard(['/dashboard?tab=trendsData&sub=trends'])
-      const trendsTab = screen.getByTestId('tab-trendsData')
-      expect(trendsTab).toHaveAttribute('data-active', 'true')
-    })
-
-    it('marks admin tab as active when on subtab', () => {
-      renderDashboard(['/dashboard?tab=admin&sub=pipelineHealth'])
-      const adminTab = screen.getByTestId('tab-admin')
-      expect(adminTab).toHaveAttribute('data-active', 'true')
     })
   })
 
@@ -585,35 +460,30 @@ describe('Dashboard - Navigation & Rendering', () => {
   })
 
   describe('Multiple Role Scenarios', () => {
-    it('shows correct tabs for global admin with org', () => {
+    it('resolves admin and assessment for a global admin with org', async () => {
       mockAuthValues.orgId = 42
       mockAuthValues.role = 'admin'
       mockAuthValues.orgRole = 'admin'
-      renderDashboard()
-
-      expect(screen.getByTestId('tab-admin')).toBeInTheDocument()
-      expect(screen.getByTestId('tab-assessment')).toBeInTheDocument()
+      renderDashboard(['/dashboard?tab=admin&sub=pipelineHealth'])
+      await waitFor(() => expect(screen.getByTestId('pipeline-health')).toBeInTheDocument())
     })
 
-    it('shows correct tabs for org member without global admin', () => {
+    it('resolves assessment but not admin for an org member without global admin', async () => {
       mockAuthValues.orgId = 42
       mockAuthValues.role = 'viewer'
       mockAuthValues.orgRole = 'member'
-      renderDashboard()
-
-      expect(screen.queryByTestId('tab-admin')).toBeNull()
-      expect(screen.getByTestId('tab-assessment')).toBeInTheDocument()
+      renderDashboard(['/dashboard?tab=admin'])
+      expect(screen.getByTestId('not-found-page')).toBeInTheDocument()
+      renderDashboard(['/dashboard?tab=assessment&sub=smbAdvisor'])
+      await waitFor(() => expect(screen.getByTestId('smb-advisor')).toBeInTheDocument())
     })
 
-    it('shows correct tabs for owner of org', () => {
+    it('renders not-found at admin for an org owner (owner does not satisfy requiresAdmin)', () => {
       mockAuthValues.orgId = 42
       mockAuthValues.role = 'viewer'
       mockAuthValues.orgRole = 'owner'
-      renderDashboard()
-
-      // owner orgRole does not satisfy requiresAdmin (only 'admin' does)
-      expect(screen.queryByTestId('tab-admin')).toBeNull()
-      expect(screen.getByTestId('tab-assessment')).toBeInTheDocument()
+      renderDashboard(['/dashboard?tab=admin'])
+      expect(screen.getByTestId('not-found-page')).toBeInTheDocument()
     })
   })
 

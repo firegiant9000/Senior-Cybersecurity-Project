@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { NavGroup } from '../../config/navigation';
-import '../dashboard/TabBar.css';
+import './AppShell.css';
 
 interface Props {
   groups: NavGroup[];

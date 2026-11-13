@@ -803,7 +803,7 @@
     }
 }
 
-/* Tab styles → components/dashboard/TabBar.css */
+/* Tab styles → components/shell/AppShell.css */
 
 /* Data Table Container */
 .data-table-container {
@@ -1698,7 +1698,7 @@
 }
 
 /* ── Mobile responsive rules ───────────────────────────────────────────── */
-/* .tabs-container .tab → components/dashboard/TabBar.css */
+/* .tabs-container .tab → components/shell/AppShell.css */
 /* .dashboard-header    → components/dashboard/DashboardHeader.css */
 /* .overview-toolbar    → components/dashboard/OverviewTab.css */
 @media (max-width: 768px) {

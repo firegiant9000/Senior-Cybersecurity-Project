@@ -257,11 +257,24 @@ describe('SettingsPage - Member Management', () => {
           '/org-profile',
         )
       })
-      expect(screen.getByRole('link', { name: 'Assessment Debug' })).toHaveAttribute(
-        'href',
-        '/settings/assessment-debug',
-      )
+      expect(screen.queryByRole('link', { name: 'Assessment Debug' })).not.toBeInTheDocument()
       expect(screen.queryByText(/Back to Dashboard/i)).not.toBeInTheDocument()
+    })
+
+    it('shows the Assessment Debug link only to a platform admin', async () => {
+      mockFetchWithAuth.mockResolvedValue({
+        ok: true,
+        json: async () => ({ ...mockUserProfile, role: 'admin' }),
+      })
+
+      renderPage()
+
+      await waitFor(() => {
+        expect(screen.getByRole('link', { name: 'Assessment Debug' })).toHaveAttribute(
+          'href',
+          '/settings/assessment-debug',
+        )
+      })
     })
 
     it('shows loading state initially', () => {

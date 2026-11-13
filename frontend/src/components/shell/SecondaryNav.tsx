@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import type { NavItem } from '../../config/navigation';
-import '../dashboard/SubTabBar.css';
+import './AppShell.css';
 
 interface Props {
   items: NavItem[];
