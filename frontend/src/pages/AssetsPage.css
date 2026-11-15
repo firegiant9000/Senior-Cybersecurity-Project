@@ -1,0 +1,188 @@
+/* Assets screen: static styles, all colours come from theme variables (Dashboard.css). */
+
+.assets-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.assets-risk-panel {
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 12px;
+}
+
+.assets-risk-title {
+  font-size: 12px;
+  color: var(--warn-text);
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.assets-risk-head-row {
+  text-align: left;
+  color: var(--warn-text);
+}
+
+.assets-risk-row {
+  border-top: 1px solid var(--warn-border);
+}
+
+.assets-risk-link {
+  background: transparent;
+  border: none;
+  color: var(--warn-text);
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0;
+}
+
+.assets-risk-note {
+  font-size: 11px;
+  color: var(--warn-text);
+  margin-top: 6px;
+}
+
+.assets-kev-chip {
+  background: var(--error-bg);
+  color: var(--error-text);
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.assets-kev-chip-sm {
+  margin-left: 6px;
+  padding: 1px 5px;
+  font-size: 10px;
+}
+
+.assets-kev-chip-md {
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.assets-vendor-chip {
+  background: var(--border-soft);
+  color: var(--text-primary);
+  border: none;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.assets-vendor-chip-active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.assets-clear-filter {
+  background: transparent;
+  color: var(--text-subtle);
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.assets-error {
+  background: var(--error-bg);
+  color: var(--error-text);
+  padding: 12px;
+  border-radius: 6px;
+}
+
+.assets-error-inline {
+  color: var(--error-text);
+  background: var(--error-bg);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.assets-head-row {
+  background: var(--table-head-bg);
+  text-align: left;
+}
+
+.assets-findings-head-row {
+  background: var(--warn-bg);
+  text-align: left;
+}
+
+.assets-row {
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.assets-tag {
+  background: var(--tab-active-bg);
+  color: var(--tab-active-color);
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.assets-modal-card {
+  background: var(--card-bg);
+  color: var(--text-primary);
+  padding: 24px;
+  border-radius: 8px;
+  max-width: 720px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.assets-tag-editor {
+  margin: 12px 0;
+  padding: 12px;
+  background: var(--surface-muted);
+  border-radius: 6px;
+}
+
+.assets-remediation {
+  background: var(--surface-muted);
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.assets-remediation-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.assets-outline-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.assets-text-secondary {
+  color: var(--text-secondary);
+}
+
+.assets-text-subtle {
+  color: var(--text-subtle);
+}
+
+.assets-link-btn {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-size: 11px;
+  cursor: pointer;
+}

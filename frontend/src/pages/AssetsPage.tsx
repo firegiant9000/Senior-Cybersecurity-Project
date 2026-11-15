@@ -19,6 +19,7 @@ import {
   setAssetTags,
 } from "../api/assets";
 import "../Dashboard.css";
+import "./AssetsPage.css";
 
 /**
  * Month 2 Phase C: Asset inventory page.
@@ -38,7 +39,7 @@ function SummaryStat({
 }) {
   return (
     <div>
-      <div style={{ fontSize: 12, color: "#64748b" }}>{label}</div>
+      <div className="assets-text-subtle" style={{ fontSize: 12 }}>{label}</div>
       <div style={{ color, fontSize: 22, fontWeight: 700, marginTop: 2 }}>
         {value.toLocaleString()}
       </div>
@@ -332,19 +333,8 @@ export default function AssetsPage() {
       </div>
 
       {summary && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-            gap: 12,
-            background: "#f8fafc",
-            border: "1px solid #e2e8f0",
-            borderRadius: 8,
-            padding: 16,
-            marginTop: 16,
-          }}
-        >
-          <SummaryStat label="Assets" value={summary.assets_total} color="#3f51b5" />
+        <div className="assets-summary">
+          <SummaryStat label="Assets" value={summary.assets_total} color="var(--accent)" />
           <SummaryStat
             label="With software"
             value={summary.assets_with_known_software}
@@ -353,17 +343,17 @@ export default function AssetsPage() {
           <SummaryStat
             label="KEV-matched"
             value={summary.assets_with_kev_match}
-            color={summary.assets_with_kev_match > 0 ? "#dc2626" : "#64748b"}
+            color={summary.assets_with_kev_match > 0 ? "var(--color-critical)" : "var(--text-subtle)"}
           />
           <div>
-            <div style={{ fontSize: 12, color: "#64748b" }}>Last upload</div>
+            <div className="assets-text-subtle" style={{ fontSize: 12 }}>Last upload</div>
             <div style={{ fontSize: 14, fontWeight: 600, marginTop: 2 }}>
               {summary.last_inventory_update
                 ? new Date(summary.last_inventory_update).toLocaleString()
                 : "—"}
             </div>
             {summary.last_source && (
-              <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+              <div className="assets-text-subtle" style={{ fontSize: 11, marginTop: 2 }}>
                 via {summary.last_source}
               </div>
             )}
@@ -372,21 +362,11 @@ export default function AssetsPage() {
       )}
 
       {risk && risk.items.length > 0 && (
-        <div
-          style={{
-            background: "#fffbeb",
-            border: "1px solid #fde68a",
-            borderRadius: 8,
-            padding: 16,
-            marginTop: 12,
-          }}
-        >
-          <div style={{ fontSize: 12, color: "#92400e", fontWeight: 700, marginBottom: 6 }}>
-            RISKIEST ASSETS
-          </div>
+        <div className="assets-risk-panel">
+          <div className="assets-risk-title">RISKIEST ASSETS</div>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
-              <tr style={{ textAlign: "left", color: "#92400e" }}>
+              <tr className="assets-risk-head-row">
                 <th style={{ padding: 4 }}>Asset</th>
                 <th style={{ padding: 4 }}>Max CVSS</th>
                 <th style={{ padding: 4 }}>EPSS %ile</th>
@@ -395,36 +375,17 @@ export default function AssetsPage() {
             </thead>
             <tbody>
               {risk.items.map((r) => (
-                <tr key={r.asset_id} style={{ borderTop: "1px solid #fde68a" }}>
+                <tr key={r.asset_id} className="assets-risk-row">
                   <td style={{ padding: 4 }}>
                     <button
                       type="button"
                       onClick={() => openDetail(r.asset_id)}
-                      style={{
-                        background: "transparent",
-                        border: "none",
-                        color: "#92400e",
-                        cursor: "pointer",
-                        fontWeight: 600,
-                        padding: 0,
-                      }}
+                      className="assets-risk-link"
                     >
                       {r.hostname}
                     </button>
                     {r.in_kev && (
-                      <span
-                        style={{
-                          marginLeft: 6,
-                          background: "#fee2e2",
-                          color: "#991b1b",
-                          padding: "1px 5px",
-                          borderRadius: 4,
-                          fontSize: 10,
-                          fontWeight: 700,
-                        }}
-                      >
-                        KEV
-                      </span>
+                      <span className="assets-kev-chip assets-kev-chip-sm">KEV</span>
                     )}
                   </td>
                   <td style={{ padding: 4 }}>{r.max_cvss?.toFixed(1) ?? "—"}</td>
@@ -440,7 +401,7 @@ export default function AssetsPage() {
               ))}
             </tbody>
           </table>
-          <div style={{ fontSize: 11, color: "#a16207", marginTop: 6 }}>{risk.note}</div>
+          <div className="assets-risk-note">{risk.note}</div>
         </div>
       )}
 
@@ -454,7 +415,7 @@ export default function AssetsPage() {
             marginTop: 12,
           }}
         >
-          <span style={{ fontSize: 12, color: "#64748b" }}>Top vendors:</span>
+          <span className="assets-text-subtle" style={{ fontSize: 12 }}>Top vendors:</span>
           {summary.top_vendors.map((v) => {
             const active = vendorFilter === v.vendor;
             return (
@@ -465,15 +426,9 @@ export default function AssetsPage() {
                   setPage(1);
                   setVendorFilter(active ? null : v.vendor);
                 }}
-                style={{
-                  background: active ? "#3f51b5" : "#e2e8f0",
-                  color: active ? "white" : "#0f172a",
-                  border: "none",
-                  borderRadius: 999,
-                  padding: "3px 10px",
-                  fontSize: 12,
-                  cursor: "pointer",
-                }}
+                className={
+                  active ? "assets-vendor-chip assets-vendor-chip-active" : "assets-vendor-chip"
+                }
               >
                 {v.vendor} · {v.asset_count}
               </button>
@@ -486,13 +441,7 @@ export default function AssetsPage() {
                 setPage(1);
                 setVendorFilter(null);
               }}
-              style={{
-                background: "transparent",
-                color: "#64748b",
-                border: "none",
-                fontSize: 12,
-                cursor: "pointer",
-              }}
+              className="assets-clear-filter"
             >
               Clear filter ✕
             </button>
@@ -529,15 +478,13 @@ export default function AssetsPage() {
           onChange={(e) => setTagFilter(e.target.value)}
           style={{ padding: 6, width: 160 }}
         />
-        <span style={{ marginLeft: "auto", fontSize: 13, color: "#64748b" }}>
+        <span className="assets-text-subtle" style={{ marginLeft: "auto", fontSize: 13 }}>
           {total} total · page {page} / {totalPages}
         </span>
       </div>
 
       {error && (
-        <div style={{ background: "#fef2f2", color: "#991b1b", padding: 12, borderRadius: 6 }}>
-          {error}
-        </div>
+        <div className="assets-error">{error}</div>
       )}
 
       {loading ? (
@@ -549,7 +496,7 @@ export default function AssetsPage() {
       ) : (
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#f1f5f9", textAlign: "left" }}>
+            <tr className="assets-head-row">
               <th style={{ padding: 8 }}>Hostname</th>
               <th style={{ padding: 8 }}>OS</th>
               <th style={{ padding: 8 }}>IP</th>
@@ -562,7 +509,7 @@ export default function AssetsPage() {
           </thead>
           <tbody>
             {visible.map(({ asset, kev_match_count }) => (
-              <tr key={asset.id} style={{ borderBottom: "1px solid #e2e8f0" }}>
+              <tr key={asset.id} className="assets-row">
                 <td style={{ padding: 8 }}>
                   <strong>{asset.hostname}</strong>
                 </td>
@@ -575,37 +522,27 @@ export default function AssetsPage() {
                 </td>
                 <td style={{ padding: 8 }}>
                   {kev_match_count > 0 ? (
-                    <span style={{ color: "#dc2626", fontWeight: 600 }}>
+                    <span style={{ color: "var(--color-critical)", fontWeight: 600 }}>
                       {kev_match_count}
                     </span>
                   ) : (
-                    <span style={{ color: "#64748b" }}>0</span>
+                    <span className="assets-text-subtle">0</span>
                   )}
                 </td>
                 <td style={{ padding: 8 }}>
                   {(asset.tags ?? []).length === 0 ? (
-                    <span style={{ color: "#94a3b8", fontSize: 11 }}>—</span>
+                    <span className="assets-text-subtle" style={{ fontSize: 11 }}>—</span>
                   ) : (
                     <span style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                       {(asset.tags ?? []).map((t) => (
-                        <span
-                          key={t}
-                          style={{
-                            background: "#e0e7ff",
-                            color: "#3730a3",
-                            padding: "1px 6px",
-                            borderRadius: 6,
-                            fontSize: 10,
-                            fontWeight: 600,
-                          }}
-                        >
+                        <span key={t} className="assets-tag">
                           {t}
                         </span>
                       ))}
                     </span>
                   )}
                 </td>
-                <td style={{ padding: 8, fontSize: 12, color: "#475569" }}>
+                <td className="assets-text-secondary" style={{ padding: 8, fontSize: 12 }}>
                   {new Date(asset.last_seen).toLocaleDateString()}
                 </td>
                 <td style={{ padding: 8 }}>
@@ -650,23 +587,15 @@ export default function AssetsPage() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "white",
-              padding: 24,
-              borderRadius: 8,
-              maxWidth: 720,
-              width: "90%",
-              maxHeight: "80vh",
-              overflowY: "auto",
-            }}
+            className="assets-modal-card"
           >
             <h2 style={{ marginTop: 0 }}>{detail.asset.hostname}</h2>
             <p>
               {detail.asset.os_name} {detail.asset.os_version} · {detail.asset.ip_address ?? "no IP"}{" "}
               · <SourceBadge via={detail.asset.discovered_via} />
             </p>
-            <div style={{ margin: "12px 0", padding: 12, background: "#f8fafc", borderRadius: 6 }}>
-              <div style={{ fontSize: 12, color: "#64748b", marginBottom: 4 }}>
+            <div className="assets-tag-editor">
+              <div className="assets-text-subtle" style={{ fontSize: 12, marginBottom: 4 }}>
                 Tags (comma-separated)
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -694,15 +623,8 @@ export default function AssetsPage() {
                 onClick={refreshFindings}
                 disabled={findingsLoading || findingsRefreshing}
                 title="Re-run the version-aware matcher against this asset's software"
-                style={{
-                  background: "transparent",
-                  border: "1px solid #cbd5e1",
-                  color: "#475569",
-                  borderRadius: 6,
-                  padding: "2px 8px",
-                  fontSize: 11,
-                  cursor: "pointer",
-                }}
+                className="assets-outline-btn assets-text-secondary"
+                style={{ padding: "2px 8px" }}
               >
                 {findingsRefreshing ? "Recomputing…" : "Recompute"}
               </button>
@@ -710,26 +632,20 @@ export default function AssetsPage() {
             {findingsError && (
               <p
                 role="alert"
-                style={{
-                  color: "#991b1b",
-                  background: "#fee2e2",
-                  borderRadius: 6,
-                  padding: "6px 10px",
-                  fontSize: 13,
-                }}
+                className="assets-error-inline"
               >
                 {findingsError}
               </p>
             )}
             {findings && findings.items.length === 0 && !findingsLoading && (
-              <p style={{ color: "#64748b", fontSize: 13 }}>
+              <p className="assets-text-subtle" style={{ fontSize: 13 }}>
                 No CVEs match this asset's software.
               </p>
             )}
             {findings && findings.items.length > 0 && (
               <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12 }}>
                 <thead>
-                  <tr style={{ background: "#fff7ed", textAlign: "left" }}>
+                  <tr className="assets-findings-head-row">
                     <th style={{ padding: 6 }}>CVE</th>
                     <th style={{ padding: 6 }}>Software</th>
                     <th style={{ padding: 6 }}>Confidence</th>
@@ -747,8 +663,8 @@ export default function AssetsPage() {
                     return (
                       <tr
                         key={m.finding_id}
+                        className="assets-row"
                         style={{
-                          borderBottom: "1px solid #e2e8f0",
                           opacity: deemphasized || isFalsePositive ? 0.55 : 1,
                           textDecoration: isFalsePositive ? "line-through" : "none",
                         }}
@@ -772,23 +688,13 @@ export default function AssetsPage() {
                         </td>
                         <td style={{ padding: 6 }}>
                           {m.in_kev && (
-                            <span
-                              style={{
-                                background: "#fee2e2",
-                                color: "#991b1b",
-                                padding: "2px 6px",
-                                borderRadius: 4,
-                                fontSize: 11,
-                                fontWeight: 600,
-                              }}
-                            >
-                              KEV
-                            </span>
+                            <span className="assets-kev-chip assets-kev-chip-md">KEV</span>
                           )}
                         </td>
                         <td style={{ padding: 6, whiteSpace: "nowrap" }}>
                           <span
-                            style={{ fontSize: 12, color: "#475569" }}
+                            className="assets-text-secondary"
+                            style={{ fontSize: 12 }}
                             aria-label={
                               isFalsePositive ? "Status: false positive (dismissed)" : undefined
                             }
@@ -803,16 +709,8 @@ export default function AssetsPage() {
                               }
                               disabled={findingActionId === m.finding_id}
                               title="Flag this match as a false positive"
-                              style={{
-                                marginLeft: 8,
-                                background: "transparent",
-                                border: "1px solid #cbd5e1",
-                                color: "#64748b",
-                                borderRadius: 6,
-                                padding: "2px 6px",
-                                fontSize: 11,
-                                cursor: "pointer",
-                              }}
+                              className="assets-outline-btn assets-text-subtle"
+                              style={{ marginLeft: 8, padding: "2px 6px" }}
                             >
                               {findingActionId === m.finding_id
                                 ? "…"
@@ -825,14 +723,8 @@ export default function AssetsPage() {
                               onClick={() => updateFindingStatus(m.finding_id, "open")}
                               disabled={findingActionId === m.finding_id}
                               title="Undo false-positive flag"
-                              style={{
-                                marginLeft: 8,
-                                background: "transparent",
-                                border: "none",
-                                color: "#2563eb",
-                                fontSize: 11,
-                                cursor: "pointer",
-                              }}
+                              className="assets-link-btn"
+                              style={{ marginLeft: 8 }}
                             >
                               Undo
                             </button>
@@ -846,25 +738,8 @@ export default function AssetsPage() {
             )}
             {findings &&
               findings.items.some((m) => m.remediation_summary) && (
-                <div
-                  style={{
-                    background: "#f8fafc",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: 6,
-                    padding: 12,
-                    marginBottom: 12,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: "#475569",
-                      marginBottom: 6,
-                    }}
-                  >
-                    Remediation
-                  </div>
+                <div className="assets-remediation">
+                  <div className="assets-remediation-title">Remediation</div>
                   <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
                     {findings.items
                       .filter((m) => m.remediation_summary)
@@ -878,7 +753,7 @@ export default function AssetsPage() {
                 </div>
               )}
             {findings && (
-              <p style={{ fontSize: 11, color: "#94a3b8", marginTop: -8, marginBottom: 12 }}>
+              <p className="assets-text-subtle" style={{ fontSize: 11, marginTop: -8, marginBottom: 12 }}>
                 {findings.note}
               </p>
             )}
@@ -889,7 +764,7 @@ export default function AssetsPage() {
             ) : (
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr style={{ background: "#f1f5f9", textAlign: "left" }}>
+                  <tr className="assets-head-row">
                     <th style={{ padding: 6 }}>Vendor</th>
                     <th style={{ padding: 6 }}>Product</th>
                     <th style={{ padding: 6 }}>Version</th>
@@ -897,7 +772,7 @@ export default function AssetsPage() {
                 </thead>
                 <tbody>
                   {detail.software.map((s) => (
-                    <tr key={s.id} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                    <tr key={s.id} className="assets-row">
                       <td style={{ padding: 6 }}>{s.vendor}</td>
                       <td style={{ padding: 6 }}>{s.product}</td>
                       <td style={{ padding: 6 }}>{s.version ?? "—"}</td>
@@ -912,19 +787,19 @@ export default function AssetsPage() {
                 <h3 style={{ marginTop: 20 }}>
                   Running services ({detail.services.length})
                 </h3>
-                <p style={{ fontSize: 11, color: "#94a3b8", marginTop: -8, marginBottom: 12 }}>
+                <p className="assets-text-subtle" style={{ fontSize: 11, marginTop: -8, marginBottom: 12 }}>
                   Latest snapshot from the host scanner.
                 </p>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
-                    <tr style={{ background: "#f1f5f9", textAlign: "left" }}>
+                    <tr className="assets-head-row">
                       <th style={{ padding: 6 }}>Service</th>
                       <th style={{ padding: 6 }}>State</th>
                     </tr>
                   </thead>
                   <tbody>
                     {detail.services.map((svc) => (
-                      <tr key={svc.name} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                      <tr key={svc.name} className="assets-row">
                         <td style={{ padding: 6 }}>{svc.name}</td>
                         <td style={{ padding: 6 }}>{svc.state ?? "—"}</td>
                       </tr>
@@ -939,12 +814,12 @@ export default function AssetsPage() {
                 <h3 style={{ marginTop: 20 }}>
                   Listening ports ({detail.listening_ports.length})
                 </h3>
-                <p style={{ fontSize: 11, color: "#94a3b8", marginTop: -8, marginBottom: 12 }}>
+                <p className="assets-text-subtle" style={{ fontSize: 11, marginTop: -8, marginBottom: 12 }}>
                   Collected only when the scanner is run with --include-ports.
                 </p>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
-                    <tr style={{ background: "#f1f5f9", textAlign: "left" }}>
+                    <tr className="assets-head-row">
                       <th style={{ padding: 6 }}>Port</th>
                       <th style={{ padding: 6 }}>Protocol</th>
                       <th style={{ padding: 6 }}>Process</th>
@@ -952,10 +827,7 @@ export default function AssetsPage() {
                   </thead>
                   <tbody>
                     {detail.listening_ports.map((p) => (
-                      <tr
-                        key={`${p.protocol}/${p.port}`}
-                        style={{ borderBottom: "1px solid #e2e8f0" }}
-                      >
+                      <tr key={`${p.protocol}/${p.port}`} className="assets-row">
                         <td style={{ padding: 6 }}>{p.port}</td>
                         <td style={{ padding: 6 }}>{p.protocol}</td>
                         <td style={{ padding: 6 }}>{p.process ?? "—"}</td>

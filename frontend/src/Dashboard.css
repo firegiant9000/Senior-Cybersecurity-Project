@@ -27,6 +27,9 @@
     --warn-bg:          #fef3c7;
     --warn-border:      #d97706;
     --warn-text:        #78350f;
+    --surface-muted:    #f8fafc;
+    --border-soft:      #e2e8f0;
+    --text-subtle:      #64748b;
 }
 
 [data-theme="dark"] {
@@ -57,6 +60,9 @@
     --warn-bg:          #2d1c00;
     --warn-border:      #d97706;
     --warn-text:        #fcd34d;
+    --surface-muted:    #1e293b;
+    --border-soft:      #334155;
+    --text-subtle:      #94a3b8;
 }
 
 /*Main Background and font */
