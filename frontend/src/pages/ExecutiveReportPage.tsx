@@ -159,10 +159,13 @@ const ExecutiveReportPage: React.FC = () => {
 
         {/* Risk Snapshot */}
         <section className="exec-report-section">
-          <h2 className="exec-report-section-title">
-            Risk Snapshot
-            <SourceBadge datasetKey="executive_summary" className="widget-source-badge" />
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <h2 className="exec-report-section-title">Risk Snapshot</h2>
+            <SourceBadge
+              datasetKeys={['executive_summary', 'ic3_incidents']}
+              className="widget-source-badge"
+            />
+          </div>
           <div className="exec-report-risk-row">
             <div className="exec-report-risk-score">
               <span className="exec-report-risk-score-value">{summary.risk_score}</span>
@@ -193,7 +196,10 @@ const ExecutiveReportPage: React.FC = () => {
         {/* Top threats */}
         {summary.top_threats.length > 0 && (
           <section className="exec-report-section">
-            <h2 className="exec-report-section-title">Most Costly Attack Types</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <h2 className="exec-report-section-title">Most Costly Attack Types</h2>
+              <SourceBadge datasetKey="ic3_incidents" className="widget-source-badge" />
+            </div>
             <table className="exec-report-table">
               <thead>
                 <tr>
@@ -220,10 +226,10 @@ const ExecutiveReportPage: React.FC = () => {
         {/* Projected loss */}
         {loss?.has_data && (
           <section className="exec-report-section">
-            <h2 className="exec-report-section-title">
-              Projected Annual Loss
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <h2 className="exec-report-section-title">Projected Annual Loss</h2>
               <SourceBadge datasetKey="loss_projection" className="widget-source-badge" />
-            </h2>
+            </div>
             <div className="exec-report-loss-row">
               <div className="exec-report-loss-headline">
                 <span className="exec-report-loss-value">{loss.projected_annual_loss_formatted}</span>

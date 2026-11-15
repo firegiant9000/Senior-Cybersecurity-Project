@@ -25,8 +25,8 @@ vi.mock('../../api/findings', () => ({
 }))
 
 vi.mock('../../components/shared/SourceBadge', () => ({
-  default: ({ datasetKey }: { datasetKey: string }) => (
-    <span data-testid="source-badge" data-dataset-key={datasetKey} />
+  default: ({ datasetKey, datasetKeys }: { datasetKey?: string; datasetKeys?: string[] }) => (
+    <span data-testid="source-badge" data-dataset-key={datasetKey ?? datasetKeys?.join(',')} />
   ),
 }))
 
@@ -50,17 +50,36 @@ beforeEach(() => {
 })
 
 describe('ExecutiveReportPage source badge', () => {
-  it('labels the report with the executive_summary source badge', async () => {
+  it('labels Risk Snapshot with the least confident of its inputs (static IC3)', async () => {
     const { container } = render(
       <MemoryRouter>
         <ExecutiveReportPage />
       </MemoryRouter>,
     )
-    await screen.findByRole('heading', { name: /Risk Snapshot/ })
+    const heading = await screen.findByRole('heading', { name: 'Risk Snapshot' })
 
-    const badge = container.querySelector('[data-dataset-key="executive_summary"]')
+    const badge = container.querySelector('[data-dataset-key="executive_summary,ic3_incidents"]')
     expect(badge).toBeInTheDocument()
-    expect(badge?.closest('h2')).not.toBeNull()
+    expect(badge?.closest('h2')).toBeNull()
+    expect(badge?.closest('section')).toBe(heading.closest('section'))
+  })
+
+  it('labels Most Costly Attack Types with the ic3_incidents badge', async () => {
+    mockSummary.mockResolvedValue({
+      ...(await mockSummary()),
+      top_threats: [{ name: 'BEC', complaint_count: 10, total_loss: 1000 }],
+    })
+    const { container } = render(
+      <MemoryRouter>
+        <ExecutiveReportPage />
+      </MemoryRouter>,
+    )
+    const heading = await screen.findByRole('heading', { name: 'Most Costly Attack Types' })
+
+    const badge = container.querySelector('[data-dataset-key="ic3_incidents"]')
+    expect(badge).toBeInTheDocument()
+    expect(badge?.closest('h2')).toBeNull()
+    expect(badge?.closest('section')).toBe(heading.closest('section'))
   })
 
   it('labels the Projected Annual Loss section with the loss_projection badge', async () => {
@@ -82,11 +101,12 @@ describe('ExecutiveReportPage source badge', () => {
         <ExecutiveReportPage />
       </MemoryRouter>,
     )
-    await screen.findByRole('heading', { name: /Projected Annual Loss/ })
+    const heading = await screen.findByRole('heading', { name: 'Projected Annual Loss' })
 
     const badge = container.querySelector('[data-dataset-key="loss_projection"]')
     expect(badge).toBeInTheDocument()
-    expect(badge?.closest('h2')).toHaveTextContent('Projected Annual Loss')
+    expect(badge?.closest('h2')).toBeNull()
+    expect(badge?.closest('section')).toBe(heading.closest('section'))
   })
 
   it('shows no badge while the report is still generating', () => {

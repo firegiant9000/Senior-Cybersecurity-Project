@@ -111,6 +111,22 @@ describe('AISummaryTab (characterisation)', () => {
     expect(container.querySelector('[data-dataset-key="ai_summary"]')).toBeInTheDocument()
   })
 
+  it('shows no ai_summary badge for a template-based summary', async () => {
+    routeFetch(() => jsonResponse(makeSummary({ ai_generated: false })))
+    const { container } = renderTab()
+    await screen.findByText('Template-Based', {}, FIND_TIMEOUT)
+
+    expect(container.querySelector('[data-dataset-key="ai_summary"]')).toBeNull()
+  })
+
+  it('shows no ai_summary badge for a cached summary', async () => {
+    routeFetch(() => jsonResponse(makeSummary({ cached: true })))
+    const { container } = renderTab()
+    await screen.findByText('Cached', {}, FIND_TIMEOUT)
+
+    expect(container.querySelector('[data-dataset-key="ai_summary"]')).toBeNull()
+  })
+
   it('Regenerate requests the summary again with force_refresh=true', async () => {
     routeFetch(() => jsonResponse(makeSummary()))
     renderTab()

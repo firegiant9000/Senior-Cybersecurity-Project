@@ -375,7 +375,7 @@ function TopThreatsCard({ threats, loading }: {
         <p className="smb-empty">Select your industry to see specific threats.</p>
       ) : (
         <div className="smb-threats-list">
-          <SourceBadge datasetKey="ic3_incidents" className="widget-source-badge" />
+          <SourceBadge datasetKey="ic3_sector_attack_matrix" className="widget-source-badge" />
           {top5.map((t, i) => {
             const info = THREAT_ACTIONS[t.attack_type];
             const icon = info?.icon ?? '🔴';
@@ -554,6 +554,7 @@ function StateRiskCard({ stateCode, stateProfile, allStates, loading }: {
         <p className="smb-empty">Select your state above to see local risk data.</p>
       ) : (
         <>
+          <SourceBadge datasetKey="ic3_geographic" className="widget-source-badge" />
           <div className="smb-state-stats">
             <div className="smb-stat-item">
               <span className="smb-stat-value">#{stateRank ?? '—'}</span>
@@ -832,6 +833,8 @@ function OrgRiskScoreCard() {
       {loading ? (
         <WidgetSkeleton />
       ) : !data ? null : (
+        <>
+        <SourceBadge datasetKey="org_risk_score" className="widget-source-badge" />
         <div className="smb-org-risk-body">
           <Link
             to="/org/findings"
@@ -918,6 +921,7 @@ function OrgRiskScoreCard() {
             </div>
           )}
         </div>
+        </>
       )}
     </div>
   );

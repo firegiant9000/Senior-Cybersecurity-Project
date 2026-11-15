@@ -24,12 +24,12 @@ const data: DashboardData = {
 }
 
 describe('ThreatOverviewWidget source badge', () => {
-  it('carries one badge for the kev and risk_score datasets', async () => {
+  it('carries one badge for the nvd_cves, kev and risk_score datasets', async () => {
     const { container } = render(<ThreatOverviewWidget data={data} loading={false} />)
     await waitFor(() => expect(container.textContent).toContain('Last CVE ingest'))
 
     const badges = container.querySelectorAll('[data-testid="source-badge"]')
     expect(badges).toHaveLength(1)
-    expect(badges[0]).toHaveAttribute('data-dataset-key', 'kev,risk_score')
+    expect(badges[0]).toHaveAttribute('data-dataset-key', 'nvd_cves,kev,risk_score')
   })
 })

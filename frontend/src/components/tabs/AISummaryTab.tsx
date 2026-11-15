@@ -252,7 +252,9 @@ const AISummaryTab: React.FC = () => {
       <div className="ai-summary-header">
         <div className="ai-summary-title-row">
           <h2 className="ai-summary-title">Executive Summary</h2>
-          <SourceBadge datasetKey="ai_summary" className="widget-source-badge" />
+          {data.ai_generated && !data.cached && (
+            <SourceBadge datasetKey="ai_summary" className="widget-source-badge" />
+          )}
           <div className="ai-summary-badges">
             {data.ai_generated ? (
               <span className="ai-badge ai-badge--ai">AI-Generated</span>

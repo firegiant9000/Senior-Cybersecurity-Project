@@ -207,11 +207,13 @@ const VendorAlertsTab: React.FC = () => {
   return (
     <div className="tab-page">
       <div className="vendor-alerts-header">
-        <h2 className="vendor-alerts-heading">
-          Vendor Alerts
-          <InfoTip text={VENDOR_ALERT_TIP} label="Vendor Alerts" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <h2 className="vendor-alerts-heading">
+            Vendor Alerts
+            <InfoTip text={VENDOR_ALERT_TIP} label="Vendor Alerts" />
+          </h2>
           <SourceBadge datasetKey="vendor_alerts" className="widget-source-badge" />
-        </h2>
+        </div>
         <div className="vendor-alerts-actions">
           <RefreshButton
             onClick={() => load(page)}

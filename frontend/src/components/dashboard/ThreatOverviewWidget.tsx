@@ -66,7 +66,7 @@ const ThreatOverviewWidget: React.FC<Props> = ({ data, loading }) => {
       <div className="threat-overview-header">
         <span className="threat-overview-header__title">
           Threat Intelligence Overview{' '}
-          <SourceBadge datasetKeys={['kev', 'risk_score']} />
+          <SourceBadge datasetKeys={['nvd_cves', 'kev', 'risk_score']} />
         </span>
         <span className="threat-overview-header__ingest">
           {lastIngestAt

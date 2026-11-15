@@ -160,6 +160,7 @@ export default function AssetsPage() {
   const [kevOnly, setKevOnly] = useState(false);
   const [summary, setSummary] = useState<InventoryHealth | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadedOnce, setLoadedOnce] = useState(false);
   const [error, setError] = useState("");
   const [detail, setDetail] = useState<AssetDetailResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -191,6 +192,7 @@ export default function AssetsPage() {
       setError((e as Error).message);
     } finally {
       setLoading(false);
+      setLoadedOnce(true);
     }
   }, [orgId, page, hostname, vendorFilter]);
 
@@ -322,16 +324,19 @@ export default function AssetsPage() {
         : true,
     );
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  // Only badge data that has actually loaded: not before the first load, with
+  // no org, while loading, or when the load failed.
+  const showBadges = Boolean(orgId) && loadedOnce && !loading && !error;
 
   return (
     <div className="dashboard-page" style={{ padding: 24, maxWidth: 1100, margin: "0 auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1>
-          Assets
-          {!loading && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <h1>Assets</h1>
+          {showBadges && (
             <SourceBadge datasetKey="assets_inventory" className="widget-source-badge" />
           )}
-        </h1>
+        </div>
         <Link to="/org/assets/upload">
           <button type="button">Upload CSV</button>
         </Link>
@@ -538,6 +543,9 @@ export default function AssetsPage() {
         <span style={{ marginLeft: "auto", fontSize: 13, color: "#64748b" }}>
           {total} total · page {page} / {totalPages}
         </span>
+        {showBadges && visible.length > 0 && (
+          <SourceBadge datasetKey="asset_kev_matches" className="widget-source-badge" />
+        )}
       </div>
 
       {error && (
@@ -560,10 +568,7 @@ export default function AssetsPage() {
               <th style={{ padding: 8 }}>OS</th>
               <th style={{ padding: 8 }}>IP</th>
               <th style={{ padding: 8 }}>Source</th>
-              <th style={{ padding: 8 }}>
-                KEV matches
-                <SourceBadge datasetKey="asset_kev_matches" className="widget-source-badge" />
-              </th>
+              <th style={{ padding: 8 }}>KEV matches</th>
               <th style={{ padding: 8 }}>Tags</th>
               <th style={{ padding: 8 }}>Last seen</th>
               <th />

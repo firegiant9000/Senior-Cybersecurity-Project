@@ -39,6 +39,7 @@ for human review and audit purposes.
 | `risk_score`                 | Vulnerabilities summary strip; Threat Overview | real     | Derived from CVSS + KEV signals                                      |
 | `vendor_alerts`              | Vendor Alerts card                       | real     | KEV matches against the org's declared vendor stack                  |
 | `loss_projection`            | Projected Annual Loss card               | static   | Statistical model over IC3 sector benchmarks                         |
+| `org_risk_score`             | SMB Advisor: Org Risk Score card         | static   | Org profile scored against static IC3 sector weights and size factors |
 | `ai_summary`                 | AI Summary tab                           | real     | LLM-generated summary over current dashboard signals                 |
 | `domain_checks`              | Findings: sources used in this scan      | pending  | HIBP / Shodan / OTX — Month 1 Phase E (#110)                         |
 | `anomalies_ic3`              | Anomalies: IC3 State Anomalies           | static   | Statistical z-score over IC3 static dataset                          |

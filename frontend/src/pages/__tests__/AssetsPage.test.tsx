@@ -134,11 +134,14 @@ describe('AssetsPage source badges', () => {
 
     const inventory = container.querySelector('[data-dataset-key="assets_inventory"]')
     expect(inventory).toBeInTheDocument()
-    expect(inventory?.closest('h1')).not.toBeNull()
+    const h1 = screen.getByRole('heading', { level: 1, name: 'Assets' })
+    expect(inventory?.closest('h1')).toBeNull()
+    expect(inventory?.parentElement).toBe(h1.parentElement)
 
     const kev = container.querySelector('[data-dataset-key="asset_kev_matches"]')
     expect(kev).toBeInTheDocument()
-    expect(kev?.closest('th')).toHaveTextContent('KEV matches')
+    expect(kev?.closest('th')).toBeNull()
+    expect(screen.getByRole('columnheader', { name: 'KEV matches' })).toBeInTheDocument()
   })
 
   it('keeps the inventory badge when the inventory is empty', async () => {
@@ -148,7 +151,18 @@ describe('AssetsPage source badges', () => {
 
     const inventory = container.querySelector('[data-dataset-key="assets_inventory"]')
     expect(inventory).toBeInTheDocument()
-    expect(inventory?.closest('h1')).not.toBeNull()
+    const h1 = screen.getByRole('heading', { level: 1, name: 'Assets' })
+    expect(inventory?.parentElement).toBe(h1.parentElement)
+    expect(container.querySelector('[data-dataset-key="asset_kev_matches"]')).toBeNull()
+  })
+
+  it('shows no badges when the inventory fails to load', async () => {
+    mockListAssets.mockRejectedValue(new Error('boom'))
+    const { container } = renderPage()
+    await screen.findByText('boom')
+
+    expect(container.querySelector('[data-dataset-key="assets_inventory"]')).toBeNull()
+    expect(container.querySelector('[data-dataset-key="asset_kev_matches"]')).toBeNull()
   })
 
   it('shows no badges while the inventory is loading', () => {

@@ -6,8 +6,18 @@ import DataSourcesTab from '../DataSourcesTab'
 vi.mock('../../../firebase', () => ({
   auth: { currentUser: null },
 }))
-vi.mock('../IC3Table', () => ({ default: () => <div data-testid="ic3-table">IC3</div> }))
-vi.mock('../EconomicsTable', () => ({ default: () => <div data-testid="economics-table">Economics</div> }))
+// The tables own their source badge (rendered only once they have data), so the
+// mocks echo the datasetKey the tab hands them.
+vi.mock('../IC3Table', () => ({
+  default: ({ datasetKey }: { datasetKey: string }) => (
+    <div data-testid="ic3-table" data-dataset-key={datasetKey}>IC3</div>
+  ),
+}))
+vi.mock('../EconomicsTable', () => ({
+  default: ({ datasetKey }: { datasetKey: string }) => (
+    <div data-testid="economics-table" data-dataset-key={datasetKey}>Economics</div>
+  ),
+}))
 
 vi.mock('../../shared/SourceBadge', () => ({
   default: ({ datasetKey }: { datasetKey: string }) => (
@@ -68,22 +78,20 @@ describe('DataSourcesTab', () => {
     expect(screen.getByRole('link', { name: 'IC3 Incidents' })).not.toHaveAttribute('aria-current')
   })
 
-  it('labels the IC3 dataset with ic3_incidents', async () => {
+  it('hands the IC3 table the ic3_incidents key and renders no badge itself', async () => {
     renderAt('/intel/reference/ic3')
-    await screen.findByTestId('ic3-table')
+    const table = await screen.findByTestId('ic3-table')
 
-    const badges = screen.getAllByTestId('source-badge')
-    expect(badges).toHaveLength(1)
-    expect(badges[0]).toHaveAttribute('data-dataset-key', 'ic3_incidents')
+    expect(table).toHaveAttribute('data-dataset-key', 'ic3_incidents')
+    expect(screen.queryByTestId('source-badge')).toBeNull()
   })
 
-  it('labels the Economics dataset with bea_economics', async () => {
+  it('hands the Economics table the bea_economics key and renders no badge itself', async () => {
     renderAt('/intel/reference/economics')
-    await screen.findByTestId('economics-table')
+    const table = await screen.findByTestId('economics-table')
 
-    const badges = screen.getAllByTestId('source-badge')
-    expect(badges).toHaveLength(1)
-    expect(badges[0]).toHaveAttribute('data-dataset-key', 'bea_economics')
+    expect(table).toHaveAttribute('data-dataset-key', 'bea_economics')
+    expect(screen.queryByTestId('source-badge')).toBeNull()
   })
 
   it('sends /intel/reference/cisa to the KEV view on Vulnerabilities', async () => {

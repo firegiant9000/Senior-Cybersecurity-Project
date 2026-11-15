@@ -60,10 +60,12 @@ describe('VendorAlertsTab source badge', () => {
         <VendorAlertsTab />
       </MemoryRouter>,
     )
-    await screen.findByRole('heading', { name: /Vendor Alerts/ })
+    const heading = await screen.findByRole('heading', { name: /Vendor Alerts/ })
 
     const badge = container.querySelector('[data-dataset-key="vendor_alerts"]')
     expect(badge).toBeInTheDocument()
+    expect(badge?.closest('h2')).toBeNull()
+    expect(badge?.parentElement).toBe(heading.parentElement)
     expect(badge?.closest('.vendor-alerts-header')).not.toBeNull()
   })
 

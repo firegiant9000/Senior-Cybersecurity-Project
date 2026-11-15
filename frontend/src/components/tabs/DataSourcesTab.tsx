@@ -2,7 +2,6 @@ import React, { Suspense, lazy } from 'react';
 import { NavLink, Navigate, useParams } from 'react-router-dom';
 import { API_BASE_URL } from '../../api/fetchWithAuth';
 import WidgetSkeleton from '../shared/WidgetSkeleton';
-import SourceBadge from '../shared/SourceBadge';
 
 const IC3Table = lazy(() => import('./IC3Table'));
 const EconomicsTable = lazy(() => import('./EconomicsTable'));
@@ -63,14 +62,13 @@ const DataSourcesTab: React.FC = () => {
 
       {/* Dataset description */}
       <p style={{ fontSize: 12, color: 'var(--text-muted, #64748b)', marginBottom: 16 }}>
-        {current.description}{' '}
-        <SourceBadge datasetKey={current.datasetKey} />
+        {current.description}
       </p>
 
       {/* Content */}
       <Suspense fallback={<WidgetSkeleton />}>
-        {current.id === 'ic3'       && <IC3Table      apiBaseUrl={API_BASE_URL} />}
-        {current.id === 'economics' && <EconomicsTable apiBaseUrl={API_BASE_URL} />}
+        {current.id === 'ic3'       && <IC3Table      apiBaseUrl={API_BASE_URL} datasetKey={current.datasetKey} />}
+        {current.id === 'economics' && <EconomicsTable apiBaseUrl={API_BASE_URL} datasetKey={current.datasetKey} />}
       </Suspense>
     </div>
   );
