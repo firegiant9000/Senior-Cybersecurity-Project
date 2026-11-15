@@ -201,6 +201,101 @@ describe('FindingsTab characterisation', () => {
     ).not.toBeChecked()
   })
 
+  it('when both toggles fail the row reverts to the original status with one alert', async () => {
+    mockFetchFindings.mockResolvedValue(twoFindings())
+    let rejectFirst: (e: Error) => void = () => {}
+    let rejectSecond: (e: Error) => void = () => {}
+    mockPatchStatus
+      .mockImplementationOnce(() => new Promise((_, rej) => { rejectFirst = rej }))
+      .mockImplementationOnce(() => new Promise((_, rej) => { rejectSecond = rej }))
+    renderTab()
+    await screen.findByText('Threat alpha', {}, SLOW)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as open' }))
+    await waitFor(() => expect(mockPatchStatus).toHaveBeenCalledTimes(2))
+
+    await act(async () => {
+      rejectFirst(new Error('first'))
+    })
+    await act(async () => {
+      rejectSecond(new Error('second'))
+    })
+
+    expect(await screen.findAllByRole('alert')).toHaveLength(1)
+    expect(
+      screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }),
+    ).not.toBeChecked()
+  })
+
+  it('a reload invalidates in-flight attempts: the old failure is ignored', async () => {
+    const reloaded = makeReport([
+      makeFinding({ id: 'a', stable_key: 'key-a', title: 'Threat alpha', status: 'done' }),
+    ])
+    mockFetchFindings.mockResolvedValueOnce(twoFindings()).mockResolvedValue(reloaded)
+    let rejectOld: (e: Error) => void = () => {}
+    mockPatchStatus.mockImplementationOnce(
+      () => new Promise((_, rej) => { rejectOld = rej }),
+    )
+    renderTab()
+    await screen.findByText('Threat alpha', {}, SLOW)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+    await waitFor(() => expect(mockFetchFindings).toHaveBeenCalledTimes(2))
+    expect(
+      await screen.findByRole('checkbox', { name: 'Mark "Threat alpha" as open' }, SLOW),
+    ).toBeChecked()
+
+    await act(async () => {
+      rejectOld(new Error('late'))
+    })
+
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(
+      screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as open' }),
+    ).toBeChecked()
+  })
+
+  it('a reload clears an existing row error', async () => {
+    mockFetchFindings.mockResolvedValue(twoFindings())
+    mockPatchStatus.mockRejectedValue(new Error('boom'))
+    renderTab()
+    await screen.findByText('Threat alpha', {}, SLOW)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }))
+    await screen.findByRole('alert')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+    expect(await screen.findByText('Threat alpha', {}, SLOW)).toBeInTheDocument()
+  })
+
+  it('a stale success does not dispatch the status-changed event', async () => {
+    mockFetchFindings.mockResolvedValue(twoFindings())
+    let resolveFirst: (v: unknown) => void = () => {}
+    mockPatchStatus
+      .mockImplementationOnce(() => new Promise((res) => { resolveFirst = res }))
+      .mockResolvedValueOnce({ stable_key: 'key-a', status: 'open' })
+    const handler = vi.fn()
+    window.addEventListener('hackertracker:finding-status-changed', handler)
+    try {
+      renderTab()
+      await screen.findByText('Threat alpha', {}, SLOW)
+
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as open' }))
+      await waitFor(() => expect(handler).toHaveBeenCalledTimes(1))
+
+      await act(async () => {
+        resolveFirst({ stable_key: 'key-a', status: 'done' })
+      })
+      expect(handler).toHaveBeenCalledTimes(1)
+    } finally {
+      window.removeEventListener('hackertracker:finding-status-changed', handler)
+    }
+  })
+
   it('two failures show two row errors', async () => {
     mockFetchFindings.mockResolvedValue(twoFindings())
     mockPatchStatus.mockRejectedValue(new Error('boom'))

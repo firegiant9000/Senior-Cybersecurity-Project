@@ -74,6 +74,10 @@ const FindingsTab: React.FC = () => {
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   // Latest status-change attempt per stable_key, to ignore stale failures.
   const attemptsRef = useRef<Record<string, number>>({});
+  // Bumped on every (re)load so in-flight attempts from before it are ignored.
+  const genRef = useRef(0);
+  // Last server-confirmed status per stable_key (from load data / successful patch).
+  const confirmedRef = useRef<Record<string, FindingStatus>>({});
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [history, setHistory] = useState<SnapshotListItem[]>([]);
@@ -96,9 +100,17 @@ const FindingsTab: React.FC = () => {
     setMinLoadingDone(false);
     setError('');
     setRowErrors({});
+    genRef.current += 1;
+    attemptsRef.current = {};
+    confirmedRef.current = {};
     const minTimer = setTimeout(() => setMinLoadingDone(true), MIN_LOADING_MS);
     fetchFindings(controller.signal)
-      .then(setReport)
+      .then((data) => {
+        confirmedRef.current = Object.fromEntries(
+          data.findings.map((f) => [f.stable_key, f.status]),
+        );
+        setReport(data);
+      })
       .catch((err) => {
         if (err instanceof DOMException && err.name === 'AbortError') return;
         setError(err instanceof Error ? err.message : 'Failed to load findings');
@@ -135,6 +147,7 @@ const FindingsTab: React.FC = () => {
 
   const setFindingStatus = useCallback(
     async (finding: Finding, nextStatus: FindingStatus) => {
+      const gen = genRef.current;
       const attempt = (attemptsRef.current[finding.stable_key] ?? 0) + 1;
       attemptsRef.current[finding.stable_key] = attempt;
       // Clear any previous error for this row before retrying.
@@ -159,6 +172,15 @@ const FindingsTab: React.FC = () => {
           title: finding.title,
           severity: finding.severity,
         });
+        // Skip if a reload invalidated this attempt; otherwise record it.
+        if (genRef.current !== gen) return;
+        if (attemptsRef.current[finding.stable_key] !== attempt) {
+          // Superseded by a newer toggle: the server did apply this one, so
+          // keep the confirmed status current, but don't notify.
+          confirmedRef.current[finding.stable_key] = nextStatus;
+          return;
+        }
+        confirmedRef.current[finding.stable_key] = nextStatus;
         // Notify the rest of the app (risk score widget, exec report) so
         // they can refetch and animate the deduction.
         window.dispatchEvent(
@@ -167,17 +189,19 @@ const FindingsTab: React.FC = () => {
           }),
         );
       } catch {
-        // A newer toggle on this row supersedes this attempt; ignore it.
-        if (attemptsRef.current[finding.stable_key] !== attempt) return;
-        // Revert on failure.
+        // A newer toggle on this row (or a reload) supersedes this attempt.
+        if (genRef.current !== gen || attemptsRef.current[finding.stable_key] !== attempt) {
+          return;
+        }
+        // Revert to the last status the server confirmed, not the render's
+        // snapshot (which may already be an optimistic value).
+        const revertTo = confirmedRef.current[finding.stable_key] ?? finding.status;
         setReport((prev) => {
           if (!prev) return prev;
           return {
             ...prev,
             findings: prev.findings.map((f) =>
-              f.stable_key === finding.stable_key
-                ? { ...f, status: finding.status }
-                : f,
+              f.stable_key === finding.stable_key ? { ...f, status: revertTo } : f,
             ),
           };
         });
