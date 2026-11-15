@@ -1,6 +1,6 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hoisted Mocks
@@ -87,6 +87,15 @@ import { AgentsPage } from '../pages'
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper Functions
 // ─────────────────────────────────────────────────────────────────────────────
+
+async function confirmInDialog(label: string) {
+  const dialog = await screen.findByRole('alertdialog')
+  fireEvent.click(within(dialog).getByRole('button', { name: label }))
+  // Let the dialog's pending state and the follow-up list reload settle inside act.
+  await waitFor(() => {
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+}
 
 function renderPage() {
   return render(
@@ -188,72 +197,147 @@ describe('AgentsPage - Scanner Agents', () => {
       expect(screen.queryByRole('button', { name: 'End grace now' })).not.toBeInTheDocument()
     })
 
+    describe('Rotate confirmation', () => {
+      it('asks first; cancelling does not rotate', async () => {
+        mockListAgents.mockResolvedValue({ items: [agentWithStatus('active')], total: 1 })
+        renderPage()
+
+        fireEvent.click(await screen.findByTitle('Rotate token'))
+
+        const dialog = await screen.findByRole('alertdialog')
+        expect(within(dialog).getByText('Rotate agent token')).toBeInTheDocument()
+        expect(
+          within(dialog).getByText(
+            'Issue a new token for web-01? The current token keeps working for 24 hours.',
+          ),
+        ).toBeInTheDocument()
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+        await waitFor(() => {
+          expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+        })
+        expect(mockRotateAgent).not.toHaveBeenCalled()
+      })
+
+      it('after confirming, rotates once and still shows the new token', async () => {
+        mockListAgents.mockResolvedValue({ items: [agentWithStatus('active')], total: 1 })
+        mockRotateAgent.mockResolvedValue({ raw_token: 'ht_fake_new_token_for_test', agent: agentWithStatus('grace') })
+        renderPage()
+
+        fireEvent.click(await screen.findByTitle('Rotate token'))
+        await confirmInDialog('Rotate')
+
+        await waitFor(() => {
+          expect(mockRotateAgent).toHaveBeenCalledTimes(1)
+        })
+        expect(mockRotateAgent).toHaveBeenCalledWith(31)
+        expect(await screen.findByText('ht_fake_new_token_for_test')).toBeInTheDocument()
+      })
+
+      it('shows the existing error when rotation fails', async () => {
+        mockListAgents.mockResolvedValue({ items: [agentWithStatus('active')], total: 1 })
+        mockRotateAgent.mockRejectedValue(new Error('Rotate exploded'))
+        renderPage()
+
+        fireEvent.click(await screen.findByTitle('Rotate token'))
+        await confirmInDialog('Rotate')
+
+        expect(await screen.findByText('Rotate exploded')).toBeInTheDocument()
+      })
+    })
+
     describe('End grace confirmation', () => {
-      afterEach(() => {
-        vi.restoreAllMocks()
+      it('cancelling does nothing', async () => {
+        mockListAgents.mockResolvedValue({ items: [agentWithStatus('grace')], total: 1 })
+        renderPage()
+
+        fireEvent.click(await screen.findByRole('button', { name: 'End grace now' }))
+
+        const dialog = await screen.findByRole('alertdialog')
+        expect(within(dialog).getByRole('heading', { name: 'End grace period' })).toBeInTheDocument()
+        expect(
+          within(dialog).getByText(
+            'Stop accepting the old token for web-01 now? Agents still using it will fail to report.',
+          ),
+        ).toBeInTheDocument()
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+        await waitFor(() => {
+          expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+        })
+        expect(mockEndAgentGrace).not.toHaveBeenCalled()
+        expect(mockListAgents).toHaveBeenCalledTimes(1)
       })
 
       it('after confirming, calls the API client for that agent only', async () => {
-        const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
         mockListAgents.mockResolvedValue({ items: [agentWithStatus('grace')], total: 1 })
         renderPage()
-        const button = await screen.findByRole('button', { name: 'End grace now' })
 
-        fireEvent.click(button)
+        fireEvent.click(await screen.findByRole('button', { name: 'End grace now' }))
+        await confirmInDialog('End grace period')
 
         await waitFor(() => {
-          expect(mockEndAgentGrace).toHaveBeenCalledWith(31)
+          expect(mockEndAgentGrace).toHaveBeenCalledTimes(1)
         })
-        expect(String(confirmSpy.mock.calls[0][0])).toMatch(
-          /old token stops working now.*switched to the new token/i,
-        )
+        expect(mockEndAgentGrace).toHaveBeenCalledWith(31)
         expect(mockRevokeAgent).not.toHaveBeenCalled()
       })
 
-      it('cancelling does nothing', async () => {
-        const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+      it('shows the existing error when ending grace fails', async () => {
         mockListAgents.mockResolvedValue({ items: [agentWithStatus('grace')], total: 1 })
+        mockEndAgentGrace.mockRejectedValue(new Error('Grace exploded'))
         renderPage()
-        const button = await screen.findByRole('button', { name: 'End grace now' })
 
-        fireEvent.click(button)
+        fireEvent.click(await screen.findByRole('button', { name: 'End grace now' }))
+        await confirmInDialog('End grace period')
 
-        expect(confirmSpy).toHaveBeenCalledTimes(1)
-        expect(mockEndAgentGrace).not.toHaveBeenCalled()
-        expect(mockListAgents).toHaveBeenCalledTimes(1)
+        expect(await screen.findByText('Grace exploded')).toBeInTheDocument()
       })
     })
 
     describe('Revoke confirmation', () => {
-      afterEach(() => {
-        vi.restoreAllMocks()
-      })
-
-      it('asks first, says it covers rotated tokens, and cancelling does nothing', async () => {
-        const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+      it('cancelling does nothing', async () => {
         mockListAgents.mockResolvedValue({ items: [agentWithStatus('active')], total: 1 })
         renderPage()
-        const button = await screen.findByTitle('Revoke agent')
 
-        fireEvent.click(button)
+        fireEvent.click(await screen.findByRole('button', { name: 'Revoke web-01' }))
 
-        expect(confirmSpy).toHaveBeenCalledTimes(1)
-        expect(String(confirmSpy.mock.calls[0][0])).toMatch(/every token rotated from this agent/i)
+        const dialog = await screen.findByRole('alertdialog')
+        expect(within(dialog).getByText('Revoke agent')).toBeInTheDocument()
+        expect(
+          within(dialog).getByText('Revoke web-01? It can no longer report scans.'),
+        ).toBeInTheDocument()
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+        await waitFor(() => {
+          expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+        })
         expect(mockRevokeAgent).not.toHaveBeenCalled()
         expect(mockListAgents).toHaveBeenCalledTimes(1)
       })
 
-      it('revokes after the user confirms', async () => {
-        vi.spyOn(window, 'confirm').mockReturnValue(true)
+      it('revokes once after the user confirms', async () => {
         mockListAgents.mockResolvedValue({ items: [agentWithStatus('active')], total: 1 })
         renderPage()
-        const button = await screen.findByTitle('Revoke agent')
 
-        fireEvent.click(button)
+        fireEvent.click(await screen.findByTitle('Revoke agent'))
+        await confirmInDialog('Revoke')
 
         await waitFor(() => {
-          expect(mockRevokeAgent).toHaveBeenCalledWith(31)
+          expect(mockRevokeAgent).toHaveBeenCalledTimes(1)
         })
+        expect(mockRevokeAgent).toHaveBeenCalledWith(31)
+      })
+
+      it('shows the existing error when revoking fails', async () => {
+        mockListAgents.mockResolvedValue({ items: [agentWithStatus('active')], total: 1 })
+        mockRevokeAgent.mockRejectedValue(new Error('Revoke exploded'))
+        renderPage()
+
+        fireEvent.click(await screen.findByTitle('Revoke agent'))
+        await confirmInDialog('Revoke')
+
+        expect(await screen.findByText('Revoke exploded')).toBeInTheDocument()
       })
     })
 

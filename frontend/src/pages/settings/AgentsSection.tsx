@@ -8,6 +8,7 @@ import {
   endAgentGrace,
   revokeAgent,
 } from "../../api/agents";
+import { useConfirm } from "../../components/shared/ConfirmDialog";
 
 export default function AgentsSection() {
   // Agent enrollment state (Month 4 Phase 2)
@@ -19,6 +20,7 @@ export default function AgentsSection() {
   // The raw token is shown exactly once, right after enroll/rotate.
   const [issuedToken, setIssuedToken] = useState<AgentTokenIssued | null>(null);
   const [copied, setCopied] = useState(false);
+  const { confirm, confirmDialog } = useConfirm();
 
   const loadAgents = useCallback(async () => {
     setAgentsLoading(true);
@@ -74,13 +76,6 @@ export default function AgentsSection() {
   };
 
   const handleEndGrace = async (agentId: number) => {
-    if (
-      !window.confirm(
-        "The old token stops working now. Has the host switched to the new token?",
-      )
-    ) {
-      return;
-    }
     setAgentsError("");
     setAgentsMsg("");
     try {
@@ -95,13 +90,6 @@ export default function AgentsSection() {
   };
 
   const handleRevokeAgent = async (agentId: number) => {
-    if (
-      !window.confirm(
-        "Revoke this agent? This also revokes every token rotated from this agent, and the host will need to be re-enrolled.",
-      )
-    ) {
-      return;
-    }
     setAgentsError("");
     try {
       await revokeAgent(agentId);
@@ -113,6 +101,35 @@ export default function AgentsSection() {
       );
     }
   };
+
+  // The handlers above catch API failures into agentsError, so a rejected call
+  // never reaches the dialog (which would swallow it and close silently).
+  const confirmRotate = (a: Agent) =>
+    confirm({
+      title: "Rotate agent token",
+      body: `Issue a new token for ${a.name}? The current token keeps working for 24 hours.`,
+      confirmLabel: "Rotate",
+      tone: "danger",
+      onConfirm: () => handleRotateAgent(a.id),
+    });
+
+  const confirmEndGrace = (a: Agent) =>
+    confirm({
+      title: "End grace period",
+      body: `Stop accepting the old token for ${a.name} now? Agents still using it will fail to report.`,
+      confirmLabel: "End grace period",
+      tone: "danger",
+      onConfirm: () => handleEndGrace(a.id),
+    });
+
+  const confirmRevoke = (a: Agent) =>
+    confirm({
+      title: "Revoke agent",
+      body: `Revoke ${a.name}? It can no longer report scans.`,
+      confirmLabel: "Revoke",
+      tone: "danger",
+      onConfirm: () => handleRevokeAgent(a.id),
+    });
 
   const handleCopyToken = async () => {
     if (!issuedToken) return;
@@ -260,7 +277,7 @@ export default function AgentsSection() {
                     a.status !== "grace" && (
                       <button
                         className="action-btn"
-                        onClick={() => handleRotateAgent(a.id)}
+                        onClick={() => confirmRotate(a)}
                         title="Rotate token"
                       >
                         Rotate
@@ -269,7 +286,7 @@ export default function AgentsSection() {
                   {a.status === "grace" && (
                     <button
                       className="action-btn"
-                      onClick={() => handleEndGrace(a.id)}
+                      onClick={() => confirmEndGrace(a)}
                       title="End grace now"
                     >
                       End grace now
@@ -278,8 +295,9 @@ export default function AgentsSection() {
                   {a.status !== "revoked" && (
                     <button
                       className="vendor-delete-btn"
-                      onClick={() => handleRevokeAgent(a.id)}
+                      onClick={() => confirmRevoke(a)}
                       title="Revoke agent"
+                      aria-label={`Revoke ${a.name}`}
                     >
                       &times;
                     </button>
@@ -290,6 +308,7 @@ export default function AgentsSection() {
           </tbody>
         </table>
       )}
+      {confirmDialog}
     </section>
   );
 }
