@@ -36,8 +36,17 @@ export const SEVERITY_COLORS = {
   Critical: '#d32f2f',
   High:     '#f57c00',
   Medium:   '#fbc02d',
-  Low:      '#388e3c',
+  Low:      '#2e7d32',
   Unknown:  '#9e9e9e',
+} as const
+
+/** Badge text colours chosen to meet WCAG 4.5:1 against SEVERITY_COLORS. */
+export const SEVERITY_TEXT_COLORS = {
+  Critical: '#ffffff',
+  High:     '#1a1a1a',
+  Medium:   '#1a1a1a',
+  Low:      '#ffffff',
+  Unknown:  '#1a1a1a',
 } as const
 
 export const TILE_PALETTE = [
