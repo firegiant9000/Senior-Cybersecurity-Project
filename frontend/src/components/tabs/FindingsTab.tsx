@@ -63,6 +63,7 @@ const FindingsLoadingBar: React.FC = () => {
 };
 
 const MIN_LOADING_MS = 1200;
+const ROW_ERROR_MESSAGE = "Couldn't update this finding. Try again.";
 
 const FindingsTab: React.FC = () => {
   const { user } = useAuth();
@@ -70,6 +71,7 @@ const FindingsTab: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [minLoadingDone, setMinLoadingDone] = useState(false);
   const [error, setError] = useState('');
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [history, setHistory] = useState<SnapshotListItem[]>([]);
@@ -130,6 +132,13 @@ const FindingsTab: React.FC = () => {
 
   const setFindingStatus = useCallback(
     async (finding: Finding, nextStatus: FindingStatus) => {
+      // Clear any previous error for this row before retrying.
+      setRowErrors((prev) => {
+        if (!(finding.stable_key in prev)) return prev;
+        const next = { ...prev };
+        delete next[finding.stable_key];
+        return next;
+      });
       // Optimistic local update so the checkbox feels instant.
       setReport((prev) => {
         if (!prev) return prev;
@@ -152,7 +161,7 @@ const FindingsTab: React.FC = () => {
             detail: { stable_key: finding.stable_key, status: nextStatus },
           }),
         );
-      } catch (err) {
+      } catch {
         // Revert on failure.
         setReport((prev) => {
           if (!prev) return prev;
@@ -165,7 +174,10 @@ const FindingsTab: React.FC = () => {
             ),
           };
         });
-        setError(err instanceof Error ? err.message : 'Failed to update finding');
+        setRowErrors((prev) => ({
+          ...prev,
+          [finding.stable_key]: ROW_ERROR_MESSAGE,
+        }));
       }
     },
     [],
@@ -428,6 +440,11 @@ const FindingsTab: React.FC = () => {
                         </span>
                       </button>
                     </div>
+                    {rowErrors[finding.stable_key] && (
+                      <p role="alert" className="finding-row-error">
+                        {rowErrors[finding.stable_key]}
+                      </p>
+                    )}
                     {expanded && (
                       <div className="finding-card-body">
                         <p className="finding-description">{finding.description}</p>

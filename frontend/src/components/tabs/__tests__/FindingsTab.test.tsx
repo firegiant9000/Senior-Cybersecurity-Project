@@ -139,6 +139,57 @@ describe('FindingsTab characterisation', () => {
     )
   })
 
+  it('failed toggle keeps the list and shows a row error', async () => {
+    mockFetchFindings.mockResolvedValue(twoFindings())
+    mockPatchStatus.mockRejectedValue(new Error('boom'))
+    renderTab()
+    await screen.findByText('Threat alpha', {}, SLOW)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent("Couldn't update this finding. Try again.")
+    expect(screen.getByText('Threat alpha')).toBeInTheDocument()
+    expect(screen.getByText('Action beta')).toBeInTheDocument()
+    expect(screen.queryByText("Couldn't Load Findings")).toBeNull()
+    expect(
+      screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }),
+    ).not.toBeChecked()
+  })
+
+  it('retry success clears the row error', async () => {
+    mockFetchFindings.mockResolvedValue(twoFindings())
+    mockPatchStatus
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce({ stable_key: 'key-a', status: 'done' })
+    renderTab()
+    await screen.findByText('Threat alpha', {}, SLOW)
+
+    const name = 'Mark "Threat alpha" as remediated'
+    fireEvent.click(screen.getByRole('checkbox', { name }))
+    await screen.findByRole('alert')
+
+    fireEvent.click(screen.getByRole('checkbox', { name }))
+    expect(
+      await screen.findByRole('checkbox', { name: 'Mark "Threat alpha" as open' }),
+    ).toBeChecked()
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+  })
+
+  it('two failures show two row errors', async () => {
+    mockFetchFindings.mockResolvedValue(twoFindings())
+    mockPatchStatus.mockRejectedValue(new Error('boom'))
+    renderTab()
+    await screen.findByText('Threat alpha', {}, SLOW)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Action beta" as remediated' }))
+
+    await waitFor(() => expect(screen.getAllByRole('alert')).toHaveLength(2))
+    expect(screen.getByText('Threat alpha')).toBeInTheDocument()
+    expect(screen.getByText('Action beta')).toBeInTheDocument()
+  })
+
   it('the Scan History toggle fetches history with a limit of 10', async () => {
     mockFetchFindings.mockResolvedValue(twoFindings())
     renderTab()
