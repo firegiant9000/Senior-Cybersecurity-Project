@@ -1,9 +1,13 @@
 """Tests for the closed step set for funnel events (#296)."""
 
+import copy
+
 import pytest
+from pydantic import ValidationError
 
 from app.services import readiness_funnel, readiness_quiz
-from tests.test_readiness_quiz import load_fixture_set
+from app.services.readiness_quiz import MAX_QUESTIONS, QuestionSet
+from tests.test_readiness_quiz import fixture_dict, load_fixture_set
 
 FIXED = [
     "domain_check_started",
@@ -65,3 +69,15 @@ def test_loader_error_propagates(monkeypatch):
         readiness_funnel.is_known_event("v1", "question_answered:fixture_a")
     # Fixed steps never reach the loader, so the raising patch is not hit.
     assert readiness_funnel.is_known_event("v1", "quiz_started") is True
+
+
+def test_question_set_is_capped_so_funnel_steps_are_bounded():
+    # T-PLAT-21: at most MAX_QUESTIONS question steps per version, so funnel rows per day stay bounded.
+    data = fixture_dict()
+    template = data["questions"][0]
+    data["questions"] = [{**copy.deepcopy(template), "id": f"q{i}"} for i in range(MAX_QUESTIONS)]
+    assert len(QuestionSet.model_validate(data).questions) == MAX_QUESTIONS
+    data["questions"].append({**copy.deepcopy(template), "id": "q_over"})
+    with pytest.raises(ValidationError):
+        QuestionSet.model_validate(data)
+    assert MAX_QUESTIONS == 30
