@@ -46,7 +46,7 @@ function SummaryStat({
   );
 }
 
-function SourceBadge({ via }: { via: Asset["discovered_via"] }) {
+function DiscoveredViaBadge({ via }: { via: Asset["discovered_via"] }) {
   const label =
     via === "csv_upload" ? "CSV" : via === "m365" ? "M365" : via === "agent" ? "Agent" : via;
   const color =
@@ -571,7 +571,7 @@ export default function AssetsPage() {
                 </td>
                 <td style={{ padding: 8 }}>{asset.ip_address ?? "—"}</td>
                 <td style={{ padding: 8 }}>
-                  <SourceBadge via={asset.discovered_via} />
+                  <DiscoveredViaBadge via={asset.discovered_via} />
                 </td>
                 <td style={{ padding: 8 }}>
                   {kev_match_count > 0 ? (
@@ -663,7 +663,7 @@ export default function AssetsPage() {
             <h2 style={{ marginTop: 0 }}>{detail.asset.hostname}</h2>
             <p>
               {detail.asset.os_name} {detail.asset.os_version} · {detail.asset.ip_address ?? "no IP"}{" "}
-              · <SourceBadge via={detail.asset.discovered_via} />
+              · <DiscoveredViaBadge via={detail.asset.discovered_via} />
             </p>
             <div style={{ margin: "12px 0", padding: 12, background: "#f8fafc", borderRadius: 6 }}>
               <div style={{ fontSize: 12, color: "#64748b", marginBottom: 4 }}>
