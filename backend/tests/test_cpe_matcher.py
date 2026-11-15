@@ -36,7 +36,9 @@ from app.services.cpe_matcher import (
         ("20.11.1", "20.2.0", 1),  # numeric, not lexical, ordering
         ("2.15.0", "2.9.0", 1),
         ("v2.3", "2.3", 0),  # leading v stripped
-        ("1:1.0", "2.0", 1),  # epoch dominates
+        ("1:1.0", "1:2.0", -1),  # same epoch on both sides: compare the rest
+        ("2:1.0", "1:9.0", 1),  # both sides carry an epoch: the epoch dominates
+        ("0:2.4.52", "2.4.52", 0),  # an explicit zero epoch is no epoch
         ("1.0.0-rc1", "1.0.0", -1),  # pre-release < final
         ("1.0.0-alpha", "1.0.0-beta", -1),
         ("1.0.0-rc1", "1.0.0-rc2", -1),
@@ -58,6 +60,93 @@ def test_compare_versions_returns_none_on_unparseable(bad: str | None) -> None:
 
 def test_parse_version_handles_build_metadata() -> None:
     assert parse_version("1.2.3+build5") == parse_version("1.2.3")
+
+
+# ---------------------------------------------------------------------------
+# Distro package versions (dpkg / rpm)
+#
+# NVD bounds are upstream versions and never carry an epoch or a distro
+# revision. A package version that does is not comparable to them: the epoch is
+# packaging-only, and the revision can carry backported security fixes. These
+# must come back indeterminate (None -> needs_review), never True or False.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("with_epoch", "without_epoch"),
+    [
+        ("1:2.4.52", "2.4.58"),
+        ("1:2.4.52", "2.4.52"),
+        ("1:1.0", "2.0"),
+        ("2:8.2", "9.0"),
+    ],
+)
+def test_compare_versions_one_sided_epoch_is_indeterminate(
+    with_epoch: str, without_epoch: str
+) -> None:
+    assert compare_versions(with_epoch, without_epoch) is None
+    assert compare_versions(without_epoch, with_epoch) is None
+
+
+def test_version_in_range_one_sided_epoch_is_never_a_confident_negative() -> None:
+    # Without the epoch 2.4.52 is inside the range, so False here would hide a
+    # real finding.
+    assert version_in_range("2.4.52", end_excluding="2.4.58") is True
+    assert version_in_range("1:2.4.52", end_excluding="2.4.58") is None
+    assert version_in_range("1:2.4.52", start_including="2.4.0", end_excluding="2.4.58") is None
+    # The epoch on the bound side is just as indeterminate.
+    assert version_in_range("2.4.52", end_excluding="1:2.4.58") is None
+
+
+def test_evaluate_criterion_one_sided_epoch_on_concrete_cpe_is_indeterminate() -> None:
+    assert (
+        evaluate_criterion("1:2.4.49", cpe_uri="cpe:2.3:a:apache:http_server:2.4.49:*:*:*:*:*:*:*")
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    "distro_version",
+    [
+        "2.4.52-1ubuntu4.9",  # dpkg: upstream-revision
+        "1:2.4.52-1ubuntu4.9",  # dpkg: epoch + revision
+        "2.4.52-1~deb12u2",  # dpkg: stable-update revision
+        "2.4.52+dfsg-1ubuntu4.9",  # dpkg: repack marker, then a revision
+        "2.4.52+deb11u1",  # dpkg: native package stable update
+        "2.4.52+really2.4.41-1",  # dpkg: the leading version is not the real one
+        "1:2.4.52+dfsg-1",  # dpkg: epoch + repack + revision
+        "2.4.52ubuntu1",  # dpkg: native Ubuntu revision
+        "2.4.37-65.el8",  # rpm: VERSION-RELEASE
+        "2.4.37-65.module+el8.9.0+19699+7a7a2044",  # rpm: modular release
+        "1.1.1k-12.el8_9",  # rpm: letter release + dist tag
+        "8.9p1-3ubuntu0.6",  # dpkg: portable suffix + revision
+    ],
+)
+def test_distro_package_versions_are_indeterminate_against_a_range(distro_version: str) -> None:
+    assert parse_version(distro_version) is None
+    assert (
+        evaluate_criterion(
+            distro_version,
+            cpe_uri="cpe:2.3:a:apache:http_server:*:*:*:*:*:*:*:*",
+            start_including="2.4.0",
+            end_excluding="2.4.58",
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    ("raw", "same_as"),
+    [
+        ("1.2.3+build5", "1.2.3"),  # semver build metadata
+        ("1.2.3+20130313144700", "1.2.3"),
+        ("1.2.3+dfsg", "1.2.3"),  # repack marker with no revision: same upstream code
+        ("0:1.2.3", "1.2.3"),
+        ("V1.2.3", "1.2.3"),
+    ],
+)
+def test_safe_normalizations_still_compare(raw: str, same_as: str) -> None:
+    assert compare_versions(raw, same_as) == 0
 
 
 # ---------------------------------------------------------------------------

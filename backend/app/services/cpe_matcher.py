@@ -82,6 +82,13 @@ _VERSION_RE = re.compile(
 )
 
 
+# What follows a ``+`` is build metadata unless it marks a distro package: a
+# revision after a repack marker (``+dfsg-1ubuntu0.4``), a stable-update tag
+# (``+deb11u1``, ``+ubuntu1``) or dpkg's ``+really`` (the leading version is not
+# the real one).
+_DISTRO_SUFFIX_RE = re.compile(r"-|really|deb\d+u\d+|ubuntu")
+
+
 @dataclass(frozen=True)
 class _Version:
     """Comparable representation of a parsed version string."""
@@ -111,6 +118,11 @@ def parse_version(raw: str | None) -> _Version | None:
     Handles epochs (``1:2.3``), trailing release letters (``1.0.1f``), and
     common pre-release suffixes (``-rc1``, ``beta2``). Returns ``None`` when the
     string cannot be confidently parsed, so callers default to ``needs_review``.
+
+    Distro package versions (``2.4.52-1ubuntu4.9``, ``2.4.37-65.el8``,
+    ``2.9.13+dfsg-1``) are deliberately unparseable: the revision can carry
+    backported security fixes, so the upstream part alone says nothing reliable
+    about an NVD range.
     """
     if not raw:
         return None
@@ -119,8 +131,12 @@ def parse_version(raw: str | None) -> _Version | None:
         return None
     if text.startswith("v"):
         text = text[1:]
-    # Drop build metadata; it never affects precedence.
-    text = text.split("+", 1)[0]
+    # Drop build metadata; it never affects precedence. A suffix that marks a
+    # distro package is not build metadata, and dropping it would throw the
+    # revision away and compare the bare upstream version.
+    text, plus, suffix = text.partition("+")
+    if plus and _DISTRO_SUFFIX_RE.search(suffix):
+        return None
 
     match = _VERSION_RE.match(text)
     if match is None:
@@ -151,7 +167,8 @@ def compare_versions(a: str | None, b: str | None) -> int | None:
     """Compare two version strings.
 
     Returns ``-1``/``0``/``1`` like ``cmp``, or ``None`` if either version is
-    unparseable (the caller should then treat the comparison as unknown).
+    unparseable or the two are not on the same scale (the caller should then
+    treat the comparison as unknown).
     """
     pa = parse_version(a)
     pb = parse_version(b)
@@ -159,6 +176,12 @@ def compare_versions(a: str | None, b: str | None) -> int | None:
         return None
 
     if pa.epoch != pb.epoch:
+        # An epoch is a dpkg/rpm packaging override; NVD versions never carry
+        # one. With an epoch on one side only, "the epoch wins" would put every
+        # such package above every NVD bound and silently drop real findings.
+        # An absent epoch and an explicit ``0:`` are the same thing.
+        if pa.epoch == 0 or pb.epoch == 0:
+            return None
         return _sign(pa.epoch - pb.epoch)
 
     # Pad the shorter release tuple with zeros so 1.2 == 1.2.0.
