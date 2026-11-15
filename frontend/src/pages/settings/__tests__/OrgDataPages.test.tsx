@@ -113,7 +113,7 @@ async function confirmInDialog(label: string) {
   })
 }
 
-const emptyPage ={ items: [], total: 0, page: 1, page_size: 20 }
+const emptyPage = { items: [], total: 0, page: 1, page_size: 20 }
 
 beforeEach(() => {
   vi.clearAllMocks()

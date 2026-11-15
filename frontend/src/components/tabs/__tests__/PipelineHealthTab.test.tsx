@@ -168,11 +168,25 @@ describe('PipelineHealthTab', () => {
       const dialog = await renderRunning();
       expect(within(dialog).getByText('Cancel ingest run')).toBeInTheDocument();
       expect(within(dialog).getByText(
-        'Cancel the running nvd ingest? Data it has not written yet is lost.',
+        'Mark the running NVD ingest as failed? The task that already started may keep running and writing data until it finishes.',
       )).toBeInTheDocument();
       fireEvent.click(within(dialog).getByRole('button', { name: 'Keep running' }));
       await flush();
       expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      expect(cancelIngestRun).not.toHaveBeenCalled();
+    });
+
+    it('shows "not found" and opens no dialog when the running run is not on the page', async () => {
+      vi.mocked(fetchIngestFreshness).mockResolvedValue({ sources: [freshness('running', 45)] });
+      vi.mocked(fetchIngestRuns).mockResolvedValue({
+        items: [runItem('success')], total: 1, page: 1, page_size: 15,
+      } as never);
+      render(<PipelineHealthTab />);
+      await flush();
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      await flush();
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      expect(screen.getByText('Running run not found in current page.')).toBeInTheDocument();
       expect(cancelIngestRun).not.toHaveBeenCalled();
     });
 

@@ -208,7 +208,7 @@ describe('AgentsPage - Scanner Agents', () => {
         expect(within(dialog).getByText('Rotate agent token')).toBeInTheDocument()
         expect(
           within(dialog).getByText(
-            'Issue a new token for web-01? The current token keeps working for 24 hours.',
+            'Issue a new token for web-01? The current token keeps working for up to 24 hours.',
           ),
         ).toBeInTheDocument()
         fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
@@ -217,6 +217,7 @@ describe('AgentsPage - Scanner Agents', () => {
           expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
         })
         expect(mockRotateAgent).not.toHaveBeenCalled()
+        expect(mockListAgents).toHaveBeenCalledTimes(1)
       })
 
       it('after confirming, rotates once and still shows the new token', async () => {
@@ -305,7 +306,9 @@ describe('AgentsPage - Scanner Agents', () => {
         const dialog = await screen.findByRole('alertdialog')
         expect(within(dialog).getByText('Revoke agent')).toBeInTheDocument()
         expect(
-          within(dialog).getByText('Revoke web-01? It can no longer report scans.'),
+          within(dialog).getByText(
+            'Revoke web-01? This also revokes every token rotated from it, including any new token. The host must be re-enrolled. To cut off only the old token, use End grace now instead.',
+          ),
         ).toBeInTheDocument()
         fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
 
@@ -349,6 +352,7 @@ describe('AgentsPage - Scanner Agents', () => {
       expect(
         await screen.findByText(/tokens rotated before this update may not be linked/i),
       ).toBeInTheDocument()
+      expect(await screen.findByText(/every token rotated from it/i)).toBeInTheDocument()
     })
   })
 

@@ -151,22 +151,48 @@ export function useConfirm(): {
   const returnFocusRef = useRef<HTMLElement | null>(null);
 
   const openRef = useRef(false);
+  const genRef = useRef(0);
+  const hostMountedRef = useRef(true);
 
-  const confirm = useCallback((o: ConfirmOptions) => {
-    if (openRef.current) return;
-    openRef.current = true;
-    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setOpts(o);
+  useEffect(() => {
+    hostMountedRef.current = true;
+    return () => {
+      hostMountedRef.current = false;
+    };
   }, []);
 
-  const close = useCallback(() => {
+  const closeGen = useCallback((gen: number) => {
+    if (gen !== genRef.current || !openRef.current) return;
     openRef.current = false;
-    setOpts(null);
+    if (hostMountedRef.current) setOpts(null);
     const el = returnFocusRef.current;
     returnFocusRef.current = null;
     if (el && el.isConnected) el.focus();
   }, []);
 
-  const confirmDialog = opts ? <ConfirmDialog {...opts} open onClose={close} /> : null;
+  const confirm = useCallback(
+    (o: ConfirmOptions) => {
+      if (openRef.current) return;
+      openRef.current = true;
+      genRef.current += 1;
+      const gen = genRef.current;
+      returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      // Close in the hook's own finally so it happens even if the dialog
+      // component is unmounted while the action is pending.
+      const wrapped = async () => {
+        try {
+          await o.onConfirm();
+        } finally {
+          closeGen(gen);
+        }
+      };
+      setOpts({ ...o, onConfirm: wrapped });
+    },
+    [closeGen],
+  );
+
+  const confirmDialog = opts ? (
+    <ConfirmDialog {...opts} open onClose={() => closeGen(genRef.current)} />
+  ) : null;
   return { confirm, confirmDialog };
 }

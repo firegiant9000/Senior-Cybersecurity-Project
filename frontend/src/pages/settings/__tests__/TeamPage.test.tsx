@@ -580,6 +580,7 @@ describe('TeamPage - Member Management', () => {
       // Owner row should not have a delete button
       const ownerRow = screen.getByText('owner@example.com').closest('tr')
       expect(ownerRow?.querySelector('button')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Remove owner@example.com' })).toBeNull()
     })
 
     it('does not display remove button for current user', async () => {
@@ -591,8 +592,9 @@ describe('TeamPage - Member Management', () => {
 
       // Current user row should not have a delete button
       // (user_id 1 is the current user)
-      const rows = screen.getAllByRole('row')
-      expect(rows.length).toBeGreaterThan(0)
+      // (the fixture's user_id 1 row is owner@example.com)
+      expect(await screen.findByRole('button', { name: 'Remove member@example.com' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Remove owner@example.com' })).toBeNull()
     })
 
     it('asks for confirmation and does not remove on Cancel', async () => {

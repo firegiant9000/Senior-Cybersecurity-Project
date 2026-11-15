@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import ConfirmDialog, { useConfirm, type ConfirmOptions } from '../ConfirmDialog';
@@ -168,17 +169,42 @@ describe('ConfirmDialog / useConfirm', () => {
     expect(screen.queryByRole('alertdialog')).toBeNull();
   });
 
-  it('unmount while pending does not warn', async () => {
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  it('closes even if the host hides the dialog while the action is pending', async () => {
     const d = deferred();
-    const { unmount } = render(<Harness opts={{ onConfirm: () => d.promise }} />);
+    function HidingHarness() {
+      const { confirm, confirmDialog } = useConfirm();
+      const [hidden, setHidden] = useState(false);
+      return (
+        <div>
+          <button
+            onClick={() =>
+              confirm({
+                title: 'Delete it?',
+                body: 'Body',
+                confirmLabel: 'Delete',
+                onConfirm: () => d.promise,
+              })
+            }
+          >
+            Open
+          </button>
+          <button onClick={() => setHidden((h) => !h)}>Toggle</button>
+          {!hidden && confirmDialog}
+        </div>
+      );
+    }
+    render(<HidingHarness />);
     open();
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-    unmount();
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
     await act(async () => {
       d.resolve();
     });
-    expect(spy).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    open();
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
   });
 
   it('ConfirmDialog does not call onClose after unmount while pending', async () => {

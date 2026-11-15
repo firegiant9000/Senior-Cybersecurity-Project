@@ -65,7 +65,7 @@ export default function UploadInventoryPage() {
   const confirmRollback = () => {
     confirm({
       title: "Roll back import",
-      body: "Remove the assets this upload imported?",
+      body: "Remove the assets and software entries this upload created? Assets that already existed and were updated by it keep those updates.",
       confirmLabel: "Roll back",
       tone: "danger",
       // handleRollback catches API failures into `error` itself.

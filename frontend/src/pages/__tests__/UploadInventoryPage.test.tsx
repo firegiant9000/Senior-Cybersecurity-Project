@@ -80,7 +80,7 @@ describe('UploadInventoryPage rollback confirm', () => {
     const dialog = await importFile()
     expect(within(dialog).getByText('Roll back import')).toBeInTheDocument()
     expect(
-      within(dialog).getByText('Remove the assets this upload imported?'),
+      within(dialog).getByText('Remove the assets and software entries this upload created? Assets that already existed and were updated by it keep those updates.'),
     ).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     await waitFor(() => {

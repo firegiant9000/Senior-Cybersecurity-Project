@@ -226,15 +226,10 @@ const PipelineHealthTab: React.FC = () => {
         }
     }, [runs, refreshFreshness]);
 
-    const handleCancel = useCallback(async (source: string) => {
-        const runningRun = runs.find(r => r.source === source && r.status === 'running');
-        if (!runningRun) {
-            setActionMsgs(m => ({ ...m, [source]: 'Running run not found in current page.' }));
-            return;
-        }
+    const handleCancel = useCallback(async (source: string, runId: string) => {
         setActionMsgs(m => ({ ...m, [source]: '' }));
         try {
-            const res = await cancelIngestRun(runningRun.id);
+            const res = await cancelIngestRun(runId);
             const msg = res.warning
                 ? `Cancelled. Note: ${res.warning}`
                 : 'Cancelled.';
@@ -248,17 +243,23 @@ const PipelineHealthTab: React.FC = () => {
                 [source]: err instanceof Error ? err.message : 'Cancel failed.',
             }));
         }
-    }, [runs, refreshFreshness, fetchData, sourceFilter]);
+    }, [refreshFreshness, fetchData, sourceFilter]);
 
     const confirmCancel = (source: string) => {
+        const runningRun = runs.find(r => r.source === source && r.status === 'running');
+        if (!runningRun) {
+            setActionMsgs(m => ({ ...m, [source]: 'Running run not found in current page.' }));
+            return;
+        }
+        const label = SOURCE_LABELS[source] ?? source;
         confirm({
             title: 'Cancel ingest run',
-            body: `Cancel the running ${source} ingest? Data it has not written yet is lost.`,
+            body: `Mark the running ${label} ingest as failed? The task that already started may keep running and writing data until it finishes.`,
             confirmLabel: 'Cancel run',
             cancelLabel: 'Keep running',
             tone: 'danger',
             // handleCancel catches API failures into actionMsgs itself.
-            onConfirm: () => handleCancel(source),
+            onConfirm: () => handleCancel(source, runningRun.id),
         });
     };
 
