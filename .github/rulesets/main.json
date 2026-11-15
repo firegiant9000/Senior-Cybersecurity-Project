@@ -42,6 +42,7 @@
           { "context": "npm audit (frontend, prod deps)", "integration_id": 15368 },
           { "context": "gitleaks (full history)", "integration_id": 15368 },
           { "context": "Agent (Go scanner)", "integration_id": 15368 },
+          { "context": "ZAP baseline (local stack)", "integration_id": 15368 },
           { "context": "Analyze (actions)", "integration_id": 15368 },
           { "context": "Analyze (go)", "integration_id": 15368 },
           { "context": "Analyze (javascript-typescript)", "integration_id": 15368 },
