@@ -37,7 +37,7 @@ describe('IC3Table empty states', () => {
   })
 
   it('tells the user no IC3 data has been loaded when no filters are set', async () => {
-    const { container } = render(<IC3Table apiBaseUrl="http://api.test" />)
+    const { container } = render(<IC3Table apiBaseUrl="http://api.test" datasetKey="ic3_incidents" />)
 
     expect(
       await screen.findByText('No IC3 incident data has been loaded yet.'),
@@ -48,7 +48,7 @@ describe('IC3Table empty states', () => {
   })
 
   it('asks the user to widen the filters when filters match nothing', async () => {
-    const { container } = render(<IC3Table apiBaseUrl="http://api.test" />)
+    const { container } = render(<IC3Table apiBaseUrl="http://api.test" datasetKey="ic3_incidents" />)
 
     fireEvent.change(await screen.findByLabelText('Attack Type'), {
       target: { value: 'Phishing' },

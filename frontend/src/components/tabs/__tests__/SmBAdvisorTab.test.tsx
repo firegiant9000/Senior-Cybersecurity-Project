@@ -47,6 +47,11 @@ vi.mock('../../../api/smbRiskScore', () => ({
   fetchSmbRiskScore: () => Promise.reject(new Error('no org')),
 }))
 
+// The tab renders SourceBadges; the real hook imports firebase via fetchWithAuth.
+vi.mock('../../../hooks/useDataStatus', () => ({
+  useDataStatus: () => ({ byKey: {}, loading: false }),
+}))
+
 describe('SmBAdvisorTab Action Plan', () => {
   it('renders the Action Plan without checkboxes', async () => {
     render(
