@@ -80,6 +80,14 @@ def rate(dmarc_found: bool, dmarc_policy: DmarcPolicy | None) -> Rating:  # noqa
     return "monitoring_only"
 
 
+def _text(rdata) -> str:  # noqa: ANN001 - dnspython rdata, untyped
+    """TXT text, or "" for a record that is not valid UTF-8 (visitor-controlled data)."""
+    try:
+        return txt_record_text(rdata)
+    except UnicodeDecodeError:
+        return ""
+
+
 def _is_spf(text: str) -> bool:
     lowered = text.lower()
     return lowered == "v=spf1" or lowered.startswith("v=spf1 ")
@@ -93,7 +101,7 @@ async def _dmarc_records(resolver: dns.asyncresolver.Resolver, host: str) -> lis
         return []
     except dns.exception.DNSException:
         return None
-    texts = (txt_record_text(r).strip() for r in answers)
+    texts = (_text(r).strip() for r in answers)
     return [t for t in texts if t.startswith("v=DMARC1")]
 
 
@@ -116,7 +124,7 @@ async def check_public_domain(host: str) -> PublicDomainCheck:
     except dns.exception.DNSException:
         return _UNAVAILABLE
     else:
-        spf_found = any(_is_spf(txt_record_text(r)) for r in answers)
+        spf_found = any(_is_spf(_text(r)) for r in answers)
 
     dmarc_records = await _dmarc_records(resolver, host)
     if dmarc_records is None:

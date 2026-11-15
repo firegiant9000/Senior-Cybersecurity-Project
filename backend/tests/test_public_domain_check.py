@@ -15,18 +15,18 @@ SPF = "v=spf1 include:_spf.example.net ~all"
 
 
 class _FakeTxt:
-    def __init__(self, text: str) -> None:
-        self.strings = (text.encode(),)
+    def __init__(self, text: str | bytes) -> None:
+        self.strings = (text if isinstance(text, bytes) else text.encode(),)
 
 
 class FakeResolver:
     """Maps (qname, "TXT") to a list of TXT strings or an exception instance."""
 
     def __init__(self) -> None:
-        self.answers: dict[tuple[str, str], list[str] | Exception] = {}
+        self.answers: dict[tuple[str, str], list[str | bytes] | Exception] = {}
         self.calls: list[tuple[str, str]] = []
 
-    def set(self, qname: str, value: list[str] | Exception) -> None:
+    def set(self, qname: str, value: list[str | bytes] | Exception) -> None:
         self.answers[(qname, "TXT")] = value
 
     async def resolve(self, qname: str, rdtype: str):
@@ -152,6 +152,25 @@ async def test_two_dmarc_records_is_spoofable(fake_resolver):
     result = await check_public_domain(HOST)
     assert result.dmarc_found is False
     assert result.rating == "spoofable"
+
+
+async def test_non_utf8_apex_txt_is_skipped(fake_resolver):
+    fake_resolver.set(HOST, [b"\xff\xfe", SPF])
+    fake_resolver.set(DMARC_HOST, ["v=DMARC1; p=reject"])
+    result = await check_public_domain(HOST)
+    assert result.status == "ok"
+    assert result.spf_found is True
+    assert result.rating == "protected"
+
+
+async def test_non_utf8_dmarc_txt_is_skipped(fake_resolver):
+    fake_resolver.set(HOST, [SPF])
+    fake_resolver.set(DMARC_HOST, [b"\xff\xfe", "v=DMARC1; p=reject"])
+    result = await check_public_domain(HOST)
+    assert result.status == "ok"
+    assert result.dmarc_found is True
+    assert result.dmarc_policy == "reject"
+    assert result.rating == "protected"
 
 
 async def test_dkim_is_never_queried(fake_resolver):
