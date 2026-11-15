@@ -13,19 +13,27 @@ const STATUS_LABEL: Record<SourceStatus, string> = {
 
 type KeyProps =
   /** Dataset key registered in backend/app/services/data_status.py. */
-  | { datasetKey: string; datasetKeys?: never }
+  | {
+      datasetKey: string;
+      datasetKeys?: never;
+      /**
+       * Override the registry value (e.g. when a widget already knows its
+       * source inline — useful for IC3 routes that return their own `source`
+       * field). Single-key mode only: with several keys a fallback could mask
+       * an unregistered dataset and overstate confidence.
+       */
+      fallbackStatus?: SourceStatus;
+      fallbackSource?: string;
+    }
   /** Several datasets feeding one card: shows the least confident status. */
-  | { datasetKeys: string[]; datasetKey?: never };
+  | {
+      datasetKeys: string[];
+      datasetKey?: never;
+      fallbackStatus?: never;
+      fallbackSource?: never;
+    };
 
-type Props = KeyProps & {
-  /**
-   * Override the registry value (e.g. when a widget already knows its source
-   * inline — useful for IC3 routes that return their own `source` field).
-   */
-  fallbackStatus?: SourceStatus;
-  fallbackSource?: string;
-  className?: string;
-};
+type Props = KeyProps & { className?: string };
 
 const SourceBadge: React.FC<Props> = ({
   datasetKey,
@@ -39,14 +47,15 @@ const SourceBadge: React.FC<Props> = ({
   const entries = keys.map((k) => byKey[k]);
 
   // An unregistered key resolves to unknown (null), never to a confident status.
-  const resolvedStatus: SourceStatus | null = leastConfident(
-    entries.map((e) => e?.status ?? fallbackStatus ?? null),
-  );
+  const resolvedStatus: SourceStatus | null = datasetKeys
+    ? leastConfident(entries.map((e) => e?.status ?? null))
+    : (entries[0]?.status ?? fallbackStatus ?? null);
   const status: SourceStatus | "unknown" = resolvedStatus ?? "unknown";
-  const registeredSources = entries.flatMap((e) => (e ? [e.source] : []));
-  const source = registeredSources.length
-    ? registeredSources.join(" + ")
-    : (fallbackSource ?? "Source not registered");
+  const source = datasetKeys
+    ? datasetKeys.length
+      ? datasetKeys.map((k, i) => entries[i]?.source ?? `unregistered (${k})`).join(" + ")
+      : "Source not registered"
+    : (entries[0]?.source ?? fallbackSource ?? "Source not registered");
   const label = resolvedStatus === null ? (loading ? "…" : "?") : STATUS_LABEL[resolvedStatus];
   const notes = entries.length === 1 ? entries[0]?.notes : null;
   const title = `${label}: ${source}${notes ? ` · ${notes}` : ""}`;

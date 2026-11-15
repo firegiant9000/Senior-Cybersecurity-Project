@@ -47,5 +47,20 @@ describe("SourceBadge", () => {
     render(<SourceBadge datasetKeys={["kev", "not_registered"]} />);
     expect(screen.getByText("?")).toBeTruthy();
     expect(screen.queryByText("Live")).toBeNull();
+    const el = screen.getByText("?").closest("span");
+    expect(el?.getAttribute("aria-label")).toContain("CISA KEV + unregistered (not_registered)");
+  });
+
+  it("empty datasetKeys reads ?", () => {
+    render(<SourceBadge datasetKeys={[]} />);
+    expect(screen.getByText("?")).toBeTruthy();
+  });
+
+  it("single unregistered key uses fallbackStatus and fallbackSource", () => {
+    render(
+      <SourceBadge datasetKey="not_registered" fallbackStatus="static" fallbackSource="Inline src" />,
+    );
+    const el = screen.getByText("Static").closest("span");
+    expect(el?.getAttribute("aria-label")).toContain("Inline src");
   });
 });
