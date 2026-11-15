@@ -16,7 +16,11 @@ from app.db.engine import get_session
 from app.db.enums import IndustryLabel
 from app.db.models import CVE, KEV, IC3Incident
 from app.services.domain_checks import normalize_hostname
-from app.services.public_domain_check import EXPLANATIONS, check_public_domain
+from app.services.public_domain_check import (
+    EXPLANATIONS,
+    check_public_domain,
+    is_public_checkable,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -104,14 +108,18 @@ async def public_domain_check(request: Request) -> DomainCheckResponse:
     except (ValueError, ValidationError, RecursionError):  # bad JSON/encoding/shape, deep nesting
         raise HTTPException(status_code=422, detail=_BAD_DOMAIN) from None
     host = normalize_hostname(body.domain)
-    if host is None:
+    if host is None or not is_public_checkable(host):
         raise HTTPException(status_code=422, detail=_BAD_DOMAIN)
     result = await check_public_domain(host)
+    if result.multiple_dmarc:
+        explanation = EXPLANATIONS["multiple_dmarc"]
+    else:
+        explanation = EXPLANATIONS[result.rating if result.rating else result.status]
     return DomainCheckResponse(
         status=result.status,
         spf_found=result.spf_found,
         dmarc_found=result.dmarc_found,
         dmarc_policy=result.dmarc_policy,
         rating=result.rating,
-        explanation=EXPLANATIONS[result.rating if result.rating else result.status],
+        explanation=explanation,
     )

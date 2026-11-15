@@ -7,6 +7,7 @@ rating. The host is never logged.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Literal
 
@@ -34,6 +35,34 @@ class PublicDomainCheck:
     dmarc_found: bool | None = None
     dmarc_policy: DmarcPolicy | None = None
     rating: Rating | None = None  # None unless status == "ok"
+    multiple_dmarc: bool = False  # internal: picks the explanation, not in the HTTP response
+
+
+SPECIAL_USE_TLDS: frozenset[str] = frozenset(
+    {
+        "internal",
+        "local",
+        "localhost",
+        "localdomain",
+        "lan",
+        "home",
+        "corp",
+        "arpa",
+        "test",
+        "invalid",
+        "example",
+        "onion",
+        "alt",
+    }
+)
+
+
+def is_public_checkable(host: str) -> bool:
+    """False for names under special-use / private TLDs (never probe the resolver's namespace)."""
+    return host.rsplit(".", 1)[-1] not in SPECIAL_USE_TLDS
+
+
+_DMARC_VERSION = re.compile(r"^v\s*=\s*DMARC1\s*(;|$)")
 
 
 EXPLANATIONS: dict[str, str] = {
@@ -48,6 +77,10 @@ EXPLANATIONS: dict[str, str] = {
     "spoofable": (
         "Your domain has no DMARC record, so nothing tells mail servers to stop "
         "email that pretends to come from you."
+    ),
+    "multiple_dmarc": (
+        "Your domain publishes more than one DMARC record, so mail servers ignore them "
+        "and nothing stops email that pretends to come from you."
     ),
     "domain_not_found": "We couldn't find that domain. Check the spelling and try again.",
     "unavailable": ("We couldn't finish the check just now. Please try again in a few minutes."),
@@ -98,7 +131,16 @@ async def _dmarc_records(resolver: dns.asyncresolver.Resolver, host: str) -> lis
     except dns.exception.DNSException:
         return None
     texts = (_text(r).strip() for r in answers)
-    return [t for t in texts if t.startswith("v=DMARC1")]
+    return [t for t in texts if _DMARC_VERSION.match(t)]
+
+
+def _policy_of(record: str) -> DmarcPolicy | None:
+    """The record's policy; None when it has several p= tags or an unknown value."""
+    tags = [p for p in (part.strip() for part in record.split(";")) if p.lower().startswith("p=")]
+    if len(tags) != 1:
+        return None
+    candidate = dmarc_policy_from_record(record)
+    return candidate if candidate in _POLICIES else None  # type: ignore[return-value]
 
 
 async def check_public_domain(host: str) -> PublicDomainCheck:
@@ -127,11 +169,7 @@ async def check_public_domain(host: str) -> PublicDomainCheck:
         return _UNAVAILABLE
 
     dmarc_found = len(dmarc_records) == 1
-    policy: DmarcPolicy | None = None
-    if dmarc_found:
-        candidate = dmarc_policy_from_record(dmarc_records[0])
-        if candidate in _POLICIES:
-            policy = candidate  # type: ignore[assignment]
+    policy = _policy_of(dmarc_records[0]) if dmarc_found else None
 
     result = PublicDomainCheck(
         status="ok",
@@ -139,6 +177,7 @@ async def check_public_domain(host: str) -> PublicDomainCheck:
         dmarc_found=dmarc_found,
         dmarc_policy=policy,
         rating=rate(dmarc_found, policy),
+        multiple_dmarc=len(dmarc_records) > 1,
     )
     _cache[host] = result
     return result

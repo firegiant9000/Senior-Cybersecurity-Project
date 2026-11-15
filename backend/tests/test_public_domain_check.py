@@ -159,7 +159,50 @@ async def test_two_dmarc_records_is_spoofable(fake_resolver):
     fake_resolver.set(DMARC_HOST, ["v=DMARC1; p=reject", "v=DMARC1; p=none"])
     result = await check_public_domain(HOST)
     assert result.dmarc_found is False
+    assert result.multiple_dmarc is True
     assert result.rating == "spoofable"
+
+
+async def test_dmarc_version_must_be_exact(fake_resolver):
+    fake_resolver.set(HOST, [SPF])
+    fake_resolver.set(DMARC_HOST, ["v=DMARC10; p=reject"])
+    result = await check_public_domain(HOST)
+    assert result.dmarc_found is False
+    assert result.rating == "spoofable"
+
+
+async def test_dmarc_version_allows_whitespace(fake_resolver):
+    fake_resolver.set(HOST, [SPF])
+    fake_resolver.set(DMARC_HOST, ["v = DMARC1 ; p=reject"])
+    result = await check_public_domain(HOST)
+    assert result.dmarc_found is True
+    assert result.rating == "protected"
+
+
+async def test_duplicate_policy_tag_is_not_trusted(fake_resolver):
+    fake_resolver.set(HOST, [SPF])
+    fake_resolver.set(DMARC_HOST, ["v=DMARC1; p=none; p=reject"])
+    result = await check_public_domain(HOST)
+    assert result.dmarc_found is True
+    assert result.dmarc_policy is None
+    assert result.rating == "monitoring_only"
+
+
+@pytest.mark.parametrize(
+    ("host", "checkable"),
+    [
+        ("example.com", True),
+        ("db.internal", False),
+        ("printer.local", False),
+        ("router.home.arpa", False),
+        ("1.0.0.127.in-addr.arpa", False),
+        ("a.test", False),
+        ("x.onion", False),
+        ("internal.example.com", True),
+    ],
+)
+def test_special_use_tlds_are_not_checkable(host, checkable):
+    assert public_domain_check.is_public_checkable(host) is checkable
 
 
 async def test_non_utf8_apex_txt_is_skipped(fake_resolver):
@@ -275,13 +318,26 @@ async def test_not_found_and_unavailable_have_no_rating(
 @pytest.mark.parametrize(
     "domain",
     ["1.2.3.4", "[::1]", "localhost", "https://example.com", "example.com/path"]
-    + ["example.com:8080", "a." * 127 + "com", ""],
+    + ["example.com:8080", "a." * 127 + "com", ""]
+    + ["db.internal", "printer.local", "router.home.arpa", "1.0.0.127.in-addr.arpa"]
+    + ["a.test", "x.onion"],
 )
 async def test_invalid_hostname_is_422(client, flag_on, fake_resolver, domain):
     resp = await client.post(URL, json={"domain": domain})
     assert resp.status_code == 422
     assert resp.json()["detail"] == BAD_HOST_DETAIL
     assert fake_resolver.calls == []
+
+
+async def test_multiple_dmarc_uses_its_own_explanation(client, flag_on, fake_resolver):
+    fake_resolver.set("victim-co.com", [SPF])
+    fake_resolver.set("_dmarc.victim-co.com", ["v=DMARC1; p=reject", "v=DMARC1; p=none"])
+    resp = await client.post(URL, json={"domain": "victim-co.com"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["rating"] == "spoofable"
+    assert data["explanation"] == EXPLANATIONS["multiple_dmarc"]
+    assert "multiple_dmarc" not in data
 
 
 async def test_extra_field_is_422(client, flag_on, fake_resolver):
