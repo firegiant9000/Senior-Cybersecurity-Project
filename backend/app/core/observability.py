@@ -11,6 +11,7 @@ import logging
 import re
 import uuid
 from typing import Any
+from urllib.parse import urlsplit
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -134,6 +135,13 @@ def _before_send(event: dict[str, Any], _hint: dict[str, Any]) -> dict[str, Any]
     """Sentry before_send hook — scrub PII and tag the request_id."""
     try:
         scrubbed = _scrub(event)
+        # Public routes carry visitor input (e.g. a domain) in the JSON body, which
+        # is not a sensitive key name; drop the body rather than send it to Sentry.
+        request = scrubbed.get("request")
+        if isinstance(request, dict):
+            path = urlsplit(str(request.get("url") or "")).path
+            if path.startswith(f"{settings.API_PREFIX}/public/"):
+                request.pop("data", None)
         _strip_frame_vars(scrubbed)
         rid = request_id_ctx.get()
         if rid:
