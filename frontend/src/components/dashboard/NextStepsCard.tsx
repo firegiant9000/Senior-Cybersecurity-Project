@@ -49,7 +49,7 @@ export const NEXT_STEPS: NextStep[] = [
     title: "Complete your profile",
     description:
       "Add industry, controls, and compliance frameworks for richer findings and an AI-written summary.",
-    to: "/onboarding",
+    to: "/settings/organisation",
   },
 ];
 

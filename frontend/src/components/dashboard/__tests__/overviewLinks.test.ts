@@ -20,6 +20,7 @@ describe("Overview links", () => {
     const to = Object.fromEntries(NEXT_STEPS.map((s) => [s.title, s.to]));
     expect(to["Upload CSV inventory"]).toBe("/org/assets/upload");
     expect(to["Connect Microsoft 365"]).toBe("/settings/integrations");
+    expect(to["Complete your profile"]).toBe("/settings/organisation");
   });
 
   it("assets link goes to the assets list, or to upload when there are none", () => {
