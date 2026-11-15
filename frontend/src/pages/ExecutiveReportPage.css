@@ -126,6 +126,23 @@
   margin: 0 0 12px 0;
 }
 
+/* Heading row with a source badge: the rule spans the full width */
+.exec-report-section-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 6px;
+  margin: 0 0 12px 0;
+}
+
+.exec-report-section-heading .exec-report-section-title {
+  border-bottom: 0;
+  padding-bottom: 0;
+  margin: 0;
+}
+
 /* ── Risk row ────────────────────────────────────────────────────────── */
 
 .exec-report-risk-row {
@@ -430,6 +447,7 @@
   }
 
   /* Avoid orphan headings */
+  .exec-report-section-heading,
   .exec-report-section-title {
     page-break-after: avoid;
     break-after: avoid;

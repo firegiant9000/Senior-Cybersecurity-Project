@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { OrgDomain, listDomains, addDomain, deleteDomain } from "../../api/domains";
+import { useConfirm } from "../../components/shared/ConfirmDialog";
 import type { SectionProps } from "./types";
 
 const domainPageSize = 20;
@@ -17,6 +18,7 @@ export default function DomainsSection({
   const [domainError, setDomainError] = useState("");
   const [domainMsg, setDomainMsg] = useState("");
   const [newDomain, setNewDomain] = useState("");
+  const { confirm, confirmDialog } = useConfirm();
 
   const loadDomains = useCallback(async (id: number, page: number) => {
     setDomainLoading(true);
@@ -80,6 +82,7 @@ export default function DomainsSection({
 
   return (
     <div className="section-accordion-body">
+      {confirmDialog}
       {domainMsg && <div className="settings-action-msg">{domainMsg}</div>}
       {domainError && (
         <div
@@ -134,8 +137,17 @@ export default function DomainsSection({
                   <td>
                     <button
                       className="vendor-delete-btn"
-                      onClick={() => handleDeleteDomain(d.id)}
-                      title="Remove"
+                      onClick={() =>
+                        confirm({
+                          title: "Delete domain",
+                          body: `Delete ${d.domain_name}? It will no longer be checked.`,
+                          confirmLabel: "Delete",
+                          tone: "danger",
+                          onConfirm: () => handleDeleteDomain(d.id),
+                        })
+                      }
+                      aria-label={`Delete domain ${d.domain_name}`}
+                      title="Delete"
                     >
                       &times;
                     </button>

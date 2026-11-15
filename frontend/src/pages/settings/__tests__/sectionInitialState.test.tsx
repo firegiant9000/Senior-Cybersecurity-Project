@@ -61,7 +61,7 @@ function company(reads: string[]) {
 function security(reads: string[]) {
   return (
     <>
-      <SecurityProfileSection orgId={7} canEdit onChanged={() => {}} onVendorsSynced={() => {}} />
+      <SecurityProfileSection orgId={7} canEdit onChanged={() => {}} />
       <ReadOnFirstCommit id="device-count" reads={reads} />
     </>
   )

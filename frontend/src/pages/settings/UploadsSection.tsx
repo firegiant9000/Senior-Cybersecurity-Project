@@ -6,6 +6,7 @@ import {
   deleteUpload,
   downloadUpload,
 } from "../../api/uploads";
+import { useConfirm } from "../../components/shared/ConfirmDialog";
 import type { SectionProps } from "./types";
 
 const formatFileSize = (bytes: number) => {
@@ -27,6 +28,7 @@ export default function UploadsSection({
   const [uploadError, setUploadError] = useState("");
   const [uploadMsg, setUploadMsg] = useState("");
   const uploadFileInputRef = useRef<HTMLInputElement>(null);
+  const { confirm, confirmDialog } = useConfirm();
 
   const loadUploads = useCallback(async (id: number, page: number) => {
     setUploadLoading(true);
@@ -87,6 +89,7 @@ export default function UploadsSection({
 
   return (
     <div className="section-accordion-body">
+      {confirmDialog}
       {uploadMsg && <div className="settings-action-msg">{uploadMsg}</div>}
       {uploadError && (
         <div
@@ -163,7 +166,16 @@ export default function UploadsSection({
                   <td>
                     <button
                       className="vendor-delete-btn"
-                      onClick={() => handleDeleteUpload(u.id)}
+                      onClick={() =>
+                        confirm({
+                          title: "Delete upload",
+                          body: `Delete the upload ${u.original_filename}?`,
+                          confirmLabel: "Delete",
+                          tone: "danger",
+                          onConfirm: () => handleDeleteUpload(u.id),
+                        })
+                      }
+                      aria-label={`Delete upload ${u.original_filename}`}
                       title="Delete"
                     >
                       &times;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDebounce } from '../../hooks/useDebounce';
 import { fetchWithAuth } from '../../api/fetchWithAuth';
+import SourceBadge from '../shared/SourceBadge';
 
 interface EconomicsItem {
     id: number;
@@ -29,12 +30,14 @@ const formatCurrencyCompact = (value: number): string => {
 
 interface Props {
     apiBaseUrl: string;
+    /** Registry key for the source badge, shown once the table has data. */
+    datasetKey: string;
 }
 
 type SortField = 'state' | 'smb_count' | 'avg_revenue';
 type SortOrder = 'asc' | 'desc';
 
-const EconomicsTable: React.FC<Props> = ({ apiBaseUrl }) => {
+const EconomicsTable: React.FC<Props> = ({ apiBaseUrl, datasetKey }) => {
     const [data, setData] = useState<EconomicsItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -130,6 +133,7 @@ const EconomicsTable: React.FC<Props> = ({ apiBaseUrl }) => {
 
             {data.length > 0 && (
                 <>
+                    {!loading && !error && <SourceBadge datasetKey={datasetKey} />}
                     <div className="table-scroll-wrapper">
                     <table className="data-table">
                         <thead>

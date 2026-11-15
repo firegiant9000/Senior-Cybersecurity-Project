@@ -21,12 +21,24 @@
     --color-high:       #f57c00;
     --color-moderate:   #fbc02d;
     --color-moderate-text: #7c2d12;
-    --color-low:        #388e3c;
+    --color-low:        #2e7d32;
     --error-bg:         #ffebee;
-    --error-text:       #d32f2f;
+    --error-text:       #b71c1c;
+    --tier-critical:    #991b1b;
+    --tier-high:        #c2410c;
+    --tier-medium:      #b45309;
+    --tier-low:         #15803d;
+    --tier-review:      #64748b;
+    --conf-high:        #15803d;
+    --conf-medium:      #b45309;
+    --conf-low:         #64748b;
     --warn-bg:          #fef3c7;
     --warn-border:      #d97706;
     --warn-text:        #78350f;
+    --surface-muted:    #f8fafc;
+    --text-subtle:      #64748b;
+    --success-bg:       #e6f7ec;
+    --success-text:     #1b5e20;
 }
 
 [data-theme="dark"] {
@@ -54,9 +66,22 @@
     --color-low:        #43a047;
     --error-bg:         #3c1414;
     --error-text:       #fca5a5;
+    /* Mirrors DARK_CHIP_COLORS in src/theme.ts (contrast-tested there). */
+    --tier-critical:    #fca5a5;
+    --tier-high:        #fdba74;
+    --tier-medium:      #fcd34d;
+    --tier-low:         #86efac;
+    --tier-review:      #cbd5e1;
+    --conf-high:        #86efac;
+    --conf-medium:      #fcd34d;
+    --conf-low:         #cbd5e1;
     --warn-bg:          #2d1c00;
     --warn-border:      #d97706;
     --warn-text:        #fcd34d;
+    --surface-muted:    #1e293b;
+    --text-subtle:      #94a3b8;
+    --success-bg:       #0f2a1a;
+    --success-text:     #86efac;
 }
 
 /*Main Background and font */
