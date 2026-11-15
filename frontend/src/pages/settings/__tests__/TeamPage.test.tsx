@@ -281,10 +281,11 @@ describe('TeamPage - Member Management', () => {
       expect(screen.queryByRole('link', { name: 'Assessment Debug' })).not.toBeInTheDocument()
     })
 
-    it('shows loading state initially', () => {
+    it('shows loading state initially', async () => {
       renderPage()
 
       expect(screen.getByText(/Loading profile/i)).toBeInTheDocument()
+      await screen.findByText('owner@example.com')
     })
 
     it('shows error when profile load fails', async () => {
@@ -922,6 +923,11 @@ describe('TeamPage - Member Management', () => {
       const emailInput = await screen.findByPlaceholderText(/user@example.com/i)
       fireEvent.change(emailInput, { target: { value: 'new@example.com' } })
       fireEvent.click(screen.getByRole('button', { name: /Send Invite/i }))
+      // Settle the create + invite-list reload inside act before the test continues.
+      await screen.findByText(inviteLink())
+      await waitFor(() => {
+        expect(mockListInvites).toHaveBeenCalledTimes(2)
+      })
     }
 
     const stubClipboard = (writeText: ReturnType<typeof vi.fn>) => {
