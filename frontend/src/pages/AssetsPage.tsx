@@ -18,6 +18,7 @@ import {
   patchAssetFindingStatus,
   setAssetTags,
 } from "../api/assets";
+import SourceBadge from "../components/shared/SourceBadge";
 import "../Dashboard.css";
 
 /**
@@ -325,7 +326,12 @@ export default function AssetsPage() {
   return (
     <div className="dashboard-page" style={{ padding: 24, maxWidth: 1100, margin: "0 auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1>Assets</h1>
+        <h1>
+          Assets
+          {!loading && visible.length > 0 && (
+            <SourceBadge datasetKey="assets_inventory" className="widget-source-badge" />
+          )}
+        </h1>
         <Link to="/org/assets/upload">
           <button type="button">Upload CSV</button>
         </Link>
@@ -554,7 +560,10 @@ export default function AssetsPage() {
               <th style={{ padding: 8 }}>OS</th>
               <th style={{ padding: 8 }}>IP</th>
               <th style={{ padding: 8 }}>Source</th>
-              <th style={{ padding: 8 }}>KEV matches</th>
+              <th style={{ padding: 8 }}>
+                KEV matches
+                <SourceBadge datasetKey="asset_kev_matches" className="widget-source-badge" />
+              </th>
               <th style={{ padding: 8 }}>Tags</th>
               <th style={{ padding: 8 }}>Last seen</th>
               <th />

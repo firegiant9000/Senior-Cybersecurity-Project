@@ -36,6 +36,12 @@ vi.mock('../../api/assets', () => ({
   setAssetTags: mockSetAssetTags,
 }))
 
+vi.mock('../../components/shared/SourceBadge', () => ({
+  default: ({ datasetKey }: { datasetKey: string }) => (
+    <span data-testid="source-badge" data-dataset-key={datasetKey} />
+  ),
+}))
+
 const makeAsset = (id: number, hostname: string) => ({
   id,
   org_id: 7,
@@ -119,6 +125,29 @@ beforeEach(() => {
     source: 'x',
   })
   mockPatchFindingStatus.mockResolvedValue({ status: 'false_positive' })
+})
+
+describe('AssetsPage source badges', () => {
+  it('labels the inventory and the KEV matches column with their sources', async () => {
+    const { container } = renderPage()
+    await screen.findByText('alpha-host')
+
+    const inventory = container.querySelector('[data-dataset-key="assets_inventory"]')
+    expect(inventory).toBeInTheDocument()
+    expect(inventory?.closest('h1')).not.toBeNull()
+
+    const kev = container.querySelector('[data-dataset-key="asset_kev_matches"]')
+    expect(kev).toBeInTheDocument()
+    expect(kev?.closest('th')).toHaveTextContent('KEV matches')
+  })
+
+  it('shows no badges while the inventory is loading', () => {
+    mockListAssets.mockReturnValue(new Promise(() => {}))
+    mockGetInventoryHealth.mockReturnValue(new Promise(() => {}))
+    mockGetAssetRiskSummary.mockReturnValue(new Promise(() => {}))
+    const { container } = renderPage()
+    expect(container.querySelector('[data-dataset-key]')).toBeNull()
+  })
 })
 
 describe('AssetsPage (characterisation)', () => {
