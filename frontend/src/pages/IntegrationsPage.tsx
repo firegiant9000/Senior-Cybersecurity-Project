@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.tsx";
+import "./IntegrationsPage.css";
 import {
   M365StatusResponse,
   M365SyncResponse,
@@ -163,13 +164,9 @@ export default function IntegrationsPage() {
         <div
           role="status"
           data-testid="m365-banner"
-          style={{
-            margin: "1rem 0",
-            padding: "0.75rem 1rem",
-            borderRadius: 6,
-            background: banner.kind === "success" ? "#e6f7ec" : "#fdecea",
-            color: banner.kind === "success" ? "#1b5e20" : "#b71c1c",
-          }}
+          className={`integrations-banner integrations-banner--${
+            banner.kind === "success" ? "success" : "error"
+          }`}
         >
           {banner.text}
         </div>
@@ -177,12 +174,7 @@ export default function IntegrationsPage() {
 
       <section
         data-testid="m365-card"
-        style={{
-          border: "1px solid #d0d7de",
-          borderRadius: 8,
-          padding: "1.25rem",
-          marginTop: "1rem",
-        }}
+        className="integrations-card"
       >
         <header style={{ display: "flex", justifyContent: "space-between" }}>
           <h2 style={{ margin: 0 }}>Microsoft 365 / Entra</h2>
@@ -228,7 +220,7 @@ export default function IntegrationsPage() {
         )}
 
         {error && (
-          <p role="alert" style={{ color: "#b71c1c" }}>
+          <p role="alert" className="integrations-error">
             {error}
           </p>
         )}

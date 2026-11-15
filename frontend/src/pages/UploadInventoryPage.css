@@ -1,0 +1,78 @@
+/* Upload screen: static styles, all colours come from theme variables (Dashboard.css). */
+
+.upload-intro {
+  color: var(--text-secondary);
+}
+
+.upload-dropzone {
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  padding: 32px;
+  text-align: center;
+  cursor: pointer;
+  background: var(--surface-muted);
+  margin-bottom: 16px;
+}
+
+.upload-dropzone--active {
+  border-color: var(--accent);
+  background: var(--tab-active-bg);
+}
+
+.upload-hint {
+  font-size: 13px;
+  color: var(--text-subtle);
+}
+
+.upload-error {
+  background: var(--error-bg);
+  color: var(--error-text);
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+
+.upload-preview {
+  background: var(--surface-muted);
+  padding: 16px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+
+.upload-result {
+  background: var(--success-bg);
+  color: var(--text-primary);
+  padding: 16px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+
+.upload-error-text {
+  color: var(--error-text);
+}
+
+.upload-note {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.upload-diff {
+  margin-top: 8px;
+  padding: 10px;
+  background: var(--tab-active-bg);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.upload-diff-prior {
+  color: var(--text-secondary);
+}
+
+.upload-rolledback {
+  margin-top: 8px;
+  padding: 10px;
+  background: var(--error-bg);
+  color: var(--error-text);
+  border-radius: 6px;
+  font-size: 13px;
+}

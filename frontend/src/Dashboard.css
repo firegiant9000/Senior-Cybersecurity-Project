@@ -30,6 +30,8 @@
     --surface-muted:    #f8fafc;
     --border-soft:      #e2e8f0;
     --text-subtle:      #64748b;
+    --success-bg:       #e6f7ec;
+    --success-text:     #1b5e20;
 }
 
 [data-theme="dark"] {
@@ -63,6 +65,8 @@
     --surface-muted:    #1e293b;
     --border-soft:      #334155;
     --text-subtle:      #94a3b8;
+    --success-bg:       #0f2a1a;
+    --success-text:     #86efac;
 }
 
 /*Main Background and font */
