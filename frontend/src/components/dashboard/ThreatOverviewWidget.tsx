@@ -3,6 +3,7 @@ import "./ThreatOverviewWidget.css";
 import type { DashboardData } from "../../hooks/useDashboardData";
 import { fetchIngestFreshness } from "../../api/ingest";
 import { formatDateWithTz } from "../../utils/formatTime";
+import SourceBadge from "../shared/SourceBadge";
 
 interface Props {
   data: DashboardData;
@@ -63,7 +64,10 @@ const ThreatOverviewWidget: React.FC<Props> = ({ data, loading }) => {
   return (
     <section className="threat-overview-widget" aria-label="Threat intelligence overview">
       <div className="threat-overview-header">
-        <span className="threat-overview-header__title">Threat Intelligence Overview</span>
+        <span className="threat-overview-header__title">
+          Threat Intelligence Overview{' '}
+          <SourceBadge datasetKeys={['kev', 'risk_score']} />
+        </span>
         <span className="threat-overview-header__ingest">
           {lastIngestAt
             ? `Last CVE ingest: ${formatDateWithTz(lastIngestAt)}`

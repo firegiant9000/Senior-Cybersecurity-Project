@@ -9,6 +9,12 @@ vi.mock('../../../firebase', () => ({
 vi.mock('../IC3Table', () => ({ default: () => <div data-testid="ic3-table">IC3</div> }))
 vi.mock('../EconomicsTable', () => ({ default: () => <div data-testid="economics-table">Economics</div> }))
 
+vi.mock('../../shared/SourceBadge', () => ({
+  default: ({ datasetKey }: { datasetKey: string }) => (
+    <span data-testid="source-badge" data-dataset-key={datasetKey} />
+  ),
+}))
+
 function LocationProbe() {
   const location = useLocation()
   return <div data-testid="location">{location.pathname + location.search}</div>
@@ -60,6 +66,24 @@ describe('DataSourcesTab', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/intel/reference/economics')
     expect(screen.getByRole('link', { name: 'Economics' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('link', { name: 'IC3 Incidents' })).not.toHaveAttribute('aria-current')
+  })
+
+  it('labels the IC3 dataset with ic3_incidents', async () => {
+    renderAt('/intel/reference/ic3')
+    await screen.findByTestId('ic3-table')
+
+    const badges = screen.getAllByTestId('source-badge')
+    expect(badges).toHaveLength(1)
+    expect(badges[0]).toHaveAttribute('data-dataset-key', 'ic3_incidents')
+  })
+
+  it('labels the Economics dataset with bea_economics', async () => {
+    renderAt('/intel/reference/economics')
+    await screen.findByTestId('economics-table')
+
+    const badges = screen.getAllByTestId('source-badge')
+    expect(badges).toHaveLength(1)
+    expect(badges[0]).toHaveAttribute('data-dataset-key', 'bea_economics')
   })
 
   it('sends /intel/reference/cisa to the KEV view on Vulnerabilities', async () => {
