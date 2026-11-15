@@ -25,6 +25,7 @@ export default function VulnerabilitiesScreen() {
   };
 
   const onTabKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
     const current = SOURCES.findIndex((s) => s.key === source);
     let next: number;
     switch (e.key) {

@@ -99,6 +99,15 @@ describe('VulnerabilitiesScreen', () => {
       renderAt('/vulnerabilities');
       fireEvent.keyDown(screen.getByRole('tab', { name: 'Risk-scored' }), { key: 'End' });
       expect(sourceOf()).toBe('nvd');
+      expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'NVD' }));
+    });
+
+    it('Alt+ArrowRight is left to the browser and does not change the tab', () => {
+      renderAt('/vulnerabilities');
+      const tab = screen.getByRole('tab', { name: 'Risk-scored' });
+      fireEvent.keyDown(tab, { key: 'ArrowRight', altKey: true });
+      expect(tab.getAttribute('aria-selected')).toBe('true');
+      expect(screen.getByTestId('location').textContent).toBe('');
     });
 
     it('Home selects Risk-scored', () => {
