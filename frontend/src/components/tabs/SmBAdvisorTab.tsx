@@ -33,6 +33,7 @@ import {
 } from '../../api/dashboardSummary';
 import { fetchSmbRiskScore, type SmbRiskScore } from '../../api/smbRiskScore';
 import WidgetSkeleton from '../shared/WidgetSkeleton';
+import SourceBadge from '../shared/SourceBadge';
 import { useRefreshProgress } from '../../hooks/useRefreshProgress';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -351,6 +352,7 @@ function RiskGradeCard({ grade, sectorProfile, loading }: {
             <span className="smb-stat-value">{fmtMoney(sectorProfile.total_loss)}</span>
             <span className="smb-stat-label">Total losses on record</span>
           </div>
+          <SourceBadge datasetKey="ic3_incidents" className="widget-source-badge" />
         </div>
       )}
     </div>
@@ -366,6 +368,7 @@ function TopThreatsCard({ threats, loading }: {
   return (
     <div className="card smb-threats-card">
       <h3 className="smb-section-title"> Top Threats Targeting Your Industry</h3>
+      <SourceBadge datasetKey="ic3_incidents" className="widget-source-badge" />
       <p className="smb-section-sub">Based on FBI crime complaint data — ranked by financial impact</p>
       {loading ? (
         <WidgetSkeleton variant="chart" />
@@ -438,6 +441,7 @@ function CostEstimateCard({ sectorProfile, allSectors, loading }: {
         <p className="smb-empty">Select your industry to see cost estimates.</p>
       ) : (
         <>
+          <SourceBadge datasetKeys={['ic3_incidents', 'loss_projection']} className="widget-source-badge" />
           <div className="smb-cost-range">
             <div className="smb-cost-band smb-cost-low">
               <div className="smb-cost-amount">{fmtMoneyFull(low)}</div>

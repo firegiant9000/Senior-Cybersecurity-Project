@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import RefreshButton from '../RefreshButton';
 import SeverityBadge from '../shared/SeverityBadge';
 import InfoTip from '../shared/InfoTip';
+import SourceBadge from '../shared/SourceBadge';
 import { VENDOR_ALERT_TIP } from '../shared/VendorAlertsCard';
 import { useRefreshProgress } from '../../hooks/useRefreshProgress';
 import './VendorAlertsTab.css';
@@ -208,6 +209,7 @@ const VendorAlertsTab: React.FC = () => {
         <h2 className="vendor-alerts-heading">
           Vendor Alerts
           <InfoTip text={VENDOR_ALERT_TIP} label="Vendor Alerts" />
+          <SourceBadge datasetKey="vendor_alerts" className="widget-source-badge" />
         </h2>
         <div className="vendor-alerts-actions">
           <RefreshButton
