@@ -18,7 +18,6 @@ from cachetools import TTLCache
 from app.services.domain_checks import (
     _DNS_TIMEOUT,
     dmarc_policy_from_record,
-    txt_record_text,
 )
 
 Status = Literal["ok", "domain_not_found", "unavailable"]
@@ -81,11 +80,8 @@ def rate(dmarc_found: bool, dmarc_policy: DmarcPolicy | None) -> Rating:  # noqa
 
 
 def _text(rdata) -> str:  # noqa: ANN001 - dnspython rdata, untyped
-    """TXT text, or "" for a record that is not valid UTF-8 (visitor-controlled data)."""
-    try:
-        return txt_record_text(rdata)
-    except UnicodeDecodeError:
-        return ""
+    """TXT text; undecodable bytes become U+FFFD so the record still counts (RFC 7489)."""
+    return "".join(s.decode(errors="replace") if isinstance(s, bytes) else s for s in rdata.strings)
 
 
 def _is_spf(text: str) -> bool:

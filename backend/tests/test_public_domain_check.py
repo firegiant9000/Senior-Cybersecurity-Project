@@ -173,6 +173,14 @@ async def test_non_utf8_dmarc_txt_is_skipped(fake_resolver):
     assert result.rating == "protected"
 
 
+async def test_undecodable_second_dmarc_record_still_counts(fake_resolver):
+    fake_resolver.set(HOST, [SPF])
+    fake_resolver.set(DMARC_HOST, ["v=DMARC1; p=reject", b"v=DMARC1; p=none\xff"])
+    result = await check_public_domain(HOST)
+    assert result.dmarc_found is False
+    assert result.rating == "spoofable"
+
+
 async def test_dkim_is_never_queried(fake_resolver):
     fake_resolver.set(HOST, [SPF])
     fake_resolver.set(DMARC_HOST, ["v=DMARC1; p=none"])
