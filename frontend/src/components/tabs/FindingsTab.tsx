@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   fetchFindings,
@@ -72,6 +72,8 @@ const FindingsTab: React.FC = () => {
   const [minLoadingDone, setMinLoadingDone] = useState(false);
   const [error, setError] = useState('');
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
+  // Latest status-change attempt per stable_key, to ignore stale failures.
+  const attemptsRef = useRef<Record<string, number>>({});
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [history, setHistory] = useState<SnapshotListItem[]>([]);
@@ -93,6 +95,7 @@ const FindingsTab: React.FC = () => {
     setLoading(true);
     setMinLoadingDone(false);
     setError('');
+    setRowErrors({});
     const minTimer = setTimeout(() => setMinLoadingDone(true), MIN_LOADING_MS);
     fetchFindings(controller.signal)
       .then(setReport)
@@ -132,6 +135,8 @@ const FindingsTab: React.FC = () => {
 
   const setFindingStatus = useCallback(
     async (finding: Finding, nextStatus: FindingStatus) => {
+      const attempt = (attemptsRef.current[finding.stable_key] ?? 0) + 1;
+      attemptsRef.current[finding.stable_key] = attempt;
       // Clear any previous error for this row before retrying.
       setRowErrors((prev) => {
         if (!(finding.stable_key in prev)) return prev;
@@ -162,6 +167,8 @@ const FindingsTab: React.FC = () => {
           }),
         );
       } catch {
+        // A newer toggle on this row supersedes this attempt; ignore it.
+        if (attemptsRef.current[finding.stable_key] !== attempt) return;
         // Revert on failure.
         setReport((prev) => {
           if (!prev) return prev;

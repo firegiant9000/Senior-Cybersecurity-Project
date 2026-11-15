@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import FindingsTab from '../FindingsTab'
@@ -174,6 +174,31 @@ describe('FindingsTab characterisation', () => {
       await screen.findByRole('checkbox', { name: 'Mark "Threat alpha" as open' }),
     ).toBeChecked()
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+  })
+
+  it('a stale failure from an earlier toggle on the same row is ignored', async () => {
+    mockFetchFindings.mockResolvedValue(twoFindings())
+    let rejectFirst: (e: Error) => void = () => {}
+    let resolveSecond: (v: unknown) => void = () => {}
+    mockPatchStatus
+      .mockImplementationOnce(() => new Promise((_, rej) => { rejectFirst = rej }))
+      .mockImplementationOnce(() => new Promise((res) => { resolveSecond = res }))
+    renderTab()
+    await screen.findByText('Threat alpha', {}, SLOW)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as open' }))
+    await waitFor(() => expect(mockPatchStatus).toHaveBeenCalledTimes(2))
+
+    resolveSecond({ stable_key: 'key-a', status: 'open' })
+    await act(async () => {
+      rejectFirst(new Error('late'))
+    })
+
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(
+      screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }),
+    ).not.toBeChecked()
   })
 
   it('two failures show two row errors', async () => {
