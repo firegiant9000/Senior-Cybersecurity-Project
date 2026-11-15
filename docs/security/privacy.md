@@ -54,13 +54,15 @@ returns "not found". When it is on:
 - **The domain you type** is looked up in public DNS (its SPF and DMARC
   records) and is not saved to the database or logged. The server reuses the
   result for up to 15 minutes so a repeat check doesn't query DNS again; after
-  that it is discarded the next time the check runs or the server restarts.
+  that it is no longer reused, and it is dropped from memory on a later
+  successful check or a server restart.
   It is not sent to any of the lookup services in the table below; the DNS
   resolvers that answer the lookup see the name, as with any DNS query.
 - **Your quiz answers** are scored and sent back to you. They are not stored
   or logged.
 - **Only anonymous step counts are saved to the database:** for each day, how many times each
-  step (for example "quiz started", or a given question answered) happened. No
+  step (for example "quiz started", or a given question answered, once the question set lands with #294)
+  happened. No
   visitor ID, IP address, domain or answer is stored with them.
 - **Your IP address** is handled as on every other request: the server's
   request logs include the client or proxy IP, and the rate limiter uses it

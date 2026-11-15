@@ -39,8 +39,8 @@ export default function PrivacyPage() {
               threat intelligence to your environment.
             </li>
             <li>
-              <strong>Activity:</strong> request logs (which include your IP
-              address or a proxy&apos;s) and audit entries — which API
+              <strong>Activity:</strong> request logs (which include client or
+              proxy IP addresses, not verified) and audit entries — which API
               your account called, when, and whether it succeeded. Audit
               entries are kept for 12 months.
             </li>
@@ -98,7 +98,7 @@ export default function PrivacyPage() {
               <strong>The domain you type</strong> is looked up in public DNS
               (its SPF and DMARC records) and is not saved or logged. The
               server reuses the result for up to 15 minutes so a repeat check
-              doesn&apos;t query DNS again, then discards it. It is not sent
+              doesn&apos;t query DNS again, then stops reusing it. It is not sent
               to the domain-check providers listed below.
             </li>
             <li>

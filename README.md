@@ -162,8 +162,8 @@ flowchart LR
   per-day funnel counts
   ([`public.py`](backend/app/api/routes/v1/public.py),
   [`public_readiness.py`](backend/app/api/routes/v1/public_readiness.py), #293).
-  Only the anonymous step counts are saved; the typed domain is cached in
-  memory for up to 15 minutes, and IPs appear in request logs as on every
+  Only the anonymous step counts are saved; the typed domain is kept in an
+  in-memory cache (results reused for up to 15 minutes), and IPs appear in request logs as on every
   route ([privacy](docs/security/privacy.md)). Behind `ENABLE_PUBLIC_READINESS`
   until #209 lands; the quiz's question set lands with #294.
 
