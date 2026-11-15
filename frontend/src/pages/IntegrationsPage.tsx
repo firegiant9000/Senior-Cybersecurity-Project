@@ -145,7 +145,7 @@ export default function IntegrationsPage() {
         <h1>Integrations</h1>
         <p>
           Microsoft 365 sync isn&apos;t available on this deployment yet. You
-          can still add assets by <Link to="/inventory/upload">uploading an inventory file</Link>.
+          can still add assets by <Link to="/org/assets/upload">uploading an inventory file</Link>.
         </p>
       </div>
     );

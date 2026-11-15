@@ -23,7 +23,15 @@
     --color-moderate-text: #7c2d12;
     --color-low:        #2e7d32;
     --error-bg:         #ffebee;
-    --error-text:       #d32f2f;
+    --error-text:       #b71c1c;
+    --tier-critical:    #991b1b;
+    --tier-high:        #c2410c;
+    --tier-medium:      #b45309;
+    --tier-low:         #15803d;
+    --tier-review:      #64748b;
+    --conf-high:        #15803d;
+    --conf-medium:      #b45309;
+    --conf-low:         #64748b;
     --warn-bg:          #fef3c7;
     --warn-border:      #d97706;
     --warn-text:        #78350f;
@@ -58,6 +66,15 @@
     --color-low:        #43a047;
     --error-bg:         #3c1414;
     --error-text:       #fca5a5;
+    /* Mirrors DARK_CHIP_COLORS in src/theme.ts (contrast-tested there). */
+    --tier-critical:    #fca5a5;
+    --tier-high:        #fdba74;
+    --tier-medium:      #fcd34d;
+    --tier-low:         #86efac;
+    --tier-review:      #cbd5e1;
+    --conf-high:        #86efac;
+    --conf-medium:      #fcd34d;
+    --conf-low:         #cbd5e1;
     --warn-bg:          #2d1c00;
     --warn-border:      #d97706;
     --warn-text:        #fcd34d;

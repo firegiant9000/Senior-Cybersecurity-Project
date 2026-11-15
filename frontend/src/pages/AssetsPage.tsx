@@ -79,10 +79,10 @@ const CONFIDENCE_META: Record<
   MatchConfidence,
   { label: string; color: string; deemphasized: boolean }
 > = {
-  high: { label: "High confidence", color: "#15803d", deemphasized: false },
-  medium: { label: "Medium confidence", color: "#b45309", deemphasized: false },
-  low: { label: "Low confidence", color: "#64748b", deemphasized: true },
-  needs_review: { label: "Needs review", color: "#64748b", deemphasized: true },
+  high: { label: "High confidence", color: "var(--conf-high)", deemphasized: false },
+  medium: { label: "Medium confidence", color: "var(--conf-medium)", deemphasized: false },
+  low: { label: "Low confidence", color: "var(--conf-low)", deemphasized: true },
+  needs_review: { label: "Needs review", color: "var(--conf-low)", deemphasized: true },
 };
 
 function ConfidenceChip({ confidence }: { confidence: MatchConfidence }) {
@@ -90,7 +90,7 @@ function ConfidenceChip({ confidence }: { confidence: MatchConfidence }) {
   return (
     <span
       style={{
-        background: `${meta.color}1f`,
+        background: `color-mix(in srgb, ${meta.color} 12%, transparent)`,
         color: meta.color,
         border: meta.deemphasized ? `1px dashed ${meta.color}` : "none",
         padding: "2px 8px",
@@ -116,19 +116,19 @@ function ConfidenceChip({ confidence }: { confidence: MatchConfidence }) {
 }
 
 const TIER_COLORS: Record<string, string> = {
-  Critical: "#991b1b",
-  High: "#c2410c",
-  Medium: "#b45309",
-  Low: "#15803d",
-  "Needs Review": "#64748b",
+  Critical: "var(--tier-critical)",
+  High: "var(--tier-high)",
+  Medium: "var(--tier-medium)",
+  Low: "var(--tier-low)",
+  "Needs Review": "var(--tier-review)",
 };
 
 function RiskTierChip({ tier }: { tier: string }) {
-  const color = TIER_COLORS[tier] ?? "#64748b";
+  const color = TIER_COLORS[tier] ?? "var(--tier-review)";
   return (
     <span
       style={{
-        background: `${color}1f`,
+        background: `color-mix(in srgb, ${color} 12%, transparent)`,
         color,
         padding: "2px 8px",
         borderRadius: 10,

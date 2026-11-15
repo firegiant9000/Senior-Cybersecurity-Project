@@ -98,8 +98,8 @@
 .assets-vendor-chip-active,
 .assets-vendor-chip-active:hover,
 .assets-vendor-chip-active:disabled {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
   color: #fff;
 }
 
@@ -232,7 +232,7 @@
 .assets-link-btn {
   background: transparent;
   border: none;
-  color: var(--accent);
+  color: var(--tab-active-color);
   font-size: 11px;
   cursor: pointer;
 }

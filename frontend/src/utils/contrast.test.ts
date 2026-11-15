@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { contrastRatio } from './contrast';
-import { SEVERITY_COLORS, SEVERITY_TEXT_COLORS } from '../theme';
+import { DARK_CHIP_COLORS, SEVERITY_COLORS, SEVERITY_TEXT_COLORS } from '../theme';
 
 describe('contrastRatio', () => {
   it('returns 21 for black on white', () => {
@@ -26,6 +26,16 @@ describe('severity badge text contrast', () => {
     (key) => {
       const ratio = contrastRatio(SEVERITY_TEXT_COLORS[key], SEVERITY_COLORS[key]);
       expect(ratio).toBeGreaterThanOrEqual(4.5);
+    },
+  );
+});
+
+describe('dark tier and confidence chip text contrast', () => {
+  it.each(Object.keys(DARK_CHIP_COLORS) as (keyof typeof DARK_CHIP_COLORS)[])(
+    '%s meets 4.5:1 on the dark card background',
+    (key) => {
+      expect(contrastRatio(DARK_CHIP_COLORS[key], '#22304a')).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(DARK_CHIP_COLORS[key], '#1e293b')).toBeGreaterThanOrEqual(4.5);
     },
   );
 });

@@ -147,13 +147,20 @@ export default function PrivacyPage() {
           <ul>
             <li>
               <strong>Export:</strong> an organisation admin can ask the site
-              operator for a copy of everything we hold about the organisation,
-              as a JSON file.
+              operator for a JSON file of your organisation&apos;s data: its
+              profile, domains, vendors, assets and installed software, finding
+              statuses and snapshots, scan runs, upload records, AI summaries
+              and feedback, assessment submissions, memberships and invitations.
+              It does not include login accounts or audit records.
             </li>
             <li>
               <strong>Delete:</strong> an organisation admin can ask the site
-              operator to delete the organisation and all of its data. Deletion
-              is permanent.
+              operator to permanently delete the organisation and that same
+              data. Member login accounts are not deleted; they are detached
+              from the organisation and remain until each member asks for their
+              own account to be deleted. Audit records are kept, including a
+              record of the deletion itself, for the retention period under
+              Activity above.
             </li>
             <li>
               <strong>Correct:</strong> edit your org profile from the in-app

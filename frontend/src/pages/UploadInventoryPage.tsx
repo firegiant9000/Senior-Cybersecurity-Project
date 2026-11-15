@@ -340,7 +340,7 @@ export default function UploadInventoryPage() {
                 type="button"
                 onClick={handleRollback}
                 disabled={rollingBack}
-                className="upload-error-text"
+                className="upload-rollback-btn"
               >
                 {rollingBack ? "Rolling back…" : "Undo last upload"}
               </button>

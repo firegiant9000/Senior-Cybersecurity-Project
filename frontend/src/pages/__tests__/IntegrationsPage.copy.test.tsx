@@ -33,7 +33,7 @@ describe('IntegrationsPage when Microsoft 365 sync is disabled', () => {
     ).toBeInTheDocument()
 
     const link = screen.getByRole('link', { name: 'uploading an inventory file' })
-    expect(link).toHaveAttribute('href', '/inventory/upload')
+    expect(link).toHaveAttribute('href', '/org/assets/upload')
 
     expect(container.textContent).not.toMatch(/ENABLE_M365_INTEGRATION/)
     expect(container.querySelector('code')).toBeNull()

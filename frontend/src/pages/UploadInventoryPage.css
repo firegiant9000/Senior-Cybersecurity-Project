@@ -51,6 +51,27 @@
   color: var(--error-text);
 }
 
+/* Overrides the global button blue (index.css); specificity beats button:hover/:disabled. */
+.upload-rollback-btn {
+  background: transparent;
+  color: var(--error-text);
+  border: 1px solid var(--error-text);
+}
+
+.upload-rollback-btn:hover,
+.upload-rollback-btn:disabled {
+  background: transparent;
+  color: var(--error-text);
+}
+
+.upload-rollback-btn:hover {
+  background: var(--error-bg);
+}
+
+.upload-rollback-btn:disabled {
+  opacity: 0.6;
+}
+
 .upload-note {
   font-size: 13px;
   color: var(--text-secondary);
