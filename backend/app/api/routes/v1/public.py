@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.requests import ClientDisconnect
 
 from app.core.config import settings
 from app.core.limiter import limiter
@@ -103,6 +104,10 @@ async def public_domain_check(request: Request) -> DomainCheckResponse:
     The body is parsed here, not by FastAPI, so the feature-flag 404 wins over body validation
     and no 422 ever echoes the visitor's input.
     """
+    try:
+        await request.body()  # cached, so request.json() below does not read again
+    except ClientDisconnect:
+        raise HTTPException(status_code=400, detail="Client disconnected") from None
     try:
         body = DomainCheckRequest.model_validate(await request.json())
     except (ValueError, ValidationError, RecursionError):  # bad JSON/encoding/shape, deep nesting

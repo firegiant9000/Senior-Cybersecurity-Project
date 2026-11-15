@@ -14,6 +14,7 @@ import pytest_asyncio
 
 from app.core.config import settings
 from app.core.limiter import limiter
+from app.main import app
 from app.services import public_domain_check
 from app.services.public_domain_check import EXPLANATIONS, check_public_domain
 
@@ -275,6 +276,46 @@ async def test_flag_off_returns_404(client, monkeypatch, fake_resolver, content)
     resp = await client.post(URL, content=content, headers=JSON_HEADERS)
     assert resp.status_code == 404
     assert resp.json() == {"detail": "Not Found"}
+    assert fake_resolver.calls == []
+
+
+async def test_client_disconnect_mid_body_is_not_a_500(flag_on, fake_resolver):
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "POST",
+        "scheme": "http",
+        "path": URL,
+        "raw_path": URL.encode(),
+        "query_string": b"",
+        "root_path": "",
+        "headers": [
+            (b"host", b"testserver"),
+            (b"content-type", b"application/json"),
+            (b"content-length", b"100"),
+        ],
+        "client": ("127.0.0.1", 50000),
+        "server": ("testserver", 80),
+    }
+    events = [
+        {"type": "http.request", "body": b'{"domain": "exa', "more_body": True},
+        {"type": "http.disconnect"},
+    ]
+    sent: list[dict] = []
+
+    async def receive():
+        return events.pop(0) if events else {"type": "http.disconnect"}
+
+    async def send(message):
+        sent.append(message)
+
+    await app(scope, receive, send)
+
+    starts = [m for m in sent if m["type"] == "http.response.start"]
+    assert starts, "no response was sent"
+    assert starts[0]["status"] == 400
+    assert starts[0]["status"] != 500
     assert fake_resolver.calls == []
 
 
