@@ -220,10 +220,16 @@ def ok_resolver(fake_resolver: FakeResolver) -> FakeResolver:
     return fake_resolver
 
 
-@pytest.mark.parametrize("body", [{"domain": "example.com"}, {"domain": "1.2.3.4"}, {"nope": 1}])
-async def test_flag_off_returns_404(client, monkeypatch, fake_resolver, body):
+JSON_HEADERS = {"content-type": "application/json"}
+
+
+@pytest.mark.parametrize(
+    "content",
+    [b'{"domain": "example.com"}', b'{"domain": "1.2.3.4"}', b'{"nope": 1}', b"{bad"],
+)
+async def test_flag_off_returns_404(client, monkeypatch, fake_resolver, content):
     monkeypatch.setattr(settings, "ENABLE_PUBLIC_READINESS", False)
-    resp = await client.post(URL, json=body)
+    resp = await client.post(URL, content=content, headers=JSON_HEADERS)
     assert resp.status_code == 404
     assert resp.json() == {"detail": "Not Found"}
     assert fake_resolver.calls == []
@@ -279,8 +285,28 @@ async def test_invalid_hostname_is_422(client, flag_on, fake_resolver, domain):
 
 
 async def test_extra_field_is_422(client, flag_on, fake_resolver):
-    resp = await client.post(URL, json={"domain": HOST, "x": 1})
+    resp = await client.post(URL, json={"domain": "a.com", "x": "victim-co.com"})
     assert resp.status_code == 422
+    assert resp.json()["detail"] == BAD_HOST_DETAIL
+    assert "victim-co.com" not in resp.text
+    assert fake_resolver.calls == []
+
+
+async def test_overlong_domain_is_422_and_not_echoed(client, flag_on, fake_resolver):
+    resp = await client.post(URL, json={"domain": "victim-co" * 200 + ".com"})
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == BAD_HOST_DETAIL
+    assert "victim-co" not in resp.text
+    assert fake_resolver.calls == []
+
+
+@pytest.mark.parametrize(
+    "content", [b"{bad", b"[]", b'"x"', b"{}", b'{"domain": 5}', b"\xff\xfe", b""]
+)
+async def test_malformed_body_is_generic_422(client, flag_on, fake_resolver, content):
+    resp = await client.post(URL, content=content, headers=JSON_HEADERS)
+    assert resp.status_code == 422
+    assert resp.json() == {"detail": BAD_HOST_DETAIL}
     assert fake_resolver.calls == []
 
 
@@ -314,6 +340,7 @@ async def test_endpoint_opens_no_socket_and_no_http(client, flag_on, ok_resolver
 
     monkeypatch.setattr(socket.socket, "connect", record)
     monkeypatch.setattr(socket, "create_connection", record)
+    monkeypatch.setattr(socket, "getaddrinfo", record)
     monkeypatch.setattr(ssl.SSLContext, "wrap_socket", record)
     monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", record_async)
 

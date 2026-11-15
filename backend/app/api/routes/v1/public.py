@@ -4,7 +4,7 @@ import logging
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -63,6 +63,9 @@ async def public_stats(
     )
 
 
+_BAD_DOMAIN = "Enter a domain name such as example.com."
+
+
 class DomainCheckRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -82,13 +85,27 @@ class DomainCheckResponse(BaseModel):
     "/public/domain-check",
     response_model=DomainCheckResponse,
     dependencies=[Depends(require_public_readiness)],
+    openapi_extra={
+        "requestBody": {
+            "content": {"application/json": {"schema": DomainCheckRequest.model_json_schema()}},
+            "required": True,
+        }
+    },
 )
 @limiter.limit(settings.RATE_LIMIT_PUBLIC_DOMAIN_CHECK)
-async def public_domain_check(request: Request, body: DomainCheckRequest) -> DomainCheckResponse:
-    """DNS-only SPF/DMARC check for the logged-out readiness page. Never echoes or logs the domain."""
+async def public_domain_check(request: Request) -> DomainCheckResponse:
+    """DNS-only SPF/DMARC check for the logged-out readiness page. Never echoes or logs the domain.
+
+    The body is parsed here, not by FastAPI, so the feature-flag 404 wins over body validation
+    and no 422 ever echoes the visitor's input.
+    """
+    try:
+        body = DomainCheckRequest.model_validate(await request.json())
+    except (ValueError, ValidationError):  # bad JSON, bad encoding, wrong shape
+        raise HTTPException(status_code=422, detail=_BAD_DOMAIN) from None
     host = normalize_hostname(body.domain)
     if host is None:
-        raise HTTPException(status_code=422, detail="Enter a domain name such as example.com.")
+        raise HTTPException(status_code=422, detail=_BAD_DOMAIN)
     result = await check_public_domain(host)
     return DomainCheckResponse(
         status=result.status,
