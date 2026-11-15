@@ -47,6 +47,14 @@ def _empty_gap_title(d: dict) -> None:
     d["questions"][0]["gap_title"] = ""
 
 
+def _blank_gap_title(d: dict) -> None:
+    d["questions"][0]["gap_title"] = "   "
+
+
+def _empty_source(d: dict) -> None:
+    d["questions"][0]["sources"] = [""]
+
+
 def _missing_first_step(d: dict) -> None:
     del d["questions"][0]["gap_first_step"]
 
@@ -85,6 +93,8 @@ def test_missing_file_returns_none(tmp_path):
         _unknown_option,
         _extra_field,
         _dup_option,
+        _blank_gap_title,
+        _empty_source,
     ],
     ids=[
         "duplicate_id",
@@ -96,6 +106,8 @@ def test_missing_file_returns_none(tmp_path):
         "unknown_option",
         "extra_field",
         "duplicate_option",
+        "blank_gap_title",
+        "empty_source",
     ],
 )
 def test_invalid_question_set_rejected(mutate):
@@ -112,6 +124,27 @@ def test_get_question_set_is_cached_and_clearable(monkeypatch):
         first = readiness_quiz.get_question_set()
         assert first is not None
         assert readiness_quiz.get_question_set() is first
+    finally:
+        readiness_quiz.get_question_set.cache_clear()
+
+
+def test_loaded_set_is_immutable_tuples():
+    question_set = load_fixture_set()
+    assert isinstance(question_set.questions, tuple)
+    assert isinstance(question_set.questions[0].options, tuple)
+    assert isinstance(question_set.questions[0].sources, tuple)
+
+
+def test_get_question_set_rejects_version_mismatch(monkeypatch, tmp_path):
+    data = fixture_dict()
+    data["version"] = "v2"
+    path = tmp_path / "questions_v2.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    monkeypatch.setattr(readiness_quiz, "QUESTIONS_PATH", path)
+    readiness_quiz.get_question_set.cache_clear()
+    try:
+        with pytest.raises(ValueError, match="question file version does not match QUESTIONS_PATH"):
+            readiness_quiz.get_question_set()
     finally:
         readiness_quiz.get_question_set.cache_clear()
 

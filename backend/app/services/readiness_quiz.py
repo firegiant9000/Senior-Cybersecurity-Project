@@ -29,7 +29,9 @@ IntakeField = Literal[
 QUESTIONS_PATH = Path(__file__).resolve().parent.parent / "data" / "readiness" / "questions_v1.json"
 MAX_QUESTIONS = 30
 
-NonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
+QUESTIONS_VERSION = "v1"
+
+NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
 class Question(BaseModel):
@@ -38,17 +40,17 @@ class Question(BaseModel):
     id: Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{0,63}$")]
     text: NonEmptyStr
     help: NonEmptyStr
-    options: list[OptionId]
+    options: tuple[OptionId, ...]
     weight: Annotated[int, Field(ge=1, le=3)]
     weight_reason: NonEmptyStr
     gap_title: NonEmptyStr
     gap_first_step: NonEmptyStr
-    sources: Annotated[list[str], Field(min_length=1)]
+    sources: Annotated[tuple[NonEmptyStr, ...], Field(min_length=1)]
     intake_field: IntakeField | None = None
 
     @field_validator("options")
     @classmethod
-    def _check_options(cls, value: list[str]) -> list[str]:
+    def _check_options(cls, value: tuple[str, ...]) -> tuple[str, ...]:
         if len(set(value)) != len(value):
             raise ValueError("options must be unique")
         missing = REQUIRED_OPTIONS - set(value)
@@ -61,7 +63,7 @@ class QuestionSet(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     version: Annotated[str, StringConstraints(pattern=r"^v[0-9]{1,3}$")]
-    questions: Annotated[list[Question], Field(min_length=1, max_length=MAX_QUESTIONS)]
+    questions: Annotated[tuple[Question, ...], Field(min_length=1, max_length=MAX_QUESTIONS)]
 
     @model_validator(mode="after")
     def _check_unique_ids(self) -> "QuestionSet":
@@ -81,4 +83,7 @@ def load_question_set(path: Path) -> QuestionSet | None:
 @cache
 def get_question_set() -> QuestionSet | None:
     """Cached question set from QUESTIONS_PATH (tests: ``get_question_set.cache_clear()``)."""
-    return load_question_set(QUESTIONS_PATH)
+    question_set = load_question_set(QUESTIONS_PATH)
+    if question_set is not None and question_set.version != QUESTIONS_VERSION:
+        raise ValueError("question file version does not match QUESTIONS_PATH")
+    return question_set
