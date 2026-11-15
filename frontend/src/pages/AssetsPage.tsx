@@ -39,7 +39,7 @@ function SummaryStat({
 }) {
   return (
     <div>
-      <div className="assets-text-subtle" style={{ fontSize: 12 }}>{label}</div>
+      <div className="assets-text-subtle assets-fs-12">{label}</div>
       <div style={{ color, fontSize: 22, fontWeight: 700, marginTop: 2 }}>
         {value.toLocaleString()}
       </div>
@@ -338,7 +338,7 @@ export default function AssetsPage() {
           <SummaryStat
             label="With software"
             value={summary.assets_with_known_software}
-            color="#0ea5e9"
+            color="var(--accent)"
           />
           <SummaryStat
             label="KEV-matched"
@@ -346,14 +346,14 @@ export default function AssetsPage() {
             color={summary.assets_with_kev_match > 0 ? "var(--color-critical)" : "var(--text-subtle)"}
           />
           <div>
-            <div className="assets-text-subtle" style={{ fontSize: 12 }}>Last upload</div>
+            <div className="assets-text-subtle assets-fs-12">Last upload</div>
             <div style={{ fontSize: 14, fontWeight: 600, marginTop: 2 }}>
               {summary.last_inventory_update
                 ? new Date(summary.last_inventory_update).toLocaleString()
                 : "—"}
             </div>
             {summary.last_source && (
-              <div className="assets-text-subtle" style={{ fontSize: 11, marginTop: 2 }}>
+              <div className="assets-text-subtle assets-fs-11" style={{ marginTop: 2 }}>
                 via {summary.last_source}
               </div>
             )}
@@ -415,7 +415,7 @@ export default function AssetsPage() {
             marginTop: 12,
           }}
         >
-          <span className="assets-text-subtle" style={{ fontSize: 12 }}>Top vendors:</span>
+          <span className="assets-text-subtle assets-fs-12">Top vendors:</span>
           {summary.top_vendors.map((v) => {
             const active = vendorFilter === v.vendor;
             return (
@@ -531,7 +531,7 @@ export default function AssetsPage() {
                 </td>
                 <td style={{ padding: 8 }}>
                   {(asset.tags ?? []).length === 0 ? (
-                    <span className="assets-text-subtle" style={{ fontSize: 11 }}>—</span>
+                    <span className="assets-text-subtle assets-fs-11">—</span>
                   ) : (
                     <span style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                       {(asset.tags ?? []).map((t) => (
@@ -542,7 +542,7 @@ export default function AssetsPage() {
                     </span>
                   )}
                 </td>
-                <td className="assets-text-secondary" style={{ padding: 8, fontSize: 12 }}>
+                <td className="assets-text-secondary assets-fs-12" style={{ padding: 8 }}>
                   {new Date(asset.last_seen).toLocaleDateString()}
                 </td>
                 <td style={{ padding: 8 }}>
@@ -595,7 +595,7 @@ export default function AssetsPage() {
               · <SourceBadge via={detail.asset.discovered_via} />
             </p>
             <div className="assets-tag-editor">
-              <div className="assets-text-subtle" style={{ fontSize: 12, marginBottom: 4 }}>
+              <div className="assets-text-subtle assets-fs-12" style={{ marginBottom: 4 }}>
                 Tags (comma-separated)
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -624,7 +624,6 @@ export default function AssetsPage() {
                 disabled={findingsLoading || findingsRefreshing}
                 title="Re-run the version-aware matcher against this asset's software"
                 className="assets-outline-btn assets-text-secondary"
-                style={{ padding: "2px 8px" }}
               >
                 {findingsRefreshing ? "Recomputing…" : "Recompute"}
               </button>
@@ -693,8 +692,7 @@ export default function AssetsPage() {
                         </td>
                         <td style={{ padding: 6, whiteSpace: "nowrap" }}>
                           <span
-                            className="assets-text-secondary"
-                            style={{ fontSize: 12 }}
+                            className="assets-text-secondary assets-fs-12"
                             aria-label={
                               isFalsePositive ? "Status: false positive (dismissed)" : undefined
                             }
@@ -753,7 +751,7 @@ export default function AssetsPage() {
                 </div>
               )}
             {findings && (
-              <p className="assets-text-subtle" style={{ fontSize: 11, marginTop: -8, marginBottom: 12 }}>
+              <p className="assets-text-subtle assets-note">
                 {findings.note}
               </p>
             )}
@@ -787,7 +785,7 @@ export default function AssetsPage() {
                 <h3 style={{ marginTop: 20 }}>
                   Running services ({detail.services.length})
                 </h3>
-                <p className="assets-text-subtle" style={{ fontSize: 11, marginTop: -8, marginBottom: 12 }}>
+                <p className="assets-text-subtle assets-note">
                   Latest snapshot from the host scanner.
                 </p>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -814,7 +812,7 @@ export default function AssetsPage() {
                 <h3 style={{ marginTop: 20 }}>
                   Listening ports ({detail.listening_ports.length})
                 </h3>
-                <p className="assets-text-subtle" style={{ fontSize: 11, marginTop: -8, marginBottom: 12 }}>
+                <p className="assets-text-subtle assets-note">
                   Collected only when the scanner is run with --include-ports.
                 </p>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>

@@ -5,7 +5,7 @@
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
   background: var(--surface-muted);
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 16px;
   margin-top: 16px;
@@ -32,9 +32,11 @@
 }
 
 .assets-risk-row {
-  border-top: 1px solid var(--warn-border);
+  border-top: 1px solid var(--border);
 }
 
+/* Button state rules: index.css has `button:hover` / `button:disabled` (0,1,1) that set a
+   background; the explicit :hover/:disabled selectors (0,2,0) outrank them. */
 .assets-risk-link {
   background: transparent;
   border: none;
@@ -42,6 +44,12 @@
   cursor: pointer;
   font-weight: 600;
   padding: 0;
+}
+
+.assets-risk-link:hover,
+.assets-risk-link:disabled {
+  background: transparent;
+  text-decoration: underline;
 }
 
 .assets-risk-note {
@@ -69,18 +77,29 @@
   font-weight: 600;
 }
 
+/* Button state rules: index.css has `button:hover` / `button:disabled` (0,1,1) that set a
+   background; the explicit :hover/:disabled selectors below (0,2,0+) outrank them. */
 .assets-vendor-chip {
-  background: var(--border-soft);
+  background: var(--surface-muted);
   color: var(--text-primary);
-  border: none;
+  border: 1px solid var(--border);
   border-radius: 999px;
   padding: 3px 10px;
   font-size: 12px;
   cursor: pointer;
 }
 
-.assets-vendor-chip-active {
+.assets-vendor-chip:hover,
+.assets-vendor-chip:disabled {
+  background: var(--surface-muted);
+  border-color: var(--border-strong);
+}
+
+.assets-vendor-chip-active,
+.assets-vendor-chip-active:hover,
+.assets-vendor-chip-active:disabled {
   background: var(--accent);
+  border-color: var(--accent);
   color: #fff;
 }
 
@@ -90,6 +109,12 @@
   border: none;
   font-size: 12px;
   cursor: pointer;
+}
+
+.assets-clear-filter:hover,
+.assets-clear-filter:disabled {
+  background: transparent;
+  text-decoration: underline;
 }
 
 .assets-error {
@@ -118,7 +143,7 @@
 }
 
 .assets-row {
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border);
 }
 
 .assets-tag {
@@ -150,7 +175,7 @@
 
 .assets-remediation {
   background: var(--surface-muted);
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--border);
   border-radius: 6px;
   padding: 12px;
   margin-bottom: 12px;
@@ -168,7 +193,32 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 11px;
+  padding: 2px 8px;
   cursor: pointer;
+}
+
+.assets-outline-btn:hover {
+  background: var(--surface-muted);
+}
+
+.assets-outline-btn:disabled {
+  background: transparent;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.assets-note {
+  font-size: 11px;
+  margin-top: -8px;
+  margin-bottom: 12px;
+}
+
+.assets-fs-11 {
+  font-size: 11px;
+}
+
+.assets-fs-12 {
+  font-size: 12px;
 }
 
 .assets-text-secondary {
@@ -185,4 +235,15 @@
   color: var(--accent);
   font-size: 11px;
   cursor: pointer;
+}
+
+.assets-link-btn:hover {
+  background: transparent;
+  text-decoration: underline;
+}
+
+.assets-link-btn:disabled {
+  background: transparent;
+  opacity: 0.6;
+  cursor: not-allowed;
 }
