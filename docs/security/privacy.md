@@ -2,7 +2,7 @@
 
 This is the user-facing summary of how Hacker Tracker handles your data. The
 authoritative technical inventory lives in [pii_inventory.md](pii_inventory.md);
-this doc says the same thing in plain language. The in-app `/privacy` page mirrors this document's provider and region table. Its activity, export and deletion wording still differs from this document; where they disagree, this document is authoritative.
+this doc says the same thing in plain language. The in-app `/privacy` page mirrors this document's provider and region table. Its export and deletion wording still differs from this document; where they disagree, this document is authoritative.
 
 ---
 
@@ -47,16 +47,19 @@ disclosure and the enrollment/revocation flow live in
 ## The public readiness check (no login)
 
 The readiness check lets a logged-out visitor check their email domain and take
-a short quiz. It is off unless the operator turns it on. When it is on:
+a short quiz. It is off unless the operator turns it on, and the quiz needs
+its question set (#294), which has not landed yet; until then the quiz
+returns "not found". When it is on:
 
 - **The domain you type** is looked up in public DNS (its SPF and DMARC
-  records) and is not stored or logged. The server keeps it in memory for up
-  to 15 minutes so a repeat check doesn't query DNS again, then forgets it. It
-  is not sent to any of the lookup services in the table below; the DNS
+  records) and is not saved to the database or logged. The server reuses the
+  result for up to 15 minutes so a repeat check doesn't query DNS again; after
+  that it is discarded the next time the check runs or the server restarts.
+  It is not sent to any of the lookup services in the table below; the DNS
   resolvers that answer the lookup see the name, as with any DNS query.
 - **Your quiz answers** are scored and sent back to you. They are not stored
   or logged.
-- **Only anonymous step counts are kept:** for each day, how many times each
+- **Only anonymous step counts are saved to the database:** for each day, how many times each
   step (for example "quiz started", or a given question answered) happened. No
   visitor ID, IP address, domain or answer is stored with them.
 - **Your IP address** is handled as on every other request: the server's

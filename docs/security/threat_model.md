@@ -318,7 +318,7 @@ These are what writing the model surfaced that wasn't already known or documente
 | Milestone | Rows |
 |-----------|------|
 | S4 (authorization assurance) | none: all 14 rows closed in S4 (stages A–E); T-UPL-09 reached operators with agent-v0.1.1 |
-| S5 (DAST and manual AppSec) | T-ING-07, T-ING-10, T-DOM-08, T-AI-09, T-PLAT-03, T-PLAT-05, T-PLAT-07, T-PLAT-10, T-TEN-14, T-TEN-16, T-TEN-17, T-TEN-18 |
+| S5 (DAST and manual AppSec) | T-ING-07, T-ING-10, T-DOM-08, T-PLAT-05, T-PLAT-10, T-TEN-14, T-TEN-16, T-TEN-17, T-TEN-18 |
 | OWNER (repo hardening, Arlo) | T-REL-03, T-CI-02, T-CI-04 |
 
 ## ACCEPTED RISK register

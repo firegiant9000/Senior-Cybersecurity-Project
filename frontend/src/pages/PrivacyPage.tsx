@@ -40,7 +40,7 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Activity:</strong> request logs (which include your IP
-              address or your network&apos;s) and audit entries — which API
+              address or a proxy&apos;s) and audit entries — which API
               your account called, when, and whether it succeeded. Audit
               entries are kept for 12 months.
             </li>
@@ -91,22 +91,22 @@ export default function PrivacyPage() {
           <p>
             The readiness check lets you check your email domain and take a
             short quiz without an account. It is off unless the site operator
-            turns it on. When it is on:
+            turns it on, and the quiz is not available yet. When it is on:
           </p>
           <ul>
             <li>
               <strong>The domain you type</strong> is looked up in public DNS
-              (its SPF and DMARC records) and is not stored or logged. The
-              server keeps it in memory for up to 15 minutes so a repeat check
-              doesn&apos;t query DNS again, then forgets it. It is not sent to
-              the domain-check providers listed below.
+              (its SPF and DMARC records) and is not saved or logged. The
+              server reuses the result for up to 15 minutes so a repeat check
+              doesn&apos;t query DNS again, then discards it. It is not sent
+              to the domain-check providers listed below.
             </li>
             <li>
               <strong>Your quiz answers</strong> are scored and shown back to
               you. They are not stored or logged.
             </li>
             <li>
-              <strong>Only anonymous step counts are kept:</strong> how many
+              <strong>Only anonymous step counts are saved:</strong> how many
               times each step (such as starting the quiz) happened each day,
               with no visitor ID, IP address, domain or answer attached.
             </li>
