@@ -14,6 +14,10 @@ describe('contrastRatio', () => {
   it('is symmetric in argument order', () => {
     expect(contrastRatio('#1a1a1a', '#f57c00')).toBeCloseTo(contrastRatio('#f57c00', '#1a1a1a'), 10);
   });
+
+  it('throws on a colour that is not #rrggbb', () => {
+    expect(() => contrastRatio('#fff', '#000000')).toThrow();
+  });
 });
 
 describe('severity badge text contrast', () => {

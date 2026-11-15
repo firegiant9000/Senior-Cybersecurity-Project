@@ -8,9 +8,18 @@ describe('SeverityBadge', () => {
     expect(screen.getByText('High').style.color).toBe('rgb(26, 26, 26)');
   });
 
-  it('renders Moderate with the Medium text colour', () => {
+  it('renders Moderate with the Medium background and text colours', () => {
     render(<SeverityBadge label="Moderate" />);
-    expect(screen.getByText('Moderate').style.color).toBe('rgb(26, 26, 26)');
+    const el = screen.getByText('Moderate');
+    expect(el.style.background).toBe('rgb(251, 192, 45)');
+    expect(el.style.color).toBe('rgb(26, 26, 26)');
+  });
+
+  it('renders an inherited property name such as constructor as Unknown', () => {
+    render(<SeverityBadge label="constructor" />);
+    const el = screen.getByText('constructor');
+    expect(el.style.background).toBe('rgb(158, 158, 158)');
+    expect(el.style.color).toBe('rgb(26, 26, 26)');
   });
 
   it('renders Low with white text on the darker green', () => {

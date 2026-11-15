@@ -1,5 +1,10 @@
 /** WCAG 2.x relative luminance of a `#rrggbb` colour. */
+const HEX_COLOUR = /^#[0-9a-f]{6}$/i;
+
 function relativeLuminance(hex: string): number {
+  if (!HEX_COLOUR.test(hex)) {
+    throw new Error(`contrastRatio expects #rrggbb colours, got "${hex}"`);
+  }
   const channels = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
   const [r, g, b] = channels.map((c) =>
     c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4),
