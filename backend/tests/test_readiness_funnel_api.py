@@ -6,15 +6,16 @@ from datetime import UTC, datetime
 
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete
 
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.db.engine import AsyncSessionLocal
 from app.db.readiness_funnel_count import ReadinessFunnelCount
+from app.main import app
 from app.repositories.readiness_funnel import FunnelCountRow, SqlReadinessFunnelRepository
-from app.services import readiness_quiz
+from app.services import readiness_funnel, readiness_quiz
 from tests.test_readiness_quiz import load_fixture_set
 
 EVENTS_URL = "/api/v1/public/readiness/events"
@@ -142,16 +143,58 @@ async def test_question_steps_rejected_without_question_file(
 @pytest.mark.asyncio
 async def test_event_body_not_logged(events_client: AsyncClient, caplog):
     caplog.set_level(logging.DEBUG)
+    marker = "zzz_marker_step"
+    resp = await events_client.post(EVENTS_URL, json={"version": "v1", "step": marker})
+    assert resp.status_code == 422
     resp = await events_client.post(EVENTS_URL, json=STARTED)
     assert resp.status_code == 204
     for record in caplog.records:
-        assert "quiz_started" not in record.getMessage()
+        for text in (record.getMessage(), str(record.args)):
+            assert "quiz_started" not in text
+            assert marker not in text
+
+
+@pytest.mark.asyncio
+async def test_oversized_fields_are_422_even_if_known(events_client: AsyncClient, monkeypatch):
+    # The service would accept anything, so only the model's max_length can reject.
+    monkeypatch.setattr(readiness_funnel, "is_known_event", lambda version, step: True)
+    for body in (
+        {"version": "v1", "step": "s" * 97},
+        {"version": "v" * 17, "step": "quiz_started"},
+    ):
+        resp = await events_client.post(EVENTS_URL, json=body)
+        assert resp.status_code == 422
+        assert resp.json() == {"detail": "Unknown event."}
+    assert await _rows() == []
+
+
+@pytest.mark.asyncio
+async def test_question_loader_misconfiguration_is_500(client: AsyncClient, monkeypatch):
+    def _boom():
+        raise ValueError("question file version does not match QUESTIONS_PATH")
+
+    monkeypatch.setattr(settings, "ENABLE_PUBLIC_READINESS", True)
+    monkeypatch.setattr(readiness_quiz, "get_question_set", _boom)
+    limiter.reset()
+    await _wipe()
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app, raise_app_exceptions=False),
+            base_url="http://test",
+        ) as c:
+            resp = await c.post(
+                EVENTS_URL, json={"version": "v1", "step": "question_answered:fixture_a"}
+            )
+            assert resp.status_code == 500
+            assert "QUESTIONS_PATH" not in resp.text
+            assert (await c.post(EVENTS_URL, json=STARTED)).status_code == 204
+    finally:
+        limiter.reset()
+        await _wipe()
 
 
 @pytest.mark.asyncio
 async def test_events_client_disconnect_is_400(events_client: AsyncClient):
-    from app.main import app
-
     scope = {
         "type": "http",
         "asgi": {"version": "3.0"},
