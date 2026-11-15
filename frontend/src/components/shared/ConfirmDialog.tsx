@@ -29,6 +29,7 @@ export default function ConfirmDialog({
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const mountedRef = useRef(true);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
@@ -67,6 +68,10 @@ export default function ConfirmDialog({
       e.preventDefault();
       if (busyRef.current) return;
       const active = document.activeElement;
+      if (!dialogRef.current?.contains(active)) {
+        first.focus();
+        return;
+      }
       if (e.shiftKey) {
         (active === first ? last : first).focus();
       } else {
@@ -99,6 +104,7 @@ export default function ConfirmDialog({
   return (
     <div className="confirm-backdrop">
       <div
+        ref={dialogRef}
         className="confirm-dialog"
         role="alertdialog"
         aria-modal="true"
@@ -144,12 +150,17 @@ export function useConfirm(): {
   const [opts, setOpts] = useState<ConfirmOptions | null>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
 
+  const openRef = useRef(false);
+
   const confirm = useCallback((o: ConfirmOptions) => {
+    if (openRef.current) return;
+    openRef.current = true;
     returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setOpts(o);
   }, []);
 
   const close = useCallback(() => {
+    openRef.current = false;
     setOpts(null);
     const el = returnFocusRef.current;
     returnFocusRef.current = null;

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
-import { useConfirm, type ConfirmOptions } from '../ConfirmDialog';
+import ConfirmDialog, { useConfirm, type ConfirmOptions } from '../ConfirmDialog';
 
 function Harness({ opts }: { opts: Partial<ConfirmOptions> & Pick<ConfirmOptions, 'onConfirm'> }) {
   const { confirm, confirmDialog } = useConfirm();
@@ -12,6 +12,13 @@ function Harness({ opts }: { opts: Partial<ConfirmOptions> & Pick<ConfirmOptions
         }
       >
         Open
+      </button>
+      <button
+        onClick={() =>
+          confirm({ title: 'Second dialog', body: 'Other', confirmLabel: 'Go', onConfirm: opts.onConfirm })
+        }
+      >
+        Open2
       </button>
       {confirmDialog}
     </div>
@@ -60,10 +67,37 @@ describe('ConfirmDialog / useConfirm', () => {
   it('Escape closes without calling onConfirm', () => {
     const onConfirm = vi.fn().mockResolvedValue(undefined);
     render(<Harness opts={{ onConfirm }} />);
+    const openBtn = screen.getByRole('button', { name: 'Open' });
+    openBtn.focus();
     open();
     fireEvent.keyDown(document.activeElement as Element, { key: 'Escape' });
     expect(onConfirm).not.toHaveBeenCalled();
     expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(document.activeElement).toBe(openBtn);
+  });
+
+  it('Tab from outside the dialog focuses Cancel', () => {
+    render(<Harness opts={{ onConfirm: vi.fn().mockResolvedValue(undefined) }} />);
+    open();
+    (document.activeElement as HTMLElement).blur();
+    expect(document.activeElement).toBe(document.body);
+    fireEvent.keyDown(document.body, { key: 'Tab' });
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }));
+    (document.activeElement as HTMLElement).blur();
+    fireEvent.keyDown(document.body, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }));
+  });
+
+  it('confirm() while open is a no-op and keeps the focus-return target', () => {
+    render(<Harness opts={{ onConfirm: vi.fn().mockResolvedValue(undefined) }} />);
+    const openBtn = screen.getByRole('button', { name: 'Open' });
+    openBtn.focus();
+    open();
+    fireEvent.click(screen.getByRole('button', { name: 'Open2' }));
+    expect(screen.getByText('Delete it?')).toBeInTheDocument();
+    expect(screen.queryByText('Second dialog')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(document.activeElement).toBe(openBtn);
   });
 
   it('Tab cycles inside the dialog', () => {
@@ -82,6 +116,8 @@ describe('ConfirmDialog / useConfirm', () => {
     const d = deferred();
     const onConfirm = vi.fn(() => d.promise);
     render(<Harness opts={{ onConfirm }} />);
+    const openBtn = screen.getByRole('button', { name: 'Open' });
+    openBtn.focus();
     open();
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
     const working = screen.getByRole('button', { name: 'Working…' });
@@ -92,6 +128,7 @@ describe('ConfirmDialog / useConfirm', () => {
       d.resolve();
     });
     expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(document.activeElement).toBe(openBtn);
   });
 
   it('double click calls onConfirm once', async () => {
@@ -141,6 +178,22 @@ describe('ConfirmDialog / useConfirm', () => {
     await act(async () => {
       d.resolve();
     });
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('ConfirmDialog does not call onClose after unmount while pending', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const onClose = vi.fn();
+    const d = deferred();
+    const { unmount } = render(
+      <ConfirmDialog open onClose={onClose} title="T" body="B" confirmLabel="Go" onConfirm={() => d.promise} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Go' }));
+    unmount();
+    await act(async () => {
+      d.resolve();
+    });
+    expect(onClose).not.toHaveBeenCalled();
     expect(spy).not.toHaveBeenCalled();
   });
 
