@@ -70,14 +70,15 @@ describe('PrivacyPage', () => {
 
     expect(
       screen.getByText(
-        /an organisation admin can ask the site operator for a JSON file of your organisation's data: its profile, domains, vendors, assets and installed software, .* It does not include login accounts or audit records\./,
+        /an organisation admin can ask the site operator for a JSON file of your organisation's data: its profile, domains, vendors, assets and installed software, .* It does not include login accounts, audit records, per-asset vulnerability matches or integration tokens\./,
       ),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /an organisation admin can ask the site operator to permanently delete the organisation and that same data\. Member login accounts are not deleted; they are detached from the organisation and remain until each member asks for their own account to be deleted\. Audit records are kept, including a record of the deletion itself, for the retention period under Activity above\./,
+        /an organisation admin can ask the site operator to permanently delete the organisation and that same data\. Member login accounts are outside this deletion: members' login accounts are detached from the organisation and are not removed\. Audit records are kept, including a record of the deletion itself, for the retention period under Activity above\./,
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/asks for their own account to be deleted/i)).toBeNull();
     expect(screen.queryByText(/everything we hold/)).toBeNull();
     expect(
       screen.getByText(
