@@ -8,6 +8,13 @@
   gap: 4px;
 }
 
+.finding-row-error {
+  margin: 0;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  color: var(--error-text);
+}
+
 .finding-card-check {
   display: flex;
   align-items: center;

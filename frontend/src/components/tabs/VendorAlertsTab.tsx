@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import RefreshButton from '../RefreshButton';
 import SeverityBadge from '../shared/SeverityBadge';
 import InfoTip from '../shared/InfoTip';
+import SourceBadge from '../shared/SourceBadge';
 import { VENDOR_ALERT_TIP } from '../shared/VendorAlertsCard';
 import { useRefreshProgress } from '../../hooks/useRefreshProgress';
 import './VendorAlertsTab.css';
@@ -150,6 +151,7 @@ const VendorAlertsTab: React.FC = () => {
         <div className="vendor-no-matches-card">
           <span className="vendor-no-matches-icon">✅</span>
           <p className="vendor-no-matches-title">No active threats for your stack</p>
+          <SourceBadge datasetKey="vendor_alerts" className="widget-source-badge" />
           <p className="vendor-no-matches-sub">
             None of your vendors appear in CISA's Known Exploited Vulnerabilities catalog right now. Check back after the next data refresh.
           </p>
@@ -205,10 +207,13 @@ const VendorAlertsTab: React.FC = () => {
   return (
     <div className="tab-page">
       <div className="vendor-alerts-header">
-        <h2 className="vendor-alerts-heading">
-          Vendor Alerts
-          <InfoTip text={VENDOR_ALERT_TIP} label="Vendor Alerts" />
-        </h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <h2 className="vendor-alerts-heading">
+            Vendor Alerts
+            <InfoTip text={VENDOR_ALERT_TIP} label="Vendor Alerts" />
+          </h2>
+          <SourceBadge datasetKey="vendor_alerts" className="widget-source-badge" />
+        </div>
         <div className="vendor-alerts-actions">
           <RefreshButton
             onClick={() => load(page)}

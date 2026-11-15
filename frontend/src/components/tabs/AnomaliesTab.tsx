@@ -10,6 +10,7 @@ import {
   VendorAnomalyResponse,
 } from '../../api/anomalies';
 import InfoTip from '../shared/InfoTip';
+import SourceBadge from '../shared/SourceBadge';
 
 const ANOMALY_TIP =
   'A data point that deviates noticeably from the historical norm. We flag anomalies using z-scores: |z| ≥ 2 = unusual, ≥ 3 = extreme.';
@@ -129,6 +130,9 @@ const AnomaliesTab: React.FC = () => {
       {/* IC3 Anomalies */}
       {subTab === 'ic3' && !loading && ic3Data && (
         <>
+          <div style={{ marginBottom: '0.5rem' }}>
+            <SourceBadge datasetKey="anomalies_ic3" />
+          </div>
           <p style={{ fontSize: 13, color: 'var(--text-secondary, #555)', marginBottom: '0.75rem' }}>
             {ic3Data.total} state/sector combinations flagged at z-score ≥ {ic3Data.threshold}.
             Z-scores compare each state's incident rate against all states in the same sector and year.
@@ -180,6 +184,9 @@ const AnomaliesTab: React.FC = () => {
       {/* YoY Trends */}
       {subTab === 'trends' && !loading && trendsData && (
         <>
+          <div style={{ marginBottom: '0.5rem' }}>
+            <SourceBadge datasetKey="ic3_temporal_trends" />
+          </div>
           <p style={{ fontSize: 13, color: 'var(--text-secondary, #555)', marginBottom: '0.75rem' }}>
             Year-over-year change in IC3 incident totals by sector. Rows flagged when change exceeds ±{(trendsData.threshold_pct * 100).toFixed(0)}%.
           </p>
@@ -244,6 +251,9 @@ const AnomaliesTab: React.FC = () => {
       {/* Vendor Exposure */}
       {subTab === 'vendors' && !loading && vendorData && (
         <>
+          <div style={{ marginBottom: '0.5rem' }}>
+            <SourceBadge datasetKey="anomalies_vendors" />
+          </div>
           {!vendorData.has_vendors ? (
             <p style={{ color: 'var(--text-secondary, #555)' }}>
               No vendors configured. Add your technology stack in Organization Profile to see exposure analysis.

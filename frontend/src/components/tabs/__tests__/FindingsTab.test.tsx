@@ -1,6 +1,6 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import FindingsTab from '../FindingsTab'
 
 const { mockFetchFindings, mockFetchHistory, mockPatchStatus } = vi.hoisted(() => ({
@@ -19,6 +19,12 @@ vi.mock('../../../api/findings', () => ({
   fetchFindings: mockFetchFindings,
   fetchFindingsHistory: mockFetchHistory,
   patchFindingStatus: mockPatchStatus,
+}))
+
+vi.mock('../../shared/SourceBadge', () => ({
+  default: ({ datasetKey, datasetKeys }: { datasetKey?: string; datasetKeys?: string[] }) => (
+    <span data-testid="source-badge" data-dataset-key={datasetKeys ? datasetKeys.join(',') : datasetKey} />
+  ),
 }))
 
 vi.mock('../DomainIntelTable', () => ({
@@ -82,8 +88,15 @@ const profileLinks = () =>
   screen.getAllByRole('link').filter((l) => l.getAttribute('href') === '/settings/organisation')
 
 describe('FindingsTab characterisation', () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>
+
+  afterEach(() => {
+    warnSpy.mockRestore()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     mockFetchHistory.mockResolvedValue({ items: [], total: 0 })
     mockPatchStatus.mockResolvedValue({ stable_key: 'key-a', status: 'done' })
   })
@@ -139,6 +152,184 @@ describe('FindingsTab characterisation', () => {
     )
   })
 
+  it('failed toggle keeps the list and shows a row error', async () => {
+    mockFetchFindings.mockResolvedValue(twoFindings())
+    mockPatchStatus.mockRejectedValue(new Error('boom'))
+    renderTab()
+    await screen.findByText('Threat alpha', {}, SLOW)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent("Couldn't update this finding. Try again.")
+    expect(screen.getByText('Threat alpha')).toBeInTheDocument()
+    expect(screen.getByText('Action beta')).toBeInTheDocument()
+    expect(screen.queryByText("Couldn't Load Findings")).toBeNull()
+    expect(
+      screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }),
+    ).not.toBeChecked()
+  })
+
+  it('retry success clears the row error', async () => {
+    mockFetchFindings.mockResolvedValue(twoFindings())
+    mockPatchStatus
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce({ stable_key: 'key-a', status: 'done' })
+    renderTab()
+    await screen.findByText('Threat alpha', {}, SLOW)
+
+    const name = 'Mark "Threat alpha" as remediated'
+    fireEvent.click(screen.getByRole('checkbox', { name }))
+    await screen.findByRole('alert')
+
+    fireEvent.click(screen.getByRole('checkbox', { name }))
+    expect(
+      await screen.findByRole('checkbox', { name: 'Mark "Threat alpha" as open' }),
+    ).toBeChecked()
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+  })
+
+  it('the checkbox is disabled while its PATCH is pending and a second click makes no second call', async () => {
+    mockFetchFindings.mockResolvedValue(twoFindings())
+    let resolvePatch: (v: unknown) => void = () => {}
+    mockPatchStatus.mockImplementationOnce(() => new Promise((res) => { resolvePatch = res }))
+    renderTab()
+    await screen.findByText('Threat alpha', {}, SLOW)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }))
+    const pending = await screen.findByRole('checkbox', { name: 'Mark "Threat alpha" as open' })
+    expect(pending).toBeDisabled()
+    // The other row is unaffected.
+    expect(screen.getByRole('checkbox', { name: 'Mark "Action beta" as remediated' })).toBeEnabled()
+
+    expect(mockPatchStatus).toHaveBeenCalledTimes(1)
+    fireEvent.click(pending)
+    expect(mockPatchStatus).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolvePatch({ stable_key: 'key-a', status: 'done' })
+    })
+    await waitFor(() =>
+      expect(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as open' })).toBeEnabled(),
+    )
+    expect(mockPatchStatus).toHaveBeenCalledTimes(1)
+  })
+
+  it('a failure while pending reverts to the pre-PATCH status with one alert and re-enables the box', async () => {
+    mockFetchFindings.mockResolvedValue(twoFindings())
+    let rejectPatch: (e: Error) => void = () => {}
+    mockPatchStatus.mockImplementationOnce(() => new Promise((_, rej) => { rejectPatch = rej }))
+    renderTab()
+    await screen.findByText('Threat alpha', {}, SLOW)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }))
+    await screen.findByRole('checkbox', { name: 'Mark "Threat alpha" as open' })
+    await act(async () => {
+      rejectPatch(new Error('boom'))
+    })
+
+    expect(await screen.findAllByRole('alert')).toHaveLength(1)
+    const box = screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' })
+    expect(box).not.toBeChecked()
+    expect(box).toBeEnabled()
+  })
+
+  it('a failure logs a message-only warning and keeps the constant user message', async () => {
+    mockFetchFindings.mockResolvedValue(twoFindings())
+    mockPatchStatus.mockRejectedValue(new Error('boom'))
+    renderTab()
+    await screen.findByText('Threat alpha', {}, SLOW)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Couldn't update this finding. Try again.",
+    )
+    expect(warnSpy).toHaveBeenCalledWith('finding status update failed', 'boom')
+  })
+
+  it('a reload invalidates in-flight attempts: the old failure is ignored', async () => {
+    const reloaded = makeReport([
+      makeFinding({ id: 'a', stable_key: 'key-a', title: 'Threat alpha', status: 'done' }),
+    ])
+    mockFetchFindings.mockResolvedValueOnce(twoFindings()).mockResolvedValue(reloaded)
+    let rejectOld: (e: Error) => void = () => {}
+    mockPatchStatus.mockImplementationOnce(
+      () => new Promise((_, rej) => { rejectOld = rej }),
+    )
+    renderTab()
+    await screen.findByText('Threat alpha', {}, SLOW)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+    await waitFor(() => expect(mockFetchFindings).toHaveBeenCalledTimes(2))
+    expect(
+      await screen.findByRole('checkbox', { name: 'Mark "Threat alpha" as open' }, SLOW),
+    ).toBeChecked()
+
+    await act(async () => {
+      rejectOld(new Error('late'))
+    })
+
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(
+      screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as open' }),
+    ).toBeChecked()
+  })
+
+  it('a reload clears an existing row error', async () => {
+    mockFetchFindings.mockResolvedValue(twoFindings())
+    mockPatchStatus.mockRejectedValue(new Error('boom'))
+    renderTab()
+    await screen.findByText('Threat alpha', {}, SLOW)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }))
+    await screen.findByRole('alert')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+    expect(await screen.findByText('Threat alpha', {}, SLOW)).toBeInTheDocument()
+  })
+
+  it('a success settling after a reload still dispatches the status-changed event once', async () => {
+    mockFetchFindings.mockResolvedValue(twoFindings())
+    let resolvePatch: (v: unknown) => void = () => {}
+    mockPatchStatus.mockImplementationOnce(() => new Promise((res) => { resolvePatch = res }))
+    const handler = vi.fn()
+    window.addEventListener('hackertracker:finding-status-changed', handler)
+    try {
+      renderTab()
+      await screen.findByText('Threat alpha', {}, SLOW)
+
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+      await waitFor(() => expect(mockFetchFindings).toHaveBeenCalledTimes(2))
+      await screen.findByText('Threat alpha', {}, SLOW)
+      expect(handler).not.toHaveBeenCalled()
+
+      await act(async () => {
+        resolvePatch({ stable_key: 'key-a', status: 'done' })
+      })
+      expect(handler).toHaveBeenCalledTimes(1)
+    } finally {
+      window.removeEventListener('hackertracker:finding-status-changed', handler)
+    }
+  })
+
+  it('two failures show two row errors', async () => {
+    mockFetchFindings.mockResolvedValue(twoFindings())
+    mockPatchStatus.mockRejectedValue(new Error('boom'))
+    renderTab()
+    await screen.findByText('Threat alpha', {}, SLOW)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Action beta" as remediated' }))
+
+    await waitFor(() => expect(screen.getAllByRole('alert')).toHaveLength(2))
+    expect(screen.getByText('Threat alpha')).toBeInTheDocument()
+    expect(screen.getByText('Action beta')).toBeInTheDocument()
+  })
+
   it('the Scan History toggle fetches history with a limit of 10', async () => {
     mockFetchFindings.mockResolvedValue(twoFindings())
     renderTab()
@@ -166,6 +357,18 @@ describe('FindingsTab characterisation', () => {
 
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByTestId('domain-intel-table')).toBeInTheDocument()
+  })
+
+  it('badges the scan-sources area with domain_checks but not the findings list', async () => {
+    mockFetchFindings.mockResolvedValue(twoFindings())
+    const { container } = renderTab()
+    await screen.findByText('Threat alpha', {}, SLOW)
+
+    const badge = container.querySelector('[data-dataset-key="domain_checks"]')
+    expect(badge).toBeInTheDocument()
+    expect(badge?.closest('.findings-history-section')).not.toBeNull()
+    expect(container.querySelector('.findings-list')).not.toBeNull()
+    expect(container.querySelectorAll('.findings-list [data-testid="source-badge"]')).toHaveLength(0)
   })
 
   it('links to /settings/organisation from the empty state', async () => {

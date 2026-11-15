@@ -22,6 +22,7 @@ from app.api.routes.v1 import (
     onboarding,
     organizations,
     public,
+    public_readiness,
     uploads,
     vendors,
     vulnerabilities,
@@ -36,6 +37,7 @@ router.include_router(auth.router)
 
 # Public aggregate stats for logged-out landing page.
 router.include_router(public.router, tags=["public"])
+router.include_router(public_readiness.router, tags=["public"])
 
 # Data-source transparency: public so the landing page can render badges too.
 router.include_router(data_status.router, tags=["data-status"])

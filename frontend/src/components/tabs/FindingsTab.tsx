@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   fetchFindings,
@@ -14,6 +14,7 @@ import { downloadCsv } from '../../utils/csvExport';
 import SeverityBadge from '../shared/SeverityBadge';
 import DisclaimerBanner from '../shared/DisclaimerBanner';
 import InfoTip from '../shared/InfoTip';
+import SourceBadge from '../shared/SourceBadge';
 import DomainIntelTable from './DomainIntelTable';
 import './FindingsTab.css';
 
@@ -63,6 +64,7 @@ const FindingsLoadingBar: React.FC = () => {
 };
 
 const MIN_LOADING_MS = 1200;
+const ROW_ERROR_MESSAGE = "Couldn't update this finding. Try again.";
 
 const FindingsTab: React.FC = () => {
   const { user } = useAuth();
@@ -70,6 +72,12 @@ const FindingsTab: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [minLoadingDone, setMinLoadingDone] = useState(false);
   const [error, setError] = useState('');
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
+  // Bumped on every (re)load so in-flight attempts from before it don't write stale UI state.
+  const genRef = useRef(0);
+  // Rows with a status PATCH in flight (one at a time per row).
+  const inFlightRef = useRef<Set<string>>(new Set());
+  const [pendingKeys, setPendingKeys] = useState<Set<string>>(new Set());
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [history, setHistory] = useState<SnapshotListItem[]>([]);
@@ -91,9 +99,13 @@ const FindingsTab: React.FC = () => {
     setLoading(true);
     setMinLoadingDone(false);
     setError('');
+    setRowErrors({});
+    genRef.current += 1;
     const minTimer = setTimeout(() => setMinLoadingDone(true), MIN_LOADING_MS);
     fetchFindings(controller.signal)
-      .then(setReport)
+      .then((data) => {
+        setReport(data);
+      })
       .catch((err) => {
         if (err instanceof DOMException && err.name === 'AbortError') return;
         setError(err instanceof Error ? err.message : 'Failed to load findings');
@@ -130,6 +142,19 @@ const FindingsTab: React.FC = () => {
 
   const setFindingStatus = useCallback(
     async (finding: Finding, nextStatus: FindingStatus) => {
+      // Synchronous guard: a second event can land before the disabled render.
+      if (inFlightRef.current.has(finding.stable_key)) return;
+      inFlightRef.current.add(finding.stable_key);
+      const gen = genRef.current;
+      const previousStatus = finding.status;
+      setPendingKeys((prev) => new Set(prev).add(finding.stable_key));
+      // Clear any previous error for this row before retrying.
+      setRowErrors((prev) => {
+        if (!(finding.stable_key in prev)) return prev;
+        const next = { ...prev };
+        delete next[finding.stable_key];
+        return next;
+      });
       // Optimistic local update so the checkbox feels instant.
       setReport((prev) => {
         if (!prev) return prev;
@@ -145,27 +170,39 @@ const FindingsTab: React.FC = () => {
           title: finding.title,
           severity: finding.severity,
         });
-        // Notify the rest of the app (risk score widget, exec report) so
-        // they can refetch and animate the deduction.
+        // Always notify the rest of the app (risk score widget, exec report)
+        // so they refetch, even if a reload happened while this was in flight.
         window.dispatchEvent(
           new CustomEvent('hackertracker:finding-status-changed', {
             detail: { stable_key: finding.stable_key, status: nextStatus },
           }),
         );
       } catch (err) {
-        // Revert on failure.
+        console.warn('finding status update failed', err instanceof Error ? err.message : err);
+        // A reload since this started supersedes the UI state.
+        if (genRef.current !== gen) return;
+        // Only one PATCH per row is in flight, so the pre-PATCH status is
+        // the unambiguous revert target.
         setReport((prev) => {
           if (!prev) return prev;
           return {
             ...prev,
             findings: prev.findings.map((f) =>
-              f.stable_key === finding.stable_key
-                ? { ...f, status: finding.status }
-                : f,
+              f.stable_key === finding.stable_key ? { ...f, status: previousStatus } : f,
             ),
           };
         });
-        setError(err instanceof Error ? err.message : 'Failed to update finding');
+        setRowErrors((prev) => ({
+          ...prev,
+          [finding.stable_key]: ROW_ERROR_MESSAGE,
+        }));
+      } finally {
+        inFlightRef.current.delete(finding.stable_key);
+        setPendingKeys((prev) => {
+          const next = new Set(prev);
+          next.delete(finding.stable_key);
+          return next;
+        });
       }
     },
     [],
@@ -400,6 +437,7 @@ const FindingsTab: React.FC = () => {
                         <input
                           type="checkbox"
                           checked={isDone}
+                          disabled={pendingKeys.has(finding.stable_key)}
                           onChange={(e) => {
                             void setFindingStatus(
                               finding,
@@ -428,6 +466,11 @@ const FindingsTab: React.FC = () => {
                         </span>
                       </button>
                     </div>
+                    {rowErrors[finding.stable_key] && (
+                      <p role="alert" className="finding-row-error">
+                        {rowErrors[finding.stable_key]}
+                      </p>
+                    )}
                     {expanded && (
                       <div className="finding-card-body">
                         <p className="finding-description">{finding.description}</p>
@@ -524,6 +567,7 @@ const FindingsTab: React.FC = () => {
         >
           {showSources ? '▲' : '▼'} Sources used in this scan
         </button>
+        <SourceBadge datasetKey="domain_checks" className="widget-source-badge" />
         {showSources && <DomainIntelTable />}
       </section>
     </div>

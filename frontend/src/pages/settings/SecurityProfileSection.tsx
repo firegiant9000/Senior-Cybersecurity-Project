@@ -29,8 +29,7 @@ export default function SecurityProfileSection({
   orgId,
   canEdit,
   onChanged,
-  onVendorsSynced,
-}: SectionProps & { onVendorsSynced: () => void }) {
+}: SectionProps) {
   const { organization, refreshOrganization } = useUserContext();
 
   const [securityControls, setSecurityControls] = useState<Record<string, "yes" | "no" | "unsure">>(
@@ -107,7 +106,6 @@ export default function SecurityProfileSection({
         await Promise.allSettled(
           cloudProviders.map((p) => createVendor(orgId, p, "", { idempotent: true })),
         );
-        onVendorsSynced();
       }
       onChanged();
     } catch (err) {

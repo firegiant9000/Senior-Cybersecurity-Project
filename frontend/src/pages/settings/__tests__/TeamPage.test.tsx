@@ -167,6 +167,15 @@ const mockInvitesData = {
 // Helper Functions
 // ─────────────────────────────────────────────────────────────────────────────
 
+async function confirmInDialog(label: string) {
+  const dialog = await screen.findByRole('alertdialog')
+  fireEvent.click(within(dialog).getByRole('button', { name: label }))
+  // Let the dialog's pending state and the follow-up list reload settle inside act.
+  await waitFor(() => {
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+}
+
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/settings/team']}>
@@ -272,10 +281,11 @@ describe('TeamPage - Member Management', () => {
       expect(screen.queryByRole('link', { name: 'Assessment Debug' })).not.toBeInTheDocument()
     })
 
-    it('shows loading state initially', () => {
+    it('shows loading state initially', async () => {
       renderPage()
 
       expect(screen.getByText(/Loading profile/i)).toBeInTheDocument()
+      await screen.findByText('owner@example.com')
     })
 
     it('shows error when profile load fails', async () => {
@@ -553,8 +563,11 @@ describe('TeamPage - Member Management', () => {
         expect(screen.getByText('member@example.com')).toBeInTheDocument()
       })
 
-      const deleteButtons = screen.getAllByRole('button', { name: '×' })
+      const deleteButtons = screen.getAllByRole('button', { name: /^Remove / })
       expect(deleteButtons.length).toBeGreaterThan(0)
+      expect(
+        screen.getByRole('button', { name: 'Remove member@example.com' }),
+      ).toBeInTheDocument()
     })
 
     it('does not display remove button for owner', async () => {
@@ -567,6 +580,7 @@ describe('TeamPage - Member Management', () => {
       // Owner row should not have a delete button
       const ownerRow = screen.getByText('owner@example.com').closest('tr')
       expect(ownerRow?.querySelector('button')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Remove owner@example.com' })).toBeNull()
     })
 
     it('does not display remove button for current user', async () => {
@@ -578,51 +592,76 @@ describe('TeamPage - Member Management', () => {
 
       // Current user row should not have a delete button
       // (user_id 1 is the current user)
-      const rows = screen.getAllByRole('row')
-      expect(rows.length).toBeGreaterThan(0)
+      // (the fixture's user_id 1 row is owner@example.com)
+      expect(await screen.findByRole('button', { name: 'Remove member@example.com' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Remove owner@example.com' })).toBeNull()
     })
 
-    it('calls removeMember when delete button clicked', async () => {
+    it('asks for confirmation and does not remove on Cancel', async () => {
       renderPage()
 
-      await waitFor(() => {
-        expect(screen.getByText('member@example.com')).toBeInTheDocument()
+      const removeBtn = await screen.findByRole('button', {
+        name: 'Remove member@example.com',
       })
+      fireEvent.click(removeBtn)
 
-      const deleteButtons = screen.getAllByRole('button', { name: '×' })
-      fireEvent.click(deleteButtons[0])
+      const dialog = await screen.findByRole('alertdialog')
+      expect(within(dialog).getByText('Remove member')).toBeInTheDocument()
+      expect(
+        within(dialog).getByText(
+          /Remove member@example\.com from the team\? They lose access immediately\./,
+        ),
+      ).toBeInTheDocument()
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
 
       await waitFor(() => {
-        expect(mockRemoveMember).toHaveBeenCalled()
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
       })
+      expect(mockRemoveMember).not.toHaveBeenCalled()
+    })
+
+    it('calls removeMember once after Confirm', async () => {
+      renderPage()
+
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Remove member@example.com' }),
+      )
+      expect(mockRemoveMember).not.toHaveBeenCalled()
+      await confirmInDialog('Remove')
+
+      await waitFor(() => {
+        expect(mockRemoveMember).toHaveBeenCalledTimes(1)
+      })
+      expect(mockRemoveMember).toHaveBeenCalledWith(1, 3)
     })
 
     it('shows success message after member removal', async () => {
       renderPage()
 
-      await waitFor(() => {
-        const deleteButtons = screen.getAllByRole('button', { name: '×' })
-        fireEvent.click(deleteButtons[0])
-      })
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Remove member@example.com' }),
+      )
+      await confirmInDialog('Remove')
 
       await waitFor(() => {
         expect(screen.getByText(/Member removed/i)).toBeInTheDocument()
       })
     })
 
-    it('shows error message on removal failure', async () => {
+    it('shows error message on removal failure and closes the dialog', async () => {
       mockRemoveMember.mockRejectedValue(new Error('Cannot remove member'))
 
       renderPage()
 
-      await waitFor(() => {
-        const deleteButtons = screen.getAllByRole('button', { name: '×' })
-        fireEvent.click(deleteButtons[0])
-      })
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Remove member@example.com' }),
+      )
+      await confirmInDialog('Remove')
 
       await waitFor(() => {
         expect(screen.getByText(/Cannot remove member/i)).toBeInTheDocument()
       })
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     })
   })
 
@@ -886,6 +925,11 @@ describe('TeamPage - Member Management', () => {
       const emailInput = await screen.findByPlaceholderText(/user@example.com/i)
       fireEvent.change(emailInput, { target: { value: 'new@example.com' } })
       fireEvent.click(screen.getByRole('button', { name: /Send Invite/i }))
+      // Settle the create + invite-list reload inside act before the test continues.
+      await screen.findByText(inviteLink())
+      await waitFor(() => {
+        expect(mockListInvites).toHaveBeenCalledTimes(2)
+      })
     }
 
     const stubClipboard = (writeText: ReturnType<typeof vi.fn>) => {
@@ -959,7 +1003,10 @@ describe('TeamPage - Member Management', () => {
       await waitFor(() => {
         expect(screen.getByText('pending@example.com')).toBeInTheDocument()
       })
-      fireEvent.click(screen.getAllByTitle('Revoke invite')[0])
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Revoke invite for pending@example.com' }),
+      )
+      await confirmInDialog('Revoke')
 
       await waitFor(() => {
         expect(mockRevokeInvite).toHaveBeenCalled()
@@ -1024,53 +1071,75 @@ describe('TeamPage - Member Management', () => {
       renderPage()
 
       await waitFor(() => {
-        const deleteButtons = screen.getAllByRole('button', { name: '×' })
+        const deleteButtons = screen.getAllByRole('button', { name: /^Revoke invite for / })
         expect(deleteButtons.length).toBeGreaterThan(0)
       })
     })
 
-    it('calls revokeInvite when revoke button clicked', async () => {
+    it('asks for confirmation and does not revoke on Cancel', async () => {
       renderPage()
 
-      await waitFor(() => {
-        expect(screen.getByText('pending@example.com')).toBeInTheDocument()
-      })
-      const revokeButtons = screen.getAllByTitle('Revoke invite')
-      fireEvent.click(revokeButtons[0])
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Revoke invite for pending@example.com' }),
+      )
+
+      const dialog = await screen.findByRole('alertdialog')
+      expect(within(dialog).getByText('Revoke invite')).toBeInTheDocument()
+      expect(
+        within(dialog).getByText(
+          /Revoke the invite for pending@example\.com\? The link stops working\./,
+        ),
+      ).toBeInTheDocument()
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
 
       await waitFor(() => {
-        expect(mockRevokeInvite).toHaveBeenCalled()
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
       })
+      expect(mockRevokeInvite).not.toHaveBeenCalled()
+    })
+
+    it('calls revokeInvite once after Confirm', async () => {
+      renderPage()
+
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Revoke invite for pending@example.com' }),
+      )
+      expect(mockRevokeInvite).not.toHaveBeenCalled()
+      await confirmInDialog('Revoke')
+
+      await waitFor(() => {
+        expect(mockRevokeInvite).toHaveBeenCalledTimes(1)
+      })
+      expect(mockRevokeInvite).toHaveBeenCalledWith(1, 101)
     })
 
     it('reloads invites after revoking', async () => {
       renderPage()
 
-      await waitFor(() => {
-        expect(screen.getByText('pending@example.com')).toBeInTheDocument()
-      })
-      const revokeButtons = screen.getAllByTitle('Revoke invite')
-      fireEvent.click(revokeButtons[0])
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Revoke invite for pending@example.com' }),
+      )
+      await confirmInDialog('Revoke')
 
       await waitFor(() => {
         expect(mockListInvites).toHaveBeenCalledTimes(2)
       })
     })
 
-    it('shows error message on revoke failure', async () => {
+    it('shows error message on revoke failure and closes the dialog', async () => {
       mockRevokeInvite.mockRejectedValue(new Error('Cannot revoke invite'))
 
       renderPage()
 
-      await waitFor(() => {
-        expect(screen.getByText('pending@example.com')).toBeInTheDocument()
-      })
-      const revokeButtons = screen.getAllByTitle('Revoke invite')
-      fireEvent.click(revokeButtons[0])
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Revoke invite for pending@example.com' }),
+      )
+      await confirmInDialog('Revoke')
 
       await waitFor(() => {
         expect(screen.getByText(/Failed to revoke invite/i)).toBeInTheDocument()
       })
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     })
   })
 
@@ -1140,10 +1209,10 @@ describe('TeamPage - Member Management', () => {
     it('reloads members list after removing member', async () => {
       renderPage()
 
-      await waitFor(() => {
-        const deleteButtons = screen.getAllByRole('button', { name: '×' })
-        fireEvent.click(deleteButtons[0])
-      })
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Remove member@example.com' }),
+      )
+      await confirmInDialog('Remove')
 
       await waitFor(() => {
         expect(mockListMembers).toHaveBeenCalledTimes(2)
