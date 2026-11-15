@@ -9,6 +9,7 @@ import {
     type SourceFreshness,
 } from '../../api/ingest';
 import { useAuth } from '../../context/AuthContext';
+import { useConfirm } from '../shared/ConfirmDialog';
 import { formatDateWithTz } from '../../utils/formatTime';
 import { isPlatformAdmin } from '../../utils/roleUtils';
 import { requestFreshnessRefresh } from '../shared/freshnessEvents';
@@ -69,6 +70,7 @@ function runningMinutes(startedAt: string | null): number {
 const PipelineHealthTab: React.FC = () => {
     const { role } = useAuth();
     const isAdmin = isPlatformAdmin(role);
+    const { confirm, confirmDialog } = useConfirm();
 
     const [runs, setRuns] = useState<IngestRunItem[]>([]);
     const [freshness, setFreshness] = useState<SourceFreshness[]>([]);
@@ -224,15 +226,10 @@ const PipelineHealthTab: React.FC = () => {
         }
     }, [runs, refreshFreshness]);
 
-    const handleCancel = useCallback(async (source: string) => {
-        const runningRun = runs.find(r => r.source === source && r.status === 'running');
-        if (!runningRun) {
-            setActionMsgs(m => ({ ...m, [source]: 'Running run not found in current page.' }));
-            return;
-        }
+    const handleCancel = useCallback(async (source: string, runId: string) => {
         setActionMsgs(m => ({ ...m, [source]: '' }));
         try {
-            const res = await cancelIngestRun(runningRun.id);
+            const res = await cancelIngestRun(runId);
             const msg = res.warning
                 ? `Cancelled. Note: ${res.warning}`
                 : 'Cancelled.';
@@ -246,7 +243,25 @@ const PipelineHealthTab: React.FC = () => {
                 [source]: err instanceof Error ? err.message : 'Cancel failed.',
             }));
         }
-    }, [runs, refreshFreshness, fetchData, sourceFilter]);
+    }, [refreshFreshness, fetchData, sourceFilter]);
+
+    const confirmCancel = (source: string) => {
+        const runningRun = runs.find(r => r.source === source && r.status === 'running');
+        if (!runningRun) {
+            setActionMsgs(m => ({ ...m, [source]: 'Running run not found in current page.' }));
+            return;
+        }
+        const label = SOURCE_LABELS[source] ?? source;
+        confirm({
+            title: 'Cancel ingest run',
+            body: `Mark the running ${label} ingest as failed? The task that already started may keep running and writing data until it finishes.`,
+            confirmLabel: 'Cancel run',
+            cancelLabel: 'Keep running',
+            tone: 'danger',
+            // handleCancel catches API failures into actionMsgs itself.
+            onConfirm: () => handleCancel(source, runningRun.id),
+        });
+    };
 
     return (
         <div className="data-table-container">
@@ -354,7 +369,7 @@ const PipelineHealthTab: React.FC = () => {
                                 )}
                                 {isAdmin && isRunningLong && (
                                     <button
-                                        onClick={() => void handleCancel(s.source)}
+                                        onClick={() => confirmCancel(s.source)}
                                         title="The DB record will be marked failed, but the underlying task may still run until it completes."
                                         style={{
                                             marginTop: '8px',
@@ -527,6 +542,7 @@ const PipelineHealthTab: React.FC = () => {
             )}
             </>
             )}
+            {confirmDialog}
         </div>
     );
 };
