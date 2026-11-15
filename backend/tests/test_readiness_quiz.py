@@ -168,6 +168,10 @@ def test_real_question_file_is_valid():
         assert 1 <= q.weight <= 3, f"{q.id}: weight {q.weight} outside 1..3"
         assert q.gap_title.strip(), f"{q.id}: gap_title is empty"
         assert q.gap_first_step.strip(), f"{q.id}: gap_first_step is empty"
+        for field in ("text", "help", "gap_title", "gap_first_step"):
+            lowered = str(getattr(q, field)).lower()
+            for word in ("approv", "eligib", "premium", "price", "denied", "guarantee"):
+                assert word not in lowered, f"{q.id}.{field}: contains decision wording {word!r}"
 
 
 # --- scoring -----------------------------------------------------------------

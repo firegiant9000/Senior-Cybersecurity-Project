@@ -7,6 +7,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
+from app.api.routes.v1 import public_readiness
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.main import app
@@ -155,6 +156,14 @@ async def test_invalid_score_input_is_422(quiz_client: AsyncClient, content: byt
     assert VICTIM not in resp.text
     assert "{bad" not in resp.text
     assert isinstance(resp.json()["detail"], str)
+
+
+@pytest.mark.asyncio
+async def test_answer_cap_is_enforced(quiz_client: AsyncClient, monkeypatch):
+    monkeypatch.setattr(public_readiness, "MAX_ANSWERS", 1)
+    resp = await quiz_client.post(SCORE_URL, json=GOOD_BODY)
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Check your answers and try again."
 
 
 @pytest.mark.asyncio
