@@ -63,6 +63,32 @@ describe('ExecutiveReportPage source badge', () => {
     expect(badge?.closest('h2')).not.toBeNull()
   })
 
+  it('labels the Projected Annual Loss section with the loss_projection badge', async () => {
+    mockLoss.mockResolvedValue({
+      has_data: true,
+      projected_annual_loss_formatted: '$50K',
+      sector: 'retail',
+      state: null,
+      employee_range: null,
+      confidence_level: 'low',
+      ic3_data_years: null,
+      ic3_incident_count: null,
+      ic3_avg_loss_per_incident: null,
+      size_multiplier: 1,
+      methodology: 'm',
+    })
+    const { container } = render(
+      <MemoryRouter>
+        <ExecutiveReportPage />
+      </MemoryRouter>,
+    )
+    await screen.findByRole('heading', { name: /Projected Annual Loss/ })
+
+    const badge = container.querySelector('[data-dataset-key="loss_projection"]')
+    expect(badge).toBeInTheDocument()
+    expect(badge?.closest('h2')).toHaveTextContent('Projected Annual Loss')
+  })
+
   it('shows no badge while the report is still generating', () => {
     mockSummary.mockReturnValue(new Promise(() => {}))
     const { container } = render(

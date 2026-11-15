@@ -220,7 +220,10 @@ const ExecutiveReportPage: React.FC = () => {
         {/* Projected loss */}
         {loss?.has_data && (
           <section className="exec-report-section">
-            <h2 className="exec-report-section-title">Projected Annual Loss</h2>
+            <h2 className="exec-report-section-title">
+              Projected Annual Loss
+              <SourceBadge datasetKey="loss_projection" className="widget-source-badge" />
+            </h2>
             <div className="exec-report-loss-row">
               <div className="exec-report-loss-headline">
                 <span className="exec-report-loss-value">{loss.projected_annual_loss_formatted}</span>

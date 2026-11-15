@@ -328,7 +328,7 @@ export default function AssetsPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h1>
           Assets
-          {!loading && visible.length > 0 && (
+          {!loading && (
             <SourceBadge datasetKey="assets_inventory" className="widget-source-badge" />
           )}
         </h1>

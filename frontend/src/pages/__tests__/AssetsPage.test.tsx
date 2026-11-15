@@ -141,6 +141,16 @@ describe('AssetsPage source badges', () => {
     expect(kev?.closest('th')).toHaveTextContent('KEV matches')
   })
 
+  it('keeps the inventory badge when the inventory is empty', async () => {
+    mockListAssets.mockResolvedValue({ total: 0, page: 1, page_size: 50, items: [] })
+    const { container } = renderPage()
+    await screen.findByText(/No assets yet/)
+
+    const inventory = container.querySelector('[data-dataset-key="assets_inventory"]')
+    expect(inventory).toBeInTheDocument()
+    expect(inventory?.closest('h1')).not.toBeNull()
+  })
+
   it('shows no badges while the inventory is loading', () => {
     mockListAssets.mockReturnValue(new Promise(() => {}))
     mockGetInventoryHealth.mockReturnValue(new Promise(() => {}))
