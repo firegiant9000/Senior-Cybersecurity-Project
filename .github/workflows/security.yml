@@ -220,11 +220,14 @@ jobs:
               "/api/v1/ingest/health",
               "/api/v1/public/stats",
               "/api/v1/data-status",
-              "/docs",
           ]
+          # The CI stack runs APP_ENV=development, so the API docs are on and "/" links
+          # to them. Production disables them (main.py), so keep the spider off them.
+          DOCS_EXCLUDE = r".*/(docs|redoc|openapi\.json)([/?#].*)?$"
 
 
           def zap_started(zap, target):
+              zap.spider.exclude_from_scan(DOCS_EXCLUDE)
               wanted = [target.rstrip("/") + p for p in SEEDS]
               for url in wanted:
                   zap.core.access_url(url, followredirects="true")
