@@ -44,6 +44,26 @@ be rotated or revoked from the dashboard at any time. Full field-by-field
 disclosure and the enrollment/revocation flow live in
 [agent_enrollment.md](agent_enrollment.md) and [agent/README.md](../../agent/README.md).
 
+## The public readiness check (no login)
+
+The readiness check lets a logged-out visitor check their email domain and take
+a short quiz. It is off unless the operator turns it on. When it is on:
+
+- **The domain you type** is looked up in public DNS (its SPF and DMARC
+  records) and is not stored or logged. The server keeps it in memory for up
+  to 15 minutes so a repeat check doesn't query DNS again, then forgets it. It
+  is not sent to any of the lookup services in the table below; the DNS
+  resolvers that answer the lookup see the name, as with any DNS query.
+- **Your quiz answers** are scored and sent back to you. They are not stored
+  or logged.
+- **Only anonymous step counts are kept:** for each day, how many times each
+  step (for example "quiz started", or a given question answered) happened. No
+  visitor ID, IP address, domain or answer is stored with them.
+- **Your IP address** is handled as on every other request: the server's
+  request logs include the client or proxy IP, and the rate limiter uses it
+  in memory (and logs it when a limit is hit). Error reports for these pages
+  leave out the request body.
+
 ## What we do *not* collect
 
 - We do not install or run the host scanner without your explicit action —

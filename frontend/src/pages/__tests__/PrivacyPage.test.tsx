@@ -88,6 +88,18 @@ describe('PrivacyPage', () => {
     expect(screen.getByText('Correct:')).toBeInTheDocument();
   });
 
+  it('says what the logged-out readiness check keeps and what it does not', () => {
+    renderPrivacy();
+
+    expect(screen.getByRole('heading', { name: 'The readiness check (no login)' })).toBeInTheDocument();
+    expect(screen.getByText(/is looked up in public DNS .* and is not stored or logged\./)).toBeInTheDocument();
+    expect(screen.getByText(/keeps it in memory for up to 15 minutes/)).toBeInTheDocument();
+    expect(screen.getByText(/are scored and shown back to you\. They are not stored or logged\./)).toBeInTheDocument();
+    expect(screen.getByText(/with no visitor ID, IP address, domain or answer attached\./)).toBeInTheDocument();
+    expect(screen.getByText(/appears in the server's request logs and is used for rate limiting\./)).toBeInTheDocument();
+    expect(screen.queryByText(/anonymized request logs/)).toBeNull();
+  });
+
   it('shows no API endpoints in the rights section', () => {
     renderPrivacy();
 

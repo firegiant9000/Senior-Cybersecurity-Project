@@ -39,9 +39,10 @@ export default function PrivacyPage() {
               threat intelligence to your environment.
             </li>
             <li>
-              <strong>Activity:</strong> anonymized request logs and audit
-              entries — which API your account called, when, and whether it
-              succeeded. Retained for 12 months.
+              <strong>Activity:</strong> request logs (which include your IP
+              address or your network&apos;s) and audit entries — which API
+              your account called, when, and whether it succeeded. Audit
+              entries are kept for 12 months.
             </li>
             <li>
               <strong>Asset inventory:</strong> CSV uploads, cloud-integration
@@ -83,6 +84,36 @@ export default function PrivacyPage() {
               Review exactly what would be sent with <code>scan --print</code>{" "}
               before any upload. Per-host tokens are stored hashed and can be
               rotated or revoked from the dashboard at any time.
+            </li>
+          </ul>
+
+          <h2>The readiness check (no login)</h2>
+          <p>
+            The readiness check lets you check your email domain and take a
+            short quiz without an account. It is off unless the site operator
+            turns it on. When it is on:
+          </p>
+          <ul>
+            <li>
+              <strong>The domain you type</strong> is looked up in public DNS
+              (its SPF and DMARC records) and is not stored or logged. The
+              server keeps it in memory for up to 15 minutes so a repeat check
+              doesn&apos;t query DNS again, then forgets it. It is not sent to
+              the domain-check providers listed below.
+            </li>
+            <li>
+              <strong>Your quiz answers</strong> are scored and shown back to
+              you. They are not stored or logged.
+            </li>
+            <li>
+              <strong>Only anonymous step counts are kept:</strong> how many
+              times each step (such as starting the quiz) happened each day,
+              with no visitor ID, IP address, domain or answer attached.
+            </li>
+            <li>
+              <strong>Your IP address</strong> is handled as on every other
+              request: it appears in the server&apos;s request logs and is used
+              for rate limiting.
             </li>
           </ul>
 

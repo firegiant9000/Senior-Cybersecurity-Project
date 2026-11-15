@@ -94,6 +94,17 @@ export default function DataHandlingPage() {
             See <a href="/privacy">Privacy</a> for the full disclosure.
           </p>
 
+          <h2>Readiness check (no login)</h2>
+          <p>
+            When the site operator turns it on, a logged-out visitor can check
+            their email domain and take a short readiness quiz. The domain is
+            looked up in public DNS and is not stored or logged (it is held in
+            memory for up to 15 minutes to avoid repeat lookups). Quiz answers
+            are scored and not stored. The only thing kept is an anonymous
+            count of each step per day, with nothing about the visitor. See{" "}
+            <a href="/privacy">Privacy</a> for details.
+          </p>
+
           <h2>Related</h2>
           <ul>
             <li>

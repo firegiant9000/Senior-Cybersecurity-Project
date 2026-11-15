@@ -72,6 +72,11 @@ _S5a's acceptance and effort below are updated to match, with the earlier text s
 
 _**Note 2026-10-19: why S2 comes right after S5a.** S5a → S2 → S1: S2 follows S5a because both change `backend/requirements.txt` (S5a pins `google-genai` there; S2 upgrades dependencies and adds the lockfile)._
 
+_**Revision 2026-11-15: the renewal readiness check is an exception to R1 and R5** ([#293](https://github.com/firegiant9000/Senior-Cybersecurity-Project/issues/293)). R1 says "no new market-facing breadth". The readiness check is one bounded exception:_
+- _**Allowed:** the public, logged-out domain check (SPF and DMARC from public DNS only), the readiness quiz (questions and scoring), and anonymous per-day funnel step counts. All of it sits behind `ENABLE_PUBLIC_READINESS`, which is off by default and stays off in production until #209 (per-client rate-limit key) is done._
+- _**Why:** it tests one product assumption cheaply (can a non-technical owner answer insurance-application questions without help?), and stores nothing about a visitor. Each public route also adds assurance evidence: rows in the threat model (T-DOM-10 to T-DOM-12, T-PLAT-18 to T-PLAT-21) and entries in the authorization route table._
+- _**Still ruled out:** email capture and emailed reports, stored evidence files, the security questionnaire pack (6.0 above stays CANCELLED), and customer interviews (R5 stands)._
+
 ### R4. Milestones
 
 Each milestone lists its acceptance criterion, the artifact it produces, a resume bullet with placeholders that are not filled until the work is done, and the interview questions it prepares for. S0 is a prerequisite fix, not a milestone.

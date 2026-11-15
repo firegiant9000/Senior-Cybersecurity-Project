@@ -27,4 +27,19 @@ describe('DataHandlingPage', () => {
     expect(container.textContent).not.toMatch(/data_status\.py/)
     expect(container.textContent).not.toMatch(/\/api\/v1\//)
   })
+
+  it('summarizes the logged-out readiness check without overclaiming', () => {
+    render(
+      <MemoryRouter>
+        <DataHandlingPage />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Readiness check (no login)' })).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /The domain is looked up in public DNS and is not stored or logged \(it is held in memory for up to 15 minutes to avoid repeat lookups\)\. Quiz answers are scored and not stored\./,
+      ),
+    ).toBeInTheDocument()
+  })
 })
