@@ -129,6 +129,23 @@ describe('AISummaryTab (characterisation)', () => {
     expect(screen.queryByText('Your external exposure is moderate.')).not.toBeInTheDocument()
   })
 
+  it('a plain-text briefing shows the regenerate hint instead of developer copy', async () => {
+    routeFetch(() =>
+      jsonResponse(
+        makeSummary({ posture_statement: null, notable_risks: null, data_gaps: null, next_steps: null }),
+      ),
+    )
+    renderTab()
+
+    expect(await screen.findByText('Your external exposure is moderate.', {}, FIND_TIMEOUT)).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        "This briefing came back as plain text, so it isn't split into posture, risks, gaps and actions. Regenerate it to try again.",
+      ),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/once the AI returns a JSON response/)).not.toBeInTheDocument()
+  })
+
   it('the Print button calls window.print', async () => {
     routeFetch(() => jsonResponse(makeSummary()))
     const printSpy = vi.spyOn(window, 'print').mockImplementation(() => {})

@@ -146,20 +146,24 @@ export default function PrivacyPage() {
           <h2>Your rights</h2>
           <ul>
             <li>
-              <strong>Export:</strong> an admin can call{" "}
-              <code>GET /api/v1/organizations/{"{id}"}/export</code> for a JSON
-              dump of every row we hold about your org.
+              <strong>Export:</strong> an organisation admin can ask the site
+              operator for a copy of everything we hold about the organisation,
+              as a JSON file.
             </li>
             <li>
-              <strong>Delete:</strong> an admin can call{" "}
-              <code>DELETE /api/v1/organizations/{"{id}"}</code> to purge the
-              organization — every referencing table is iterated explicitly.
+              <strong>Delete:</strong> an organisation admin can ask the site
+              operator to delete the organisation and all of its data. Deletion
+              is permanent.
             </li>
             <li>
               <strong>Correct:</strong> edit your org profile from the in-app
               settings page.
             </li>
           </ul>
+          <p>
+            To make either request, contact the site operator from the account
+            that administers your organisation.
+          </p>
 
           <h2>Error reports</h2>
           <p>

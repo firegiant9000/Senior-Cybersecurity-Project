@@ -7,7 +7,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.tsx";
 import {
   M365StatusResponse,
@@ -143,9 +143,8 @@ export default function IntegrationsPage() {
       <div style={{ padding: "2rem" }}>
         <h1>Integrations</h1>
         <p>
-          The Microsoft 365 integration is not enabled in this environment.
-          Set <code>ENABLE_M365_INTEGRATION=true</code> in the backend to try
-          it locally.
+          Microsoft 365 sync isn&apos;t available on this deployment yet. You
+          can still add assets by <Link to="/inventory/upload">uploading an inventory file</Link>.
         </p>
       </div>
     );

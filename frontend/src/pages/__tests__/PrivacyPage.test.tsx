@@ -64,4 +64,32 @@ describe('PrivacyPage', () => {
 
     expect(screen.getByTestId('location').textContent).toBe('/');
   });
+
+  it('describes export and deletion as requests to the site operator', () => {
+    renderPrivacy();
+
+    expect(
+      screen.getByText(
+        /an organisation admin can ask the site operator for a copy of everything we hold about the organisation, as a JSON file\./,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /an organisation admin can ask the site operator to delete the organisation and all of its data\. Deletion is permanent\./,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'To make either request, contact the site operator from the account that administers your organisation.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Correct:')).toBeInTheDocument();
+  });
+
+  it('shows no API endpoints in the rights section', () => {
+    renderPrivacy();
+
+    expect(screen.queryByText(/\/api\/v1\//)).toBeNull();
+    expect(screen.queryByText(/GET \/api|DELETE \/api/)).toBeNull();
+  });
 });

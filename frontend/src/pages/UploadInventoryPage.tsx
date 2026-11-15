@@ -310,8 +310,8 @@ export default function UploadInventoryPage() {
             )}
           </ul>
           <p style={{ fontSize: 13, color: "#475569" }}>
-            KEV matches are a preliminary literal vendor+product match. The
-            Month 3 CPE matcher will refine these.
+            KEV matches compare vendor and product names, so some may be missed
+            or approximate.
           </p>
           {diff && !rolledBack && (
             <div

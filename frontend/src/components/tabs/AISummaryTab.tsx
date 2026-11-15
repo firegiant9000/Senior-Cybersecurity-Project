@@ -391,7 +391,7 @@ const AISummaryTab: React.FC = () => {
       {/* Fallback hint when no structured data */}
       {!hasStructured && data.ai_generated && (
         <p className="ai-summary-prose-hint">
-          Structured sections (posture, risks, gaps, actions) will appear here once the AI returns a JSON response.
+          This briefing came back as plain text, so it isn't split into posture, risks, gaps and actions. Regenerate it to try again.
         </p>
       )}
 
