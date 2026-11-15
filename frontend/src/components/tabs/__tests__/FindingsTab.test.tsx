@@ -1,6 +1,6 @@
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import FindingsTab from '../FindingsTab'
 
 const { mockFetchFindings, mockFetchHistory, mockPatchStatus } = vi.hoisted(() => ({
@@ -82,8 +82,15 @@ const profileLinks = () =>
   screen.getAllByRole('link').filter((l) => l.getAttribute('href') === '/settings/organisation')
 
 describe('FindingsTab characterisation', () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>
+
+  afterEach(() => {
+    warnSpy.mockRestore()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     mockFetchHistory.mockResolvedValue({ items: [], total: 0 })
     mockPatchStatus.mockResolvedValue({ stable_key: 'key-a', status: 'done' })
   })
@@ -176,56 +183,63 @@ describe('FindingsTab characterisation', () => {
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
   })
 
-  it('a stale failure from an earlier toggle on the same row is ignored', async () => {
+  it('the checkbox is disabled while its PATCH is pending and a second click makes no second call', async () => {
     mockFetchFindings.mockResolvedValue(twoFindings())
-    let rejectFirst: (e: Error) => void = () => {}
-    let resolveSecond: (v: unknown) => void = () => {}
-    mockPatchStatus
-      .mockImplementationOnce(() => new Promise((_, rej) => { rejectFirst = rej }))
-      .mockImplementationOnce(() => new Promise((res) => { resolveSecond = res }))
+    let resolvePatch: (v: unknown) => void = () => {}
+    mockPatchStatus.mockImplementationOnce(() => new Promise((res) => { resolvePatch = res }))
     renderTab()
     await screen.findByText('Threat alpha', {}, SLOW)
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as open' }))
-    await waitFor(() => expect(mockPatchStatus).toHaveBeenCalledTimes(2))
+    const pending = await screen.findByRole('checkbox', { name: 'Mark "Threat alpha" as open' })
+    expect(pending).toBeDisabled()
+    // The other row is unaffected.
+    expect(screen.getByRole('checkbox', { name: 'Mark "Action beta" as remediated' })).toBeEnabled()
 
-    resolveSecond({ stable_key: 'key-a', status: 'open' })
+    expect(mockPatchStatus).toHaveBeenCalledTimes(1)
+    fireEvent.click(pending)
+    expect(mockPatchStatus).toHaveBeenCalledTimes(1)
+
     await act(async () => {
-      rejectFirst(new Error('late'))
+      resolvePatch({ stable_key: 'key-a', status: 'done' })
     })
-
-    expect(screen.queryByRole('alert')).toBeNull()
-    expect(
-      screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }),
-    ).not.toBeChecked()
+    await waitFor(() =>
+      expect(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as open' })).toBeEnabled(),
+    )
+    expect(mockPatchStatus).toHaveBeenCalledTimes(1)
   })
 
-  it('when both toggles fail the row reverts to the original status with one alert', async () => {
+  it('a failure while pending reverts to the pre-PATCH status with one alert and re-enables the box', async () => {
     mockFetchFindings.mockResolvedValue(twoFindings())
-    let rejectFirst: (e: Error) => void = () => {}
-    let rejectSecond: (e: Error) => void = () => {}
-    mockPatchStatus
-      .mockImplementationOnce(() => new Promise((_, rej) => { rejectFirst = rej }))
-      .mockImplementationOnce(() => new Promise((_, rej) => { rejectSecond = rej }))
+    let rejectPatch: (e: Error) => void = () => {}
+    mockPatchStatus.mockImplementationOnce(() => new Promise((_, rej) => { rejectPatch = rej }))
     renderTab()
     await screen.findByText('Threat alpha', {}, SLOW)
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as open' }))
-    await waitFor(() => expect(mockPatchStatus).toHaveBeenCalledTimes(2))
-
+    await screen.findByRole('checkbox', { name: 'Mark "Threat alpha" as open' })
     await act(async () => {
-      rejectFirst(new Error('first'))
-    })
-    await act(async () => {
-      rejectSecond(new Error('second'))
+      rejectPatch(new Error('boom'))
     })
 
     expect(await screen.findAllByRole('alert')).toHaveLength(1)
-    expect(
-      screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }),
-    ).not.toBeChecked()
+    const box = screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' })
+    expect(box).not.toBeChecked()
+    expect(box).toBeEnabled()
+  })
+
+  it('a failure logs a message-only warning and keeps the constant user message', async () => {
+    mockFetchFindings.mockResolvedValue(twoFindings())
+    mockPatchStatus.mockRejectedValue(new Error('boom'))
+    renderTab()
+    await screen.findByText('Threat alpha', {}, SLOW)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Couldn't update this finding. Try again.",
+    )
+    expect(warnSpy).toHaveBeenCalledWith('finding status update failed', 'boom')
   })
 
   it('a reload invalidates in-flight attempts: the old failure is ignored', async () => {
@@ -271,12 +285,10 @@ describe('FindingsTab characterisation', () => {
     expect(await screen.findByText('Threat alpha', {}, SLOW)).toBeInTheDocument()
   })
 
-  it('a stale success does not dispatch the status-changed event', async () => {
+  it('a success settling after a reload still dispatches the status-changed event once', async () => {
     mockFetchFindings.mockResolvedValue(twoFindings())
-    let resolveFirst: (v: unknown) => void = () => {}
-    mockPatchStatus
-      .mockImplementationOnce(() => new Promise((res) => { resolveFirst = res }))
-      .mockResolvedValueOnce({ stable_key: 'key-a', status: 'open' })
+    let resolvePatch: (v: unknown) => void = () => {}
+    mockPatchStatus.mockImplementationOnce(() => new Promise((res) => { resolvePatch = res }))
     const handler = vi.fn()
     window.addEventListener('hackertracker:finding-status-changed', handler)
     try {
@@ -284,11 +296,13 @@ describe('FindingsTab characterisation', () => {
       await screen.findByText('Threat alpha', {}, SLOW)
 
       fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as remediated' }))
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Mark "Threat alpha" as open' }))
-      await waitFor(() => expect(handler).toHaveBeenCalledTimes(1))
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+      await waitFor(() => expect(mockFetchFindings).toHaveBeenCalledTimes(2))
+      await screen.findByText('Threat alpha', {}, SLOW)
+      expect(handler).not.toHaveBeenCalled()
 
       await act(async () => {
-        resolveFirst({ stable_key: 'key-a', status: 'done' })
+        resolvePatch({ stable_key: 'key-a', status: 'done' })
       })
       expect(handler).toHaveBeenCalledTimes(1)
     } finally {

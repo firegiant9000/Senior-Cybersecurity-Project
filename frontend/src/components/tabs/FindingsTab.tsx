@@ -72,12 +72,11 @@ const FindingsTab: React.FC = () => {
   const [minLoadingDone, setMinLoadingDone] = useState(false);
   const [error, setError] = useState('');
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
-  // Latest status-change attempt per stable_key, to ignore stale failures.
-  const attemptsRef = useRef<Record<string, number>>({});
-  // Bumped on every (re)load so in-flight attempts from before it are ignored.
+  // Bumped on every (re)load so in-flight attempts from before it don't write stale UI state.
   const genRef = useRef(0);
-  // Last server-confirmed status per stable_key (from load data / successful patch).
-  const confirmedRef = useRef<Record<string, FindingStatus>>({});
+  // Rows with a status PATCH in flight (one at a time per row).
+  const inFlightRef = useRef<Set<string>>(new Set());
+  const [pendingKeys, setPendingKeys] = useState<Set<string>>(new Set());
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [history, setHistory] = useState<SnapshotListItem[]>([]);
@@ -101,14 +100,9 @@ const FindingsTab: React.FC = () => {
     setError('');
     setRowErrors({});
     genRef.current += 1;
-    attemptsRef.current = {};
-    confirmedRef.current = {};
     const minTimer = setTimeout(() => setMinLoadingDone(true), MIN_LOADING_MS);
     fetchFindings(controller.signal)
       .then((data) => {
-        confirmedRef.current = Object.fromEntries(
-          data.findings.map((f) => [f.stable_key, f.status]),
-        );
         setReport(data);
       })
       .catch((err) => {
@@ -147,9 +141,12 @@ const FindingsTab: React.FC = () => {
 
   const setFindingStatus = useCallback(
     async (finding: Finding, nextStatus: FindingStatus) => {
+      // Synchronous guard: a second event can land before the disabled render.
+      if (inFlightRef.current.has(finding.stable_key)) return;
+      inFlightRef.current.add(finding.stable_key);
       const gen = genRef.current;
-      const attempt = (attemptsRef.current[finding.stable_key] ?? 0) + 1;
-      attemptsRef.current[finding.stable_key] = attempt;
+      const previousStatus = finding.status;
+      setPendingKeys((prev) => new Set(prev).add(finding.stable_key));
       // Clear any previous error for this row before retrying.
       setRowErrors((prev) => {
         if (!(finding.stable_key in prev)) return prev;
@@ -172,36 +169,25 @@ const FindingsTab: React.FC = () => {
           title: finding.title,
           severity: finding.severity,
         });
-        // Skip if a reload invalidated this attempt; otherwise record it.
-        if (genRef.current !== gen) return;
-        if (attemptsRef.current[finding.stable_key] !== attempt) {
-          // Superseded by a newer toggle: the server did apply this one, so
-          // keep the confirmed status current, but don't notify.
-          confirmedRef.current[finding.stable_key] = nextStatus;
-          return;
-        }
-        confirmedRef.current[finding.stable_key] = nextStatus;
-        // Notify the rest of the app (risk score widget, exec report) so
-        // they can refetch and animate the deduction.
+        // Always notify the rest of the app (risk score widget, exec report)
+        // so they refetch, even if a reload happened while this was in flight.
         window.dispatchEvent(
           new CustomEvent('hackertracker:finding-status-changed', {
             detail: { stable_key: finding.stable_key, status: nextStatus },
           }),
         );
-      } catch {
-        // A newer toggle on this row (or a reload) supersedes this attempt.
-        if (genRef.current !== gen || attemptsRef.current[finding.stable_key] !== attempt) {
-          return;
-        }
-        // Revert to the last status the server confirmed, not the render's
-        // snapshot (which may already be an optimistic value).
-        const revertTo = confirmedRef.current[finding.stable_key] ?? finding.status;
+      } catch (err) {
+        console.warn('finding status update failed', err instanceof Error ? err.message : err);
+        // A reload since this started supersedes the UI state.
+        if (genRef.current !== gen) return;
+        // Only one PATCH per row is in flight, so the pre-PATCH status is
+        // the unambiguous revert target.
         setReport((prev) => {
           if (!prev) return prev;
           return {
             ...prev,
             findings: prev.findings.map((f) =>
-              f.stable_key === finding.stable_key ? { ...f, status: revertTo } : f,
+              f.stable_key === finding.stable_key ? { ...f, status: previousStatus } : f,
             ),
           };
         });
@@ -209,6 +195,13 @@ const FindingsTab: React.FC = () => {
           ...prev,
           [finding.stable_key]: ROW_ERROR_MESSAGE,
         }));
+      } finally {
+        inFlightRef.current.delete(finding.stable_key);
+        setPendingKeys((prev) => {
+          const next = new Set(prev);
+          next.delete(finding.stable_key);
+          return next;
+        });
       }
     },
     [],
@@ -443,6 +436,7 @@ const FindingsTab: React.FC = () => {
                         <input
                           type="checkbox"
                           checked={isDone}
+                          disabled={pendingKeys.has(finding.stable_key)}
                           onChange={(e) => {
                             void setFindingStatus(
                               finding,

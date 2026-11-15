@@ -661,7 +661,7 @@ function ActionPlanCard({ topThreats, loading }: {
           {topThreats.length > 0 && threatActions.length > 0 && (
             <div className="smb-checklist-group">
               <div className="smb-checklist-group-label">Industry-Specific Threats</div>
-              <ul className="smb-action-list">
+              <ul className="smb-action-list" role="list">
                 {threatActions.map(item => (
                   <li key={item.key} className={`smb-check-item ${item.priority === 'high' ? 'smb-check-high' : ''}`}>
                     <span className="smb-check-icon">{item.icon}</span>
@@ -679,7 +679,7 @@ function ActionPlanCard({ topThreats, loading }: {
           )}
           <div className="smb-checklist-group">
             <div className="smb-checklist-group-label">Every Business Should Do This</div>
-            <ul className="smb-action-list">
+            <ul className="smb-action-list" role="list">
               {GENERAL_ACTIONS.map((item, i) => {
                 const key = `general-${i}`;
                 return (
