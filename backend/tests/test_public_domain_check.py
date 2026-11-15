@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
+import logging
+import socket
+import ssl
+
 import dns.exception
 import dns.resolver
+import httpx
 import pytest
+import pytest_asyncio
 
+from app.core.config import settings
+from app.core.limiter import limiter
 from app.services import public_domain_check
-from app.services.public_domain_check import check_public_domain
+from app.services.public_domain_check import EXPLANATIONS, check_public_domain
 
 HOST = "example.com"
 DMARC_HOST = f"_dmarc.{HOST}"
@@ -187,3 +195,147 @@ async def test_dkim_is_never_queried(fake_resolver):
     await check_public_domain(HOST)
     assert fake_resolver.calls
     assert all("_domainkey" not in qname for qname, _ in fake_resolver.calls)
+
+
+# --- API -----------------------------------------------------------------------
+
+URL = "/api/v1/public/domain-check"
+BAD_HOST_DETAIL = "Enter a domain name such as example.com."
+
+
+@pytest_asyncio.fixture
+async def flag_on(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(settings, "ENABLE_PUBLIC_READINESS", True)
+    limiter.reset()
+    yield
+    limiter.reset()
+
+
+@pytest.fixture
+def ok_resolver(fake_resolver: FakeResolver) -> FakeResolver:
+    fake_resolver.set("victim-co.com", [SPF])
+    fake_resolver.set("_dmarc.victim-co.com", ["v=DMARC1; p=reject"])
+    fake_resolver.set(HOST, [SPF])
+    fake_resolver.set(DMARC_HOST, ["v=DMARC1; p=none"])
+    return fake_resolver
+
+
+@pytest.mark.parametrize("body", [{"domain": "example.com"}, {"domain": "1.2.3.4"}, {"nope": 1}])
+async def test_flag_off_returns_404(client, monkeypatch, fake_resolver, body):
+    monkeypatch.setattr(settings, "ENABLE_PUBLIC_READINESS", False)
+    resp = await client.post(URL, json=body)
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "Not Found"}
+    assert fake_resolver.calls == []
+
+
+async def test_ok_response_shape(client, flag_on, ok_resolver):
+    resp = await client.post(URL, json={"domain": "victim-co.com"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert set(data) == {
+        "status",
+        "spf_found",
+        "dmarc_found",
+        "dmarc_policy",
+        "rating",
+        "explanation",
+    }
+    assert data["status"] == "ok"
+    assert data["rating"] == "protected"
+    assert data["explanation"] == EXPLANATIONS["protected"]
+    assert "v=spf1" not in resp.text
+    assert "v=DMARC1" not in resp.text
+    assert "victim-co" not in resp.text
+
+
+@pytest.mark.parametrize(
+    ("answer", "status"),
+    [(dns.resolver.NXDOMAIN(), "domain_not_found"), (dns.exception.Timeout(), "unavailable")],
+)
+async def test_not_found_and_unavailable_have_no_rating(
+    client, flag_on, fake_resolver, answer, status
+):
+    fake_resolver.set(HOST, answer)
+    resp = await client.post(URL, json={"domain": HOST})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == status
+    assert data["rating"] is None
+    assert data["spf_found"] is None
+    assert data["explanation"] == EXPLANATIONS[status]
+
+
+@pytest.mark.parametrize(
+    "domain",
+    ["1.2.3.4", "[::1]", "localhost", "https://example.com", "example.com/path"]
+    + ["example.com:8080", "a." * 127 + "com", ""],
+)
+async def test_invalid_hostname_is_422(client, flag_on, fake_resolver, domain):
+    resp = await client.post(URL, json={"domain": domain})
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == BAD_HOST_DETAIL
+    assert fake_resolver.calls == []
+
+
+async def test_extra_field_is_422(client, flag_on, fake_resolver):
+    resp = await client.post(URL, json={"domain": HOST, "x": 1})
+    assert resp.status_code == 422
+    assert fake_resolver.calls == []
+
+
+async def test_case_and_trailing_dot_share_the_cache(client, flag_on, ok_resolver):
+    first = await client.post(URL, json={"domain": "Example.COM."})
+    calls_after_first = len(ok_resolver.calls)
+    second = await client.post(URL, json={"domain": "example.com"})
+    assert first.status_code == second.status_code == 200
+    assert first.json() == second.json()
+    assert calls_after_first == 2
+    assert len(ok_resolver.calls) == calls_after_first
+
+
+async def test_rate_limit_returns_429(client, flag_on, ok_resolver):
+    for _ in range(10):
+        resp = await client.post(URL, json={"domain": HOST})
+        assert resp.status_code == 200
+    resp = await client.post(URL, json={"domain": HOST})
+    assert resp.status_code == 429
+
+
+async def test_endpoint_opens_no_socket_and_no_http(client, flag_on, ok_resolver, monkeypatch):
+    recorded: list = []
+
+    def record(*args, **kwargs):
+        recorded.append(args)
+        raise OSError("blocked in test")
+
+    async def record_async(*args, **kwargs):
+        record(*args, **kwargs)
+
+    monkeypatch.setattr(socket.socket, "connect", record)
+    monkeypatch.setattr(socket, "create_connection", record)
+    monkeypatch.setattr(ssl.SSLContext, "wrap_socket", record)
+    monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", record_async)
+
+    resp = await client.post(URL, json={"domain": HOST})
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ok"
+    assert recorded == []
+
+
+async def test_domain_is_not_logged(client, flag_on, fake_resolver, caplog):
+    caplog.set_level(logging.DEBUG)
+    host = "victim-co.com"
+    fake_resolver.set(host, [SPF])
+    fake_resolver.set(f"_dmarc.{host}", ["v=DMARC1; p=reject"])
+    await client.post(URL, json={"domain": host})
+
+    fake_resolver.set("gone-victim-co.com", dns.resolver.NXDOMAIN())
+    await client.post(URL, json={"domain": "gone-victim-co.com"})
+
+    fake_resolver.set("slow-victim-co.com", dns.exception.Timeout())
+    await client.post(URL, json={"domain": "slow-victim-co.com"})
+
+    for record in caplog.records:
+        assert "victim-co" not in record.getMessage()
+        assert "victim-co" not in repr(record.args)
