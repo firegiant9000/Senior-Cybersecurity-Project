@@ -13,7 +13,9 @@ import {
   rollbackScanRun,
 } from "../api/inventory";
 import { logActivationEvent } from "../api/analytics";
+import SourceBadge from "../components/shared/SourceBadge";
 import "../Dashboard.css";
+import "./UploadInventoryPage.css";
 
 /**
  * Month 2 Phase C: CSV inventory upload page.
@@ -169,7 +171,7 @@ export default function UploadInventoryPage() {
     <div className="dashboard-page" style={{ padding: 24, maxWidth: 960, margin: "0 auto" }}>
       <Link to="/org/assets">← Assets</Link>
       <h1>Upload asset inventory</h1>
-      <p style={{ color: "#555" }}>
+      <p className="upload-intro">
         Upload a CSV of your assets and installed software. The columns we expect are documented in{" "}
         <a href="/sample-inventory.csv" download>
           the sample CSV
@@ -187,15 +189,7 @@ export default function UploadInventoryPage() {
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
-        style={{
-          border: `2px dashed ${dragging ? "#3b82f6" : "#cbd5e1"}`,
-          borderRadius: 8,
-          padding: 32,
-          textAlign: "center",
-          cursor: "pointer",
-          background: dragging ? "#eff6ff" : "#f8fafc",
-          marginBottom: 16,
-        }}
+        className={`upload-dropzone${dragging ? " upload-dropzone--active" : ""}`}
       >
         {file ? (
           <div>
@@ -217,7 +211,7 @@ export default function UploadInventoryPage() {
             <div style={{ fontSize: 16, marginBottom: 8 }}>
               Drag a CSV here, or click to pick one
             </div>
-            <div style={{ fontSize: 13, color: "#64748b" }}>
+            <div className="upload-hint">
               Max 10,000 rows. UTF-8 encoded.
             </div>
           </>
@@ -249,13 +243,13 @@ export default function UploadInventoryPage() {
       </div>
 
       {error && (
-        <div style={{ background: "#fef2f2", color: "#991b1b", padding: 12, borderRadius: 6, marginBottom: 16 }}>
+        <div className="upload-error">
           {error}
         </div>
       )}
 
       {preview && !scanRun && (
-        <div style={{ background: "#f1f5f9", padding: 16, borderRadius: 6, marginBottom: 16 }}>
+        <div className="upload-preview">
           <h3 style={{ marginTop: 0 }}>Preview</h3>
           <ul>
             <li>
@@ -294,8 +288,10 @@ export default function UploadInventoryPage() {
       )}
 
       {scanRun && (
-        <div style={{ background: "#ecfdf5", padding: 16, borderRadius: 6, marginBottom: 16 }}>
-          <h3 style={{ marginTop: 0 }}>Import #{scanRun.id}</h3>
+        <div className="upload-result">
+          <h3 style={{ marginTop: 0 }}>
+            Import #{scanRun.id} <SourceBadge datasetKey="scan_runs" />
+          </h3>
           <ul>
             <li>
               Status: <strong>{scanRun.status}</strong>
@@ -313,29 +309,21 @@ export default function UploadInventoryPage() {
               </li>
             )}
             {scanRun.error_message && (
-              <li style={{ color: "#991b1b" }}>{scanRun.error_message}</li>
+              <li className="upload-error-text">{scanRun.error_message}</li>
             )}
           </ul>
-          <p style={{ fontSize: 13, color: "#475569" }}>
-            KEV matches are a preliminary literal vendor+product match. The
-            Month 3 CPE matcher will refine these.
+          <p className="upload-note">
+            KEV matches compare vendor and product names, so some may be missed
+            or approximate.
           </p>
           {diff && !rolledBack && (
-            <div
-              style={{
-                marginTop: 8,
-                padding: 10,
-                background: "#eff6ff",
-                borderRadius: 6,
-                fontSize: 13,
-              }}
-            >
+            <div className="upload-diff">
               <strong>Diff vs previous upload:</strong>{" "}
               {diff.assets_added} new asset{diff.assets_added === 1 ? "" : "s"},{" "}
               {diff.assets_refreshed} refreshed, {diff.software_added} new
               software entries.
               {diff.previous_scan_run_id !== null && (
-                <span style={{ color: "#475569" }}>
+                <span className="upload-diff-prior">
                   {" "}
                   (prior run #{diff.previous_scan_run_id})
                 </span>
@@ -343,16 +331,7 @@ export default function UploadInventoryPage() {
             </div>
           )}
           {rolledBack && (
-            <div
-              style={{
-                marginTop: 8,
-                padding: 10,
-                background: "#fef2f2",
-                color: "#991b1b",
-                borderRadius: 6,
-                fontSize: 13,
-              }}
-            >
+            <div className="upload-rolledback">
               Rolled back. Rows this upload created have been removed.
             </div>
           )}
@@ -368,7 +347,7 @@ export default function UploadInventoryPage() {
                 type="button"
                 onClick={confirmRollback}
                 disabled={rollingBack}
-                style={{ color: "#991b1b" }}
+                className="upload-rollback-btn"
               >
                 {rollingBack ? "Rolling back…" : "Undo last upload"}
               </button>

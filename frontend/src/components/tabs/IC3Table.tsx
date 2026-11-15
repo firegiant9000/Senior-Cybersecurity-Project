@@ -197,11 +197,9 @@ const IC3Table: React.FC<Props> = ({ apiBaseUrl, datasetKey }) => {
 
             {!loading && !error && data.length === 0 && (
                 <div className="empty-state">
-                    <p>No IC3 incidents found. {attackType !== 'All' || state !== 'All' || year !== 'All'
-                        ? 'Try adjusting your filters.' : 'Run the ingestion script:'}</p>
-                    {attackType === 'All' && state === 'All' && year === 'All' && (
-                        <code>python scripts/ingest_ic3_enhanced.py</code>
-                    )}
+                    <p>{attackType !== 'All' || state !== 'All' || year !== 'All'
+                        ? 'No IC3 incidents match these filters. Try widening them.'
+                        : 'No IC3 incident data has been loaded yet.'}</p>
                 </div>
             )}
 

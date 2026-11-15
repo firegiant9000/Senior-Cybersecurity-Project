@@ -64,4 +64,34 @@ describe('PrivacyPage', () => {
 
     expect(screen.getByTestId('location').textContent).toBe('/');
   });
+
+  it('describes export and deletion as requests to the site operator', () => {
+    renderPrivacy();
+
+    expect(
+      screen.getByText(
+        /an organisation admin can ask the site operator for a JSON file of your organisation's data: its profile, domains, vendors, assets and installed software, .* It does not include login accounts, audit records, per-asset vulnerability matches or integration tokens\./,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /an organisation admin can ask the site operator to permanently delete the organisation and that same data\. Member login accounts are not deleted; they are detached from the organisation\. Audit records are kept, including a record of the deletion itself, for the retention period under Activity above\./,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/asks for their own account to be deleted/i)).toBeNull();
+    expect(screen.queryByText(/everything we hold/)).toBeNull();
+    expect(
+      screen.getByText(
+        'To make either request, contact the site operator from the account that administers your organisation.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Correct:')).toBeInTheDocument();
+  });
+
+  it('shows no API endpoints in the rights section', () => {
+    renderPrivacy();
+
+    expect(screen.queryByText(/\/api\/v1\//)).toBeNull();
+    expect(screen.queryByText(/GET \/api|DELETE \/api/)).toBeNull();
+  });
 });

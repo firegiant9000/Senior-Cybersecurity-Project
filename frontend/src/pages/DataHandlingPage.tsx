@@ -76,12 +76,10 @@ export default function DataHandlingPage() {
 
           <h2>How this list stays honest</h2>
           <p>
-            The list is generated from a single registry in our backend
-            (<code>backend/app/services/data_status.py</code>). Any new widget
-            must register here, and the frontend reads from the same endpoint
-            (<code>GET /api/v1/data-status</code>) to render its badges. If
-            the registry, this page, and the dashboard ever disagree, the
-            registry wins.
+            The list comes from a single registry that every dashboard widget
+            must be listed in, and the badges you see on the dashboard read
+            from that same registry. If this page and a badge ever disagree,
+            the registry is right and we fix the other.
           </p>
 
           <h2>Optional host scanner</h2>
