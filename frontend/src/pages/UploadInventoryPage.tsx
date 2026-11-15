@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useConfirm } from "../components/shared/ConfirmDialog";
 import {
   CsvPreviewResponse,
   ScanRun,
@@ -23,6 +24,7 @@ import "../Dashboard.css";
  */
 export default function UploadInventoryPage() {
   const { orgId } = useAuth();
+  const { confirm, confirmDialog } = useConfirm();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
@@ -48,14 +50,8 @@ export default function UploadInventoryPage() {
 
   const handleRollback = useCallback(async () => {
     if (!orgId || !scanRun) return;
-    if (
-      !window.confirm(
-        `Roll back import #${scanRun.id}? This deletes any asset/software rows this upload created. Rows that pre-existed and were refreshed are not reverted.`,
-      )
-    ) {
-      return;
-    }
     setRollingBack(true);
+    setError("");
     try {
       await rollbackScanRun(orgId, scanRun.id);
       setRolledBack(true);
@@ -65,6 +61,17 @@ export default function UploadInventoryPage() {
       setRollingBack(false);
     }
   }, [orgId, scanRun]);
+
+  const confirmRollback = () => {
+    confirm({
+      title: "Roll back import",
+      body: "Remove the assets this upload imported?",
+      confirmLabel: "Roll back",
+      tone: "danger",
+      // handleRollback catches API failures into `error` itself.
+      onConfirm: handleRollback,
+    });
+  };
 
   const handleFile = (f: File | null) => {
     setError("");
@@ -359,7 +366,7 @@ export default function UploadInventoryPage() {
               <span style={{ margin: "0 12px" }}>·</span>
               <button
                 type="button"
-                onClick={handleRollback}
+                onClick={confirmRollback}
                 disabled={rollingBack}
                 style={{ color: "#991b1b" }}
               >
@@ -369,6 +376,7 @@ export default function UploadInventoryPage() {
           )}
         </div>
       )}
+      {confirmDialog}
     </div>
   );
 }

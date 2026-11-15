@@ -9,6 +9,7 @@ import {
     type SourceFreshness,
 } from '../../api/ingest';
 import { useAuth } from '../../context/AuthContext';
+import { useConfirm } from '../shared/ConfirmDialog';
 import { formatDateWithTz } from '../../utils/formatTime';
 import { isPlatformAdmin } from '../../utils/roleUtils';
 import { requestFreshnessRefresh } from '../shared/freshnessEvents';
@@ -69,6 +70,7 @@ function runningMinutes(startedAt: string | null): number {
 const PipelineHealthTab: React.FC = () => {
     const { role } = useAuth();
     const isAdmin = isPlatformAdmin(role);
+    const { confirm, confirmDialog } = useConfirm();
 
     const [runs, setRuns] = useState<IngestRunItem[]>([]);
     const [freshness, setFreshness] = useState<SourceFreshness[]>([]);
@@ -248,6 +250,18 @@ const PipelineHealthTab: React.FC = () => {
         }
     }, [runs, refreshFreshness, fetchData, sourceFilter]);
 
+    const confirmCancel = (source: string) => {
+        confirm({
+            title: 'Cancel ingest run',
+            body: `Cancel the running ${source} ingest? Data it has not written yet is lost.`,
+            confirmLabel: 'Cancel run',
+            cancelLabel: 'Keep running',
+            tone: 'danger',
+            // handleCancel catches API failures into actionMsgs itself.
+            onConfirm: () => handleCancel(source),
+        });
+    };
+
     return (
         <div className="data-table-container">
             <h2>Pipeline Health</h2>
@@ -354,7 +368,7 @@ const PipelineHealthTab: React.FC = () => {
                                 )}
                                 {isAdmin && isRunningLong && (
                                     <button
-                                        onClick={() => void handleCancel(s.source)}
+                                        onClick={() => confirmCancel(s.source)}
                                         title="The DB record will be marked failed, but the underlying task may still run until it completes."
                                         style={{
                                             marginTop: '8px',
@@ -527,6 +541,7 @@ const PipelineHealthTab: React.FC = () => {
             )}
             </>
             )}
+            {confirmDialog}
         </div>
     );
 };
