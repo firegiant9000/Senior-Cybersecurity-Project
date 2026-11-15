@@ -182,6 +182,7 @@ describe('FindingsTab characterisation', () => {
     const badge = container.querySelector('[data-dataset-key="domain_checks"]')
     expect(badge).toBeInTheDocument()
     expect(badge?.closest('.findings-history-section')).not.toBeNull()
+    expect(container.querySelector('.findings-list')).not.toBeNull()
     expect(container.querySelectorAll('.findings-list [data-testid="source-badge"]')).toHaveLength(0)
   })
 

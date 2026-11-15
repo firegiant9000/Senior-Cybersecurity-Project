@@ -66,4 +66,23 @@ describe('VendorAlertsTab source badge', () => {
     expect(badge).toBeInTheDocument()
     expect(badge?.closest('.vendor-alerts-header')).not.toBeNull()
   })
+
+  it('badges the no-matches state with vendor_alerts', async () => {
+    mockFetchAlerts.mockResolvedValue({
+      ...makeResponse(),
+      items: [],
+      total_matched: 0,
+      reason: 'no_matches',
+    })
+    const { container } = render(
+      <MemoryRouter>
+        <VendorAlertsTab />
+      </MemoryRouter>,
+    )
+    await screen.findByText('No active threats for your stack')
+
+    const badge = container.querySelector('[data-dataset-key="vendor_alerts"]')
+    expect(badge).toBeInTheDocument()
+    expect(badge?.closest('.vendor-no-matches-card')).not.toBeNull()
+  })
 })

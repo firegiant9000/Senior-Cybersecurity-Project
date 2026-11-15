@@ -368,7 +368,6 @@ function TopThreatsCard({ threats, loading }: {
   return (
     <div className="card smb-threats-card">
       <h3 className="smb-section-title"> Top Threats Targeting Your Industry</h3>
-      <SourceBadge datasetKey="ic3_incidents" className="widget-source-badge" />
       <p className="smb-section-sub">Based on FBI crime complaint data — ranked by financial impact</p>
       {loading ? (
         <WidgetSkeleton variant="chart" />
@@ -376,6 +375,7 @@ function TopThreatsCard({ threats, loading }: {
         <p className="smb-empty">Select your industry to see specific threats.</p>
       ) : (
         <div className="smb-threats-list">
+          <SourceBadge datasetKey="ic3_incidents" className="widget-source-badge" />
           {top5.map((t, i) => {
             const info = THREAT_ACTIONS[t.attack_type];
             const icon = info?.icon ?? '🔴';

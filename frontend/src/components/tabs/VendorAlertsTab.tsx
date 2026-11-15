@@ -151,6 +151,7 @@ const VendorAlertsTab: React.FC = () => {
         <div className="vendor-no-matches-card">
           <span className="vendor-no-matches-icon">✅</span>
           <p className="vendor-no-matches-title">No active threats for your stack</p>
+          <SourceBadge datasetKey="vendor_alerts" className="widget-source-badge" />
           <p className="vendor-no-matches-sub">
             None of your vendors appear in CISA's Known Exploited Vulnerabilities catalog right now. Check back after the next data refresh.
           </p>
