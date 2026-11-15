@@ -101,7 +101,7 @@ async def public_domain_check(request: Request) -> DomainCheckResponse:
     """
     try:
         body = DomainCheckRequest.model_validate(await request.json())
-    except (ValueError, ValidationError):  # bad JSON, bad encoding, wrong shape
+    except (ValueError, ValidationError, RecursionError):  # bad JSON/encoding/shape, deep nesting
         raise HTTPException(status_code=422, detail=_BAD_DOMAIN) from None
     host = normalize_hostname(body.domain)
     if host is None:

@@ -301,7 +301,7 @@ async def test_overlong_domain_is_422_and_not_echoed(client, flag_on, fake_resol
 
 
 @pytest.mark.parametrize(
-    "content", [b"{bad", b"[]", b'"x"', b"{}", b'{"domain": 5}', b"\xff\xfe", b""]
+    "content", [b"{bad", b"[]", b'"x"', b"{}", b'{"domain": 5}', b"\xff\xfe", b"", b"[" * 100000]
 )
 async def test_malformed_body_is_generic_422(client, flag_on, fake_resolver, content):
     resp = await client.post(URL, content=content, headers=JSON_HEADERS)
