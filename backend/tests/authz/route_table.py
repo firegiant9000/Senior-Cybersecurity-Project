@@ -131,6 +131,24 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
                 note="DNS only, rate limited, off by default",
             ),
         ),
+        (
+            "GET",
+            f"{_V1}/public/readiness/questions",
+            RouteSpec(
+                "public",
+                flag="ENABLE_PUBLIC_READINESS",
+                note="stateless, rate limited, off by default",
+            ),
+        ),
+        (
+            "POST",
+            f"{_V1}/public/readiness/score",
+            RouteSpec(
+                "public",
+                flag="ENABLE_PUBLIC_READINESS",
+                note="stateless, rate limited, off by default",
+            ),
+        ),
         ("GET", f"{_V1}/data-status", RouteSpec("public", note="static source registry")),
         # --- global feeds behind require_role("viewer") (router-level) ---------------
         ("GET", f"{_V1}/vulnerabilities/exploited", _VIEWER),

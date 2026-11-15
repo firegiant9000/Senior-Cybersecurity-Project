@@ -106,7 +106,6 @@ export function OrganisationPage() {
             orgId={orgId}
             canEdit={canEdit}
             onChanged={bump}
-            onVendorsSynced={noop}
           />
         </section>
       )}
@@ -121,7 +120,7 @@ export function TechnologyPage() {
     <Frame>
       <section className="settings-section">
         <h2>Your Technology Stack</h2>
-        <TechnologySection orgId={orgId} canEdit={canEdit} onChanged={noop} reloadKey={0} />
+        <TechnologySection orgId={orgId} canEdit={canEdit} />
       </section>
     </Frame>
   );

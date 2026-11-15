@@ -582,29 +582,6 @@
     flex-wrap: wrap;
     gap: 8px;
 }
-.smb-action-progress {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.smb-progress-bar-bg {
-    width: 120px;
-    height: 8px;
-    background: var(--border);
-    border-radius: 4px;
-    overflow: hidden;
-}
-.smb-progress-bar-fill {
-    height: 100%;
-    background: #388e3c;
-    border-radius: 4px;
-    transition: width 0.4s ease;
-}
-.smb-progress-label {
-    font-size: 12px;
-    color: var(--text-muted);
-    white-space: nowrap;
-}
 .smb-checklist {
     display: flex;
     flex-direction: column;
@@ -626,38 +603,25 @@
     padding-bottom: 4px;
     border-bottom: 1px solid var(--border);
 }
+.smb-action-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
 .smb-check-item {
     display: flex;
     align-items: flex-start;
     gap: 10px;
-    cursor: pointer;
     padding: 8px 10px;
     border-radius: 6px;
-    transition: background 0.15s;
     border: 1px solid transparent;
-}
-.smb-check-item:hover {
-    background: var(--tab-hover-bg);
 }
 .smb-check-high {
     border-color: #ffcdd2;
     background: #fff5f5;
-}
-.smb-check-done {
-    opacity: 0.5;
-    background: var(--bg) !important;
-    border-color: transparent !important;
-}
-.smb-check-done .smb-check-text {
-    text-decoration: line-through;
-}
-.smb-checkbox {
-    margin-top: 2px;
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
-    accent-color: #388e3c;
-    cursor: pointer;
 }
 .smb-check-icon {
     font-size: 16px;
@@ -681,17 +645,15 @@
     flex-shrink: 0;
 }
 
-.smb-org-badge {
-    background: var(--tab-active-bg, #eef0ff);
-    color: var(--accent, #0b1060);
-    border: 1px solid var(--accent, #0b1060);
+.smb-action-in-place {
+    color: var(--text-secondary);
+    border: 1px solid var(--accent);
     font-size: 10px;
     font-weight: 600;
     padding: 2px 7px;
     border-radius: 10px;
     white-space: nowrap;
     flex-shrink: 0;
-    opacity: 0.8;
 }
 
 /* Disclaimer footer */

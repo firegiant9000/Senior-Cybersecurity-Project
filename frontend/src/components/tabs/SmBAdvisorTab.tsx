@@ -618,9 +618,6 @@ function ActionPlanCard({ topThreats, loading }: {
   loading: boolean;
 }) {
   const { organization } = useUserContext();
-  const [checked, setChecked] = useState<Record<string, boolean>>({});
-  const [orgApplied, setOrgApplied] = useState(false);
-  const toggle = (key: string) => setChecked(prev => ({ ...prev, [key]: !prev[key] }));
 
   const threatActions = useMemo(() => {
     const seen = new Set<string>();
@@ -655,33 +652,12 @@ function ActionPlanCard({ topThreats, loading }: {
     [allActions, organization?.security_controls],
   );
 
-  useEffect(() => {
-    if (orgApplied || orgFilledKeys.size === 0) return;
-    setChecked(prev => {
-      const next = { ...prev };
-      orgFilledKeys.forEach(k => { if (!(k in next)) next[k] = true; });
-      return next;
-    });
-    setOrgApplied(true);
-  }, [orgFilledKeys, orgApplied]);
-
-  const doneCount = allActions.filter(a => checked[a.key]).length;
-
   return (
     <div className="card smb-action-card">
       <div className="smb-action-header">
         <h3 className="smb-section-title">✅ Your Action Plan</h3>
-        <div className="smb-action-progress">
-          <div className="smb-progress-bar-bg">
-            <div
-              className="smb-progress-bar-fill"
-              style={{ width: allActions.length > 0 ? `${(doneCount / allActions.length) * 100}%` : '0%' }}
-            />
-          </div>
-          <span className="smb-progress-label">{doneCount}/{allActions.length} completed</span>
-        </div>
       </div>
-      <p className="smb-section-sub">Prioritized steps tailored to your industry's top threats. Check off items as you complete them.</p>
+      <p className="smb-section-sub">Prioritized steps tailored to your industry's top threats. Steps marked "In place" match controls already recorded in your organisation profile.</p>
 
       {loading ? (
         <WidgetSkeleton />
@@ -690,46 +666,38 @@ function ActionPlanCard({ topThreats, loading }: {
           {topThreats.length > 0 && threatActions.length > 0 && (
             <div className="smb-checklist-group">
               <div className="smb-checklist-group-label">Industry-Specific Threats</div>
-              {threatActions.map(item => (
-                <label key={item.key} className={`smb-check-item ${checked[item.key] ? 'smb-check-done' : ''} ${item.priority === 'high' ? 'smb-check-high' : ''}`}>
-                  <input
-                    type="checkbox"
-                    checked={!!checked[item.key]}
-                    onChange={() => toggle(item.key)}
-                    className="smb-checkbox"
-                  />
-                  <span className="smb-check-icon">{item.icon}</span>
-                  <span className="smb-check-text">{item.text}</span>
-                  {orgFilledKeys.has(item.key) && (
-                    <span className="smb-org-badge">From org profile</span>
-                  )}
-                  {item.priority === 'high' && !checked[item.key] && !orgFilledKeys.has(item.key) && (
-                    <span className="smb-priority-badge">Priority</span>
-                  )}
-                </label>
-              ))}
+              <ul className="smb-action-list" role="list">
+                {threatActions.map(item => (
+                  <li key={item.key} className={`smb-check-item ${item.priority === 'high' ? 'smb-check-high' : ''}`}>
+                    <span className="smb-check-icon">{item.icon}</span>
+                    <span className="smb-check-text">{item.text}</span>
+                    {orgFilledKeys.has(item.key) && (
+                      <span className="smb-action-in-place">In place</span>
+                    )}
+                    {item.priority === 'high' && !orgFilledKeys.has(item.key) && (
+                      <span className="smb-priority-badge">Priority</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
           <div className="smb-checklist-group">
             <div className="smb-checklist-group-label">Every Business Should Do This</div>
-            {GENERAL_ACTIONS.map((item, i) => {
-              const key = `general-${i}`;
-              return (
-                <label key={key} className={`smb-check-item ${checked[key] ? 'smb-check-done' : ''}`}>
-                  <input
-                    type="checkbox"
-                    checked={!!checked[key]}
-                    onChange={() => toggle(key)}
-                    className="smb-checkbox"
-                  />
-                  <span className="smb-check-icon">{item.icon}</span>
-                  <span className="smb-check-text">{item.text}</span>
-                  {orgFilledKeys.has(key) && (
-                    <span className="smb-org-badge">From org profile</span>
-                  )}
-                </label>
-              );
-            })}
+            <ul className="smb-action-list" role="list">
+              {GENERAL_ACTIONS.map((item, i) => {
+                const key = `general-${i}`;
+                return (
+                  <li key={key} className="smb-check-item">
+                    <span className="smb-check-icon">{item.icon}</span>
+                    <span className="smb-check-text">{item.text}</span>
+                    {orgFilledKeys.has(key) && (
+                      <span className="smb-action-in-place">In place</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         </div>
       )}

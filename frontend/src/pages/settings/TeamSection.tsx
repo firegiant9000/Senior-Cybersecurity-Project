@@ -9,6 +9,7 @@ import {
   updateMemberRole,
   removeMember,
 } from "../../api/members";
+import { useConfirm } from "../../components/shared/ConfirmDialog";
 
 const membersPageSize = 20;
 
@@ -23,6 +24,7 @@ export default function TeamSection({
   role: string | null;
   orgRole: string | null;
 }) {
+  const { confirm, confirmDialog } = useConfirm();
   // Members & invites state
   const [membersList, setMembersList] = useState<OrgMember[]>([]);
   const [membersTotal, setMembersTotal] = useState(0);
@@ -131,6 +133,28 @@ export default function TeamSection({
     }
   };
 
+  const confirmRevokeInvite = (inviteId: number, email: string) => {
+    confirm({
+      title: "Revoke invite",
+      body: `Revoke the invite for ${email}? The link stops working.`,
+      confirmLabel: "Revoke",
+      tone: "danger",
+      // handleRevokeInvite catches API failures into invitesError itself.
+      onConfirm: () => handleRevokeInvite(inviteId),
+    });
+  };
+
+  const confirmRemoveMember = (memberId: number, email: string) => {
+    confirm({
+      title: "Remove member",
+      body: `Remove ${email} from the team? They lose access immediately.`,
+      confirmLabel: "Remove",
+      tone: "danger",
+      // handleRemoveMember catches API failures into membersError itself.
+      onConfirm: () => handleRemoveMember(memberId),
+    });
+  };
+
   const handleUpdateMemberRole = async (memberId: number, newRole: string) => {
     if (!orgId) return;
     setMembersError("");
@@ -224,8 +248,9 @@ export default function TeamSection({
                       {m.role !== "owner" && m.user_id !== userId && (
                         <button
                           className="vendor-delete-btn"
-                          onClick={() => handleRemoveMember(m.user_id)}
+                          onClick={() => confirmRemoveMember(m.user_id, m.email)}
                           title="Remove member"
+                          aria-label={`Remove ${m.email}`}
                         >
                           &times;
                         </button>
@@ -379,8 +404,9 @@ export default function TeamSection({
                       {inv.status === "pending" && (
                         <button
                           className="vendor-delete-btn"
-                          onClick={() => handleRevokeInvite(inv.id)}
+                          onClick={() => confirmRevokeInvite(inv.id, inv.email)}
                           title="Revoke invite"
+                          aria-label={`Revoke invite for ${inv.email}`}
                         >
                           &times;
                         </button>
@@ -417,6 +443,7 @@ export default function TeamSection({
           </>
         )}
       </section>
+      {confirmDialog}
     </>
   );
 }
