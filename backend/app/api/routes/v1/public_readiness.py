@@ -1,26 +1,35 @@
-"""Public readiness quiz routes (#298): questions and score.
+"""Public readiness quiz routes (#298, #296): questions, score and funnel events.
 
-Stateless and unauthenticated. Off unless ENABLE_PUBLIC_READINESS is on, and
-404 while the question file is absent. Nothing about a visitor is stored or
-logged: no answers, no request body.
+Unauthenticated. Off unless ENABLE_PUBLIC_READINESS is on, and the question
+routes 404 while the question file is absent. The only thing stored is an
+anonymous per-day count per (version, step) from the events route; nothing about
+a visitor is stored or logged: no answers, no request body.
 """
 
+from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import ClientDisconnect
 
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.core.public_readiness import require_public_readiness
-from app.services import readiness_quiz
+from app.db.engine import get_session
+from app.repositories.readiness_funnel import (
+    SqlReadinessFunnelRepository,
+    get_readiness_funnel_repo,
+)
+from app.services import readiness_funnel, readiness_quiz
 
 router = APIRouter()
 
 MAX_ANSWERS = 64
 _NOT_FOUND = "Not Found"
 _BAD_INPUT = "Check your answers and try again."
+_BAD_EVENT = "Unknown event."
 
 
 class QuestionOut(BaseModel):
@@ -78,6 +87,21 @@ def _score_request_schema() -> dict[str, Any]:
     schema = ScoreRequest.model_json_schema()
     if "$defs" in schema:  # ScoreRequest has none today; fail loudly if that changes
         raise RuntimeError("ScoreRequest schema has $defs; inline them")
+    return schema
+
+
+class FunnelEventRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    version: str = Field(max_length=16)
+    step: str = Field(max_length=96)
+
+
+def _funnel_event_schema() -> dict[str, Any]:
+    """FunnelEventRequest JSON schema for OpenAPI (the body is parsed by hand)."""
+    schema = FunnelEventRequest.model_json_schema()
+    if "$defs" in schema:  # none today; fail loudly if that changes
+        raise RuntimeError("FunnelEventRequest schema has $defs; inline them")
     return schema
 
 
@@ -150,3 +174,39 @@ async def readiness_score(request: Request) -> ScoreResponse:
         ],
         note=result.note,
     )
+
+
+@router.post(
+    "/public/readiness/events",
+    status_code=204,
+    dependencies=[Depends(require_public_readiness)],
+    openapi_extra={
+        "requestBody": {
+            "content": {"application/json": {"schema": _funnel_event_schema()}},
+            "required": True,
+        }
+    },
+)
+@limiter.limit(settings.RATE_LIMIT_PUBLIC_READINESS_EVENTS)
+async def readiness_event(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    repo: SqlReadinessFunnelRepository = Depends(get_readiness_funnel_repo),
+) -> Response:
+    """Count one anonymous funnel step. Only a day, a version and a known step
+    name are stored; the body is parsed here, after the flag check."""
+    try:
+        await request.body()  # cached, so request.json() below does not read again
+    except ClientDisconnect:
+        raise HTTPException(status_code=400, detail="Client disconnected") from None
+    try:
+        payload = FunnelEventRequest.model_validate(await request.json())
+    except (ValueError, ValidationError, RecursionError):
+        raise HTTPException(status_code=422, detail=_BAD_EVENT) from None
+
+    if not readiness_funnel.is_known_event(payload.version, payload.step):
+        raise HTTPException(status_code=422, detail=_BAD_EVENT)
+
+    await repo.increment(datetime.now(UTC).date(), payload.version, payload.step)
+    await session.commit()
+    return Response(status_code=204)
