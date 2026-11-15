@@ -112,6 +112,13 @@ _REGISTRY: list[DatasetStatus] = [
         notes="Inputs are static IC3 figures; recompute is live but underlying base rates are static.",
     ),
     DatasetStatus(
+        key="org_risk_score",
+        label="Organization risk score",
+        status="static",
+        source="Org profile scored against static IC3 sector weights and size factors",
+        notes="Base score uses static tables; only the remediation credit reflects the org's live findings.",
+    ),
+    DatasetStatus(
         key="ai_summary",
         label="AI summary",
         status="real",

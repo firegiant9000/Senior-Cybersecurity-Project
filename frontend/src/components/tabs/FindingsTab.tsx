@@ -14,6 +14,7 @@ import { downloadCsv } from '../../utils/csvExport';
 import SeverityBadge from '../shared/SeverityBadge';
 import DisclaimerBanner from '../shared/DisclaimerBanner';
 import InfoTip from '../shared/InfoTip';
+import SourceBadge from '../shared/SourceBadge';
 import DomainIntelTable from './DomainIntelTable';
 import './FindingsTab.css';
 
@@ -566,6 +567,7 @@ const FindingsTab: React.FC = () => {
         >
           {showSources ? '▲' : '▼'} Sources used in this scan
         </button>
+        <SourceBadge datasetKey="domain_checks" className="widget-source-badge" />
         {showSources && <DomainIntelTable />}
       </section>
     </div>

@@ -8,9 +8,9 @@ const EconomicsTable = lazy(() => import('./EconomicsTable'));
 
 type Dataset = 'ic3' | 'economics';
 
-const DATASETS: { id: Dataset; label: string; description: string }[] = [
-  { id: 'ic3',      label: 'IC3 Incidents',  description: 'FBI Internet Crime Complaint Center data' },
-  { id: 'economics', label: 'Economics',       description: 'SMB economic indicators by state' },
+const DATASETS: { id: Dataset; label: string; description: string; datasetKey: string }[] = [
+  { id: 'ic3',      label: 'IC3 Incidents',  description: 'FBI Internet Crime Complaint Center data', datasetKey: 'ic3_incidents' },
+  { id: 'economics', label: 'Economics',       description: 'SMB economic indicators by state', datasetKey: 'bea_economics' },
 ];
 
 const DataSourcesTab: React.FC = () => {
@@ -67,8 +67,8 @@ const DataSourcesTab: React.FC = () => {
 
       {/* Content */}
       <Suspense fallback={<WidgetSkeleton />}>
-        {current.id === 'ic3'       && <IC3Table      apiBaseUrl={API_BASE_URL} />}
-        {current.id === 'economics' && <EconomicsTable apiBaseUrl={API_BASE_URL} />}
+        {current.id === 'ic3'       && <IC3Table      apiBaseUrl={API_BASE_URL} datasetKey={current.datasetKey} />}
+        {current.id === 'economics' && <EconomicsTable apiBaseUrl={API_BASE_URL} datasetKey={current.datasetKey} />}
       </Suspense>
     </div>
   );

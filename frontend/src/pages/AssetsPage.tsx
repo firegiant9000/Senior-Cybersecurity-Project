@@ -18,6 +18,7 @@ import {
   patchAssetFindingStatus,
   setAssetTags,
 } from "../api/assets";
+import SourceBadge from "../components/shared/SourceBadge";
 import "../Dashboard.css";
 
 /**
@@ -46,7 +47,7 @@ function SummaryStat({
   );
 }
 
-function SourceBadge({ via }: { via: Asset["discovered_via"] }) {
+function DiscoveredViaBadge({ via }: { via: Asset["discovered_via"] }) {
   const label =
     via === "csv_upload" ? "CSV" : via === "m365" ? "M365" : via === "agent" ? "Agent" : via;
   const color =
@@ -159,6 +160,7 @@ export default function AssetsPage() {
   const [kevOnly, setKevOnly] = useState(false);
   const [summary, setSummary] = useState<InventoryHealth | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadedOnce, setLoadedOnce] = useState(false);
   const [error, setError] = useState("");
   const [detail, setDetail] = useState<AssetDetailResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -190,6 +192,7 @@ export default function AssetsPage() {
       setError((e as Error).message);
     } finally {
       setLoading(false);
+      setLoadedOnce(true);
     }
   }, [orgId, page, hostname, vendorFilter]);
 
@@ -321,11 +324,19 @@ export default function AssetsPage() {
         : true,
     );
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  // Only badge data that has actually loaded: not before the first load, with
+  // no org, while loading, or when the load failed.
+  const showBadges = Boolean(orgId) && loadedOnce && !loading && !error;
 
   return (
     <div className="dashboard-page" style={{ padding: 24, maxWidth: 1100, margin: "0 auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1>Assets</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <h1>Assets</h1>
+          {showBadges && (
+            <SourceBadge datasetKey="assets_inventory" className="widget-source-badge" />
+          )}
+        </div>
         <Link to="/org/assets/upload">
           <button type="button">Upload CSV</button>
         </Link>
@@ -532,6 +543,9 @@ export default function AssetsPage() {
         <span style={{ marginLeft: "auto", fontSize: 13, color: "#64748b" }}>
           {total} total · page {page} / {totalPages}
         </span>
+        {showBadges && visible.length > 0 && (
+          <SourceBadge datasetKey="asset_kev_matches" className="widget-source-badge" />
+        )}
       </div>
 
       {error && (
@@ -571,7 +585,7 @@ export default function AssetsPage() {
                 </td>
                 <td style={{ padding: 8 }}>{asset.ip_address ?? "—"}</td>
                 <td style={{ padding: 8 }}>
-                  <SourceBadge via={asset.discovered_via} />
+                  <DiscoveredViaBadge via={asset.discovered_via} />
                 </td>
                 <td style={{ padding: 8 }}>
                   {kev_match_count > 0 ? (
@@ -663,7 +677,7 @@ export default function AssetsPage() {
             <h2 style={{ marginTop: 0 }}>{detail.asset.hostname}</h2>
             <p>
               {detail.asset.os_name} {detail.asset.os_version} · {detail.asset.ip_address ?? "no IP"}{" "}
-              · <SourceBadge via={detail.asset.discovered_via} />
+              · <DiscoveredViaBadge via={detail.asset.discovered_via} />
             </p>
             <div style={{ margin: "12px 0", padding: 12, background: "#f8fafc", borderRadius: 6 }}>
               <div style={{ fontSize: 12, color: "#64748b", marginBottom: 4 }}>

@@ -33,6 +33,7 @@ import {
 } from '../../api/dashboardSummary';
 import { fetchSmbRiskScore, type SmbRiskScore } from '../../api/smbRiskScore';
 import WidgetSkeleton from '../shared/WidgetSkeleton';
+import SourceBadge from '../shared/SourceBadge';
 import { useRefreshProgress } from '../../hooks/useRefreshProgress';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -351,6 +352,7 @@ function RiskGradeCard({ grade, sectorProfile, loading }: {
             <span className="smb-stat-value">{fmtMoney(sectorProfile.total_loss)}</span>
             <span className="smb-stat-label">Total losses on record</span>
           </div>
+          <SourceBadge datasetKey="ic3_incidents" className="widget-source-badge" />
         </div>
       )}
     </div>
@@ -373,6 +375,7 @@ function TopThreatsCard({ threats, loading }: {
         <p className="smb-empty">Select your industry to see specific threats.</p>
       ) : (
         <div className="smb-threats-list">
+          <SourceBadge datasetKey="ic3_sector_attack_matrix" className="widget-source-badge" />
           {top5.map((t, i) => {
             const info = THREAT_ACTIONS[t.attack_type];
             const icon = info?.icon ?? '🔴';
@@ -438,6 +441,7 @@ function CostEstimateCard({ sectorProfile, allSectors, loading }: {
         <p className="smb-empty">Select your industry to see cost estimates.</p>
       ) : (
         <>
+          <SourceBadge datasetKeys={['ic3_incidents', 'loss_projection']} className="widget-source-badge" />
           <div className="smb-cost-range">
             <div className="smb-cost-band smb-cost-low">
               <div className="smb-cost-amount">{fmtMoneyFull(low)}</div>
@@ -550,6 +554,7 @@ function StateRiskCard({ stateCode, stateProfile, allStates, loading }: {
         <p className="smb-empty">Select your state above to see local risk data.</p>
       ) : (
         <>
+          <SourceBadge datasetKey="ic3_geographic" className="widget-source-badge" />
           <div className="smb-state-stats">
             <div className="smb-stat-item">
               <span className="smb-stat-value">#{stateRank ?? '—'}</span>
@@ -796,6 +801,8 @@ function OrgRiskScoreCard() {
       {loading ? (
         <WidgetSkeleton />
       ) : !data ? null : (
+        <>
+        <SourceBadge datasetKey="org_risk_score" className="widget-source-badge" />
         <div className="smb-org-risk-body">
           <Link
             to="/org/findings"
@@ -882,6 +889,7 @@ function OrgRiskScoreCard() {
             </div>
           )}
         </div>
+        </>
       )}
     </div>
   );

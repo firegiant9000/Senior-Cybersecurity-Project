@@ -21,6 +21,12 @@ import {
   fetchVendorAnomalies,
 } from '../../../api/anomalies';
 
+vi.mock('../../shared/SourceBadge', () => ({
+  default: ({ datasetKey }: { datasetKey: string }) => (
+    <span data-testid="source-badge" data-dataset-key={datasetKey} />
+  ),
+}));
+
 function LocationProbe() {
   const location = useLocation();
   return <div data-testid="location">{location.pathname}</div>;
@@ -58,6 +64,33 @@ describe('AnomaliesTab view routing', () => {
     expect(fetchVendorAnomalies).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('link', { name: 'Vendor Exposure' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'IC3 State Anomalies' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('labels the IC3 view with anomalies_ic3, with or without rows', async () => {
+    renderAt('/intel/anomalies/ic3');
+    await screen.findByText(/No anomalies detected at the current threshold/);
+
+    const badges = screen.getAllByTestId('source-badge');
+    expect(badges).toHaveLength(1);
+    expect(badges[0]).toHaveAttribute('data-dataset-key', 'anomalies_ic3');
+  });
+
+  it('labels the vendor view with anomalies_vendors, with or without vendors', async () => {
+    renderAt('/intel/anomalies/vendors');
+    await screen.findByText(/No vendors configured/);
+
+    const badges = screen.getAllByTestId('source-badge');
+    expect(badges).toHaveLength(1);
+    expect(badges[0]).toHaveAttribute('data-dataset-key', 'anomalies_vendors');
+  });
+
+  it('labels the YoY view with ic3_temporal_trends', async () => {
+    renderAt('/intel/anomalies/trends');
+    await screen.findByText(/Year-over-year change in IC3 incident totals/);
+
+    const badges = screen.getAllByTestId('source-badge');
+    expect(badges).toHaveLength(1);
+    expect(badges[0]).toHaveAttribute('data-dataset-key', 'ic3_temporal_trends');
   });
 
   it('redirects an unknown view to /intel/anomalies/ic3 without fetching the other views', async () => {

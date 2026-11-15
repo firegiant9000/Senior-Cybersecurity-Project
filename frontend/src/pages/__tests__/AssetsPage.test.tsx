@@ -36,6 +36,12 @@ vi.mock('../../api/assets', () => ({
   setAssetTags: mockSetAssetTags,
 }))
 
+vi.mock('../../components/shared/SourceBadge', () => ({
+  default: ({ datasetKey }: { datasetKey: string }) => (
+    <span data-testid="source-badge" data-dataset-key={datasetKey} />
+  ),
+}))
+
 const makeAsset = (id: number, hostname: string) => ({
   id,
   org_id: 7,
@@ -119,6 +125,53 @@ beforeEach(() => {
     source: 'x',
   })
   mockPatchFindingStatus.mockResolvedValue({ status: 'false_positive' })
+})
+
+describe('AssetsPage source badges', () => {
+  it('labels the inventory and the KEV matches column with their sources', async () => {
+    const { container } = renderPage()
+    await screen.findByText('alpha-host')
+
+    const inventory = container.querySelector('[data-dataset-key="assets_inventory"]')
+    expect(inventory).toBeInTheDocument()
+    const h1 = screen.getByRole('heading', { level: 1, name: 'Assets' })
+    expect(inventory?.closest('h1')).toBeNull()
+    expect(inventory?.parentElement).toBe(h1.parentElement)
+
+    const kev = container.querySelector('[data-dataset-key="asset_kev_matches"]')
+    expect(kev).toBeInTheDocument()
+    expect(kev?.closest('th')).toBeNull()
+    expect(screen.getByRole('columnheader', { name: 'KEV matches' })).toBeInTheDocument()
+  })
+
+  it('keeps the inventory badge when the inventory is empty', async () => {
+    mockListAssets.mockResolvedValue({ total: 0, page: 1, page_size: 50, items: [] })
+    const { container } = renderPage()
+    await screen.findByText(/No assets yet/)
+
+    const inventory = container.querySelector('[data-dataset-key="assets_inventory"]')
+    expect(inventory).toBeInTheDocument()
+    const h1 = screen.getByRole('heading', { level: 1, name: 'Assets' })
+    expect(inventory?.parentElement).toBe(h1.parentElement)
+    expect(container.querySelector('[data-dataset-key="asset_kev_matches"]')).toBeNull()
+  })
+
+  it('shows no badges when the inventory fails to load', async () => {
+    mockListAssets.mockRejectedValue(new Error('boom'))
+    const { container } = renderPage()
+    await screen.findByText('boom')
+
+    expect(container.querySelector('[data-dataset-key="assets_inventory"]')).toBeNull()
+    expect(container.querySelector('[data-dataset-key="asset_kev_matches"]')).toBeNull()
+  })
+
+  it('shows no badges while the inventory is loading', () => {
+    mockListAssets.mockReturnValue(new Promise(() => {}))
+    mockGetInventoryHealth.mockReturnValue(new Promise(() => {}))
+    mockGetAssetRiskSummary.mockReturnValue(new Promise(() => {}))
+    const { container } = renderPage()
+    expect(container.querySelector('[data-dataset-key]')).toBeNull()
+  })
 })
 
 describe('AssetsPage (characterisation)', () => {

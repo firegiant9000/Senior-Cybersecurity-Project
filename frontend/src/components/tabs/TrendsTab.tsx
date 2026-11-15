@@ -7,6 +7,7 @@ import { useRefreshProgress } from '../../hooks/useRefreshProgress';
 import RefreshButton from '../RefreshButton';
 import WidgetSkeleton from '../shared/WidgetSkeleton';
 import WidgetErrorBoundary from '../shared/WidgetErrorBoundary';
+import SourceBadge from '../shared/SourceBadge';
 import { COLORS } from '../../theme';
 import { IC3_SECTORS } from '../../api/tabsApi';
 import IncidentLandscape from '../intel/IncidentLandscape';
@@ -289,7 +290,8 @@ const TrendsTab: React.FC = () => {
           <div className="card chart-widget trends-chart">
             <span className="widget-title">
               IC3 Complaint Volume Over Time
-              {selectedAttackType && <span className="widget-title-filter"> — {selectedAttackType}</span>}{selectedSector && <span className="widget-title-filter"> · {selectedSector}</span>}
+              {selectedAttackType && <span className="widget-title-filter"> — {selectedAttackType}</span>}{selectedSector && <span className="widget-title-filter"> · {selectedSector}</span>}{' '}
+              <SourceBadge datasetKey="ic3_temporal_trends" />
             </span>
             <div className="chart-body">
               {loading ? <WidgetSkeleton variant="chart" /> : trends.length === 0 ? (
@@ -339,7 +341,8 @@ const TrendsTab: React.FC = () => {
           <div className="card chart-widget trends-chart">
             <span className="widget-title">
               Total Financial Loss Over Time
-              {selectedAttackType && <span className="widget-title-filter"> — {selectedAttackType}</span>}{selectedSector && <span className="widget-title-filter"> · {selectedSector}</span>}
+              {selectedAttackType && <span className="widget-title-filter"> — {selectedAttackType}</span>}{selectedSector && <span className="widget-title-filter"> · {selectedSector}</span>}{' '}
+              <SourceBadge datasetKey="ic3_temporal_trends" />
             </span>
             <div className="chart-body">
               {loading ? <WidgetSkeleton variant="chart" /> : trends.length === 0 ? (
@@ -389,7 +392,8 @@ const TrendsTab: React.FC = () => {
           <div className="card chart-widget trends-chart">
             <span className="widget-title">
               Average Loss per Incident
-              {selectedAttackType && <span className="widget-title-filter"> — {selectedAttackType}</span>}{selectedSector && <span className="widget-title-filter"> · {selectedSector}</span>}
+              {selectedAttackType && <span className="widget-title-filter"> — {selectedAttackType}</span>}{selectedSector && <span className="widget-title-filter"> · {selectedSector}</span>}{' '}
+              <SourceBadge datasetKey="ic3_temporal_trends" />
             </span>
             <div className="chart-body">
               {loading ? <WidgetSkeleton variant="chart" /> : trends.length === 0 ? (
@@ -437,7 +441,10 @@ const TrendsTab: React.FC = () => {
         {/* Data summary table */}
         <WidgetErrorBoundary title="Trends Data Table">
           <div className="card trends-table-card">
-            <span className="widget-title">Year-by-Year Summary</span>
+            <span className="widget-title">
+              Year-by-Year Summary{' '}
+              <SourceBadge datasetKey="ic3_temporal_trends" />
+            </span>
             <div className="tab-table-scroll">
               {loading ? <WidgetSkeleton variant="chart" /> : trends.length === 0 ? (
                 <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13 }}>No data available.</p>

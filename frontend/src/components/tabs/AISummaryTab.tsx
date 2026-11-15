@@ -12,6 +12,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useUserContext } from '../../context/UserContext';
 import DisclaimerBanner from '../shared/DisclaimerBanner';
 import InfoTip from '../shared/InfoTip';
+import SourceBadge from '../shared/SourceBadge';
 import './AISummaryTab.css';
 
 function riskClass(label: string): string {
@@ -251,6 +252,9 @@ const AISummaryTab: React.FC = () => {
       <div className="ai-summary-header">
         <div className="ai-summary-title-row">
           <h2 className="ai-summary-title">Executive Summary</h2>
+          {data.ai_generated && !data.cached && (
+            <SourceBadge datasetKey="ai_summary" className="widget-source-badge" />
+          )}
           <div className="ai-summary-badges">
             {data.ai_generated ? (
               <span className="ai-badge ai-badge--ai">AI-Generated</span>
