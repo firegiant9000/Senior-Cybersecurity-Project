@@ -1,17 +1,27 @@
 """Public (unauthenticated) aggregate stats for the marketing landing page."""
 
 import logging
+from typing import Literal
 
-from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.requests import ClientDisconnect
 
+from app.core.config import settings
 from app.core.limiter import limiter
+from app.core.public_readiness import require_public_readiness
 from app.db.engine import get_session
 from app.db.enums import IndustryLabel
 from app.db.models import CVE, KEV, IC3Incident
+from app.services.domain_checks import normalize_hostname
+from app.services.public_domain_check import (
+    EXPLANATIONS,
+    check_public_domain,
+    is_public_checkable,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,4 +65,66 @@ async def public_stats(
         kev_total=int(kev_total or 0),
         ic3_sectors=int(ic3_sectors or 0),
         industries_supported=len(IndustryLabel),
+    )
+
+
+_BAD_DOMAIN = "Enter a domain name such as example.com."
+
+
+class DomainCheckRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    domain: str = Field(max_length=1024)
+
+
+class DomainCheckResponse(BaseModel):
+    status: Literal["ok", "domain_not_found", "unavailable"]
+    spf_found: bool | None
+    dmarc_found: bool | None
+    dmarc_policy: Literal["none", "quarantine", "reject"] | None
+    rating: Literal["protected", "monitoring_only", "spoofable"] | None
+    explanation: str
+
+
+@router.post(
+    "/public/domain-check",
+    response_model=DomainCheckResponse,
+    dependencies=[Depends(require_public_readiness)],
+    openapi_extra={
+        "requestBody": {
+            "content": {"application/json": {"schema": DomainCheckRequest.model_json_schema()}},
+            "required": True,
+        }
+    },
+)
+@limiter.limit(settings.RATE_LIMIT_PUBLIC_DOMAIN_CHECK)
+async def public_domain_check(request: Request) -> DomainCheckResponse:
+    """DNS-only SPF/DMARC check for the logged-out readiness page. Never echoes or logs the domain.
+
+    The body is parsed here, not by FastAPI, so the feature-flag 404 wins over body validation
+    and no 422 ever echoes the visitor's input.
+    """
+    try:
+        await request.body()  # cached, so request.json() below does not read again
+    except ClientDisconnect:
+        raise HTTPException(status_code=400, detail="Client disconnected") from None
+    try:
+        body = DomainCheckRequest.model_validate(await request.json())
+    except (ValueError, ValidationError, RecursionError):  # bad JSON/encoding/shape, deep nesting
+        raise HTTPException(status_code=422, detail=_BAD_DOMAIN) from None
+    host = normalize_hostname(body.domain)
+    if host is None or not is_public_checkable(host):
+        raise HTTPException(status_code=422, detail=_BAD_DOMAIN)
+    result = await check_public_domain(host)
+    if result.multiple_dmarc:
+        explanation = EXPLANATIONS["multiple_dmarc"]
+    else:
+        explanation = EXPLANATIONS[result.rating if result.rating else result.status]
+    return DomainCheckResponse(
+        status=result.status,
+        spf_found=result.spf_found,
+        dmarc_found=result.dmarc_found,
+        dmarc_policy=result.dmarc_policy,
+        rating=result.rating,
+        explanation=explanation,
     )

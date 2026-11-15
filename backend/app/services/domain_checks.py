@@ -281,6 +281,21 @@ class OtxResult:
 _COMMON_DKIM_SELECTORS = ["default", "google", "mail", "selector1", "selector2", "k1", "dkim"]
 
 
+def txt_record_text(rdata) -> str:  # noqa: ANN001 - dnspython rdata, untyped
+    """Join the character-strings of one TXT rdata into a single str."""
+    return "".join(s.decode() if isinstance(s, bytes) else s for s in rdata.strings)
+
+
+def dmarc_policy_from_record(txt: str) -> str | None:
+    """Return the lower-cased ``p=`` value of a DMARC record (last one wins), or None."""
+    policy: str | None = None
+    for part in txt.split(";"):
+        part = part.strip()
+        if part.lower().startswith("p="):
+            policy = part.split("=", 1)[1].strip().lower()
+    return policy
+
+
 async def check_dns(domain: str) -> DnsCheckResult:  # noqa: C901
     """Query DNS TXT records for SPF, DMARC, and common DKIM selectors."""
     result = DnsCheckResult(domain=domain)
@@ -296,7 +311,7 @@ async def check_dns(domain: str) -> DnsCheckResult:  # noqa: C901
         try:
             answers = await resolver.resolve(domain, "TXT")
             for rdata in answers:
-                txt = "".join(s.decode() if isinstance(s, bytes) else s for s in rdata.strings)
+                txt = txt_record_text(rdata)
                 if txt.startswith("v=spf1"):
                     result.spf_found = True
                     result.spf_record = txt
@@ -308,15 +323,11 @@ async def check_dns(domain: str) -> DnsCheckResult:  # noqa: C901
         try:
             answers = await resolver.resolve(f"_dmarc.{domain}", "TXT")
             for rdata in answers:
-                txt = "".join(s.decode() if isinstance(s, bytes) else s for s in rdata.strings)
+                txt = txt_record_text(rdata)
                 if txt.startswith("v=DMARC1"):
                     result.dmarc_found = True
                     result.dmarc_record = txt
-                    # Extract p= policy
-                    for part in txt.split(";"):
-                        part = part.strip()
-                        if part.lower().startswith("p="):
-                            result.dmarc_policy = part.split("=", 1)[1].strip().lower()
+                    result.dmarc_policy = dmarc_policy_from_record(txt)
                     break
         except Exception:  # noqa: BLE001 - best-effort DNS probe; any failure means "not found"
             pass

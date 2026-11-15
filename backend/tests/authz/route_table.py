@@ -122,6 +122,15 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
             RouteSpec("authenticated-global", note="creates the User row (verified email only)"),
         ),
         ("GET", f"{_V1}/public/stats", RouteSpec("public", note="aggregate counts, rate limited")),
+        (
+            "POST",
+            f"{_V1}/public/domain-check",
+            RouteSpec(
+                "public",
+                flag="ENABLE_PUBLIC_READINESS",
+                note="DNS only, rate limited, off by default",
+            ),
+        ),
         ("GET", f"{_V1}/data-status", RouteSpec("public", note="static source registry")),
         # --- global feeds behind require_role("viewer") (router-level) ---------------
         ("GET", f"{_V1}/vulnerabilities/exploited", _VIEWER),
