@@ -507,6 +507,11 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
             f"{_V1}/ingest/normalization-log",
             RouteSpec("administrator", min_role="admin", note="cross-org log; admin only"),
         ),
+        (
+            "GET",
+            f"{_V1}/analytics/readiness-funnel",
+            RouteSpec("administrator", min_role="admin", note="anonymous counters; admin only"),
+        ),
         # --- agent enrollment management (org admin) ---------------------------------
         ("POST", f"{_V1}/agents/enroll", _ORG_ADMIN_CALLER),
         ("GET", f"{_V1}/agents", _ORG_ADMIN_CALLER),
