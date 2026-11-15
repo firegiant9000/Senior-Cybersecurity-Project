@@ -16,11 +16,7 @@ import type { SectionProps } from "./types";
 
 const vendorPageSize = 20;
 
-export default function TechnologySection({
-  orgId,
-  onChanged,
-  reloadKey = 0,
-}: SectionProps & { reloadKey?: number }) {
+export default function TechnologySection({ orgId }: Omit<SectionProps, "onChanged">) {
   const [vendors, setVendors] = useState<OrgVendor[]>([]);
   const [vendorTotal, setVendorTotal] = useState(0);
   const [vendorPage, setVendorPage] = useState(1);
@@ -43,14 +39,6 @@ export default function TechnologySection({
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvPreviewing, setCsvPreviewing] = useState(false);
 
-  // A parent-driven reload (e.g. cloud providers synced into vendors) returns to page 1.
-  // Adjusting state during render means the load effect below runs once, on page 1.
-  const [seenReloadKey, setSeenReloadKey] = useState(reloadKey);
-  if (seenReloadKey !== reloadKey) {
-    setSeenReloadKey(reloadKey);
-    setVendorPage(1);
-  }
-
   const loadVendors = useCallback(
     async (id: number, page: number) => {
       setVendorLoading(true);
@@ -70,7 +58,7 @@ export default function TechnologySection({
 
   useEffect(() => {
     loadVendors(orgId, vendorPage);
-  }, [orgId, vendorPage, reloadKey, loadVendors]);
+  }, [orgId, vendorPage, loadVendors]);
 
   const handleAddVendor = async () => {
     if (!newVendor.trim()) return;
@@ -93,7 +81,6 @@ export default function TechnologySection({
       setVendorMsg("Vendor added");
       setVendorPage(1);
       loadVendors(orgId, 1);
-      onChanged();
     } catch (err) {
       setVendorError(
         err instanceof Error ? err.message : "Failed to add vendor",
@@ -107,7 +94,6 @@ export default function TechnologySection({
       await deleteVendor(orgId, vendorId);
       setVendorPage(1);
       loadVendors(orgId, 1);
-      onChanged();
     } catch {
       setVendorError("Failed to remove vendor");
     }
@@ -151,7 +137,6 @@ export default function TechnologySection({
       }
       loadVendors(orgId, 1);
       setVendorPage(1);
-      onChanged();
     } catch (err) {
       setVendorError(err instanceof Error ? err.message : "CSV import failed");
     } finally {
