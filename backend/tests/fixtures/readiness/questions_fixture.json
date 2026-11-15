@@ -1,0 +1,50 @@
+{
+  "version": "v1",
+  "questions": [
+    {
+      "id": "fixture_a",
+      "text": "Fixture question A?",
+      "help": "Fixture help A.",
+      "options": ["yes", "partly", "no", "not_sure", "not_applicable"],
+      "weight": 3,
+      "weight_reason": "Fixture weight reason A.",
+      "gap_title": "Fixture gap A",
+      "gap_first_step": "Fixture first step A.",
+      "sources": ["Fixture source A"],
+      "intake_field": "mfa_enabled"
+    },
+    {
+      "id": "fixture_b",
+      "text": "Fixture question B?",
+      "help": "Fixture help B.",
+      "options": ["yes", "no", "not_sure"],
+      "weight": 2,
+      "weight_reason": "Fixture weight reason B.",
+      "gap_title": "Fixture gap B",
+      "gap_first_step": "Fixture first step B.",
+      "sources": ["Fixture source B"]
+    },
+    {
+      "id": "fixture_c",
+      "text": "Fixture question C?",
+      "help": "Fixture help C.",
+      "options": ["yes", "partly", "no", "not_sure"],
+      "weight": 1,
+      "weight_reason": "Fixture weight reason C.",
+      "gap_title": "Fixture gap C",
+      "gap_first_step": "Fixture first step C.",
+      "sources": ["Fixture source C"]
+    },
+    {
+      "id": "fixture_d",
+      "text": "Fixture question D?",
+      "help": "Fixture help D.",
+      "options": ["yes", "no", "not_sure", "not_applicable"],
+      "weight": 3,
+      "weight_reason": "Fixture weight reason D.",
+      "gap_title": "Fixture gap D",
+      "gap_first_step": "Fixture first step D.",
+      "sources": ["Fixture source D"]
+    }
+  ]
+}
