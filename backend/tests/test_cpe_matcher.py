@@ -136,11 +136,32 @@ def test_distro_package_versions_are_indeterminate_against_a_range(distro_versio
 
 
 @pytest.mark.parametrize(
+    "version",
+    [
+        "2.4.52+esm1",  # Ubuntu ESM update tag
+        "2.4.52+nmu1",  # Debian non-maintainer upload
+        "2.4.52+git20210101",  # snapshot taken after the release
+        "17.0.9+9-1~deb12u1",  # JDK build number, then a dpkg revision
+        "2.1.0+cu118",  # a suffix the parser does not know
+    ],
+)
+def test_unrecognised_plus_suffix_is_indeterminate_not_dropped(version: str) -> None:
+    assert parse_version(version) is None
+    assert version_in_range(version, start_including="1.0", end_excluding="99.0") is None
+    assert version_in_range(version, end_excluding="1.0") is None
+
+
+@pytest.mark.parametrize(
     ("raw", "same_as"),
     [
         ("1.2.3+build5", "1.2.3"),  # semver build metadata
+        ("1.2.3+build.5", "1.2.3"),
+        ("1.2.3+build-5", "1.2.3"),
         ("1.2.3+20130313144700", "1.2.3"),
+        ("1.2.3+5114f85", "1.2.3"),  # commit hash
+        ("17.0.1+12-LTS", "17.0.1"),  # JDK build
         ("1.2.3+dfsg", "1.2.3"),  # repack marker with no revision: same upstream code
+        ("1.2.3+ds1", "1.2.3"),
         ("0:1.2.3", "1.2.3"),
         ("V1.2.3", "1.2.3"),
     ],

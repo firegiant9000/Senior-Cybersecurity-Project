@@ -82,11 +82,20 @@ _VERSION_RE = re.compile(
 )
 
 
-# What follows a ``+`` is build metadata unless it marks a distro package: a
-# revision after a repack marker (``+dfsg-1ubuntu0.4``), a stable-update tag
-# (``+deb11u1``, ``+ubuntu1``) or dpkg's ``+really`` (the leading version is not
-# the real one).
-_DISTRO_SUFFIX_RE = re.compile(r"-|really|deb\d+u\d+|ubuntu")
+# A ``+`` suffix is dropped only when it is recognisably build metadata, i.e. the
+# code is the upstream release: a build number or timestamp (``+5``,
+# ``+20130313144700``, ``+build.5``), a JDK build (``+12-lts``), a commit hash,
+# or a repack marker with no revision (``+dfsg``, ``+ds1``). Everything else
+# makes the version unparseable: a distro revision (``+dfsg-1ubuntu0.4``), an
+# update tag (``+deb11u1``, ``+esm1``, ``+nmu1``), a snapshot taken after the
+# release (``+git20210101``), dpkg's ``+really`` (the leading version is not the
+# real one), and any suffix this list does not know.
+_BUILD_METADATA_RE = re.compile(
+    r"(?:build[.\-_]?)?\d+(?:\.\d+)*"
+    r"|\d+-lts"
+    r"|[0-9a-f]{7,40}"
+    r"|(?:dfsg|ds|repack)\d*"
+)
 
 
 @dataclass(frozen=True)
@@ -131,11 +140,11 @@ def parse_version(raw: str | None) -> _Version | None:
         return None
     if text.startswith("v"):
         text = text[1:]
-    # Drop build metadata; it never affects precedence. A suffix that marks a
-    # distro package is not build metadata, and dropping it would throw the
-    # revision away and compare the bare upstream version.
+    # Drop build metadata; it never affects precedence. Any other suffix is kept
+    # out of the comparison entirely: dropping a distro revision or update tag
+    # would compare the bare upstream version.
     text, plus, suffix = text.partition("+")
-    if plus and _DISTRO_SUFFIX_RE.search(suffix):
+    if plus and not _BUILD_METADATA_RE.fullmatch(suffix):
         return None
 
     match = _VERSION_RE.match(text)

@@ -103,10 +103,10 @@ flowchart LR
   [`cpe_matcher.py`](backend/app/services/cpe_matcher.py) parses NVD affected-version
   ranges and compares installed versions against them. Each match is `high`
   (exact CPE), `medium` (name match, version inside a published range), `low`
-  (name-only) or `needs_review` (the version could not be parsed, or is a distro
-  package version such as `2.4.52-1ubuntu4.9` or `1:2.4.52`, which is not
-  comparable to an upstream NVD range). An uncertain comparison is surfaced
-  for review, not decided.
+  (name-only) or `needs_review` (the version could not be parsed, or carries a
+  distro revision, epoch or update tag, as in `2.4.52-1ubuntu4.9` or
+  `1:2.4.52`, which is not comparable to an upstream NVD range). An uncertain
+  comparison is surfaced for review, not decided.
 - **The matcher is regression-gated.**
   [`matcher-regression.yml`](.github/workflows/matcher-regression.yml) runs a
   known-good fixture set nightly and on every PR that touches the matcher, and
@@ -346,10 +346,13 @@ over full history on every push, PR and weekly.
 - Distro packages are not assessed, only flagged. The agent reports dpkg and
   rpm versions as the package manager prints them, and a distro revision can
   carry backported security fixes. The matcher has no distro advisory data
-  (USN, DSA, RHSA), so every version-range comparison for such a package is
-  `needs_review`, including packages whose upstream version is already past
-  the fix. Package names are also matched as reported: there is no mapping
-  from a package name (`apache2`) to an NVD product (`http_server`).
+  (USN, DSA, RHSA), so a version carrying a revision, an epoch or an update
+  tag is `needs_review` against every version range, including when its
+  upstream version is already past the fix. A package version with none of
+  those (`2.4.52`) is compared as the upstream release, so a fix backported
+  into it is not seen. Package names are also matched as reported: there is
+  no mapping from a package name (`apache2`) to an NVD product
+  (`http_server`).
 - IC3 statistics are national and per-sector, not per-company; the risk score
   is an estimate for prioritization, not an actuarial figure.
 
