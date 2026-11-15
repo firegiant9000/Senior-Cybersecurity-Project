@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.tsx";
+import { useConfirm } from "../components/shared/ConfirmDialog";
 import {
   M365StatusResponse,
   M365SyncResponse,
@@ -25,6 +26,7 @@ type Banner =
 
 export default function IntegrationsPage() {
   const { orgId } = useAuth();
+  const { confirm, confirmDialog } = useConfirm();
   const [params, setParams] = useSearchParams();
   const [status, setStatus] = useState<M365StatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -106,7 +108,6 @@ export default function IntegrationsPage() {
 
   const handleDisconnect = async () => {
     if (orgId == null) return;
-    if (!window.confirm("Disconnect Microsoft 365 for this organization?")) return;
     setBusy(true);
     setError(null);
     try {
@@ -118,6 +119,17 @@ export default function IntegrationsPage() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const confirmDisconnect = () => {
+    confirm({
+      title: "Disconnect Microsoft 365",
+      body: "Disconnect Microsoft 365? Asset sync stops until you connect again.",
+      confirmLabel: "Disconnect",
+      tone: "danger",
+      // handleDisconnect catches API failures into `error` itself.
+      onConfirm: handleDisconnect,
+    });
   };
 
   if (orgId == null) {
@@ -246,7 +258,7 @@ export default function IntegrationsPage() {
                 {busy ? "Syncing…" : "Sync devices now"}
               </button>
               <button
-                onClick={handleDisconnect}
+                onClick={confirmDisconnect}
                 disabled={busy}
                 data-testid="m365-disconnect"
               >
@@ -263,6 +275,7 @@ export default function IntegrationsPage() {
           </p>
         )}
       </section>
+      {confirmDialog}
     </div>
   );
 }

@@ -11,21 +11,19 @@ import {
   suggestVendors,
   autocompleteVendors,
 } from "../../api/vendors";
+import { useConfirm } from "../../components/shared/ConfirmDialog";
 import type { SectionProps } from "./types";
 
 const vendorPageSize = 20;
 
-export default function TechnologySection({
-  orgId,
-  onChanged,
-  reloadKey = 0,
-}: SectionProps & { reloadKey?: number }) {
+export default function TechnologySection({ orgId }: Omit<SectionProps, "onChanged">) {
   const [vendors, setVendors] = useState<OrgVendor[]>([]);
   const [vendorTotal, setVendorTotal] = useState(0);
   const [vendorPage, setVendorPage] = useState(1);
   const [vendorLoading, setVendorLoading] = useState(false);
   const [vendorError, setVendorError] = useState("");
   const [vendorMsg, setVendorMsg] = useState("");
+  const { confirm, confirmDialog } = useConfirm();
   const [newVendor, setNewVendor] = useState("");
   const [newProduct, setNewProduct] = useState("");
   const [vendorSuggestions, setVendorSuggestions] = useState<VendorSuggestion[]>([]);
@@ -40,14 +38,6 @@ export default function TechnologySection({
   const [csvPreview, setCsvPreview] = useState<OrgVendorImportPreviewResponse | null>(null);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvPreviewing, setCsvPreviewing] = useState(false);
-
-  // A parent-driven reload (e.g. cloud providers synced into vendors) returns to page 1.
-  // Adjusting state during render means the load effect below runs once, on page 1.
-  const [seenReloadKey, setSeenReloadKey] = useState(reloadKey);
-  if (seenReloadKey !== reloadKey) {
-    setSeenReloadKey(reloadKey);
-    setVendorPage(1);
-  }
 
   const loadVendors = useCallback(
     async (id: number, page: number) => {
@@ -68,7 +58,7 @@ export default function TechnologySection({
 
   useEffect(() => {
     loadVendors(orgId, vendorPage);
-  }, [orgId, vendorPage, reloadKey, loadVendors]);
+  }, [orgId, vendorPage, loadVendors]);
 
   const handleAddVendor = async () => {
     if (!newVendor.trim()) return;
@@ -91,7 +81,6 @@ export default function TechnologySection({
       setVendorMsg("Vendor added");
       setVendorPage(1);
       loadVendors(orgId, 1);
-      onChanged();
     } catch (err) {
       setVendorError(
         err instanceof Error ? err.message : "Failed to add vendor",
@@ -105,7 +94,6 @@ export default function TechnologySection({
       await deleteVendor(orgId, vendorId);
       setVendorPage(1);
       loadVendors(orgId, 1);
-      onChanged();
     } catch {
       setVendorError("Failed to remove vendor");
     }
@@ -149,7 +137,6 @@ export default function TechnologySection({
       }
       loadVendors(orgId, 1);
       setVendorPage(1);
-      onChanged();
     } catch (err) {
       setVendorError(err instanceof Error ? err.message : "CSV import failed");
     } finally {
@@ -225,6 +212,7 @@ export default function TechnologySection({
 
   return (
     <div className="section-accordion-body">
+      {confirmDialog}
       {vendorMsg && <div className="settings-action-msg">{vendorMsg}</div>}
       {vendorError && (
         <div
@@ -401,8 +389,17 @@ export default function TechnologySection({
                   <td>
                     <button
                       className="vendor-delete-btn"
-                      onClick={() => handleDeleteVendor(v.id)}
-                      title="Remove"
+                      onClick={() =>
+                        confirm({
+                          title: "Delete vendor",
+                          body: `Delete ${v.vendor_name} from your technology stack? Matching alerts for it will stop.`,
+                          confirmLabel: "Delete",
+                          tone: "danger",
+                          onConfirm: () => handleDeleteVendor(v.id),
+                        })
+                      }
+                      aria-label={`Delete vendor ${v.vendor_name}`}
+                      title="Delete"
                     >
                       &times;
                     </button>

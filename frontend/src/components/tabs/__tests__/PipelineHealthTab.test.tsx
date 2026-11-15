@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, act, fireEvent } from '@testing-library/react';
+import { render, screen, act, fireEvent, within } from '@testing-library/react';
 
 vi.mock('../../../context/AuthContext', () => ({
   useAuth: () => ({ role: 'admin' }),
@@ -14,7 +14,13 @@ vi.mock('../../../api/ingest', () => ({
 }));
 
 import PipelineHealthTab from '../PipelineHealthTab';
-import { fetchIngestRuns, fetchIngestFreshness, triggerIngestion } from '../../../api/ingest';
+import {
+  fetchIngestRuns,
+  fetchIngestFreshness,
+  triggerIngestion,
+  retryIngestRun,
+  cancelIngestRun,
+} from '../../../api/ingest';
 import { FRESHNESS_REFRESH_EVENT } from '../../shared/freshnessEvents';
 
 describe('PipelineHealthTab', () => {
@@ -103,5 +109,122 @@ describe('PipelineHealthTab', () => {
     } finally {
       window.removeEventListener(FRESHNESS_REFRESH_EVENT, listener);
     }
+  });
+
+  describe('cancel and retry actions', () => {
+    const flush = () => act(async () => { await vi.advanceTimersByTimeAsync(50); });
+
+    const freshness = (status: string, minutesAgo: number) => ({
+      source: 'nvd',
+      last_run_at: new Date(Date.now() - minutesAgo * 60000).toISOString(),
+      last_successful_run_at: null,
+      consecutive_failures: 0,
+      status,
+      records_ingested: 0,
+      total_records: 0,
+      error_message: null,
+      trigger: 'manual',
+      retry_count: 0,
+      skipped_reason: null,
+      refresh_policy: 'scheduled' as const,
+      stale: false,
+    });
+
+    const runItem = (status: string) => ({
+      id: 'run-1',
+      source: 'nvd',
+      started_at: new Date().toISOString(),
+      finished_at: null,
+      status,
+      records_ingested: 0,
+      error_message: null,
+      trigger: 'manual',
+      retry_count: 0,
+      skipped_reason: null,
+      next_scheduled_at: null,
+    });
+
+    async function renderRunning() {
+      vi.mocked(fetchIngestFreshness).mockResolvedValue({ sources: [freshness('running', 45)] });
+      vi.mocked(fetchIngestRuns).mockResolvedValue({
+        items: [runItem('running')], total: 1, page: 1, page_size: 15,
+      } as never);
+      render(<PipelineHealthTab />);
+      await flush();
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      await flush();
+      return screen.getByRole('alertdialog');
+    }
+
+    beforeEach(() => {
+      vi.mocked(cancelIngestRun).mockClear();
+      vi.mocked(retryIngestRun).mockClear();
+      vi.mocked(triggerIngestion).mockClear();
+      vi.mocked(cancelIngestRun).mockResolvedValue({ warning: null } as never);
+      vi.mocked(retryIngestRun).mockResolvedValue({} as never);
+    });
+
+    it('shows the dialog and makes no call when the admin keeps the run', async () => {
+      const dialog = await renderRunning();
+      expect(within(dialog).getByText('Cancel ingest run')).toBeInTheDocument();
+      expect(within(dialog).getByText(
+        'Mark the running NVD ingest as failed? The task that already started may keep running and writing data until it finishes.',
+      )).toBeInTheDocument();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Keep running' }));
+      await flush();
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      expect(cancelIngestRun).not.toHaveBeenCalled();
+    });
+
+    it('shows "not found" and opens no dialog when the running run is not on the page', async () => {
+      vi.mocked(fetchIngestFreshness).mockResolvedValue({ sources: [freshness('running', 45)] });
+      vi.mocked(fetchIngestRuns).mockResolvedValue({
+        items: [runItem('success')], total: 1, page: 1, page_size: 15,
+      } as never);
+      render(<PipelineHealthTab />);
+      await flush();
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      await flush();
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      expect(screen.getByText('Running run not found in current page.')).toBeInTheDocument();
+      expect(cancelIngestRun).not.toHaveBeenCalled();
+    });
+
+    it('cancels once on Cancel run', async () => {
+      const dialog = await renderRunning();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel run' }));
+      await flush();
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      expect(cancelIngestRun).toHaveBeenCalledTimes(1);
+      expect(cancelIngestRun).toHaveBeenCalledWith('run-1');
+      expect(screen.getByText('Cancelled.')).toBeInTheDocument();
+    });
+
+    it('closes the dialog and shows the error when the cancel API rejects', async () => {
+      vi.mocked(cancelIngestRun).mockRejectedValue(new Error('Cancel blew up'));
+      const dialog = await renderRunning();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel run' }));
+      await flush();
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      expect(screen.getByText('Cancel blew up')).toBeInTheDocument();
+    });
+
+    it('trigger and retry fire without a dialog', async () => {
+      vi.mocked(fetchIngestFreshness).mockResolvedValue({ sources: [freshness('failed', 5)] });
+      vi.mocked(fetchIngestRuns).mockResolvedValue({
+        items: [runItem('failed')], total: 1, page: 1, page_size: 15,
+      } as never);
+      render(<PipelineHealthTab />);
+      await flush();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+      await flush();
+      expect(retryIngestRun).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(screen.getByRole('button', { name: /trigger ingestion/i }));
+      await flush();
+      expect(triggerIngestion).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    });
   });
 });
