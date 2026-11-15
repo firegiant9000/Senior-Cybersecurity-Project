@@ -11,6 +11,7 @@ import {
   suggestVendors,
   autocompleteVendors,
 } from "../../api/vendors";
+import { useConfirm } from "../../components/shared/ConfirmDialog";
 import type { SectionProps } from "./types";
 
 const vendorPageSize = 20;
@@ -26,6 +27,7 @@ export default function TechnologySection({
   const [vendorLoading, setVendorLoading] = useState(false);
   const [vendorError, setVendorError] = useState("");
   const [vendorMsg, setVendorMsg] = useState("");
+  const { confirm, confirmDialog } = useConfirm();
   const [newVendor, setNewVendor] = useState("");
   const [newProduct, setNewProduct] = useState("");
   const [vendorSuggestions, setVendorSuggestions] = useState<VendorSuggestion[]>([]);
@@ -225,6 +227,7 @@ export default function TechnologySection({
 
   return (
     <div className="section-accordion-body">
+      {confirmDialog}
       {vendorMsg && <div className="settings-action-msg">{vendorMsg}</div>}
       {vendorError && (
         <div
@@ -401,8 +404,17 @@ export default function TechnologySection({
                   <td>
                     <button
                       className="vendor-delete-btn"
-                      onClick={() => handleDeleteVendor(v.id)}
-                      title="Remove"
+                      onClick={() =>
+                        confirm({
+                          title: "Delete vendor",
+                          body: `Delete ${v.vendor_name} from your technology stack? Matching alerts for it will stop.`,
+                          confirmLabel: "Delete",
+                          tone: "danger",
+                          onConfirm: () => handleDeleteVendor(v.id),
+                        })
+                      }
+                      aria-label={`Delete vendor ${v.vendor_name}`}
+                      title="Delete"
                     >
                       &times;
                     </button>

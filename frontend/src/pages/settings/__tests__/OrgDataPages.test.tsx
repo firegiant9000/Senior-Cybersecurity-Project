@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
@@ -104,7 +104,16 @@ function setup(route: string) {
   )
 }
 
-const emptyPage = { items: [], total: 0, page: 1, page_size: 20 }
+async function confirmInDialog(label: string) {
+  const dialog = await screen.findByRole('alertdialog')
+  fireEvent.click(within(dialog).getByRole('button', { name: label }))
+  // Let the dialog's pending state and the follow-up list reload settle inside act.
+  await waitFor(() => {
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+}
+
+const emptyPage ={ items: [], total: 0, page: 1, page_size: 20 }
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -153,8 +162,51 @@ describe('Technology page', () => {
     await waitFor(() => expect(mockCreateVendor).toHaveBeenCalledTimes(1))
     expect(mockCreateVendor).toHaveBeenCalledWith(ORG_ID, 'Fortinet', 'FortiOS')
 
-    fireEvent.click(await screen.findByTitle('Remove'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete vendor Cisco' }))
+    await confirmInDialog('Delete')
     await waitFor(() => expect(mockDeleteVendor).toHaveBeenCalledWith(ORG_ID, 11))
+  })
+
+  describe('delete confirmation', () => {
+    beforeEach(() => {
+      mockListVendors.mockResolvedValue({
+        items: [
+          {
+            id: 11, org_id: ORG_ID, vendor_name: 'Cisco', product_name: 'IOS',
+            created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z', matched_kev_count: 0,
+          },
+        ],
+        total: 1, page: 1, page_size: 20,
+      })
+    })
+
+    it('shows the dialog and Cancel makes no API call', async () => {
+      setup('/settings/technology')
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete vendor Cisco' }))
+      const dialog = await screen.findByRole('alertdialog')
+      expect(within(dialog).getByText('Delete vendor')).toBeInTheDocument()
+      expect(
+        within(dialog).getByText('Delete Cisco from your technology stack? Matching alerts for it will stop.'),
+      ).toBeInTheDocument()
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+      expect(mockDeleteVendor).not.toHaveBeenCalled()
+    })
+
+    it('Confirm makes exactly one API call', async () => {
+      setup('/settings/technology')
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete vendor Cisco' }))
+      await confirmInDialog('Delete')
+      await waitFor(() => expect(mockDeleteVendor).toHaveBeenCalledTimes(1))
+    })
+
+    it('shows the section error and closes the dialog when the API fails', async () => {
+      mockDeleteVendor.mockRejectedValue(new Error('boom'))
+      setup('/settings/technology')
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete vendor Cisco' }))
+      await confirmInDialog('Delete')
+      expect(await screen.findByText('Failed to remove vendor')).toBeInTheDocument()
+    })
   })
 
   it('keeps an unsaved Technology draft while paging, and loads page 1 exactly once', async () => {
@@ -214,8 +266,49 @@ describe('Domains page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add Domain' }))
     await waitFor(() => expect(mockAddDomain).toHaveBeenCalledWith(ORG_ID, 'new.example'))
 
-    fireEvent.click(await screen.findByTitle('Remove'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete domain old.example' }))
+    await confirmInDialog('Delete')
     await waitFor(() => expect(mockDeleteDomain).toHaveBeenCalledWith(ORG_ID, 21))
+  })
+
+  describe('delete confirmation', () => {
+    beforeEach(() => {
+      mockListDomains.mockResolvedValue({
+        items: [
+          {
+            id: 21, org_id: ORG_ID, domain_name: 'old.example', is_verified: false, added_by: null,
+            created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z',
+          },
+        ],
+        total: 1, page: 1, page_size: 20,
+      })
+    })
+
+    it('shows the dialog and Cancel makes no API call', async () => {
+      setup('/settings/domains')
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete domain old.example' }))
+      const dialog = await screen.findByRole('alertdialog')
+      expect(within(dialog).getByText('Delete domain')).toBeInTheDocument()
+      expect(within(dialog).getByText('Delete old.example? It will no longer be checked.')).toBeInTheDocument()
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+      expect(mockDeleteDomain).not.toHaveBeenCalled()
+    })
+
+    it('Confirm makes exactly one API call', async () => {
+      setup('/settings/domains')
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete domain old.example' }))
+      await confirmInDialog('Delete')
+      await waitFor(() => expect(mockDeleteDomain).toHaveBeenCalledTimes(1))
+    })
+
+    it('shows the section error and closes the dialog when the API fails', async () => {
+      mockDeleteDomain.mockRejectedValue(new Error('boom'))
+      setup('/settings/domains')
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete domain old.example' }))
+      await confirmInDialog('Delete')
+      expect(await screen.findByText('Failed to remove domain')).toBeInTheDocument()
+    })
   })
 })
 
@@ -249,7 +342,49 @@ describe('Uploads page', () => {
     await waitFor(() => expect(mockUploadFile).toHaveBeenCalledWith(ORG_ID, file))
     expect(await screen.findByText('"data.csv" uploaded successfully')).toBeInTheDocument()
 
-    fireEvent.click(await screen.findByTitle('Delete'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete upload report.pdf' }))
+    await confirmInDialog('Delete')
     await waitFor(() => expect(mockDeleteUpload).toHaveBeenCalledWith(ORG_ID, 31))
+  })
+
+  describe('delete confirmation', () => {
+    beforeEach(() => {
+      mockListUploads.mockResolvedValue({
+        items: [
+          {
+            id: 31, org_id: ORG_ID, uploaded_by: null, original_filename: 'report.pdf',
+            stored_filename: 'x', file_size_bytes: 2048, content_type: 'application/pdf',
+            upload_purpose: null, created_at: '2024-01-01T00:00:00Z',
+          },
+        ],
+        total: 1, page: 1, page_size: 20,
+      })
+    })
+
+    it('shows the dialog and Cancel makes no API call', async () => {
+      setup('/settings/uploads')
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete upload report.pdf' }))
+      const dialog = await screen.findByRole('alertdialog')
+      expect(within(dialog).getByText('Delete upload')).toBeInTheDocument()
+      expect(within(dialog).getByText('Delete the upload report.pdf?')).toBeInTheDocument()
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+      expect(mockDeleteUpload).not.toHaveBeenCalled()
+    })
+
+    it('Confirm makes exactly one API call', async () => {
+      setup('/settings/uploads')
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete upload report.pdf' }))
+      await confirmInDialog('Delete')
+      await waitFor(() => expect(mockDeleteUpload).toHaveBeenCalledTimes(1))
+    })
+
+    it('shows the section error and closes the dialog when the API fails', async () => {
+      mockDeleteUpload.mockRejectedValue(new Error('boom'))
+      setup('/settings/uploads')
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete upload report.pdf' }))
+      await confirmInDialog('Delete')
+      expect(await screen.findByText('Failed to delete upload')).toBeInTheDocument()
+    })
   })
 })
