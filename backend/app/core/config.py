@@ -225,6 +225,7 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     RATE_LIMIT_DATA: str = "60/minute"
     RATE_LIMIT_PUBLIC_DOMAIN_CHECK: str = "10/minute"
     RATE_LIMIT_PUBLIC_READINESS: str = "30/minute"
+    RATE_LIMIT_PUBLIC_READINESS_EVENTS: str = "60/minute"
     # Key per-IP limits on the rightmost X-Forwarded-For entry (the address the
     # nearest proxy appended) instead of the connecting peer. Off by default: turn
     # it on only behind a proxy that appends to or overwrites the header, after
