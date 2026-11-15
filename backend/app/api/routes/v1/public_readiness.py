@@ -9,6 +9,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from starlette.requests import ClientDisconnect
 
 from app.core.config import settings
 from app.core.limiter import limiter
@@ -120,6 +121,10 @@ async def readiness_questions(request: Request) -> QuestionsResponse:
 async def readiness_score(request: Request) -> ScoreResponse:
     """Score quiz answers. The body is parsed here, after the flag check, so a
     malformed body cannot reveal the route while it is off."""
+    try:
+        await request.body()  # cached, so request.json() below does not read again
+    except ClientDisconnect:
+        raise HTTPException(status_code=400, detail="Client disconnected") from None
     try:
         payload = ScoreRequest.model_validate(await request.json())
     except (ValueError, ValidationError, RecursionError):

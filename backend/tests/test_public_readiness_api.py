@@ -210,6 +210,46 @@ async def test_answers_are_not_logged(quiz_client: AsyncClient, caplog):
 
 
 @pytest.mark.asyncio
+async def test_client_disconnect_mid_body_is_not_a_500(quiz_client: AsyncClient):
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "POST",
+        "scheme": "http",
+        "path": SCORE_URL,
+        "raw_path": SCORE_URL.encode(),
+        "query_string": b"",
+        "root_path": "",
+        "headers": [
+            (b"host", b"testserver"),
+            (b"content-type", b"application/json"),
+            (b"content-length", b"100"),
+        ],
+        "client": ("127.0.0.1", 50000),
+        "server": ("testserver", 80),
+    }
+    events = [
+        {"type": "http.request", "body": b'{"version": "v1", "ans', "more_body": True},
+        {"type": "http.disconnect"},
+    ]
+    sent: list[dict] = []
+
+    async def receive():
+        return events.pop(0) if events else {"type": "http.disconnect"}
+
+    async def send(message):
+        sent.append(message)
+
+    await app(scope, receive, send)
+
+    starts = [m for m in sent if m["type"] == "http.response.start"]
+    assert starts, "no response was sent"
+    assert starts[0]["status"] == 400
+    assert starts[0]["status"] != 500
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("route", ["questions", "score"])
 async def test_rate_limit_returns_429(quiz_client: AsyncClient, route: str):
     async def call():
