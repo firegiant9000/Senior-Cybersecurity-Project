@@ -75,7 +75,7 @@ describe('PrivacyPage', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /an organisation admin can ask the site operator to permanently delete the organisation and that same data\. Member login accounts are outside this deletion: members' login accounts are detached from the organisation and are not removed\. Audit records are kept, including a record of the deletion itself, for the retention period under Activity above\./,
+        /an organisation admin can ask the site operator to permanently delete the organisation and that same data\. Member login accounts are not deleted; they are detached from the organisation\. Audit records are kept, including a record of the deletion itself, for the retention period under Activity above\./,
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/asks for their own account to be deleted/i)).toBeNull();

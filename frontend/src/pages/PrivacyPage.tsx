@@ -151,13 +151,14 @@ export default function PrivacyPage() {
               profile, domains, vendors, assets and installed software, finding
               statuses and snapshots, scan runs, upload records, AI summaries
               and feedback, assessment submissions, memberships and invitations.
-              It does not include login accounts, audit records, per-asset vulnerability matches or integration tokens.
+              It does not include login accounts, audit records, per-asset
+              vulnerability matches or integration tokens.
             </li>
             <li>
               <strong>Delete:</strong> an organisation admin can ask the site
               operator to permanently delete the organisation and that same
-              data. Member login accounts are outside this deletion: members&apos; login
-              accounts are detached from the organisation and are not removed.
+              data. Member login accounts are not deleted; they are detached
+              from the organisation.
               Audit records are kept, including a
               record of the deletion itself, for the retention period under
               Activity above.
