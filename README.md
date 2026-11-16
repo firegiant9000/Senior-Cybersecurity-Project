@@ -41,10 +41,33 @@ plan an owner can act on without reading a CVSS vector.
 
 ## Screenshots
 
-Not captured yet. [docs/screenshots/README.md](docs/screenshots/README.md)
-lists the five views to capture (dashboard, assets and findings, vendor
-prioritization, remediation plan, executive report) and how to do it from a
-demo-seeded local stack.
+Captured from a local Docker stack with a synthetic organization and a
+synthetic 16-host inventory, matched against live public CISA KEV, NVD, EPSS
+and FBI IC3 data. No real organization appears. How to recapture them:
+[docs/screenshots/README.md](docs/screenshots/README.md).
+
+**Overview:** inventory health and KEV-matched vendor alerts.
+
+![Overview dashboard](docs/screenshots/dashboard.png)
+
+**Assets:** host inventory ranked by risk, with KEV-matched hosts flagged.
+
+![Assets and findings](docs/screenshots/assets-findings.png)
+
+**Vendor alerts:** KEV entries matched to the organization's technology stack,
+prioritized by severity and risk score.
+
+![Vendor prioritization](docs/screenshots/vendor-prioritization.png)
+
+**Risk profile:** the action plan built from the organization's industry
+threats and recorded controls.
+
+![Remediation plan](docs/screenshots/remediation-plan.png)
+
+**Executive report:** risk snapshot, costliest attack types and projected
+annual loss.
+
+![Executive report](docs/screenshots/executive-report.png)
 
 ## Architecture
 
@@ -337,7 +360,8 @@ backend suite, ESLint and `tsc --noEmit`, the frontend suite, `go vet`,
 `go test` and `go build`, then deploys previews and the production frontend.
 [`matcher-regression.yml`](.github/workflows/matcher-regression.yml) runs
 nightly. [`secret-scan.yml`](.github/workflows/secret-scan.yml) runs gitleaks
-over full history on every push, PR and weekly.
+on each PR's commits, over every non-merge commit reachable from `HEAD` (merged
+branches included) on every PR and push to `main`, and over all history weekly.
 
 ## Limitations
 
