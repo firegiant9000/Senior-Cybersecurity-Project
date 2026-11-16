@@ -32,6 +32,11 @@
     --conf-high:        #15803d;
     --conf-medium:      #b45309;
     --conf-low:         #64748b;
+    /* Mirrors VIA_CHIP_COLORS.light in src/theme.ts (contrast-tested there). */
+    --via-csv:          #1d4ed8;
+    --via-m365:         #7e22ce;
+    --via-agent:        #065f46;
+    --via-other:        #475569;
     --warn-bg:          #fef3c7;
     --warn-border:      #d97706;
     --warn-text:        #78350f;
@@ -75,6 +80,11 @@
     --conf-high:        #86efac;
     --conf-medium:      #fcd34d;
     --conf-low:         #cbd5e1;
+    /* Mirrors VIA_CHIP_COLORS.dark in src/theme.ts (contrast-tested there). */
+    --via-csv:          #93c5fd;
+    --via-m365:         #d8b4fe;
+    --via-agent:        #6ee7b7;
+    --via-other:        #cbd5e1;
     --warn-bg:          #2d1c00;
     --warn-border:      #d97706;
     --warn-text:        #fcd34d;
