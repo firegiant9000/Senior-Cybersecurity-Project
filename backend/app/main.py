@@ -9,6 +9,7 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -213,6 +214,12 @@ def create_app() -> FastAPI:
         allow_headers=allowed_headers,
         expose_headers=["Retry-After"],
     )
+
+    # Firebase Auth emulator mode (local dev only; Settings refuses it elsewhere) accepts
+    # unsigned ID tokens, so only answer requests addressed to loopback. This blocks a
+    # DNS-rebound web page from reaching the API with a forged token.
+    if os.environ.get("FIREBASE_AUTH_EMULATOR_HOST", "") != "":
+        fastapi_app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1"])
 
     # Outermost (added last): errors, preflights and the 413 all carry the security headers.
     # FastAPI keeps swagger_ui_oauth2_redirect_url set even when docs are off, so gate it too:

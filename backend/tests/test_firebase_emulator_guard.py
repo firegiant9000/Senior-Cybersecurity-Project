@@ -39,6 +39,31 @@ def test_emulator_read_from_environment(monkeypatch):
         _make_settings(APP_ENV="production")
 
 
+def test_emulator_mode_only_answers_loopback_hosts(monkeypatch):
+    """Unsigned tokens are accepted in emulator mode, so a DNS-rebound host must be refused."""
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    monkeypatch.setenv("FIREBASE_AUTH_EMULATOR_HOST", "localhost:9099")
+    client = TestClient(create_app())  # no context manager: lifespan (DB, Firebase) not run
+    # An unrouted path: the host check runs before routing, and nothing touches the
+    # shared DB/health engines from this client's event loop.
+    path = "/__host-check-probe"
+    assert client.get(path, headers={"host": "attacker.example:8000"}).status_code == 400
+    assert client.get(path, headers={"host": "localhost:8000"}).status_code == 404
+
+
+def test_non_emulator_mode_has_no_host_restriction(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    monkeypatch.delenv("FIREBASE_AUTH_EMULATOR_HOST", raising=False)
+    client = TestClient(create_app())
+    assert client.get("/__host-check-probe", headers={"host": "api.example.com"}).status_code == 404
+
+
 def test_production_without_emulator_is_fine(monkeypatch):
     monkeypatch.delenv("FIREBASE_AUTH_EMULATOR_HOST", raising=False)
     settings = _make_settings(APP_ENV="production")
