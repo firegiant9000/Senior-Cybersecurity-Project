@@ -1,5 +1,5 @@
 import React, { Suspense, useEffect, useRef } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router';
 import { useAuth } from '../../context/AuthContext';
 import { useDarkMode } from '../../hooks/useDarkMode';
 import { titleFor } from '../../config/pageTitles';

@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import InfoTip from '../components/shared/InfoTip';
 import { getAcronymDefinition } from '../components/shared/InfoTip';
 import { API_BASE_URL } from '../api/fetchWithAuth';

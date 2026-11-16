@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import AppShell, { resetShellFocusForTests } from '../AppShell';

@@ -7,7 +7,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router";
 import { useAuth } from "../context/AuthContext.tsx";
 import { useConfirm } from "../components/shared/ConfirmDialog";
 import {

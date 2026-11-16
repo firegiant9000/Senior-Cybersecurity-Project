@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 interface NotFoundPageProps {
   /** Rendered inside the app shell's <main>: use a section so there is only one main landmark. */

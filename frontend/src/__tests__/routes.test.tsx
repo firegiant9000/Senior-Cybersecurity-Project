@@ -1,5 +1,5 @@
 import { render, screen, waitFor, cleanup, configure } from '@testing-library/react'
-import { MemoryRouter, useLocation } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { resetShellFocusForTests } from '../components/shell/AppShell'
 

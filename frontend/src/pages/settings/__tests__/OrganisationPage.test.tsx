@@ -1,5 +1,5 @@
 import { render, screen, waitFor, fireEvent, within, act } from '@testing-library/react'
-import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, useNavigate } from 'react-router'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Company, Security Profile, readiness and validation behaviour of OrganisationPage,

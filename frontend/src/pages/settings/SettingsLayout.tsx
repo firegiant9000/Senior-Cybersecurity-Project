@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router';
 import { SETTINGS_ITEMS } from '../../config/navigation';
 import '../SettingsPage.css';
 

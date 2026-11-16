@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
-import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router'
 import DataSourcesTab from '../DataSourcesTab'
 
 vi.mock('../../../firebase', () => ({

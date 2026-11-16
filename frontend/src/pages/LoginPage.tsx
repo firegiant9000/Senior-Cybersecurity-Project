@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { sendPasswordResetEmail, sendEmailVerification } from "firebase/auth";
 import { auth } from "../firebase";
 import { useAuth } from "../context/AuthContext";
-import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router";
 import { safeNextPath } from "../utils/safeUrl";
 import "./LoginPage.css";
 

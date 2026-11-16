@@ -1,5 +1,5 @@
 import type { KeyboardEvent } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 import { API_BASE_URL } from '../../api/fetchWithAuth';
 import RiskScoringTable from '../tabs/RiskScoringTable';
 import CisaKevTable from '../tabs/CisaKevTable';

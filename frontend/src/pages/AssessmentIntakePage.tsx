@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router";
 import { useAuth } from "../context/AuthContext";
 import { useAssessmentIntake } from "../hooks/useAssessmentIntake";
 import { useIntakePreview } from "../hooks/useIntakePreview";

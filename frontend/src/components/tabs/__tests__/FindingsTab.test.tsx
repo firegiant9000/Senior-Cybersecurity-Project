@@ -1,5 +1,5 @@
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import FindingsTab from '../FindingsTab'
 

@@ -6,7 +6,7 @@
  */
 
 import { render, RenderOptions, RenderResult } from '@testing-library/react'
-import { MemoryRouter, MemoryRouterProps } from 'react-router-dom'
+import { MemoryRouter, MemoryRouterProps } from 'react-router'
 import React from 'react'
 import { vi, expect } from 'vitest'
 

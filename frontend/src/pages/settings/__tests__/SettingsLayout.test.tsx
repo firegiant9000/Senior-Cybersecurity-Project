@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import SettingsLayout from '../SettingsLayout';
 
 const EXPECTED = [

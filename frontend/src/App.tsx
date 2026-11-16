@@ -1,5 +1,5 @@
 import { lazy } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router";
 import LoginPage from "./pages/LoginPage.tsx";
 import LandingPage from "./pages/LandingPage.tsx";
 import SettingsLayout from "./pages/settings/SettingsLayout.tsx";

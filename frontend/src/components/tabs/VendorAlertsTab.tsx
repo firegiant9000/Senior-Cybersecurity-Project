@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { fetchVendorAlerts, VendorAlertsResponse } from '../../api/vendorAlerts';
 import { createVendor, suggestVendors, type VendorSuggestion } from '../../api/vendors';
 import { useAuth } from '../../context/AuthContext';
