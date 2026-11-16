@@ -337,8 +337,8 @@ backend suite, ESLint and `tsc --noEmit`, the frontend suite, `go vet`,
 `go test` and `go build`, then deploys previews and the production frontend.
 [`matcher-regression.yml`](.github/workflows/matcher-regression.yml) runs
 nightly. [`secret-scan.yml`](.github/workflows/secret-scan.yml) runs gitleaks
-on each PR's commits, over every commit reachable from `HEAD` (merged commits
-included) on every PR and push to `main`, and over all history weekly.
+on each PR's commits, over every non-merge commit reachable from `HEAD` (merged
+branches included) on every PR and push to `main`, and over all history weekly.
 
 ## Limitations
 
