@@ -39,7 +39,7 @@ async def main() -> None:  # noqa: C901
     from app.db.models import CVE, KEV
     from app.ingestors.cisa_kev import ingest_cisa_kev
     from app.ingestors.econ import ingest_region_economics
-    from app.ingestors.nvd import ingest_nvd
+    from app.ingestors.nvd import NvdTransientError, ingest_nvd
 
     parser = argparse.ArgumentParser(
         description="Ingest real data from NVD, IC3, and Census APIs"
@@ -126,7 +126,7 @@ async def main() -> None:  # noqa: C901
                 print("✓ NVD ingestion complete\n")
             except ValueError as e:
                 print(f"✗ NVD ingestion failed: {e}\n")
-            except httpx.HTTPError as e:
+            except (httpx.HTTPError, NvdTransientError) as e:
                 print(f"✗ NVD ingestion error: {e}\n")
 
     # Ingest Economic data
