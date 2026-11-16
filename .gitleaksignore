@@ -4,6 +4,10 @@
 # UUIDs), a dataset key name, a Render env-var key name, and the Firebase
 # *web* API key once hardcoded in docker-compose.yml (identifies the project;
 # not a credential). Add a line only after confirming a match is not real.
+# Fingerprints are commit-scoped: a fingerprint added inside a PR for that PR's
+# own commit only holds if the PR lands as a merge commit. A squash or rebase
+# merge gives the commit a new SHA, and every later PR fails the HEAD-history
+# scan until the new SHA's fingerprint is added.
 c0f89405d51c96e7d6723cc0ad5e74ec54877fa3:render.yaml:generic-api-key:41
 42412f10e606844c831e5f02a65f996fba7c3764:backend/app/services/data_status.py:generic-api-key:71
 2c1d3050feff47ddf477f4e54053440e33e8b6ff:docker-compose.yml:gcp-api-key:58
