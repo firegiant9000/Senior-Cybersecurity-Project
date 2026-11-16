@@ -9,7 +9,7 @@ help:
 	@echo "  make migrate           - Run database migrations"
 	@echo "  make makemigrations    - Create new migration (use with message=...)"
 	@echo "  make rollback          - Rollback the last migration"
-	@echo "  make seed              - Seed database with sample data (TODO)"
+	@echo "  make seed              - Seed demo orgs + a synthetic inventory (scripts/seed_demo_org.py)"
 	@echo "  make backend-test      - Run backend tests"
 	@echo "  make backend-lint      - Lint backend code with ruff"
 	@echo "  make frontend-install  - Install frontend dependencies"
@@ -48,8 +48,7 @@ rollback:
 	docker compose exec backend alembic -c app/db/alembic.ini downgrade -1
 
 seed:
-	@echo "TODO: Implement database seeding"
-	@docker compose exec backend python -m app.scripts.seed
+	docker compose exec backend python -m scripts.seed_demo_org
 
 backend-test:
 	docker compose exec backend pytest -v tests/

@@ -21,7 +21,7 @@ make migrate
 
 4) Open apps:
 - Backend: http://localhost:8000/health
-- Frontend: http://localhost:5173
+- Frontend: http://localhost:5174
 
 5) Stop services:
 ```bash
@@ -62,7 +62,7 @@ npm run dev
 - `make migrate` — Apply migrations
 - `make makemigrations message="..."` — Create a new migration
 - `make rollback` — Roll back the last migration
-- `make seed` — Seed database (placeholder)
+- `make seed` — Seed demo orgs and a synthetic inventory (`scripts/seed_demo_org.py`)
 
 ### Backend Quality
 - `make backend-test` — Run backend tests
