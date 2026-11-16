@@ -27,6 +27,11 @@ vi.mock('../../api/inventory', () => ({
   getScanRunDiff: mockGetDiff,
 }))
 
+// The page renders a SourceBadge; the real hook imports firebase via fetchWithAuth.
+vi.mock('../../hooks/useDataStatus', () => ({
+  useDataStatus: () => ({ byKey: {}, loading: false }),
+}))
+
 const run = {
   id: 42,
   org_id: 7,

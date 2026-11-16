@@ -22,3 +22,12 @@ d962d54db47f43bceffdbec7ec4bef34610bc010:backend/docs/DATA_INGESTION_ARCHITECTUR
 7bb27553ee524aa17f405402f3cdd121fea0e4e6:API_ENDPOINTS_CONFIG.md:generic-api-key:265
 7bb27553ee524aa17f405402f3cdd121fea0e4e6:API_ENDPOINTS_CONFIG.md:generic-api-key:266
 7bb27553ee524aa17f405402f3cdd121fea0e4e6:REAL_DATA_FINAL_STATUS.md:generic-api-key:49
+# 2026-11-15: SourceBadge's dataset-name prop (value ic3_temporal_trends, not a
+# credential) matched generic-api-key on the prop name; reviewed on PR #310.
+7b5d88430002e44f0cfb4a3ac7f868b39d3fa5f2:frontend/src/components/tabs/TrendsTab.tsx:generic-api-key:294
+7b5d88430002e44f0cfb4a3ac7f868b39d3fa5f2:frontend/src/components/tabs/TrendsTab.tsx:generic-api-key:345
+7b5d88430002e44f0cfb4a3ac7f868b39d3fa5f2:frontend/src/components/tabs/TrendsTab.tsx:generic-api-key:396
+7b5d88430002e44f0cfb4a3ac7f868b39d3fa5f2:frontend/src/components/tabs/TrendsTab.tsx:generic-api-key:446
+7b5d88430002e44f0cfb4a3ac7f868b39d3fa5f2:frontend/src/components/tabs/AnomaliesTab.tsx:generic-api-key:188
+7b5d88430002e44f0cfb4a3ac7f868b39d3fa5f2:frontend/src/components/tabs/__tests__/TrendsTab.test.tsx:generic-api-key:49
+7b5d88430002e44f0cfb4a3ac7f868b39d3fa5f2:frontend/src/components/tabs/__tests__/AnomaliesTab.test.tsx:generic-api-key:93
