@@ -1,5 +1,6 @@
 """Test configuration and fixtures."""
 
+import os
 from collections.abc import AsyncGenerator
 from unittest.mock import patch
 from uuid import uuid4
@@ -8,7 +9,16 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from app.main import app
+# The emulator dev overlay (docker-compose.emulator.yml) sets this in the backend
+# container. Clear it before anything builds Settings or a firebase-admin client
+# (some fixtures are session-scoped), so the suite behaves the same as in CI. Only a
+# development container may carry it; anywhere else it is a leak, so fail loudly.
+if os.environ.get("FIREBASE_AUTH_EMULATOR_HOST", "") != "":
+    if os.environ.get("APP_ENV") != "development":
+        raise RuntimeError("FIREBASE_AUTH_EMULATOR_HOST leaked into a non-development test run")
+    del os.environ["FIREBASE_AUTH_EMULATOR_HOST"]
+
+from app.main import app  # noqa: E402
 
 FAKE_FIREBASE_TOKEN = {
     "uid": "test-firebase-uid-global",

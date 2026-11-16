@@ -140,20 +140,37 @@ cd frontend
 npm run dev
 ```
 
-Open http://localhost:5173 in your browser.
+Open http://localhost:5174 in your browser.
 
 ## Using Docker Compose
 
-If you have Docker installed:
+If you have Docker installed, first create the local files Compose expects
+(all gitignored):
+
+- `backend/.env`: at least `APP_ENV=development`. Compose sets the database
+  URL, CORS and ports itself. Leave optional keys such as `NVD_API_KEY` unset
+  rather than copying placeholder values, which are sent as real keys.
+- `frontend/.env`: copy `frontend/.env.example` and fill in your Firebase web
+  config. Compose also passes the `VITE_FIREBASE_*` variables from the
+  repository-root `.env`, and those win over `frontend/.env`, so put the same
+  values there (an unset one reaches Vite as an empty string).
+- `backend/service-account.json`: your Firebase Admin key. Create it (even
+  empty) before the first `docker compose up`, or Docker on Windows creates a
+  directory at that path.
+
+Then migrate before the backend's first start, because the backend creates any
+missing tables on startup without recording an Alembic revision:
 
 ```bash
+docker compose up -d postgres
+docker compose run --rm --no-deps backend alembic -c app/db/alembic.ini upgrade head
 make up
-make migrate
+make seed   # optional: demo orgs and a synthetic inventory
 ```
 
 - Backend: http://localhost:8000/health
-- Frontend: http://localhost:5173
-- Database: localhost:5432
+- Frontend: http://localhost:5174
+- Database: localhost:5433
 
 Stop services:
 ```bash
@@ -178,7 +195,7 @@ make down
 
 ### Port already in use
 - Change ports in `.env` or `docker-compose.yml`
-- Common ports: 5173 (frontend), 8000 (backend), 5432 (postgres)
+- Common ports: 5174 (frontend), 8000 (backend), 5433 (postgres via Docker)
 
 ## Windows-Specific Issues
 
@@ -239,11 +256,11 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt -r requirements-dev.txt
 ```
 
-### Port 5173 or 8000 already in use
+### Port 5174 or 8000 already in use
 
 On Windows, find what's using the port:
 ```bash
-netstat -ano | findstr :5173
+netstat -ano | findstr :5174
 netstat -ano | findstr :8000
 ```
 

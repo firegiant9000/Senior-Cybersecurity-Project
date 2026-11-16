@@ -135,6 +135,21 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
     SECRET_KEY: str = "change-me-in-production"  # retained for non-auth signing if needed
     GOOGLE_APPLICATION_CREDENTIALS: str = ""
     FIREBASE_PROJECT_ID: str = ""
+    # Read by firebase-admin straight from the environment; when set, ID-token
+    # signatures are NOT verified. Declared here only so the guard below sees it.
+    FIREBASE_AUTH_EMULATOR_HOST: str = ""
+
+    @model_validator(mode="after")
+    def _forbid_auth_emulator_outside_development(self) -> "Settings":
+        # No .strip(): firebase-admin treats any non-empty value (even whitespace)
+        # as emulator mode, so the guard must too.
+        if self.FIREBASE_AUTH_EMULATOR_HOST != "" and self.APP_ENV != "development":
+            raise ValueError(
+                "FIREBASE_AUTH_EMULATOR_HOST is set but APP_ENV="
+                f"{self.APP_ENV!r}; the Auth emulator disables token signature checks "
+                "and is allowed only in development."
+            )
+        return self
 
     # External API Keys for Data Ingestion
     NVD_API_KEY: str = ""
