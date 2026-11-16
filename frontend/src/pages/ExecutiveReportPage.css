@@ -70,8 +70,12 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: 24px;
+  /* Reset the global `header` rule in index.css (navy #1e293b background,
+     1.5rem padding): this header sits on the white report card and its text
+     is dark, so inheriting the navy made it unreadable. */
+  background: transparent;
   border-bottom: 2px solid #1e3a5f;
-  padding-bottom: 16px;
+  padding: 0 0 16px;
   margin-bottom: 24px;
   flex-wrap: wrap;
 }
