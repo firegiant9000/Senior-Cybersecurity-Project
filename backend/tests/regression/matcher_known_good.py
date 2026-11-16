@@ -218,6 +218,12 @@ CRITERIA_CATALOG: dict[tuple[str, str], list[Criterion]] = dict(
 
 # --- Known-good cases ------------------------------------------------------
 
+# Every catalog CVE for a product, for the cases where the version cannot be
+# compared and each range / exact-version criterion must surface for review.
+_LOG4J_ALL = frozenset({"CVE-2021-44228", "CVE-2021-45046", "CVE-2021-45105"})
+_OPENSSL_ALL = frozenset({"CVE-2014-0160", "CVE-2022-3786", "CVE-2016-2107"})
+_HTTPD_ALL = frozenset({"CVE-2021-41773", "CVE-2021-42013"})
+
 CASES: list[Case] = [
     # ---- Log4j: range matches (medium) and the famous boundary at 2.15.0 ----
     Case(
@@ -685,6 +691,160 @@ CASES: list[Case] = [
         "log4j",
         "2.9.0",
         frozenset({"CVE-2021-44228", "CVE-2021-45046", "CVE-2021-45105"}),
+    ),
+    # ---- Distro package versions (dpkg / rpm) ----
+    # NVD bounds are upstream versions. A package version with an epoch or a
+    # distro revision is not comparable to them (the revision can carry
+    # backported fixes), so every range or exact-version criterion for the
+    # product must come back needs_review: never medium/high, never dropped.
+    # The version strings are shapes the agent can report, not claims about the
+    # patch level of any real package.
+    Case(
+        "distro: dpkg revision 3.0.2-0ubuntu1.15 → needs_review",
+        "needs_review",
+        "openssl",
+        "openssl",
+        "3.0.2-0ubuntu1.15",
+        _OPENSSL_ALL,
+        dict.fromkeys(_OPENSSL_ALL, "needs_review"),
+    ),
+    Case(
+        "distro: rpm VERSION-RELEASE 1.1.1k-12.el8_9 → needs_review",
+        "needs_review",
+        "openssl",
+        "openssl",
+        "1.1.1k-12.el8_9",
+        _OPENSSL_ALL,
+        dict.fromkeys(_OPENSSL_ALL, "needs_review"),
+    ),
+    Case(
+        "distro: dpkg revision 2.4.52-1ubuntu4.9 → needs_review",
+        "needs_review",
+        "apache",
+        "http_server",
+        "2.4.52-1ubuntu4.9",
+        _HTTPD_ALL,
+        dict.fromkeys(_HTTPD_ALL, "needs_review"),
+    ),
+    Case(
+        "distro: rpm modular release 2.4.37-65.module+el8.9.0+19699+7a7a2044 → needs_review",
+        "needs_review",
+        "apache",
+        "http_server",
+        "2.4.37-65.module+el8.9.0+19699+7a7a2044",
+        _HTTPD_ALL,
+        dict.fromkeys(_HTTPD_ALL, "needs_review"),
+    ),
+    Case(
+        "distro: one-sided epoch 1:2.4.49 → needs_review, not a silent negative",
+        "needs_review",
+        "apache",
+        "http_server",
+        "1:2.4.49",
+        _HTTPD_ALL,
+        dict.fromkeys(_HTTPD_ALL, "needs_review"),
+    ),
+    Case(
+        "distro: one-sided epoch 1:1.14.0 inside the range → needs_review",
+        "needs_review",
+        "nginx",
+        "nginx",
+        "1:1.14.0",
+        frozenset({"CVE-2019-20372"}),
+        {"CVE-2019-20372": "needs_review"},
+    ),
+    Case(
+        "distro: epoch + revision 1:1.14.0-0ubuntu1.7 → needs_review",
+        "needs_review",
+        "nginx",
+        "nginx",
+        "1:1.14.0-0ubuntu1.7",
+        frozenset({"CVE-2019-20372"}),
+        {"CVE-2019-20372": "needs_review"},
+    ),
+    Case(
+        "distro: stable-update suffix 1.14.0+deb9u1 → needs_review, not medium",
+        "needs_review",
+        "nginx",
+        "nginx",
+        "1.14.0+deb9u1",
+        frozenset({"CVE-2019-20372"}),
+        {"CVE-2019-20372": "needs_review"},
+    ),
+    Case(
+        "distro: +really 1.16.1+really1.14.2-1 → needs_review, not medium",
+        "needs_review",
+        "nginx",
+        "nginx",
+        "1.16.1+really1.14.2-1",
+        frozenset({"CVE-2019-20372"}),
+        {"CVE-2019-20372": "needs_review"},
+    ),
+    Case(
+        "distro: native Ubuntu revision 1.14.0ubuntu1 → needs_review",
+        "needs_review",
+        "nginx",
+        "nginx",
+        "1.14.0ubuntu1",
+        frozenset({"CVE-2019-20372"}),
+        {"CVE-2019-20372": "needs_review"},
+    ),
+    Case(
+        "distro: repack + revision 2.11.1+dfsg-1 → needs_review, not medium",
+        "needs_review",
+        "apache",
+        "log4j",
+        "2.11.1+dfsg-1",
+        _LOG4J_ALL,
+        dict.fromkeys(_LOG4J_ALL, "needs_review"),
+    ),
+    Case(
+        "distro: epoch + repack + revision 1:2.11.1+dfsg-1 → needs_review, not a silent negative",
+        "needs_review",
+        "apache",
+        "log4j",
+        "1:2.11.1+dfsg-1",
+        _LOG4J_ALL,
+        dict.fromkeys(_LOG4J_ALL, "needs_review"),
+    ),
+    Case(
+        # Upstream 2.17.1 is past every Log4j range here, but the matcher does
+        # not strip the revision to say so: it stays needs_review (known noise).
+        "distro: dpkg revision 2.17.1-1~deb10u1 stays needs_review",
+        "needs_review",
+        "apache",
+        "log4j",
+        "2.17.1-1~deb10u1",
+        _LOG4J_ALL,
+        dict.fromkeys(_LOG4J_ALL, "needs_review"),
+    ),
+    # ---- Normalizations that are safe, so the comparison still happens ----
+    Case(
+        "safe: explicit zero epoch 0:1.14.0 compares as 1.14.0",
+        "medium",
+        "nginx",
+        "nginx",
+        "0:1.14.0",
+        frozenset({"CVE-2019-20372"}),
+        {"CVE-2019-20372": "medium"},
+    ),
+    Case(
+        "safe: semver build metadata 1.14.0+build5 compares as 1.14.0",
+        "medium",
+        "nginx",
+        "nginx",
+        "1.14.0+build5",
+        frozenset({"CVE-2019-20372"}),
+        {"CVE-2019-20372": "medium"},
+    ),
+    Case(
+        "safe: version-agnostic criterion needs no comparison (distro version stays low)",
+        "low",
+        "citrix",
+        "application_delivery_controller",
+        "13.0-47.24",
+        frozenset({"CVE-2019-19781"}),
+        {"CVE-2019-19781": "low"},
     ),
 ]
 

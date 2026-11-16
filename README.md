@@ -103,11 +103,16 @@ flowchart LR
   [`cpe_matcher.py`](backend/app/services/cpe_matcher.py) parses NVD affected-version
   ranges and compares installed versions against them. Each match is `high`
   (exact CPE), `medium` (name match, version inside a published range), `low`
-  (name-only) or `needs_review` (version could not be parsed). It never guesses.
+  (name-only) or `needs_review` (the version could not be parsed, or carries a
+  distro revision, epoch or update tag, as in `2.4.52-1ubuntu4.9` or
+  `1:2.4.52`, which is not comparable to an upstream NVD range). An uncertain
+  comparison is surfaced for review, not decided.
 - **The matcher is regression-gated.**
   [`matcher-regression.yml`](.github/workflows/matcher-regression.yml) runs a
   known-good fixture set nightly and on every PR that touches the matcher, and
   fails below a 95% pass rate or above a 2% high-confidence false-positive rate.
+  Those rates describe the fixture set only. They are not an accuracy figure
+  for real hosts; that has not been measured (S6).
 - **KEV and EPSS drive prioritization.** Every matched CVE is enriched with
   its CVSS score, EPSS probability and KEV flag; a KEV hit changes the
   remediation text to "patch or remove now" and the findings report is sorted
@@ -157,11 +162,20 @@ flowchart LR
   [case study](docs/ai/case-study.md).
 - **Statistical anomaly detection** over IC3 trends and vendor KEV velocity
   ([`anomaly_detection.py`](backend/app/services/anomaly_detection.py)).
+- **Public renewal readiness check (backend, off by default).** Logged-out
+  routes for a DNS-only SPF/DMARC domain check, a readiness quiz and anonymous
+  per-day funnel counts
+  ([`public.py`](backend/app/api/routes/v1/public.py),
+  [`public_readiness.py`](backend/app/api/routes/v1/public_readiness.py), #293).
+  Only the anonymous step counts are saved; the typed domain is kept in an
+  in-memory cache (results reused for up to 15 minutes), and IPs appear in request logs as on every
+  route ([privacy](docs/security/privacy.md)). Behind `ENABLE_PUBLIC_READINESS`
+  until #209 lands; the quiz's question set lands with #294.
 
 ## Security design
 
 - **Threat model.** [docs/security/threat_model.md](docs/security/threat_model.md)
-  is a STRIDE model of 115 threats (37 controlled, 40 tested, 18 accepted, 20
+  is a STRIDE model of 123 threats (40 controlled, 52 tested, 19 accepted, 12
   open and scheduled for S5 or owner action). CI checks that every row has
   one classification and that its evidence exists.
 - **Authentication.** Users sign in through Firebase Authentication. The API
@@ -338,6 +352,16 @@ over full history on every push, PR and weekly.
 - Matching accuracy depends on NVD CPE data quality. Software without a
   version, or with vendor-specific version strings, lands in the `low` or
   `needs_review` tier and needs a human look.
+- Distro packages are not assessed, only flagged. The agent reports dpkg and
+  rpm versions as the package manager prints them, and a distro revision can
+  carry backported security fixes. The matcher has no distro advisory data
+  (USN, DSA, RHSA), so a version carrying a revision, an epoch or an update
+  tag is `needs_review` against every version range, including when its
+  upstream version is already past the fix. A package version with none of
+  those (`2.4.52`) is compared as the upstream release, so a fix backported
+  into it is not seen. Package names are also matched as reported: there is
+  no mapping from a package name (`apache2`) to an NVD product
+  (`http_server`).
 - IC3 statistics are national and per-sector, not per-company; the risk score
   is an estimate for prioritization, not an actuarial figure.
 
