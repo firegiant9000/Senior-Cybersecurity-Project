@@ -1,5 +1,5 @@
 import React from 'react';
-import { SEVERITY_COLORS } from '../../theme';
+import { SEVERITY_COLORS, SEVERITY_TEXT_COLORS } from '../../theme';
 
 interface SeverityBadgeProps {
   label: string;
@@ -12,8 +12,11 @@ const SeverityBadge: React.FC<SeverityBadgeProps> = ({
   fontSize = 11,
   padding = '1px 6px',
 }) => {
-  const color = SEVERITY_COLORS[label as keyof typeof SEVERITY_COLORS] ?? '#9e9e9e';
-  const textColor = (label === 'Medium' || label === 'Moderate') ? '#1a1a1a' : '#fff';
+  const key = (label === 'Moderate'
+    ? 'Medium'
+    : Object.prototype.hasOwnProperty.call(SEVERITY_COLORS, label) ? label : 'Unknown') as keyof typeof SEVERITY_COLORS;
+  const color = SEVERITY_COLORS[key];
+  const textColor = SEVERITY_TEXT_COLORS[key];
   return (
     <span
       style={{

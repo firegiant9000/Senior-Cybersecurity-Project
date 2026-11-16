@@ -11,9 +11,12 @@ that differs from it is refused (T-TEN-10).
 
 Allowed event types are pinned — unknown types are rejected so clients
 can't grow the schema implicitly.
+
+Admins can also read the anonymous public-readiness funnel counters (#296).
 """
 
 import logging
+from datetime import date
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -22,11 +25,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.routes.v1.auth import get_current_user
 from app.core.config import settings
+from app.core.dependencies import require_role
 from app.core.limiter import limiter
 from app.core.observability import _scrub
 from app.db.activation_event import ActivationEvent
 from app.db.engine import get_session
 from app.db.user import User
+from app.repositories.readiness_funnel import (
+    SqlReadinessFunnelRepository,
+    get_readiness_funnel_repo,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -89,3 +97,49 @@ async def record_event(
     await session.commit()
     await session.refresh(event)
     return ActivationEventAck(id=event.id, event_type=event.event_type)
+
+
+_FUNNEL_NOTE = (
+    "Directional only: anyone can call the counting route, so these numbers can be inflated."
+)
+_FUNNEL_MAX_SPAN_DAYS = 365
+
+
+class ReadinessFunnelCountOut(BaseModel):
+    day: date
+    version: str
+    step: str
+    count: int
+
+
+class ReadinessFunnelResponse(BaseModel):
+    start: date
+    end: date
+    counts: list[ReadinessFunnelCountOut]
+    note: str
+
+
+@router.get("/analytics/readiness-funnel", response_model=ReadinessFunnelResponse)
+@limiter.limit(settings.RATE_LIMIT_DATA)
+async def get_readiness_funnel(
+    request: Request,  # noqa: ARG001 — required by limiter
+    start: date,
+    end: date,
+    repo: SqlReadinessFunnelRepository = Depends(get_readiness_funnel_repo),
+    _: User = Depends(require_role("admin")),
+) -> ReadinessFunnelResponse:
+    """Anonymous public-readiness funnel counts per day/version/step (admin only)."""
+    if end < start:
+        raise HTTPException(status_code=422, detail="end must not be before start")
+    if (end - start).days > _FUNNEL_MAX_SPAN_DAYS:
+        raise HTTPException(status_code=422, detail="range is limited to 366 days")
+    rows = await repo.counts_between(start, end)
+    return ReadinessFunnelResponse(
+        start=start,
+        end=end,
+        counts=[
+            ReadinessFunnelCountOut(day=r.day, version=r.version, step=r.step, count=r.count)
+            for r in rows
+        ],
+        note=_FUNNEL_NOTE,
+    )

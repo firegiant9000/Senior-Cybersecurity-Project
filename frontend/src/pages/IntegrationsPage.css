@@ -1,0 +1,28 @@
+/* Integrations screen: static styles, all colours come from theme variables (Dashboard.css). */
+
+.integrations-banner {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+}
+
+.integrations-banner--success {
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.integrations-banner--error {
+  background: var(--error-bg);
+  color: var(--error-text);
+}
+
+.integrations-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-top: 1rem;
+}
+
+.integrations-error {
+  color: var(--error-text);
+}

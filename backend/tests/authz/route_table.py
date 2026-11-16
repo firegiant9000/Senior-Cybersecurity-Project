@@ -149,6 +149,15 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
                 note="stateless, rate limited, off by default",
             ),
         ),
+        (
+            "POST",
+            f"{_V1}/public/readiness/events",
+            RouteSpec(
+                "public",
+                flag="ENABLE_PUBLIC_READINESS",
+                note="anonymous counters, rate limited, off by default",
+            ),
+        ),
         ("GET", f"{_V1}/data-status", RouteSpec("public", note="static source registry")),
         # --- global feeds behind require_role("viewer") (router-level) ---------------
         ("GET", f"{_V1}/vulnerabilities/exploited", _VIEWER),
@@ -497,6 +506,11 @@ ROUTES: dict[tuple[str, str], RouteSpec] = build_table(
             "GET",
             f"{_V1}/ingest/normalization-log",
             RouteSpec("administrator", min_role="admin", note="cross-org log; admin only"),
+        ),
+        (
+            "GET",
+            f"{_V1}/analytics/readiness-funnel",
+            RouteSpec("administrator", min_role="admin", note="anonymous counters; admin only"),
         ),
         # --- agent enrollment management (org admin) ---------------------------------
         ("POST", f"{_V1}/agents/enroll", _ORG_ADMIN_CALLER),

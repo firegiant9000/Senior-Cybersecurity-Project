@@ -14,6 +14,12 @@ vi.mock('../../../context/UserContext', () => ({
   useUserContext: () => userContextValue,
 }))
 
+vi.mock('../../shared/SourceBadge', () => ({
+  default: ({ datasetKey }: { datasetKey: string }) => (
+    <span data-testid="source-badge" data-dataset-key={datasetKey} />
+  ),
+}))
+
 // The real api/aiSummary + api/fetchWithAuth run; only Firebase and the network are stubbed.
 vi.mock('../../../firebase', () => ({
   auth: { currentUser: null },
@@ -97,6 +103,30 @@ describe('AISummaryTab (characterisation)', () => {
     expect(summaryCalls()[0]).toMatch(new RegExp(`${SUMMARY_PATH}$`))
   })
 
+  it('labels the briefing heading with the ai_summary source badge', async () => {
+    routeFetch(() => jsonResponse(makeSummary()))
+    const { container } = renderTab()
+    await screen.findByText('Your external exposure is moderate.', {}, FIND_TIMEOUT)
+
+    expect(container.querySelector('[data-dataset-key="ai_summary"]')).toBeInTheDocument()
+  })
+
+  it('shows no ai_summary badge for a template-based summary', async () => {
+    routeFetch(() => jsonResponse(makeSummary({ ai_generated: false })))
+    const { container } = renderTab()
+    await screen.findByText('Template-Based', {}, FIND_TIMEOUT)
+
+    expect(container.querySelector('[data-dataset-key="ai_summary"]')).toBeNull()
+  })
+
+  it('shows no ai_summary badge for a cached summary', async () => {
+    routeFetch(() => jsonResponse(makeSummary({ cached: true })))
+    const { container } = renderTab()
+    await screen.findByText('Cached', {}, FIND_TIMEOUT)
+
+    expect(container.querySelector('[data-dataset-key="ai_summary"]')).toBeNull()
+  })
+
   it('Regenerate requests the summary again with force_refresh=true', async () => {
     routeFetch(() => jsonResponse(makeSummary()))
     renderTab()
@@ -127,6 +157,23 @@ describe('AISummaryTab (characterisation)', () => {
     expect(link).not.toBeNull()
     // No narrative is rendered in this state.
     expect(screen.queryByText('Your external exposure is moderate.')).not.toBeInTheDocument()
+  })
+
+  it('a plain-text briefing shows the regenerate hint instead of developer copy', async () => {
+    routeFetch(() =>
+      jsonResponse(
+        makeSummary({ posture_statement: null, notable_risks: null, data_gaps: null, next_steps: null }),
+      ),
+    )
+    renderTab()
+
+    expect(await screen.findByText('Your external exposure is moderate.', {}, FIND_TIMEOUT)).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        "This briefing came back as plain text, so it isn't split into posture, risks, gaps and actions. Regenerate it to try again.",
+      ),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/once the AI returns a JSON response/)).not.toBeInTheDocument()
   })
 
   it('the Print button calls window.print', async () => {

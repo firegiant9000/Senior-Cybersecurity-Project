@@ -21,6 +21,12 @@ vi.mock('../../../api/findings', () => ({
   patchFindingStatus: mockPatchStatus,
 }))
 
+vi.mock('../../shared/SourceBadge', () => ({
+  default: ({ datasetKey, datasetKeys }: { datasetKey?: string; datasetKeys?: string[] }) => (
+    <span data-testid="source-badge" data-dataset-key={datasetKeys ? datasetKeys.join(',') : datasetKey} />
+  ),
+}))
+
 vi.mock('../DomainIntelTable', () => ({
   default: () => <div data-testid="domain-intel-table">Domain intel table</div>,
 }))
@@ -351,6 +357,18 @@ describe('FindingsTab characterisation', () => {
 
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByTestId('domain-intel-table')).toBeInTheDocument()
+  })
+
+  it('badges the scan-sources area with domain_checks but not the findings list', async () => {
+    mockFetchFindings.mockResolvedValue(twoFindings())
+    const { container } = renderTab()
+    await screen.findByText('Threat alpha', {}, SLOW)
+
+    const badge = container.querySelector('[data-dataset-key="domain_checks"]')
+    expect(badge).toBeInTheDocument()
+    expect(badge?.closest('.findings-history-section')).not.toBeNull()
+    expect(container.querySelector('.findings-list')).not.toBeNull()
+    expect(container.querySelectorAll('.findings-list [data-testid="source-badge"]')).toHaveLength(0)
   })
 
   it('links to /settings/organisation from the empty state', async () => {

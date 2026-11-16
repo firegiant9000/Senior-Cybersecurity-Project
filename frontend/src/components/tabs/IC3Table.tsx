@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useDebounce } from '../../hooks/useDebounce';
 import { downloadCsv } from '../../utils/csvExport';
 import { fetchWithAuth } from '../../api/fetchWithAuth';
+import SourceBadge from '../shared/SourceBadge';
 
 interface IC3IncidentItem {
     id: number;
@@ -31,9 +32,11 @@ const PAGE_SIZE = 10;
 
 interface Props {
     apiBaseUrl: string;
+    /** Registry key for the source badge, shown once the table has data. */
+    datasetKey: string;
 }
 
-const IC3Table: React.FC<Props> = ({ apiBaseUrl }) => {
+const IC3Table: React.FC<Props> = ({ apiBaseUrl, datasetKey }) => {
     const [data, setData] = useState<IC3IncidentItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -194,16 +197,15 @@ const IC3Table: React.FC<Props> = ({ apiBaseUrl }) => {
 
             {!loading && !error && data.length === 0 && (
                 <div className="empty-state">
-                    <p>No IC3 incidents found. {attackType !== 'All' || state !== 'All' || year !== 'All'
-                        ? 'Try adjusting your filters.' : 'Run the ingestion script:'}</p>
-                    {attackType === 'All' && state === 'All' && year === 'All' && (
-                        <code>python scripts/ingest_ic3_enhanced.py</code>
-                    )}
+                    <p>{attackType !== 'All' || state !== 'All' || year !== 'All'
+                        ? 'No IC3 incidents match these filters. Try widening them.'
+                        : 'No IC3 incident data has been loaded yet.'}</p>
                 </div>
             )}
 
             {!loading && !error && data.length > 0 && (
                 <>
+                    <SourceBadge datasetKey={datasetKey} />
                     <div className="summary-stats">
                         <div className="stat-card">
                             <div className="stat-label">Filtered Records</div>
