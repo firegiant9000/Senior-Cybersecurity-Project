@@ -70,10 +70,11 @@ export const DARK_CHIP_COLORS = {
  * Text colours for the AssetsPage "discovered via" chip (CSV / M365 / Agent).
  * MIRRORED as --via-* in Dashboard.css (:root = light, [data-theme="dark"] =
  * dark); keep both in sync. contrast.test.ts asserts each is at least 4.5:1 on
- * the card background, both plain and under the chip's 12% colour-mix tint.
+ * the page background (asset list) and the card background (detail modal),
+ * both plain and under the chip's 12% colour-mix tint.
  */
 export const VIA_CHIP_COLORS = {
-  light: { csv: '#1d4ed8', m365: '#7e22ce', agent: '#047857', other: '#475569' },
+  light: { csv: '#1d4ed8', m365: '#7e22ce', agent: '#065f46', other: '#475569' },
   dark:  { csv: '#93c5fd', m365: '#d8b4fe', agent: '#6ee7b7', other: '#cbd5e1' },
 } as const
 

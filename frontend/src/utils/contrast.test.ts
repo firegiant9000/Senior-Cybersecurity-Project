@@ -59,32 +59,42 @@ describe('dark tier and confidence chip text contrast', () => {
 });
 
 describe('discovered-via chip text contrast', () => {
+  // The surfaces the chip actually sits on: the asset list table has no
+  // background of its own, so it shows the page --bg; the detail modal is --card-bg.
   const backgrounds = {
-    light: ['#ffffff'],
-    dark: ['#22304a', '#1e293b'],
+    light: { page: '#f0f2f5', modal: '#ffffff' },
+    dark: { page: '#111c33', modal: '#22304a' },
   } as const;
 
   for (const theme of ['light', 'dark'] as const) {
     it.each(Object.keys(VIA_CHIP_COLORS[theme]) as (keyof (typeof VIA_CHIP_COLORS)[typeof theme])[])(
-      `${theme} %s meets 4.5:1 on the card, plain and under its 12% tint`,
+      `${theme} %s meets 4.5:1 on the page and modal, plain and under its 12% tint`,
       (key) => {
         const fg = VIA_CHIP_COLORS[theme][key];
-        for (const card of backgrounds[theme]) {
-          expect(contrastRatio(fg, card)).toBeGreaterThanOrEqual(4.5);
-          expect(contrastRatio(fg, mix(fg, card, 0.12))).toBeGreaterThanOrEqual(4.5);
+        for (const [surface, bg] of Object.entries(backgrounds[theme])) {
+          expect(contrastRatio(fg, bg), `${surface} plain`).toBeGreaterThanOrEqual(4.5);
+          expect(contrastRatio(fg, mix(fg, bg, 0.12)), `${surface} tinted`).toBeGreaterThanOrEqual(4.5);
         }
       },
     );
   }
 
   it('Dashboard.css --via-* tokens mirror VIA_CHIP_COLORS', () => {
-    const [lightBlock, darkBlock] = dashboardCss.split('[data-theme="dark"]');
-    expect(lightBlock).toContain('--via-csv');
-    for (const [theme, block] of [['light', lightBlock], ['dark', darkBlock]] as const) {
+    // The bare token blocks; other `[data-theme="dark"] .x {` rules don't match.
+    const blocks = {
+      light: dashboardCss.match(/:root\s*\{([^}]*)\}/)?.[1] ?? '',
+      dark: dashboardCss.match(/\[data-theme="dark"\]\s*\{([^}]*)\}/)?.[1] ?? '',
+    };
+    for (const theme of ['light', 'dark'] as const) {
       for (const [key, hex] of Object.entries(VIA_CHIP_COLORS[theme])) {
-        const match = block.match(new RegExp(`--via-${key}:\\s*(#[0-9a-fA-F]{6})`));
+        const match = blocks[theme].match(new RegExp(`--via-${key}:\\s*(#[0-9a-fA-F]{6})`));
         expect(match?.[1]?.toLowerCase(), `${theme} --via-${key}`).toBe(hex);
       }
+    }
+    // Exactly one light and one dark declaration each: no stray overrides elsewhere.
+    for (const key of Object.keys(VIA_CHIP_COLORS.light)) {
+      const count = dashboardCss.match(new RegExp(`--via-${key}:`, 'g'))?.length ?? 0;
+      expect(count, `--via-${key} declarations`).toBe(2);
     }
   });
 });
