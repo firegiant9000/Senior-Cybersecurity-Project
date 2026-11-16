@@ -82,6 +82,22 @@ _VERSION_RE = re.compile(
 )
 
 
+# A ``+`` suffix is dropped only when it is recognisably build metadata, i.e. the
+# code is the upstream release: a build number or timestamp (``+5``,
+# ``+20130313144700``, ``+build.5``), a JDK build (``+12-lts``), a commit hash,
+# or a repack marker with no revision (``+dfsg``, ``+ds1``). Everything else
+# makes the version unparseable: a distro revision (``+dfsg-1ubuntu0.4``), an
+# update tag (``+deb11u1``, ``+esm1``, ``+nmu1``), a snapshot taken after the
+# release (``+git20210101``), dpkg's ``+really`` (the leading version is not the
+# real one), and any suffix this list does not know.
+_BUILD_METADATA_RE = re.compile(
+    r"(?:build[.\-_]?)?\d+(?:\.\d+)*"
+    r"|\d+-lts"
+    r"|[0-9a-f]{7,40}"
+    r"|(?:dfsg|ds|repack)\d*"
+)
+
+
 @dataclass(frozen=True)
 class _Version:
     """Comparable representation of a parsed version string."""
@@ -111,6 +127,11 @@ def parse_version(raw: str | None) -> _Version | None:
     Handles epochs (``1:2.3``), trailing release letters (``1.0.1f``), and
     common pre-release suffixes (``-rc1``, ``beta2``). Returns ``None`` when the
     string cannot be confidently parsed, so callers default to ``needs_review``.
+
+    Distro package versions (``2.4.52-1ubuntu4.9``, ``2.4.37-65.el8``,
+    ``2.9.13+dfsg-1``) are deliberately unparseable: the revision can carry
+    backported security fixes, so the upstream part alone says nothing reliable
+    about an NVD range.
     """
     if not raw:
         return None
@@ -119,8 +140,12 @@ def parse_version(raw: str | None) -> _Version | None:
         return None
     if text.startswith("v"):
         text = text[1:]
-    # Drop build metadata; it never affects precedence.
-    text = text.split("+", 1)[0]
+    # Drop build metadata; it never affects precedence. Any other suffix is kept
+    # out of the comparison entirely: dropping a distro revision or update tag
+    # would compare the bare upstream version.
+    text, plus, suffix = text.partition("+")
+    if plus and not _BUILD_METADATA_RE.fullmatch(suffix):
+        return None
 
     match = _VERSION_RE.match(text)
     if match is None:
@@ -151,7 +176,8 @@ def compare_versions(a: str | None, b: str | None) -> int | None:
     """Compare two version strings.
 
     Returns ``-1``/``0``/``1`` like ``cmp``, or ``None`` if either version is
-    unparseable (the caller should then treat the comparison as unknown).
+    unparseable or the two are not on the same scale (the caller should then
+    treat the comparison as unknown).
     """
     pa = parse_version(a)
     pb = parse_version(b)
@@ -159,6 +185,12 @@ def compare_versions(a: str | None, b: str | None) -> int | None:
         return None
 
     if pa.epoch != pb.epoch:
+        # An epoch is a dpkg/rpm packaging override; NVD versions never carry
+        # one. With an epoch on one side only, "the epoch wins" would put every
+        # such package above every NVD bound and silently drop real findings.
+        # An absent epoch and an explicit ``0:`` are the same thing.
+        if pa.epoch == 0 or pb.epoch == 0:
+            return None
         return _sign(pa.epoch - pb.epoch)
 
     # Pad the shorter release tuple with zeros so 1.2 == 1.2.0.
