@@ -1,0 +1,32 @@
+# LOCAL DEVELOPMENT ONLY. Swaps real Firebase Auth for the Auth Emulator, which
+# issues UNSIGNED tokens. Never use this file outside a developer machine; the
+# backend refuses to start with FIREBASE_AUTH_EMULATOR_HOST unless APP_ENV=development.
+#   docker compose -f docker-compose.yml -f docker-compose.emulator.yml up -d
+services:
+  firebase-auth:
+    build: ./dev/firebase-auth-emulator
+    container_name: cyber_threat_firebase_auth
+    ports:
+      - "127.0.0.1:9099:9099" # loopback only
+    networks:
+      - cyber_threat_network
+
+  backend:
+    depends_on:
+      firebase-auth:
+        condition: service_started
+    environment:
+      FIREBASE_AUTH_EMULATOR_HOST: firebase-auth:9099
+      FIREBASE_PROJECT_ID: demo-hacker-tracker
+      GOOGLE_APPLICATION_CREDENTIALS: "" # no service account in emulator mode
+
+  frontend:
+    environment:
+      VITE_FIREBASE_AUTH_EMULATOR_URL: http://localhost:9099
+      # Dummy values, not secrets: the emulator ignores them apart from the project id.
+      VITE_FIREBASE_API_KEY: demo-api-key
+      VITE_FIREBASE_AUTH_DOMAIN: localhost
+      VITE_FIREBASE_PROJECT_ID: demo-hacker-tracker
+      VITE_FIREBASE_STORAGE_BUCKET: ""
+      VITE_FIREBASE_MESSAGING_SENDER_ID: ""
+      VITE_FIREBASE_APP_ID: demo-app-id
