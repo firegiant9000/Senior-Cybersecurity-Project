@@ -25,7 +25,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.db.cve_cpe_match import CveCpeMatch
 from app.db.models import CVE
-from app.ingestors.nvd import fetch_nvd_cve_by_id
+from app.ingestors.nvd import (
+    NVD_MAX_CONSECUTIVE_TRANSIENT_FAILURES,
+    NvdTransientError,
+    fetch_nvd_cve_by_id,
+    nvd_request_delay_seconds,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -186,8 +191,15 @@ async def backfill_cpe_configurations(  # noqa: C901
         stmt = stmt.limit(limit)
 
     rows = (await db.execute(stmt)).scalars().all()
-    results = {"checked": 0, "persisted": 0, "criteria": 0, "missing_upstream": 0}
-    per_request_delay_seconds = 1.2 if settings.NVD_API_KEY else 2.0
+    results = {
+        "checked": 0,
+        "persisted": 0,
+        "criteria": 0,
+        "missing_upstream": 0,
+        "transient_failed": 0,
+    }
+    consecutive_transient = 0
+    per_request_delay_seconds = nvd_request_delay_seconds(settings.NVD_API_KEY)
     commit_every = max(settings.NVD_CPE_BATCH_SIZE, 1)
     total_rows = len(rows)
 
@@ -196,7 +208,19 @@ async def backfill_cpe_configurations(  # noqa: C901
 
     for cve_id in rows:
         results["checked"] += 1
-        cve_payload = await fetch_nvd_cve_by_id(cve_id, api_key=settings.NVD_API_KEY)
+        try:
+            cve_payload = await fetch_nvd_cve_by_id(cve_id, api_key=settings.NVD_API_KEY)
+        except NvdTransientError:
+            results["transient_failed"] += 1
+            consecutive_transient += 1
+            if consecutive_transient >= NVD_MAX_CONSECUTIVE_TRANSIENT_FAILURES:
+                await db.commit()
+                if progress_callback is not None:
+                    progress_callback({**results, "total": total_rows})
+                raise
+            await asyncio.sleep(per_request_delay_seconds)
+            continue
+        consecutive_transient = 0
         if cve_payload is None:
             results["missing_upstream"] += 1
         else:

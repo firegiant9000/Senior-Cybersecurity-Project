@@ -68,7 +68,8 @@ async def main() -> None:
                 f"checked={progress['checked']}/{progress['total']} "
                 f"updated={progress['updated']} "
                 f"unchanged={progress['unchanged']} "
-                f"missing_upstream={progress['missing_upstream']}",
+                f"missing_upstream={progress['missing_upstream']} "
+                f"transient_failed={progress.get('transient_failed', 0)}",
                 flush=True,
             )
 
@@ -84,7 +85,8 @@ async def main() -> None:
     print(
         "KEV placeholder backfill complete: "
         f"checked={result['checked']} updated={result['updated']} "
-        f"unchanged={result['unchanged']} missing_upstream={result['missing_upstream']}"
+        f"unchanged={result['unchanged']} missing_upstream={result['missing_upstream']} "
+        f"transient_failed={result.get('transient_failed', 0)}"
     )
 
 

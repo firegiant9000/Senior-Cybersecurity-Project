@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.http_fetch import get_json_capped
+from app.core.http_fetch import FeedDeadlineError, get_json_capped
 from app.db.models import CVE
 from app.schemas.validators import NvdCveValidationSchema
 
@@ -22,6 +22,22 @@ logger = logging.getLogger(__name__)
 NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 NVD_PAGE_MAX_BYTES = 64 * 1024 * 1024  # one bulk page (2000 results)
 NVD_SINGLE_MAX_BYTES = 2 * 1024 * 1024  # one CVE lookup
+NVD_TRANSIENT_5XX = frozenset({500, 502, 503, 504})
+NVD_PAGE_5XX_RETRIES = 3
+NVD_MAX_CONSECUTIVE_TRANSIENT_FAILURES = 3
+
+
+class NvdTransientError(Exception):
+    """NVD kept failing transiently (429/5xx/transport) after bounded retries."""
+
+
+def nvd_request_delay_seconds(api_key: str | None) -> float:
+    """Seconds to wait between NVD requests.
+
+    NVD allows 5 requests per rolling 30 s without a key (6 s apart) and
+    50 per 30 s with one.
+    """
+    return 1.2 if api_key else 6.0
 
 
 def _should_update_cve(existing: CVE, *, today: date | None = None) -> bool:
@@ -120,7 +136,7 @@ async def upsert_normalized_cve(
     return "unchanged", False
 
 
-async def fetch_nvd_cve_by_id(
+async def fetch_nvd_cve_by_id(  # noqa: C901
     cve_id: str,
     *,
     api_key: str | None = None,
@@ -146,19 +162,37 @@ async def fetch_nvd_cve_by_id(
                     headers=headers,
                 )
                 break
+            except (httpx.TransportError, FeedDeadlineError) as exc:
+                if retries_remaining > 0:
+                    retries_remaining -= 1
+                    await asyncio.sleep(2 ** (3 - retries_remaining))
+                    continue
+                logger.warning(
+                    "NVD lookup for %s failed after retries (%s)",
+                    cve_id,
+                    type(exc).__name__,
+                )
+                raise NvdTransientError(
+                    f"NVD lookup for {cve_id} failed: {type(exc).__name__}"
+                ) from exc
             except httpx.HTTPStatusError as exc:
                 status_code = exc.response.status_code
-                if status_code == 429 and retries_remaining > 0:
+                if (status_code == 429 or status_code in NVD_TRANSIENT_5XX) and (
+                    retries_remaining > 0
+                ):
                     retries_remaining -= 1
                     wait_seconds = 2 ** (3 - retries_remaining)
                     await asyncio.sleep(wait_seconds)
                     continue
-                if status_code == 429:
+                if status_code == 429 or status_code in NVD_TRANSIENT_5XX:
                     logger.warning(
-                        "NVD lookup rate-limited for %s after retries; skipping",
+                        "NVD lookup for %s returned %s after retries",
                         cve_id,
+                        status_code,
                     )
-                    return None
+                    raise NvdTransientError(
+                        f"NVD lookup for {cve_id} returned {status_code}"
+                    ) from exc
                 if use_api_key and status_code == 403:
                     logger.warning(
                         "NVD lookup for %s returned %s with API key; retrying without key",
@@ -202,19 +236,38 @@ async def backfill_missing_nvd_fields_for_existing_cves(  # noqa: C901
         stmt = stmt.limit(limit)
 
     rows = (await db.execute(stmt)).scalars().all()
-    results = {"checked": 0, "updated": 0, "unchanged": 0, "missing_upstream": 0}
-    per_request_delay_seconds = 1.2 if settings.NVD_API_KEY else 2.0
+    results = {
+        "checked": 0,
+        "updated": 0,
+        "unchanged": 0,
+        "missing_upstream": 0,
+        "transient_failed": 0,
+    }
+    per_request_delay_seconds = nvd_request_delay_seconds(settings.NVD_API_KEY)
     total_rows = len(rows)
+    consecutive_transient = 0
 
     if progress_callback is not None:
         progress_callback({**results, "total": total_rows})
 
     for row in rows:
         results["checked"] += 1
-        cve_payload = await fetch_nvd_cve_by_id(
-            row.cve_id,
-            api_key=settings.NVD_API_KEY,
-        )
+        try:
+            cve_payload = await fetch_nvd_cve_by_id(
+                row.cve_id,
+                api_key=settings.NVD_API_KEY,
+            )
+        except NvdTransientError:
+            results["transient_failed"] += 1
+            consecutive_transient += 1
+            if consecutive_transient >= NVD_MAX_CONSECUTIVE_TRANSIENT_FAILURES:
+                await db.commit()
+                if progress_callback is not None:
+                    progress_callback({**results, "total": total_rows})
+                raise
+            await asyncio.sleep(per_request_delay_seconds)
+            continue
+        consecutive_transient = 0
         if cve_payload is None:
             results["missing_upstream"] += 1
             if commit_every > 0 and results["checked"] % commit_every == 0:
@@ -408,8 +461,14 @@ async def ingest_nvd(  # noqa: C901
     reached_limit = False
     aligned_to_latest_window = False
 
+    page_retries = 0
+    made_request = False
+
     async with httpx.AsyncClient(timeout=30.0) as client:
         while True:
+            if made_request:
+                await asyncio.sleep(nvd_request_delay_seconds(api_key if use_api_key else None))
+            made_request = True
             params = {
                 "startIndex": current_index,
                 "resultsPerPage": 2000,  # Max allowed per request
@@ -436,13 +495,38 @@ async def ingest_nvd(  # noqa: C901
                     use_api_key = False
                     continue
                 if status_code == 429:
+                    # Earlier pages are already committed; raise so the run is
+                    # recorded as failed (retry / catch-up) rather than completed.
                     logger.warning(
-                        "NVD rate limited at index %s. Committing %s CVEs fetched so far.",
+                        "NVD rate limited at index %s; %s CVEs inserted so far are kept.",
                         current_index,
                         total_fetched,
                     )
-                    break
+                    raise NvdTransientError(f"NVD rate limited at index {current_index}") from e
+                if status_code in NVD_TRANSIENT_5XX:
+                    if page_retries < NVD_PAGE_5XX_RETRIES:
+                        page_retries += 1
+                        logger.warning(
+                            "NVD returned %s at index %s; retry %s/%s",
+                            status_code,
+                            current_index,
+                            page_retries,
+                            NVD_PAGE_5XX_RETRIES,
+                        )
+                        await asyncio.sleep(2**page_retries)
+                        continue
+                    logger.warning(
+                        "NVD returned %s at index %s after retries; %s CVEs inserted so far "
+                        "are kept.",
+                        status_code,
+                        current_index,
+                        total_fetched,
+                    )
+                    raise NvdTransientError(
+                        f"NVD returned {status_code} at index {current_index}"
+                    ) from e
                 raise
+            page_retries = 0
 
             # NVD API returns oldest records first at startIndex=0.
             # If caller requests a bounded max_results from index 0,
