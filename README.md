@@ -162,11 +162,20 @@ flowchart LR
   [case study](docs/ai/case-study.md).
 - **Statistical anomaly detection** over IC3 trends and vendor KEV velocity
   ([`anomaly_detection.py`](backend/app/services/anomaly_detection.py)).
+- **Public renewal readiness check (backend, off by default).** Logged-out
+  routes for a DNS-only SPF/DMARC domain check, a readiness quiz and anonymous
+  per-day funnel counts
+  ([`public.py`](backend/app/api/routes/v1/public.py),
+  [`public_readiness.py`](backend/app/api/routes/v1/public_readiness.py), #293).
+  Only the anonymous step counts are saved; the typed domain is kept in an
+  in-memory cache (results reused for up to 15 minutes), and IPs appear in request logs as on every
+  route ([privacy](docs/security/privacy.md)). Behind `ENABLE_PUBLIC_READINESS`
+  until #209 lands; the quiz's question set lands with #294.
 
 ## Security design
 
 - **Threat model.** [docs/security/threat_model.md](docs/security/threat_model.md)
-  is a STRIDE model of 115 threats (37 controlled, 40 tested, 18 accepted, 20
+  is a STRIDE model of 123 threats (40 controlled, 52 tested, 19 accepted, 12
   open and scheduled for S5 or owner action). CI checks that every row has
   one classification and that its evidence exists.
 - **Authentication.** Users sign in through Firebase Authentication. The API

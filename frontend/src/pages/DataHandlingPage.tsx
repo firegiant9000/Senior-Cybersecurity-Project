@@ -94,6 +94,19 @@ export default function DataHandlingPage() {
             See <a href="/privacy">Privacy</a> for the full disclosure.
           </p>
 
+          <h2>Readiness check (no login)</h2>
+          <p>
+            When the site operator turns it on, a logged-out visitor can check
+            their email domain and take a short readiness quiz (the quiz is not
+            available yet). The domain is looked up in public DNS and is not
+            saved or logged (the result is reused for up to 15 minutes to
+            avoid repeat lookups). Quiz answers are scored and not saved. The
+            only thing saved to the database is an anonymous count of each
+            step per day. Your IP address appears in the server&apos;s request
+            logs and is used for rate limiting, as on every request. See{" "}
+            <a href="/privacy">Privacy</a> for details.
+          </p>
+
           <h2>Related</h2>
           <ul>
             <li>
