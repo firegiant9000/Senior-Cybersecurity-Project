@@ -51,18 +51,19 @@ function SummaryStat({
 function DiscoveredViaBadge({ via }: { via: Asset["discovered_via"] }) {
   const label =
     via === "csv_upload" ? "CSV" : via === "m365" ? "M365" : via === "agent" ? "Agent" : via;
+  // --via-* tokens live in Dashboard.css (light + dark), contrast-tested via theme.ts.
   const color =
     via === "csv_upload"
-      ? "#2563eb"
+      ? "var(--via-csv)"
       : via === "m365"
-        ? "#9333ea"
+        ? "var(--via-m365)"
         : via === "agent"
-          ? "#059669"
-          : "#64748b";
+          ? "var(--via-agent)"
+          : "var(--via-other)";
   return (
     <span
       style={{
-        background: `${color}22`,
+        background: `color-mix(in srgb, ${color} 12%, transparent)`,
         color,
         padding: "2px 8px",
         borderRadius: 10,
