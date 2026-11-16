@@ -14,7 +14,7 @@ def _make_settings(**overrides):
         "CORS_ORIGINS": [],
         **overrides,
     }
-    return Settings(**base)
+    return Settings(_env_file=None, **base)
 
 
 def test_emulator_allowed_in_development():
@@ -25,9 +25,11 @@ def test_emulator_allowed_in_development():
 
 
 @pytest.mark.parametrize("app_env", ["testing", "production"])
-def test_emulator_rejected_outside_development(app_env):
+@pytest.mark.parametrize("host", ["localhost:9099", " "])
+def test_emulator_rejected_outside_development(app_env, host):
+    """Whitespace counts: firebase-admin treats any non-empty value as emulator mode."""
     with pytest.raises((ValueError, ValidationError), match="FIREBASE_AUTH_EMULATOR_HOST"):
-        _make_settings(APP_ENV=app_env, FIREBASE_AUTH_EMULATOR_HOST="localhost:9099")
+        _make_settings(APP_ENV=app_env, FIREBASE_AUTH_EMULATOR_HOST=host)
 
 
 def test_emulator_read_from_environment(monkeypatch):

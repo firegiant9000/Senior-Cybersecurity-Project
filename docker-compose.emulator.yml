@@ -12,6 +12,9 @@ services:
       - cyber_threat_network
 
   backend:
+    # Emulator mode accepts unsigned tokens, so keep the API off the LAN.
+    ports: !override
+      - "127.0.0.1:8000:8000"
     depends_on:
       firebase-auth:
         condition: service_started

@@ -141,7 +141,9 @@ class Settings(BaseSettings):  # type: ignore[reportGeneralTypeIssues]
 
     @model_validator(mode="after")
     def _forbid_auth_emulator_outside_development(self) -> "Settings":
-        if self.FIREBASE_AUTH_EMULATOR_HOST.strip() and self.APP_ENV != "development":
+        # No .strip(): firebase-admin treats any non-empty value (even whitespace)
+        # as emulator mode, so the guard must too.
+        if self.FIREBASE_AUTH_EMULATOR_HOST != "" and self.APP_ENV != "development":
             raise ValueError(
                 "FIREBASE_AUTH_EMULATOR_HOST is set but APP_ENV="
                 f"{self.APP_ENV!r}; the Auth emulator disables token signature checks "
