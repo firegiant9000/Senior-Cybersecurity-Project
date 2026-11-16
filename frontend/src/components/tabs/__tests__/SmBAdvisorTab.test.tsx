@@ -47,6 +47,11 @@ vi.mock('../../../api/smbRiskScore', () => ({
   fetchSmbRiskScore: () => Promise.reject(new Error('no org')),
 }))
 
+// SourceBadge (#310) reads the data-status registry; keep it off the network.
+vi.mock('../../../hooks/useDataStatus', () => ({
+  useDataStatus: () => ({ byKey: {}, loading: false }),
+}))
+
 describe('SmBAdvisorTab Action Plan', () => {
   it('renders the Action Plan without checkboxes', async () => {
     render(

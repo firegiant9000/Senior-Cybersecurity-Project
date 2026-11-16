@@ -27,6 +27,11 @@ vi.mock('../../api/inventory', () => ({
   getScanRunDiff: mockGetDiff,
 }))
 
+// SourceBadge (#310) reads the data-status registry; keep it off the network.
+vi.mock('../../hooks/useDataStatus', () => ({
+  useDataStatus: () => ({ byKey: {}, loading: false }),
+}))
+
 const run = {
   id: 42,
   org_id: 7,
