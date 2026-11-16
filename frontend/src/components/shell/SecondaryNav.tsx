@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import type { NavItem } from '../../config/navigation';
 import './AppShell.css';
 

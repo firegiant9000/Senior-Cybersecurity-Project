@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { NavLink, Navigate, useParams } from 'react-router-dom';
+import { NavLink, Navigate, useParams } from 'react-router';
 import { API_BASE_URL } from '../../api/fetchWithAuth';
 import WidgetSkeleton from '../shared/WidgetSkeleton';
 

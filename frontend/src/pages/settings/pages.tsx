@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 import { useAuth } from '../../context/AuthContext';
 import { useUserContext } from '../../context/UserContext';
 import { isOrgAdmin } from '../../utils/roleUtils';

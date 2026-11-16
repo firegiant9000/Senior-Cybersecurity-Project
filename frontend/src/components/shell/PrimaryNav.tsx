@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router';
 import type { NavGroup } from '../../config/navigation';
 import './AppShell.css';
 

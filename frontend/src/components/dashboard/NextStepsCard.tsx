@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { useAssessmentIntake } from "../../hooks/useAssessmentIntake";
 import { fetchWithAuth, API_BASE_URL } from "../../api/fetchWithAuth";
 import "./NextStepsCard.css";

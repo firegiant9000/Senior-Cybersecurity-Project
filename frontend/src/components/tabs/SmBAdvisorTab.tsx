@@ -10,7 +10,7 @@ const INDUSTRY_LABEL_TO_SECTOR: Record<string, string> = {
   'Manufacturing': 'Manufacturing',
   'Professional Services': 'Professional Services',
 };
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { useUserContext } from '../../context/UserContext';
 import RefreshButton from '../RefreshButton';
 import './SmBAdvisorTab.css';

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router';
 import VulnerabilitiesScreen from '../VulnerabilitiesScreen';
 
 vi.mock('../../../api/fetchWithAuth', () => ({ API_BASE_URL: 'http://api' }));

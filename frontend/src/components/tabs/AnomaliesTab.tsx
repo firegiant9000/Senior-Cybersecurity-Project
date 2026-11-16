@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { NavLink, Navigate, useParams } from 'react-router-dom';
+import { NavLink, Navigate, useParams } from 'react-router';
 import { useAuth } from '../../context/AuthContext';
 import {
   fetchIC3Anomalies,

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { fetchExecutiveSummary, type ExecutiveSummary } from '../api/executiveSummary';
 import { fetchLossProjection, type LossProjection } from '../api/lossProjection';
