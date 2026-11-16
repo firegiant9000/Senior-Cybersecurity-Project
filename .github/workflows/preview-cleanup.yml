@@ -1,0 +1,55 @@
+name: Preview channel cleanup
+
+# Each PR gets a Firebase Hosting preview channel (ci.yml deploy-preview) that
+# lives 7 days. Nothing deleted them when the PR closed, so busy weeks hit the
+# per-site channel quota and failed the required Deploy Preview check on every PR
+# (2026-11-16). Delete a PR's channel as soon as it closes, merged or not.
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    name: Delete the PR's preview channel
+    runs-on: ubuntu-latest
+    # Same guard as ci.yml deploy-preview (T-CI-01): only same-repository PRs get
+    # the deploy secret, and Dependabot PRs never had a channel.
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]'
+    steps:
+      # No checkout: nothing from the repository runs while the credential is loaded.
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+
+      - name: Delete preview channel(s) for this PR
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          PROJECT: hacker-tracker-75f91
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          creds="$RUNNER_TEMP/firebase-sa.json"
+          trap 'rm -f "$creds"' EXIT
+          (umask 077; printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$creds")
+          export GOOGLE_APPLICATION_CREDENTIALS="$creds"
+          fb() { npx --yes firebase-tools@15.20.0 "$@"; }
+
+          # Channel ids are "pr<N>-<branch slug>"; the trailing "-" keeps PR 32
+          # from matching PR 324's channel.
+          ids=$(fb hosting:channel:list --project "$PROJECT" --json \
+            | jq -r --arg p "pr${PR_NUMBER}-" \
+                '.result.channels[].name | split("/") | last | select(startswith($p))')
+          if [ -z "$ids" ]; then
+            echo "No preview channel for PR #${PR_NUMBER}."
+            exit 0
+          fi
+          for id in $ids; do
+            fb hosting:channel:delete "$id" --project "$PROJECT" --force
+            echo "Deleted preview channel ${id}."
+          done
