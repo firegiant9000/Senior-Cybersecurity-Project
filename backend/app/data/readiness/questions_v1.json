@@ -1,0 +1,149 @@
+{
+  "version": "v1",
+  "questions": [
+    {
+      "id": "mfa_email",
+      "text": "When staff sign in to work email, do they need a code or a tap on their phone as well as a password?",
+      "help": "Ask whoever set up your email, and choose 'partly' if only some people have it turned on. In Microsoft 365 and Google Workspace this is called two-step verification or multi-factor authentication (MFA).",
+      "options": ["yes", "partly", "no", "not_sure"],
+      "weight": 2,
+      "weight_reason": "Asked on Forms B and C; Form A asks about the second step for remote and admin access instead.",
+      "gap_title": "Email sign-in needs a second step",
+      "gap_first_step": "Turn on two-step verification for every work mailbox, starting with owners and anyone who handles payments.",
+      "sources": ["Form B", "Form C"],
+      "intake_field": "mfa_enabled"
+    },
+    {
+      "id": "mfa_remote_access",
+      "text": "When someone works away from the office and connects to company computers or files, do they need a code or a tap on their phone as well as a password?",
+      "help": "This covers working from home or on the road, such as logging in to an office computer from outside or using a private connection back to the office (often called a VPN). Ask whoever looks after your IT, and choose 'does not apply' if nobody ever connects in from outside the office.",
+      "options": ["yes", "partly", "no", "not_sure", "not_applicable"],
+      "weight": 3,
+      "weight_reason": "Asked on all three forms.",
+      "gap_title": "Remote sign-in needs a second step",
+      "gap_first_step": "Ask your IT provider to list every way staff connect in from outside and require a code or a tap on a phone for each one.",
+      "sources": ["Form A", "Form B", "Form C"],
+      "intake_field": null
+    },
+    {
+      "id": "mfa_admin_accounts",
+      "text": "Do the accounts that can change settings for everyone, such as adding users or resetting passwords, need a code or a tap on their phone as well as a password?",
+      "help": "Ask whoever set up your email, computers or network which accounts can do this (often called admin accounts), and choose 'partly' if only some of them need a second step.",
+      "options": ["yes", "partly", "no", "not_sure"],
+      "weight": 2,
+      "weight_reason": "Asked on Forms A and C.",
+      "gap_title": "Admin accounts need a second step",
+      "gap_first_step": "Ask your IT provider to turn on two-step verification for every admin account and remove admin access from anyone who no longer needs it.",
+      "sources": ["Form A", "Form C"],
+      "intake_field": null
+    },
+    {
+      "id": "backups_regular",
+      "text": "Are copies of your important business files and records made automatically, at least once a week?",
+      "help": "Think of customer records, accounts, contracts and shared files, and choose 'partly' if only some of them are copied or copies are only made by hand now and then. Ask whoever set up your computers, or check the backup service you pay for.",
+      "options": ["yes", "partly", "no", "not_sure"],
+      "weight": 3,
+      "weight_reason": "Asked on all three forms.",
+      "gap_title": "Important data is not regularly backed up",
+      "gap_first_step": "List the files and systems you could not work without and set up automatic daily copies of each one.",
+      "sources": ["Form A", "Form B", "Form C"],
+      "intake_field": "backup_strategy"
+    },
+    {
+      "id": "backups_out_of_reach",
+      "text": "Is at least one backup copy kept somewhere that a virus or intruder on your office computers could not reach or delete?",
+      "help": "Examples are a backup drive that is unplugged and stored away, or a backup service that keeps copies nobody can delete for a set time, but not a drive left plugged into an office computer. Ask your IT provider or backup service.",
+      "options": ["yes", "no", "not_sure"],
+      "weight": 3,
+      "weight_reason": "Asked on all three forms.",
+      "gap_title": "No backup copy is out of reach",
+      "gap_first_step": "Ask your IT provider to keep one backup copy unplugged or in a service that locks copies so they cannot be deleted.",
+      "sources": ["Form A", "Form B", "Form C"],
+      "intake_field": null
+    },
+    {
+      "id": "backups_restore_tested",
+      "text": "In the last 12 months, has anyone brought files back from a backup to check that the copies actually work?",
+      "help": "A test means restoring real files, or a whole computer, from the backup and checking they open. Ask whoever manages your backups when this was last done.",
+      "options": ["yes", "no", "not_sure"],
+      "weight": 2,
+      "weight_reason": "Asked on Forms A and B.",
+      "gap_title": "Backups have not been tested",
+      "gap_first_step": "Pick a day this month to restore a sample of important files from backup and confirm they open.",
+      "sources": ["Form A", "Form B"],
+      "intake_field": null
+    },
+    {
+      "id": "security_software",
+      "text": "Does every work computer have security software, such as antivirus, that is switched on and updates itself?",
+      "help": "Look for a security app such as Microsoft Defender on each computer, including laptops staff take home, and choose 'partly' if only some have it. Your IT provider can tell you what is installed.",
+      "options": ["yes", "partly", "no", "not_sure"],
+      "weight": 2,
+      "weight_reason": "Asked on Forms A and B.",
+      "gap_title": "Some computers lack security software",
+      "gap_first_step": "List every work computer and confirm each one has security software that is switched on and up to date.",
+      "sources": ["Form A", "Form B"],
+      "intake_field": "endpoint_protection"
+    },
+    {
+      "id": "software_updates",
+      "text": "Are updates for your computers and the programs on them installed within about a month of coming out?",
+      "help": "This covers Windows or Mac updates and programs like web browsers and accounting software, so choose 'partly' if some computers are behind or too old to get updates. Check a computer's update settings for automatic updates, or ask your IT provider.",
+      "options": ["yes", "partly", "no", "not_sure"],
+      "weight": 2,
+      "weight_reason": "Asked on Forms A and B.",
+      "gap_title": "Software updates are falling behind",
+      "gap_first_step": "Turn on automatic updates on every work computer and plan to replace any that no longer receive updates.",
+      "sources": ["Form A", "Form B"],
+      "intake_field": null
+    },
+    {
+      "id": "staff_training",
+      "text": "In the last 12 months, have all staff been taught how to spot scam emails and other common online tricks?",
+      "help": "This can be a short online course, a session run by your IT provider, or practice scam emails sent to staff to see who clicks, and 'partly' fits if only some staff took part.",
+      "options": ["yes", "partly", "no", "not_sure"],
+      "weight": 3,
+      "weight_reason": "Asked on all three forms.",
+      "gap_title": "Staff have not had security training",
+      "gap_first_step": "Book a short scam-email training session for all staff and repeat it every year.",
+      "sources": ["Form A", "Form B", "Form C"],
+      "intake_field": null
+    },
+    {
+      "id": "incident_response_plan",
+      "text": "Do you have a written plan for what to do if your business is hacked, including who to call first?",
+      "help": "This can be a short document that says who makes decisions, which outside help to call (for example your IT provider or a lawyer), and how to keep working. Keep a copy somewhere you can reach even if your computers are down.",
+      "options": ["yes", "no", "not_sure"],
+      "weight": 2,
+      "weight_reason": "Asked on Forms A and B.",
+      "gap_title": "No written plan for a cyber attack",
+      "gap_first_step": "Write a one-page plan naming who decides and who to call, with phone numbers, and keep a printed copy away from the office computers.",
+      "sources": ["Form A", "Form B"],
+      "intake_field": "incident_response_plan"
+    },
+    {
+      "id": "payment_verification",
+      "text": "Before sending a payment or changing a supplier's bank details, do staff confirm the request by phone or another separate way?",
+      "help": "A separate way means calling a number you already have on file, not one given in the email, and 'partly' fits if this happens sometimes but is not a firm rule. Scammers often send emails pretending to be a supplier or the boss, asking for money or new bank details.",
+      "options": ["yes", "partly", "no", "not_sure"],
+      "weight": 2,
+      "weight_reason": "Asked on Forms A and C.",
+      "gap_title": "Payment requests are not double-checked",
+      "gap_first_step": "Make it a rule that every new payment or bank detail change is confirmed by calling a known number before money moves.",
+      "sources": ["Form A", "Form C"],
+      "intake_field": null
+    },
+    {
+      "id": "device_encryption",
+      "text": "If a work laptop or phone were lost or stolen, would the files on it be locked so a stranger could not read them?",
+      "help": "This is called encryption (BitLocker on Windows, FileVault on a Mac, and on by default for most phones with a passcode), so choose 'partly' if only some devices have it. Your IT provider can check.",
+      "options": ["yes", "partly", "no", "not_sure"],
+      "weight": 3,
+      "weight_reason": "Asked on all three forms; Forms A and C name laptops and phones specifically.",
+      "gap_title": "Lost devices could expose data",
+      "gap_first_step": "Turn on BitLocker or FileVault on every work laptop and require a passcode on every work phone.",
+      "sources": ["Form A", "Form B", "Form C"],
+      "intake_field": null
+    }
+  ]
+}

@@ -92,7 +92,8 @@ describe('PrivacyPage', () => {
     renderPrivacy();
 
     expect(screen.getByRole('heading', { name: 'The readiness check (no login)' })).toBeInTheDocument();
-    expect(screen.getByText(/the quiz is not available yet\./)).toBeInTheDocument();
+    expect(screen.getByText(/It is off unless the site operator turns it on\. When it is on:/)).toBeInTheDocument();
+    expect(screen.queryByText(/not available yet/)).toBeNull();
     expect(screen.getByText(/is looked up in public DNS .* and is not saved or logged\./)).toBeInTheDocument();
     expect(screen.getByText(/reuses the result for up to 15 minutes/)).toBeInTheDocument();
     expect(screen.getByText(/It is not sent to the domain-check providers listed below\./)).toBeInTheDocument();

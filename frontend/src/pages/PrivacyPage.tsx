@@ -91,7 +91,7 @@ export default function PrivacyPage() {
           <p>
             The readiness check lets you check your email domain and take a
             short quiz without an account. It is off unless the site operator
-            turns it on, and the quiz is not available yet. When it is on:
+            turns it on. When it is on:
           </p>
           <ul>
             <li>

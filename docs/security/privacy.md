@@ -47,9 +47,7 @@ disclosure and the enrollment/revocation flow live in
 ## The public readiness check (no login)
 
 The readiness check lets a logged-out visitor check their email domain and take
-a short quiz. It is off unless the operator turns it on, and the quiz needs
-its question set (#294), which has not landed yet; until then the quiz
-returns "not found". When it is on:
+a short quiz. It is off unless the operator turns it on. When it is on:
 
 - **The domain you type** is looked up in public DNS (its SPF and DMARC
   records) and is not saved to the database or logged. The server reuses the
@@ -61,7 +59,7 @@ returns "not found". When it is on:
 - **Your quiz answers** are scored and sent back to you. They are not stored
   or logged.
 - **Only anonymous step counts are saved to the database:** for each day, how many times each
-  step (for example "quiz started", or a given question answered, once the question set lands with #294)
+  step (for example "quiz started", or a given question answered)
   happened. No
   visitor ID, IP address, domain or answer is stored with them.
 - **Your IP address** is handled as on every other request: the server's

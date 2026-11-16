@@ -38,7 +38,7 @@ describe('DataHandlingPage', () => {
     expect(screen.getByRole('heading', { name: 'Readiness check (no login)' })).toBeInTheDocument()
     expect(
       screen.getByText(
-        /\(the quiz is not available yet\)\. The domain is looked up in public DNS and is not saved or logged \(the result is reused for up to 15 minutes to avoid repeat lookups\)\. Quiz answers are scored and not saved\. The only thing saved to the database is an anonymous count of each step per day\. Your IP address appears in the server's request logs and is used for rate limiting, as on every request\./,
+        /take a short readiness quiz\. The domain is looked up in public DNS and is not saved or logged \(the result is reused for up to 15 minutes to avoid repeat lookups\)\. Quiz answers are scored and not saved\. The only thing saved to the database is an anonymous count of each step per day\. Your IP address appears in the server's request logs and is used for rate limiting, as on every request\./,
       ),
     ).toBeInTheDocument()
     expect(screen.queryByText(/nothing about the visitor/)).toBeNull()
