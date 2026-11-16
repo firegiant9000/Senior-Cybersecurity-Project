@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 from pathlib import Path
 
 import firebase_admin
@@ -20,6 +21,14 @@ def init_firebase() -> None:
     """
     if firebase_admin._apps:
         return
+
+    emulator_host = os.environ.get("FIREBASE_AUTH_EMULATOR_HOST")
+    if emulator_host:
+        _log.warning(
+            "Firebase Auth EMULATOR active at %s: ID tokens are not signature-verified "
+            "(local development only)",
+            emulator_host,
+        )
 
     cred_path = settings.GOOGLE_APPLICATION_CREDENTIALS.strip()
     project_id = settings.FIREBASE_PROJECT_ID.strip()
