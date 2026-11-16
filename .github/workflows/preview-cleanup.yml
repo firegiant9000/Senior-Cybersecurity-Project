@@ -18,14 +18,20 @@ jobs:
     name: Delete the PR's preview channel
     runs-on: ubuntu-latest
     # Same guard as ci.yml deploy-preview (T-CI-01): only same-repository PRs get
-    # the deploy secret, and Dependabot PRs never had a channel.
-    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]'
+    # the deploy secret. github.actor is the rule GitHub uses to withhold secrets
+    # from Dependabot; a human closing a Dependabot PR still cleans up.
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
     steps:
       # No checkout: nothing from the repository runs while the credential is loaded.
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "20"
+
+      # Install before the credential exists, without lifecycle scripts, so no
+      # install-time code can read it. hosting:channel:* works without them.
+      - name: Install firebase-tools
+        run: npm install --prefix "$RUNNER_TEMP/fbt" --ignore-scripts --no-audit --no-fund firebase-tools@15.20.0
 
       - name: Delete preview channel(s) for this PR
         env:
@@ -37,8 +43,9 @@ jobs:
           creds="$RUNNER_TEMP/firebase-sa.json"
           trap 'rm -f "$creds"' EXIT
           (umask 077; printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$creds")
+          unset FIREBASE_SERVICE_ACCOUNT  # keep the raw JSON out of child envs
           export GOOGLE_APPLICATION_CREDENTIALS="$creds"
-          fb() { npx --yes firebase-tools@15.20.0 "$@"; }
+          fb() { "$RUNNER_TEMP/fbt/node_modules/.bin/firebase" "$@"; }
 
           # Channel ids are "pr<N>-<branch slug>"; the trailing "-" keeps PR 32
           # from matching PR 324's channel.
