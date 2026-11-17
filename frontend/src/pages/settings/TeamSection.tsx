@@ -1,4 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type ComponentRef,
+} from "react";
 import {
   OrgMember,
   OrgInvite,
@@ -10,6 +16,10 @@ import {
   removeMember,
 } from "../../api/members";
 import { useConfirm } from "../../components/shared/ConfirmDialog";
+import {
+  findRowAction,
+  neighbourIds,
+} from "../../components/shared/focusAfterRemoval";
 
 const membersPageSize = 20;
 
@@ -25,6 +35,10 @@ export default function TeamSection({
   orgRole: string | null;
 }) {
   const { confirm, confirmDialog } = useConfirm();
+  const membersRootRef = useRef<HTMLElement>(null);
+  const membersHeadingRef = useRef<ComponentRef<"h2">>(null);
+  const invitesRootRef = useRef<HTMLElement>(null);
+  const invitesHeadingRef = useRef<ComponentRef<"h2">>(null);
   // Members & invites state
   const [membersList, setMembersList] = useState<OrgMember[]>([]);
   const [membersTotal, setMembersTotal] = useState(0);
@@ -127,13 +141,14 @@ export default function TeamSection({
       setCreatedInviteLink(null);
       setInviteLinkCopied(false);
       setInvitesMsg("");
-      loadInvites(orgId, invitesPage);
+      await loadInvites(orgId, invitesPage);
     } catch {
       setInvitesError("Failed to revoke invite");
     }
   };
 
   const confirmRevokeInvite = (inviteId: number, email: string) => {
+    const ids = invitesList.map((i) => i.id);
     confirm({
       title: "Revoke invite",
       body: `Revoke the invite for ${email}? The link stops working.`,
@@ -141,10 +156,17 @@ export default function TeamSection({
       tone: "danger",
       // handleRevokeInvite catches API failures into invitesError itself.
       onConfirm: () => handleRevokeInvite(inviteId),
+      returnFocus: () =>
+        findRowAction(
+          invitesRootRef.current,
+          neighbourIds(ids, inviteId),
+          "revoke",
+        ) ?? invitesHeadingRef.current,
     });
   };
 
   const confirmRemoveMember = (memberId: number, email: string) => {
+    const ids = membersList.map((m) => m.user_id);
     confirm({
       title: "Remove member",
       body: `Remove ${email} from the team? They lose access immediately.`,
@@ -152,6 +174,12 @@ export default function TeamSection({
       tone: "danger",
       // handleRemoveMember catches API failures into membersError itself.
       onConfirm: () => handleRemoveMember(memberId),
+      returnFocus: () =>
+        findRowAction(
+          membersRootRef.current,
+          neighbourIds(ids, memberId),
+          "remove",
+        ) ?? membersHeadingRef.current,
     });
   };
 
@@ -175,7 +203,7 @@ export default function TeamSection({
     try {
       await removeMember(orgId, memberId);
       setMembersMsg("Member removed");
-      loadMembers(orgId, membersPage);
+      await loadMembers(orgId, membersPage);
     } catch (err) {
       setMembersError(
         err instanceof Error ? err.message : "Failed to remove member",
@@ -185,8 +213,10 @@ export default function TeamSection({
 
   return (
     <>
-      <section className="settings-section">
-        <h2>Members</h2>
+      <section className="settings-section" ref={membersRootRef}>
+        <h2 ref={membersHeadingRef} tabIndex={-1}>
+          Members
+        </h2>
         <p className="tech-stack-description">
           Manage who belongs to your organization and their roles.
         </p>
@@ -221,7 +251,7 @@ export default function TeamSection({
               </thead>
               <tbody>
                 {membersList.map((m) => (
-                  <tr key={m.user_id}>
+                  <tr key={m.user_id} data-row-id={m.user_id}>
                     <td>{m.email}</td>
                     <td>
                       {m.role === "owner" ? (
@@ -248,6 +278,7 @@ export default function TeamSection({
                       {m.role !== "owner" && m.user_id !== userId && (
                         <button
                           className="vendor-delete-btn"
+                          data-action="remove"
                           onClick={() => confirmRemoveMember(m.user_id, m.email)}
                           title="Remove member"
                           aria-label={`Remove ${m.email}`}
@@ -288,8 +319,10 @@ export default function TeamSection({
         )}
       </section>
 
-      <section className="settings-section">
-        <h2>Invitations</h2>
+      <section className="settings-section" ref={invitesRootRef}>
+        <h2 ref={invitesHeadingRef} tabIndex={-1}>
+          Invitations
+        </h2>
         <p className="tech-stack-description">
           Invite users to join your organization. They will need to create an
           account with the invited email and accept the invite.
@@ -389,7 +422,7 @@ export default function TeamSection({
               </thead>
               <tbody>
                 {invitesList.map((inv) => (
-                  <tr key={inv.id}>
+                  <tr key={inv.id} data-row-id={inv.id}>
                     <td>{inv.email}</td>
                     <td>{inv.role}</td>
                     <td>
@@ -404,6 +437,7 @@ export default function TeamSection({
                       {inv.status === "pending" && (
                         <button
                           className="vendor-delete-btn"
+                          data-action="revoke"
                           onClick={() => confirmRevokeInvite(inv.id, inv.email)}
                           title="Revoke invite"
                           aria-label={`Revoke invite for ${inv.email}`}
