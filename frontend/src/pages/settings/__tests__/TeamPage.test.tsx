@@ -597,6 +597,27 @@ describe('TeamPage - Member Management', () => {
       expect(screen.queryByRole('button', { name: 'Remove owner@example.com' })).toBeNull()
     })
 
+    it('does not display remove button or enable role select for the current admin own row', async () => {
+      mockFetchWithAuth.mockResolvedValue({
+        ok: true,
+        json: async () => ({ ...mockUserProfile, id: 2, org_role: 'admin' }),
+      })
+      setAuth({ orgRole: 'admin' })
+
+      renderPage()
+
+      await waitFor(() => {
+        expect(mockListMembers).toHaveBeenCalled()
+      })
+
+      // Non-self member still gets a remove button, so the list rendered and the guard is specific.
+      expect(await screen.findByRole('button', { name: 'Remove member@example.com' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Remove admin@example.com' })).toBeNull()
+
+      const adminRow = screen.getByText('admin@example.com').closest('tr')
+      expect(adminRow?.querySelector('select')).toBeDisabled()
+    })
+
     it('asks for confirmation and does not remove on Cancel', async () => {
       renderPage()
 
