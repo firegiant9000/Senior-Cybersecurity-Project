@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useDebounce } from '../../hooks/useDebounce';
-import { SEVERITY_COLORS } from '../../theme';
+import { severityColor } from '../../theme';
 import { downloadCsv } from '../../utils/csvExport';
 import { fetchWithAuth } from '../../api/fetchWithAuth';
 
@@ -141,7 +141,7 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
     const pieChartData = severitySummary.map(item => ({
         name: item.label,
         value: item.count,
-        fill: SEVERITY_COLORS[item.label as keyof typeof SEVERITY_COLORS] ?? SEVERITY_COLORS['Unknown'],
+        fill: severityColor(item.label),
     }));
     
 
@@ -232,7 +232,7 @@ const CisaKevTable: React.FC<Props> = ({ apiBaseUrl }) => {
 
                                             <Sector
                                                 {...props}
-                                                fill={SEVERITY_COLORS[(props.name ?? 'Unknown') as keyof typeof SEVERITY_COLORS] ?? SEVERITY_COLORS['Unknown']}
+                                                fill={severityColor(props.name)}
                                             />
                                         )}
                             
