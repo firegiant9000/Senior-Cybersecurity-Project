@@ -9,9 +9,16 @@ export interface ConfirmOptions {
   tone?: 'danger' | 'default';
   cancelLabel?: string;
   onConfirm: () => Promise<void>;
+  /**
+   * Where focus goes after a confirmed action when the trigger is gone or
+   * disabled (the row was removed, the list reloaded). Called once, after
+   * the render that follows onConfirm settling, so await any reload inside
+   * onConfirm. Not called on Cancel/Escape.
+   */
+  returnFocus?: () => HTMLElement | null | Promise<HTMLElement | null>;
 }
 
-interface ConfirmDialogProps extends ConfirmOptions {
+interface ConfirmDialogProps extends Omit<ConfirmOptions, 'returnFocus'> {
   open: boolean;
   onClose: () => void;
 }
@@ -143,16 +150,55 @@ export default function ConfirmDialog({
   );
 }
 
+interface PendingFocus {
+  trigger: HTMLElement | null;
+  returnFocus: ConfirmOptions['returnFocus'];
+}
+
+// Focus left the closed dialog for <body>; anything else means the user (or
+// the caller) already put it somewhere on purpose.
+function focusIsFree(): boolean {
+  const active = document.activeElement;
+  return !active || active === document.body || !active.isConnected;
+}
+
+function usable(el: HTMLElement | null | undefined): el is HTMLElement {
+  return !!el && el.isConnected && !el.matches(':disabled');
+}
+
+async function restoreFocus(req: PendingFocus, hostMounted: () => boolean): Promise<void> {
+  if (!hostMounted() || !focusIsFree()) return;
+  if (usable(req.trigger)) {
+    req.trigger.focus();
+    return;
+  }
+  if (!req.returnFocus) return;
+  let target: HTMLElement | null;
+  try {
+    target = await req.returnFocus();
+  } catch {
+    return;
+  }
+  if (!hostMounted() || !focusIsFree()) return;
+  if (usable(target)) target.focus();
+}
+
 export function useConfirm(): {
   confirm: (opts: ConfirmOptions) => void;
   confirmDialog: ReactNode;
 } {
-  const [opts, setOpts] = useState<ConfirmOptions | null>(null);
-  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const [opts, setOpts] = useState<Omit<ConfirmOptions, 'returnFocus'> | null>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const returnFocusOptRef = useRef<ConfirmOptions['returnFocus']>(undefined);
 
   const openRef = useRef(false);
   const genRef = useRef(0);
   const hostMountedRef = useRef(true);
+
+  // Focus is restored in an effect, after the commit that closes the dialog,
+  // so a list the caller reloaded inside onConfirm is already in the DOM.
+  const pendingFocusRef = useRef<PendingFocus | null>(null);
+  const [focusTick, setFocusTick] = useState(0);
 
   useEffect(() => {
     hostMountedRef.current = true;
@@ -161,13 +207,25 @@ export function useConfirm(): {
     };
   }, []);
 
-  const closeGen = useCallback((gen: number) => {
+  useEffect(() => {
+    const req = pendingFocusRef.current;
+    pendingFocusRef.current = null;
+    if (req) void restoreFocus(req, () => hostMountedRef.current);
+  }, [focusTick]);
+
+  const closeGen = useCallback((gen: number, confirmed = false) => {
     if (gen !== genRef.current || !openRef.current) return;
     openRef.current = false;
-    if (hostMountedRef.current) setOpts(null);
-    const el = returnFocusRef.current;
-    returnFocusRef.current = null;
-    if (el && el.isConnected) el.focus();
+    const req: PendingFocus = {
+      trigger: triggerRef.current,
+      returnFocus: confirmed ? returnFocusOptRef.current : undefined,
+    };
+    triggerRef.current = null;
+    returnFocusOptRef.current = undefined;
+    if (!hostMountedRef.current) return;
+    pendingFocusRef.current = req;
+    setOpts(null);
+    setFocusTick((t) => t + 1);
   }, []);
 
   const confirm = useCallback(
@@ -176,17 +234,20 @@ export function useConfirm(): {
       openRef.current = true;
       genRef.current += 1;
       const gen = genRef.current;
-      returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      const active = document.activeElement;
+      triggerRef.current = active instanceof HTMLElement && active !== document.body ? active : null;
+      const { returnFocus, ...dialogOpts } = o;
+      returnFocusOptRef.current = returnFocus;
       // Close in the hook's own finally so it happens even if the dialog
       // component is unmounted while the action is pending.
       const wrapped = async () => {
         try {
           await o.onConfirm();
         } finally {
-          closeGen(gen);
+          closeGen(gen, true);
         }
       };
-      setOpts({ ...o, onConfirm: wrapped });
+      setOpts({ ...dialogOpts, onConfirm: wrapped });
     },
     [closeGen],
   );
