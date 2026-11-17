@@ -128,8 +128,8 @@ _REGISTRY: list[DatasetStatus] = [
         key="domain_checks",
         label="Domain checks (HIBP / Shodan / OTX)",
         status="pending",
-        source="Third-party APIs (keys present, route not yet shipped)",
-        notes="Lands in Month 1 Phase E (#110).",
+        source="HIBP, Shodan, OTX and crt.sh, queried on demand",
+        notes="Sources without a configured API key are skipped.",
     ),
     DatasetStatus(
         key="anomalies_ic3",
@@ -147,15 +147,15 @@ _REGISTRY: list[DatasetStatus] = [
         key="assets_inventory",
         label="Asset inventory",
         status="real",
-        source="User-uploaded CSV (Phase C) and cloud integrations (Phase E, pending)",
-        notes="Empty until first CSV upload; M365 sync still behind feature flag.",
+        source="User-uploaded CSV and scanner agent check-ins",
+        notes="Empty until you upload an inventory CSV or a scanner agent reports in.",
     ),
     DatasetStatus(
         key="asset_software",
         label="Asset software catalog",
         status="real",
         source="Derived from uploaded inventory; cross-referenced against KEV/NVD",
-        notes="Empty until first CSV upload (Phase C) or M365 sync (Phase E).",
+        notes="Empty until you upload an inventory CSV or a scanner agent reports in.",
     ),
     DatasetStatus(
         key="scan_runs",
@@ -169,17 +169,16 @@ _REGISTRY: list[DatasetStatus] = [
         status="real",
         source="Literal vendor+product match: uploaded inventory ∩ CISA KEV",
         notes=(
-            "Preliminary literal match — the Month 3 CPE matcher will "
-            "replace this with vendor/product/version-aware lookups. "
-            "Expect false positives until then."
+            "Preliminary literal match on vendor and product, not version. "
+            "Expect some false positives."
         ),
     ),
     DatasetStatus(
         key="vendor_aliases",
         label="Vendor alias dictionary",
         status="static",
-        source="Hand-curated alias → canonical vendor map (seeded in Phase A5)",
-        notes="Drives matcher-quality work in Month 3.",
+        source="Hand-curated alias → canonical vendor map",
+        notes="Improves vendor matching for inventory findings.",
     ),
 ]
 
