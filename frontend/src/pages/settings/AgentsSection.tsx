@@ -17,7 +17,7 @@ import {
 import { useConfirm } from "../../components/shared/ConfirmDialog";
 import {
   findRowAction,
-  neighbourIds,
+  focusOrder,
 } from "../../components/shared/focusAfterRemoval";
 
 export default function AgentsSection() {
@@ -139,7 +139,7 @@ export default function AgentsSection() {
       returnFocus: () =>
         findRowAction(
           rootRef.current,
-          neighbourIds(ids, a.id),
+          focusOrder(ids, a.id),
           "end-grace",
         ) ?? headingRef.current,
     });
@@ -156,7 +156,7 @@ export default function AgentsSection() {
       returnFocus: () =>
         findRowAction(
           rootRef.current,
-          neighbourIds(ids, a.id),
+          focusOrder(ids, a.id),
           "revoke",
         ) ?? headingRef.current,
     });

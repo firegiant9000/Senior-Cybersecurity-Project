@@ -4,14 +4,19 @@
  * carry `data-action`; callers name both explicitly.
  */
 
-/** Ids after `removed` in list order, then ids before it, nearest first. */
-export function neighbourIds<T extends string | number>(
+/**
+ * Rows to try for focus after acting on `acted`: the row itself first (the
+ * action failed or left the row in place, and the trigger was never focused,
+ * e.g. a Safari mouse click), then later rows in order, then earlier rows
+ * nearest first. A removed row is simply not found.
+ */
+export function focusOrder<T extends string | number>(
   ids: readonly T[],
-  removed: T,
+  acted: T,
 ): T[] {
-  const i = ids.indexOf(removed);
-  if (i === -1) return [];
-  return [...ids.slice(i + 1), ...ids.slice(0, i).reverse()];
+  const i = ids.indexOf(acted);
+  if (i === -1) return [acted];
+  return [acted, ...ids.slice(i + 1), ...ids.slice(0, i).reverse()];
 }
 
 /**

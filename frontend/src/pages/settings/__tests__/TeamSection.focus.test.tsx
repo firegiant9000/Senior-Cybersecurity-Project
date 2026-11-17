@@ -52,9 +52,10 @@ function renderSection() {
   return render(<TeamSection orgId={1} userId={CURRENT_USER} role="admin" orgRole="owner" />)
 }
 
-async function confirmVia(triggerName: string, confirmName: string) {
+async function confirmVia(triggerName: string, confirmName: string, { focusTrigger = true } = {}) {
   const trigger = screen.getByRole('button', { name: triggerName })
-  trigger.focus()
+  // Safari does not focus a button on mouse click; focusTrigger=false models that.
+  if (focusTrigger) trigger.focus()
   fireEvent.click(trigger)
   await act(async () => {
     fireEvent.click(screen.getByRole('button', { name: confirmName }))
@@ -122,6 +123,42 @@ describe('TeamSection focus after remove/revoke', () => {
     await screen.findByRole('button', { name: 'Remove user11@example.com' })
 
     await confirmVia('Remove user11@example.com', 'Remove')
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Remove user11@example.com' })),
+    )
+  })
+
+  it('waits for the reloaded list before moving focus', async () => {
+    let resolveReload!: (v: unknown) => void
+    mockListMembers
+      .mockResolvedValueOnce(page([member(11, 'member'), member(12, 'member')]))
+      .mockReturnValueOnce(new Promise((res) => { resolveReload = res }))
+    mockRemoveMember.mockResolvedValue(undefined)
+    renderSection()
+    await screen.findByRole('button', { name: 'Remove user11@example.com' })
+
+    await confirmVia('Remove user11@example.com', 'Remove')
+
+    expect(screen.getByText('Loading members...')).toBeInTheDocument()
+    expect(document.activeElement).not.toBe(screen.getByRole('heading', { name: 'Members' }))
+
+    await act(async () => {
+      resolveReload(page([member(12, 'member')]))
+    })
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Remove user12@example.com' })),
+    )
+  })
+
+  it("returns to the failed row's own button even if the trigger was never focused", async () => {
+    mockListMembers.mockResolvedValue(page([member(11, 'member'), member(12, 'member')]))
+    mockRemoveMember.mockRejectedValue(new Error('nope'))
+    renderSection()
+    await screen.findByRole('button', { name: 'Remove user11@example.com' })
+
+    await confirmVia('Remove user11@example.com', 'Remove', { focusTrigger: false })
 
     await waitFor(() =>
       expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Remove user11@example.com' })),

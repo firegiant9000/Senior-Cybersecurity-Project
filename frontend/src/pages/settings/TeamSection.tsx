@@ -18,7 +18,7 @@ import {
 import { useConfirm } from "../../components/shared/ConfirmDialog";
 import {
   findRowAction,
-  neighbourIds,
+  focusOrder,
 } from "../../components/shared/focusAfterRemoval";
 
 const membersPageSize = 20;
@@ -159,7 +159,7 @@ export default function TeamSection({
       returnFocus: () =>
         findRowAction(
           invitesRootRef.current,
-          neighbourIds(ids, inviteId),
+          focusOrder(ids, inviteId),
           "revoke",
         ) ?? invitesHeadingRef.current,
     });
@@ -177,7 +177,7 @@ export default function TeamSection({
       returnFocus: () =>
         findRowAction(
           membersRootRef.current,
-          neighbourIds(ids, memberId),
+          focusOrder(ids, memberId),
           "remove",
         ) ?? membersHeadingRef.current,
     });

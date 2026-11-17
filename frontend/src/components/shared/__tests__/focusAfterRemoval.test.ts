@@ -1,18 +1,18 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { findRowAction, neighbourIds } from '../focusAfterRemoval';
+import { findRowAction, focusOrder } from '../focusAfterRemoval';
 
-describe('neighbourIds', () => {
-  it('lists later ids in order, then earlier ids nearest first', () => {
-    expect(neighbourIds([1, 2, 3, 4, 5], 3)).toEqual([4, 5, 2, 1]);
+describe('focusOrder', () => {
+  it('lists the row itself, later ids in order, then earlier ids nearest first', () => {
+    expect(focusOrder([1, 2, 3, 4, 5], 3)).toEqual([3, 4, 5, 2, 1]);
   });
 
   it('handles the first and last positions', () => {
-    expect(neighbourIds(['a', 'b', 'c'], 'a')).toEqual(['b', 'c']);
-    expect(neighbourIds(['a', 'b', 'c'], 'c')).toEqual(['b', 'a']);
+    expect(focusOrder(['a', 'b', 'c'], 'a')).toEqual(['a', 'b', 'c']);
+    expect(focusOrder(['a', 'b', 'c'], 'c')).toEqual(['c', 'b', 'a']);
   });
 
-  it('returns [] when the id is not in the list', () => {
-    expect(neighbourIds([1, 2], 9)).toEqual([]);
+  it('returns just the id when it is not in the list', () => {
+    expect(focusOrder([1, 2], 9)).toEqual([9]);
   });
 });
 
