@@ -3,6 +3,7 @@
  */
 
 import { API_BASE_URL, fetchWithAuth } from "./fetchWithAuth";
+import { LONG_TIMEOUT_MS } from "./timeouts";
 
 export interface OrgVendor {
   id: number;
@@ -98,7 +99,7 @@ export async function importVendorsCsv(
   formData.append("file", file);
   const resp = await fetchWithAuth(
     `${API_BASE_URL}/api/v1/organizations/${orgId}/vendors/import`,
-    { method: "POST", body: formData },
+    { method: "POST", body: formData, timeoutMs: LONG_TIMEOUT_MS },
   );
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({}));
@@ -122,7 +123,7 @@ export async function previewVendorsCsv(
   formData.append("file", file);
   const resp = await fetchWithAuth(
     `${API_BASE_URL}/api/v1/organizations/${orgId}/vendors/import/preview`,
-    { method: "POST", body: formData },
+    { method: "POST", body: formData, timeoutMs: LONG_TIMEOUT_MS },
   );
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({}));

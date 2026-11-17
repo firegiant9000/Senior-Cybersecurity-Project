@@ -3,6 +3,7 @@
  */
 
 import { API_BASE_URL, fetchWithAuth } from "./fetchWithAuth";
+import { LONG_TIMEOUT_MS } from "./timeouts";
 
 export interface OrgUpload {
   id: number;
@@ -45,7 +46,11 @@ export async function uploadFile(
   const url = purpose
     ? `${API_BASE_URL}/api/v1/organizations/${orgId}/uploads?purpose=${encodeURIComponent(purpose)}`
     : `${API_BASE_URL}/api/v1/organizations/${orgId}/uploads`;
-  const resp = await fetchWithAuth(url, { method: "POST", body: formData });
+  const resp = await fetchWithAuth(url, {
+    method: "POST",
+    body: formData,
+    timeoutMs: LONG_TIMEOUT_MS,
+  });
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({}));
     throw new Error(

@@ -3,6 +3,7 @@
  */
 
 import { API_BASE_URL, fetchWithAuth } from "./fetchWithAuth";
+import { LONG_TIMEOUT_MS } from "./timeouts";
 
 export interface CsvRowError {
   row_number: number;
@@ -52,7 +53,7 @@ export async function previewInventoryCsv(
   fd.append("file", file);
   const resp = await fetchWithAuth(
     `${API_BASE_URL}/api/v1/organizations/${orgId}/inventory/uploads/csv/preview`,
-    { method: "POST", body: fd },
+    { method: "POST", body: fd, timeoutMs: LONG_TIMEOUT_MS },
   );
   if (!resp.ok) throw new Error(await readErr(resp, "Failed to preview CSV"));
   return resp.json();
@@ -66,7 +67,7 @@ export async function importInventoryCsv(
   fd.append("file", file);
   const resp = await fetchWithAuth(
     `${API_BASE_URL}/api/v1/organizations/${orgId}/inventory/uploads/csv/import?confirm=true`,
-    { method: "POST", body: fd },
+    { method: "POST", body: fd, timeoutMs: LONG_TIMEOUT_MS },
   );
   if (!resp.ok) throw new Error(await readErr(resp, "Failed to import CSV"));
   return resp.json();
