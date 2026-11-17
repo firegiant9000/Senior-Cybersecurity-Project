@@ -1,4 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type ComponentRef,
+} from "react";
 import {
   Agent,
   AgentTokenIssued,
@@ -9,8 +15,15 @@ import {
   revokeAgent,
 } from "../../api/agents";
 import { useConfirm } from "../../components/shared/ConfirmDialog";
+import {
+  findRowAction,
+  neighbourIds,
+} from "../../components/shared/focusAfterRemoval";
 
 export default function AgentsSection() {
+  const rootRef = useRef<HTMLElement>(null);
+  const headingRef = useRef<ComponentRef<"h2">>(null);
+  const copyTokenRef = useRef<HTMLButtonElement>(null);
   // Agent enrollment state (Month 4 Phase 2)
   const [agentsList, setAgentsList] = useState<Agent[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(false);
@@ -67,7 +80,7 @@ export default function AgentsSection() {
       setAgentsMsg(
         "Token rotated. The old token works for up to 24h; copy the new one now.",
       );
-      loadAgents();
+      await loadAgents();
     } catch (err) {
       setAgentsError(
         err instanceof Error ? err.message : "Failed to rotate agent",
@@ -81,7 +94,7 @@ export default function AgentsSection() {
     try {
       await endAgentGrace(agentId);
       setAgentsMsg("Grace ended. The old token no longer works.");
-      loadAgents();
+      await loadAgents();
     } catch (err) {
       setAgentsError(
         err instanceof Error ? err.message : "Failed to end the grace window",
@@ -94,7 +107,7 @@ export default function AgentsSection() {
     try {
       await revokeAgent(agentId);
       setAgentsMsg("Agent revoked.");
-      loadAgents();
+      await loadAgents();
     } catch (err) {
       setAgentsError(
         err instanceof Error ? err.message : "Failed to revoke agent",
@@ -111,25 +124,43 @@ export default function AgentsSection() {
       confirmLabel: "Rotate",
       tone: "default",
       onConfirm: () => handleRotateAgent(a.id),
+      // Never "I've saved it": that button discards the one-time token.
+      returnFocus: () => copyTokenRef.current ?? headingRef.current,
     });
 
-  const confirmEndGrace = (a: Agent) =>
-    confirm({
+  const confirmEndGrace = (a: Agent) => {
+    const ids = agentsList.map((x) => x.id);
+    return confirm({
       title: "End grace period",
       body: `Stop accepting the old token for ${a.name} now? Agents still using it will fail to report.`,
       confirmLabel: "End grace period",
       tone: "danger",
       onConfirm: () => handleEndGrace(a.id),
+      returnFocus: () =>
+        findRowAction(
+          rootRef.current,
+          neighbourIds(ids, a.id),
+          "end-grace",
+        ) ?? headingRef.current,
     });
+  };
 
-  const confirmRevoke = (a: Agent) =>
-    confirm({
+  const confirmRevoke = (a: Agent) => {
+    const ids = agentsList.map((x) => x.id);
+    return confirm({
       title: "Revoke agent",
       body: `Revoke ${a.name}? This also revokes every token rotated from it, including any new token. The host must be re-enrolled. To cut off only the old token, use End grace now instead.`,
       confirmLabel: "Revoke",
       tone: "danger",
       onConfirm: () => handleRevokeAgent(a.id),
+      returnFocus: () =>
+        findRowAction(
+          rootRef.current,
+          neighbourIds(ids, a.id),
+          "revoke",
+        ) ?? headingRef.current,
     });
+  };
 
   const handleCopyToken = async () => {
     if (!issuedToken) return;
@@ -142,8 +173,10 @@ export default function AgentsSection() {
   };
 
   return (
-    <section className="settings-section">
-      <h2>Scanner Agents</h2>
+    <section className="settings-section" ref={rootRef}>
+      <h2 ref={headingRef} tabIndex={-1}>
+        Scanner Agents
+      </h2>
       <p className="tech-stack-description">
         Enroll read-only host scanner agents. Each agent gets its
         own bearer token shown only once at enrollment — store it
@@ -202,7 +235,11 @@ export default function AgentsSection() {
             {issuedToken.raw_token}
           </pre>
           <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button className="action-btn" onClick={handleCopyToken}>
+            <button
+              className="action-btn"
+              ref={copyTokenRef}
+              onClick={handleCopyToken}
+            >
               {copied ? "Copied!" : "Copy token"}
             </button>
             <button
@@ -254,7 +291,7 @@ export default function AgentsSection() {
           </thead>
           <tbody>
             {agentsList.map((a) => (
-              <tr key={a.id}>
+              <tr key={a.id} data-row-id={a.id}>
                 <td>{a.name}</td>
                 <td>
                   <code>ht_{a.token_prefix}_…</code>
@@ -277,6 +314,7 @@ export default function AgentsSection() {
                     a.status !== "grace" && (
                       <button
                         className="action-btn"
+                        data-action="rotate"
                         onClick={() => confirmRotate(a)}
                         title="Rotate token"
                       >
@@ -286,6 +324,7 @@ export default function AgentsSection() {
                   {a.status === "grace" && (
                     <button
                       className="action-btn"
+                      data-action="end-grace"
                       onClick={() => confirmEndGrace(a)}
                       title="End grace now"
                     >
@@ -295,6 +334,7 @@ export default function AgentsSection() {
                   {a.status !== "revoked" && (
                     <button
                       className="vendor-delete-btn"
+                      data-action="revoke"
                       onClick={() => confirmRevoke(a)}
                       title="Revoke agent"
                       aria-label={`Revoke ${a.name}`}
