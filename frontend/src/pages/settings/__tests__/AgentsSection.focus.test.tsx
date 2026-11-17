@@ -93,6 +93,8 @@ describe('AgentsSection focus after rotate / end grace / revoke', () => {
     await confirmVia('Revoke agent-1', 'Revoke')
 
     expect(screen.getByText('Loading agents...')).toBeTruthy()
+    // Flush pending effects/microtasks so an early focus restore would have happened by now.
+    await act(async () => {})
     expect(document.activeElement).not.toBe(screen.getByRole('heading', { name: 'Scanner Agents' }))
 
     await act(async () => {
