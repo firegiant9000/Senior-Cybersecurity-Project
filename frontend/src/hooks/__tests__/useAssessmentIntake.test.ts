@@ -113,7 +113,9 @@ describe('useAssessmentIntake', () => {
     expect(mockFetchAssessmentIntake).toHaveBeenCalledTimes(1)
 
     // Call refresh
-    result.current.refresh()
+    await act(async () => {
+      result.current.refresh()
+    })
     rerender()
 
     // Wait for second load
