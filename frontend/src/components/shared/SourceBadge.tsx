@@ -51,11 +51,17 @@ const SourceBadge: React.FC<Props> = ({
     ? leastConfident(entries.map((e) => e?.status ?? null))
     : (entries[0]?.status ?? (loading ? null : fallbackStatus) ?? null);
   const status: SourceStatus | "unknown" = resolvedStatus ?? "unknown";
+  // Until the registry arrives, a missing entry means "not known yet", not "unregistered".
+  const missing = (k: string) => (loading ? "Loading source…" : `unregistered (${k})`);
   const source = datasetKeys
     ? datasetKeys.length
-      ? datasetKeys.map((k, i) => entries[i]?.source ?? `unregistered (${k})`).join(" + ")
+      ? loading && entries.every((e) => !e)
+        ? "Loading source…"
+        : datasetKeys.map((k, i) => entries[i]?.source ?? missing(k)).join(" + ")
       : "Source not registered"
-    : (entries[0]?.source ?? fallbackSource ?? "Source not registered");
+    : (entries[0]?.source ??
+      fallbackSource ??
+      (loading ? "Loading source…" : "Source not registered"));
   const label = resolvedStatus === null ? (loading ? "…" : "?") : STATUS_LABEL[resolvedStatus];
   const notes = entries.length === 1 ? entries[0]?.notes : null;
   const title = `${label}: ${source}${notes ? ` · ${notes}` : ""}`;

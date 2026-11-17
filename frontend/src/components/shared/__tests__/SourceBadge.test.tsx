@@ -47,6 +47,21 @@ describe("SourceBadge", () => {
     expect(screen.queryByText("Live")).toBeNull();
   });
 
+  it("while loading, an absent entry without a fallback says loading, not unregistered", () => {
+    state.loading = true;
+    render(
+      <>
+        <SourceBadge datasetKey="not_registered" />
+        <SourceBadge datasetKeys={["not_registered", "also_missing"]} />
+      </>,
+    );
+    for (const el of screen.getAllByText("…")) {
+      const label = el.closest("span")?.getAttribute("aria-label") ?? "";
+      expect(label).toContain("Loading source");
+      expect(label).not.toMatch(/not registered|unregistered/);
+    }
+  });
+
   it("after loading, an absent entry uses the fallback label", () => {
     state.loading = false;
     render(<SourceBadge datasetKey="not_registered" fallbackStatus="real" />);
