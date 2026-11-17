@@ -70,6 +70,13 @@ jobs:
           export GOOGLE_APPLICATION_CREDENTIALS="$creds"
           fb() { "$RUNNER_TEMP/fbt/node_modules/.bin/firebase" "$@"; }
 
+          # hosting:channel:* refuses to run without a firebase.json (even with
+          # --site). Run from an empty dir with a one-line stub: still no checkout.
+          work="$RUNNER_TEMP/fbwork"
+          mkdir -p "$work"
+          printf '%s\n' '{"hosting":{"public":"."}}' > "$work/firebase.json"
+          cd "$work"
+
           # Channel ids are "pr<N>-<branch slug>"; the trailing "-" keeps PR 32
           # from matching PR 324's channel.
           # On failure the CLI exits non-zero with {"status":"error","error":...}
