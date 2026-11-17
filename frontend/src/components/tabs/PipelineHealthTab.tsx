@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, type ComponentRef } from 'react';
 import {
     fetchIngestRuns,
     fetchIngestFreshness,
@@ -10,6 +10,7 @@ import {
 } from '../../api/ingest';
 import { useAuth } from '../../context/AuthContext';
 import { useConfirm } from '../shared/ConfirmDialog';
+import { findRowAction } from '../shared/focusAfterRemoval';
 import { formatDateWithTz } from '../../utils/formatTime';
 import { isPlatformAdmin } from '../../utils/roleUtils';
 import { requestFreshnessRefresh } from '../shared/freshnessEvents';
@@ -84,6 +85,8 @@ const PipelineHealthTab: React.FC = () => {
     const [triggerMsg, setTriggerMsg] = useState<string | null>(null);
     const [actionMsgs, setActionMsgs] = useState<Record<string, string>>({});
 
+    const rootRef = useRef<ComponentRef<'div'>>(null);
+    const headingRef = useRef<ComponentRef<'h2'>>(null);
     const triggerAbortRef = useRef<AbortController | null>(null);
     const refreshTimerRef = useRef<number | null>(null);
     const pollIntervalRef = useRef<number | null>(null);
@@ -118,7 +121,7 @@ const PipelineHealthTab: React.FC = () => {
     }, []);
 
     const refreshFreshness = useCallback((signal: AbortSignal) => {
-        fetchIngestFreshness(signal)
+        return fetchIngestFreshness(signal)
             .then(r => setFreshness(r.sources))
             .catch(() => { /* non-fatal */ });
     }, []);
@@ -235,8 +238,10 @@ const PipelineHealthTab: React.FC = () => {
                 : 'Cancelled.';
             setActionMsgs(m => ({ ...m, [source]: msg }));
             const controller = new AbortController();
-            refreshFreshness(controller.signal);
-            fetchData(1, sourceFilter);
+            await Promise.all([
+                refreshFreshness(controller.signal),
+                fetchData(1, sourceFilter),
+            ]);
         } catch (err) {
             setActionMsgs(m => ({
                 ...m,
@@ -258,6 +263,8 @@ const PipelineHealthTab: React.FC = () => {
             confirmLabel: 'Cancel run',
             cancelLabel: 'Keep running',
             tone: 'danger',
+            // Once the run shows failed, the same card offers Retry.
+            returnFocus: () => findRowAction(rootRef.current, [source], 'retry') ?? headingRef.current,
             // handleCancel catches API failures into actionMsgs itself.
             onConfirm: () => handleCancel(source, runningRun.id),
         });
@@ -265,11 +272,11 @@ const PipelineHealthTab: React.FC = () => {
 
     return (
         <div className="data-table-container">
-            <h2>Pipeline Health</h2>
+            <h2 ref={headingRef} tabIndex={-1}>Pipeline Health</h2>
 
             {/* Summary cards */}
             {freshness.length > 0 && (
-                <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
+                <div ref={rootRef} style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
                     {freshness.map(s => {
                         const style = STATUS_STYLES[s.status ?? 'pending'] ?? STATUS_STYLES.pending;
                         const isRunningLong = s.status === 'running' && runningMinutes(s.last_run_at) > 30;
@@ -277,6 +284,7 @@ const PipelineHealthTab: React.FC = () => {
                         return (
                             <div
                                 key={s.source}
+                                data-row-id={s.source}
                                 style={{
                                     padding: '14px 20px',
                                     borderRadius: '8px',
@@ -351,6 +359,7 @@ const PipelineHealthTab: React.FC = () => {
                                 )}
                                 {isAdmin && s.status === 'failed' && (
                                     <button
+                                        data-action="retry"
                                         onClick={() => void handleRetry(s.source)}
                                         style={{
                                             marginTop: '8px',
@@ -369,6 +378,7 @@ const PipelineHealthTab: React.FC = () => {
                                 )}
                                 {isAdmin && isRunningLong && (
                                     <button
+                                        data-action="cancel"
                                         onClick={() => confirmCancel(s.source)}
                                         title="The DB record will be marked failed, but the underlying task may still run until it completes."
                                         style={{
