@@ -146,6 +146,13 @@
   border-bottom: 1px solid var(--border);
 }
 
+/* De-emphasis by colour + italic, never opacity: opacity would drag the chips
+   below WCAG 4.5:1. Chips set their own colour so they stay at full strength. */
+.assets-finding-row--muted {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
 .assets-tag {
   background: var(--tab-active-bg);
   color: var(--tab-active-color);
