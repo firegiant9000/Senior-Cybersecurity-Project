@@ -1,4 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type ComponentRef,
+  type RefObject,
+} from "react";
 import {
   OrgUpload,
   listUploads,
@@ -7,6 +14,10 @@ import {
   downloadUpload,
 } from "../../api/uploads";
 import { useConfirm } from "../../components/shared/ConfirmDialog";
+import {
+  findRowAction,
+  focusOrder,
+} from "../../components/shared/focusAfterRemoval";
 import type { SectionProps } from "./types";
 
 const formatFileSize = (bytes: number) => {
@@ -20,7 +31,12 @@ export default function UploadsSection({
   orgId,
   onChanged,
   open,
-}: SectionProps & { open: boolean }) {
+  headingRef,
+}: SectionProps & {
+  open: boolean;
+  headingRef?: RefObject<ComponentRef<"h2"> | null>;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const [uploads, setUploads] = useState<OrgUpload[]>([]);
   const [uploadTotal, setUploadTotal] = useState(0);
   const [uploadPage, setUploadPage] = useState(1);
@@ -70,11 +86,27 @@ export default function UploadsSection({
     try {
       await deleteUpload(orgId, uploadId);
       setUploadPage(1);
-      loadUploads(orgId, 1);
+      await loadUploads(orgId, 1);
       onChanged();
     } catch {
       setUploadError("Failed to delete upload");
     }
+  };
+
+  const confirmDeleteUpload = (u: OrgUpload) => {
+    const ids = uploads.map((x) => x.id);
+    confirm({
+      title: "Delete upload",
+      body: `Delete the upload ${u.original_filename}?`,
+      confirmLabel: "Delete",
+      tone: "danger",
+      // handleDeleteUpload catches API failures into uploadError itself.
+      onConfirm: () => handleDeleteUpload(u.id),
+      returnFocus: () =>
+        findRowAction(rootRef.current, focusOrder(ids, u.id), "delete") ??
+        headingRef?.current ??
+        null,
+    });
   };
 
   const handleDownloadUpload = async (uploadId: number, filename: string) => {
@@ -88,7 +120,7 @@ export default function UploadsSection({
   if (!open) return null;
 
   return (
-    <div className="section-accordion-body">
+    <div className="section-accordion-body" ref={rootRef}>
       {confirmDialog}
       {uploadMsg && <div className="settings-action-msg">{uploadMsg}</div>}
       {uploadError && (
@@ -140,7 +172,7 @@ export default function UploadsSection({
             </thead>
             <tbody>
               {uploads.map((u) => (
-                <tr key={u.id}>
+                <tr key={u.id} data-row-id={u.id}>
                   <td>
                     <button
                       className="vendor-delete-btn"
@@ -166,15 +198,8 @@ export default function UploadsSection({
                   <td>
                     <button
                       className="vendor-delete-btn"
-                      onClick={() =>
-                        confirm({
-                          title: "Delete upload",
-                          body: `Delete the upload ${u.original_filename}?`,
-                          confirmLabel: "Delete",
-                          tone: "danger",
-                          onConfirm: () => handleDeleteUpload(u.id),
-                        })
-                      }
+                      data-action="delete"
+                      onClick={() => confirmDeleteUpload(u)}
                       aria-label={`Delete upload ${u.original_filename}`}
                       title="Delete"
                     >

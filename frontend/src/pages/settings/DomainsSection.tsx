@@ -1,6 +1,17 @@
-import { useState, useEffect, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type ComponentRef,
+  type RefObject,
+} from "react";
 import { OrgDomain, listDomains, addDomain, deleteDomain } from "../../api/domains";
 import { useConfirm } from "../../components/shared/ConfirmDialog";
+import {
+  findRowAction,
+  focusOrder,
+} from "../../components/shared/focusAfterRemoval";
 import type { SectionProps } from "./types";
 
 const domainPageSize = 20;
@@ -10,7 +21,12 @@ export default function DomainsSection({
   orgId,
   onChanged,
   open,
-}: SectionProps & { open: boolean }) {
+  headingRef,
+}: SectionProps & {
+  open: boolean;
+  headingRef?: RefObject<ComponentRef<"h2"> | null>;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const [domains, setDomains] = useState<OrgDomain[]>([]);
   const [domainTotal, setDomainTotal] = useState(0);
   const [domainPage, setDomainPage] = useState(1);
@@ -71,17 +87,33 @@ export default function DomainsSection({
     try {
       await deleteDomain(orgId, domainId);
       setDomainPage(1);
-      loadDomains(orgId, 1);
+      await loadDomains(orgId, 1);
       onChanged();
     } catch {
       setDomainError("Failed to remove domain");
     }
   };
 
+  const confirmDeleteDomain = (d: OrgDomain) => {
+    const ids = domains.map((x) => x.id);
+    confirm({
+      title: "Delete domain",
+      body: `Delete ${d.domain_name}? It will no longer be checked.`,
+      confirmLabel: "Delete",
+      tone: "danger",
+      // handleDeleteDomain catches API failures into domainError itself.
+      onConfirm: () => handleDeleteDomain(d.id),
+      returnFocus: () =>
+        findRowAction(rootRef.current, focusOrder(ids, d.id), "delete") ??
+        headingRef?.current ??
+        null,
+    });
+  };
+
   if (!open) return null;
 
   return (
-    <div className="section-accordion-body">
+    <div className="section-accordion-body" ref={rootRef}>
       {confirmDialog}
       {domainMsg && <div className="settings-action-msg">{domainMsg}</div>}
       {domainError && (
@@ -131,21 +163,14 @@ export default function DomainsSection({
             </thead>
             <tbody>
               {domains.map((d) => (
-                <tr key={d.id}>
+                <tr key={d.id} data-row-id={d.id}>
                   <td>{d.domain_name}</td>
                   <td>{new Date(d.created_at).toLocaleDateString()}</td>
                   <td>
                     <button
                       className="vendor-delete-btn"
-                      onClick={() =>
-                        confirm({
-                          title: "Delete domain",
-                          body: `Delete ${d.domain_name}? It will no longer be checked.`,
-                          confirmLabel: "Delete",
-                          tone: "danger",
-                          onConfirm: () => handleDeleteDomain(d.id),
-                        })
-                      }
+                      data-action="delete"
+                      onClick={() => confirmDeleteDomain(d)}
                       aria-label={`Delete domain ${d.domain_name}`}
                       title="Delete"
                     >

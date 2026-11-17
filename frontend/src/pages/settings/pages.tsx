@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentRef,
+  type ReactNode,
+} from 'react';
 import { useLocation } from 'react-router';
 import { useAuth } from '../../context/AuthContext';
 import { useUserContext } from '../../context/UserContext';
@@ -128,12 +135,19 @@ export function TechnologyPage() {
 
 export function DomainsPage() {
   const { orgId, canEdit } = useSettingsAuth();
+  const headingRef = useRef<ComponentRef<'h2'>>(null);
   if (orgId == null) return null;
   return (
     <Frame>
       <section className="settings-section">
-        <h2>Organization Domains</h2>
-        <DomainsSection open orgId={orgId} canEdit={canEdit} onChanged={noop} />
+        <h2 ref={headingRef} tabIndex={-1}>Organization Domains</h2>
+        <DomainsSection
+          open
+          orgId={orgId}
+          canEdit={canEdit}
+          onChanged={noop}
+          headingRef={headingRef}
+        />
       </section>
     </Frame>
   );
@@ -141,12 +155,19 @@ export function DomainsPage() {
 
 export function UploadsPage() {
   const { orgId, canEdit } = useSettingsAuth();
+  const headingRef = useRef<ComponentRef<'h2'>>(null);
   if (orgId == null) return null;
   return (
     <Frame>
       <section className="settings-section">
-        <h2>File Uploads</h2>
-        <UploadsSection open orgId={orgId} canEdit={canEdit} onChanged={noop} />
+        <h2 ref={headingRef} tabIndex={-1}>File Uploads</h2>
+        <UploadsSection
+          open
+          orgId={orgId}
+          canEdit={canEdit}
+          onChanged={noop}
+          headingRef={headingRef}
+        />
       </section>
     </Frame>
   );
