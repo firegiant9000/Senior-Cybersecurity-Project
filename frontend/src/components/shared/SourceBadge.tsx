@@ -55,7 +55,7 @@ const SourceBadge: React.FC<Props> = ({
     ? datasetKeys.length
       ? datasetKeys.map((k, i) => entries[i]?.source ?? `unregistered (${k})`).join(" + ")
       : "Source not registered"
-    : (entries[0]?.source ?? (loading ? undefined : fallbackSource) ?? "Source not registered");
+    : (entries[0]?.source ?? fallbackSource ?? "Source not registered");
   const label = resolvedStatus === null ? (loading ? "…" : "?") : STATUS_LABEL[resolvedStatus];
   const notes = entries.length === 1 ? entries[0]?.notes : null;
   const title = `${label}: ${source}${notes ? ` · ${notes}` : ""}`;

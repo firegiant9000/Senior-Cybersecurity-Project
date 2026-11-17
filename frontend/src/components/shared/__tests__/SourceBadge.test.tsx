@@ -35,14 +35,15 @@ describe("SourceBadge", () => {
     state.loading = false;
   });
 
-  it("while loading, an absent entry ignores the fallback and shows the loading state", () => {
+  it("while loading, an absent entry ignores the fallback status but keeps the fallback source", () => {
     state.loading = true;
     render(
       <SourceBadge datasetKey="not_registered" fallbackStatus="real" fallbackSource="Inline src" />,
     );
     const el = screen.getByText("…").closest("span");
     expect(el?.className).toContain("source-badge--unknown");
-    expect(el?.getAttribute("aria-label")).not.toContain("Inline src");
+    expect(el?.getAttribute("aria-label")).toContain("Inline src");
+    expect(el?.getAttribute("aria-label")).not.toContain("Source not registered");
     expect(screen.queryByText("Live")).toBeNull();
   });
 
