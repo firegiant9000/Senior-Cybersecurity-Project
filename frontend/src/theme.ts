@@ -50,10 +50,28 @@ export const SEVERITY_TEXT_COLORS = {
 } as const
 
 /**
- * Dark-theme text colours for the asset-modal tier and confidence chips.
+ * Light-theme text colours for the AssetsPage tier and confidence chips.
+ * MIRRORED in the `:root` block of Dashboard.css (--tier-* and --conf-*);
+ * keep both in sync. contrast.test.ts asserts each is at least 4.5:1 on the
+ * page background (asset list) and the card background (detail modal), both
+ * plain and under the chip's 12% colour-mix tint.
+ */
+export const LIGHT_CHIP_COLORS = {
+  'tier-critical': '#991b1b',
+  'tier-high':     '#9a3412',
+  'tier-medium':   '#92400e',
+  'tier-low':      '#166534',
+  'tier-review':   '#475569',
+  'conf-high':     '#166534',
+  'conf-medium':   '#92400e',
+  'conf-low':      '#475569',
+} as const
+
+/**
+ * Dark-theme text colours for the AssetsPage tier and confidence chips.
  * MIRRORED in the `[data-theme="dark"]` block of Dashboard.css
  * (--tier-* and --conf-*); keep both in sync. contrast.test.ts asserts each
- * is at least 4.5:1 on the dark card background (#22304a).
+ * is at least 4.5:1 on the page and card backgrounds, plain and tinted.
  */
 export const DARK_CHIP_COLORS = {
   'tier-critical': '#fca5a5',

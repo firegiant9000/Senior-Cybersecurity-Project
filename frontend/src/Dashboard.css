@@ -24,14 +24,15 @@
     --color-low:        #2e7d32;
     --error-bg:         #ffebee;
     --error-text:       #b71c1c;
+    /* Mirrors LIGHT_CHIP_COLORS in src/theme.ts (contrast-tested there). */
     --tier-critical:    #991b1b;
-    --tier-high:        #c2410c;
-    --tier-medium:      #b45309;
-    --tier-low:         #15803d;
-    --tier-review:      #64748b;
-    --conf-high:        #15803d;
-    --conf-medium:      #b45309;
-    --conf-low:         #64748b;
+    --tier-high:        #9a3412;
+    --tier-medium:      #92400e;
+    --tier-low:         #166534;
+    --tier-review:      #475569;
+    --conf-high:        #166534;
+    --conf-medium:      #92400e;
+    --conf-low:         #475569;
     /* Mirrors VIA_CHIP_COLORS.light in src/theme.ts (contrast-tested there). */
     --via-csv:          #1d4ed8;
     --via-m365:         #7e22ce;
