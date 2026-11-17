@@ -40,6 +40,21 @@ export const SEVERITY_COLORS = {
   Unknown:  '#9e9e9e',
 } as const
 
+/** Map any severity label (case-insensitive; 'Moderate' = Medium) to a SEVERITY_COLORS key. */
+export function normalizeSeverity(label: string | null | undefined): keyof typeof SEVERITY_COLORS {
+  const s = (label ?? '').trim().toLowerCase()
+  if (s === 'moderate') return 'Medium'
+  for (const key of Object.keys(SEVERITY_COLORS) as (keyof typeof SEVERITY_COLORS)[]) {
+    if (key.toLowerCase() === s) return key
+  }
+  return 'Unknown'
+}
+
+/** Chart/badge fill for a raw data severity label. */
+export function severityColor(label: string | null | undefined): string {
+  return SEVERITY_COLORS[normalizeSeverity(label)]
+}
+
 /** Badge text colours chosen to meet WCAG 4.5:1 against SEVERITY_COLORS. */
 export const SEVERITY_TEXT_COLORS = {
   Critical: '#ffffff',
