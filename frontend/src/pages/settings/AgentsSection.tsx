@@ -125,7 +125,7 @@ export default function AgentsSection() {
   const confirmRevoke = (a: Agent) =>
     confirm({
       title: "Revoke agent",
-      body: `Revoke ${a.name}? This also revokes every linked token rotated from it, including any new token. Tokens rotated before linking was added are not covered: revoke those separately. The host must be re-enrolled. To cut off only the old token, use End grace now instead.`,
+      body: `Revoke ${a.name}? This also revokes every linked token in its rotation chain, older and newer, including any new token. Tokens rotated before linking was added are not covered: revoke those separately. The host must be re-enrolled. To cut off only the old token, use End grace now instead.`,
       confirmLabel: "Revoke",
       tone: "danger",
       onConfirm: () => handleRevokeAgent(a.id),
@@ -151,7 +151,7 @@ export default function AgentsSection() {
         token (the old one keeps working for up to 24 hours; rotate the
         new one, not the old). If the old token may have leaked,
         use &ldquo;End grace now&rdquo; to cut off only that token.
-        Revoke cuts off the agent and every token rotated from it
+        Revoke cuts off the agent and every linked token in its rotation chain
         (tokens rotated before linking was added are not covered:
         revoke those separately).
       </p>
