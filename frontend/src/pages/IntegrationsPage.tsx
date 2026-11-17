@@ -36,6 +36,7 @@ export default function IntegrationsPage() {
   const [lastSync, setLastSync] = useState<M365SyncResponse | null>(null);
   const connectRef = useRef<ComponentRef<"button">>(null);
   const headingRef = useRef<ComponentRef<"h2">>(null);
+  const pageHeadingRef = useRef<ComponentRef<"h1">>(null);
 
   const refresh = useCallback(async () => {
     if (orgId == null) return;
@@ -132,7 +133,8 @@ export default function IntegrationsPage() {
       // handleDisconnect catches API failures into `error` itself.
       onConfirm: handleDisconnect,
       // Success reloads the page through "Loading…", so the trigger is gone.
-      returnFocus: () => connectRef.current ?? headingRef.current,
+      // The page heading covers the feature being switched off meanwhile.
+      returnFocus: () => connectRef.current ?? headingRef.current ?? pageHeadingRef.current,
     });
   };
 
@@ -157,7 +159,7 @@ export default function IntegrationsPage() {
   if (!status?.enabled) {
     return (
       <div style={{ padding: "2rem" }}>
-        <h1>Integrations</h1>
+        <h1 ref={pageHeadingRef} tabIndex={-1}>Integrations</h1>
         <p>
           Microsoft 365 sync isn&apos;t available on this deployment yet. You
           can still add assets by <Link to="/org/assets/upload">uploading an inventory file</Link>.

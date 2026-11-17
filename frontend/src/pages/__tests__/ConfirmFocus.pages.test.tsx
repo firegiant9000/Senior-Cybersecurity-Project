@@ -126,6 +126,40 @@ describe('IntegrationsPage focus after disconnect', () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId('m365-disconnect')))
     expect(screen.getByTestId('m365-disconnect')).toBeEnabled()
   })
+
+  // The refresh settles on a later tick, as a real request would, so "Loading…"
+  // commits and the original Disconnect button unmounts first.
+  async function disconnectWithRefresh(refresh: () => Promise<unknown>) {
+    mockFetchStatus
+      .mockResolvedValueOnce(connected)
+      .mockImplementationOnce(() => new Promise((res) => setTimeout(res, 0)).then(refresh))
+    mockDisconnect.mockResolvedValue(undefined)
+    render(
+      <MemoryRouter>
+        <IntegrationsPage />
+      </MemoryRouter>,
+    )
+    const trigger = await screen.findByTestId('m365-disconnect')
+    trigger.focus()
+    fireEvent.click(trigger)
+    await confirmIn('Disconnect')
+  }
+
+  it('focuses the card heading when the refresh after disconnect fails', async () => {
+    await disconnectWithRefresh(() => Promise.reject(new Error('status down')))
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Microsoft 365 / Entra' })),
+    )
+  })
+
+  it('focuses the page heading when the feature is switched off meanwhile', async () => {
+    await disconnectWithRefresh(() => Promise.resolve({ enabled: false, connection: { connected: false } }))
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Integrations' })),
+    )
+  })
 })
 
 describe('UploadInventoryPage focus after rollback', () => {
