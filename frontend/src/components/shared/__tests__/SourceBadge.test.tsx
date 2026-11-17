@@ -1,11 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import SourceBadge from "../SourceBadge";
 import { leastConfident } from "../sourceConfidence";
 
+const state = vi.hoisted(() => ({ loading: false }));
+
 vi.mock("../../../hooks/useDataStatus", () => ({
   useDataStatus: () => ({
-    loading: false,
+    loading: state.loading,
     error: null,
     items: [],
     byKey: {
@@ -29,6 +31,27 @@ describe("leastConfident", () => {
 });
 
 describe("SourceBadge", () => {
+  afterEach(() => {
+    state.loading = false;
+  });
+
+  it("while loading, an absent entry ignores the fallback and shows the loading state", () => {
+    state.loading = true;
+    render(
+      <SourceBadge datasetKey="not_registered" fallbackStatus="real" fallbackSource="Inline src" />,
+    );
+    const el = screen.getByText("…").closest("span");
+    expect(el?.className).toContain("source-badge--unknown");
+    expect(el?.getAttribute("aria-label")).not.toContain("Inline src");
+    expect(screen.queryByText("Live")).toBeNull();
+  });
+
+  it("after loading, an absent entry uses the fallback label", () => {
+    state.loading = false;
+    render(<SourceBadge datasetKey="not_registered" fallbackStatus="real" />);
+    expect(screen.getByText("Live")).toBeTruthy();
+  });
+
   it("single datasetKey behaves as before", () => {
     render(<SourceBadge datasetKey="kev" />);
     const el = screen.getByText("Live").closest("span");

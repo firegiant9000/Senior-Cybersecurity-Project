@@ -49,13 +49,13 @@ const SourceBadge: React.FC<Props> = ({
   // An unregistered key resolves to unknown (null), never to a confident status.
   const resolvedStatus: SourceStatus | null = datasetKeys
     ? leastConfident(entries.map((e) => e?.status ?? null))
-    : (entries[0]?.status ?? fallbackStatus ?? null);
+    : (entries[0]?.status ?? (loading ? null : fallbackStatus) ?? null);
   const status: SourceStatus | "unknown" = resolvedStatus ?? "unknown";
   const source = datasetKeys
     ? datasetKeys.length
       ? datasetKeys.map((k, i) => entries[i]?.source ?? `unregistered (${k})`).join(" + ")
       : "Source not registered"
-    : (entries[0]?.source ?? fallbackSource ?? "Source not registered");
+    : (entries[0]?.source ?? (loading ? undefined : fallbackSource) ?? "Source not registered");
   const label = resolvedStatus === null ? (loading ? "…" : "?") : STATUS_LABEL[resolvedStatus];
   const notes = entries.length === 1 ? entries[0]?.notes : null;
   const title = `${label}: ${source}${notes ? ` · ${notes}` : ""}`;
