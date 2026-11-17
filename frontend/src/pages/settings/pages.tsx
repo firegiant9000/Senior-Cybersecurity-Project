@@ -122,12 +122,13 @@ export function OrganisationPage() {
 
 export function TechnologyPage() {
   const { orgId, canEdit } = useSettingsAuth();
+  const headingRef = useRef<ComponentRef<'h2'>>(null);
   if (orgId == null) return null;
   return (
     <Frame>
       <section className="settings-section">
-        <h2>Your Technology Stack</h2>
-        <TechnologySection orgId={orgId} canEdit={canEdit} />
+        <h2 ref={headingRef} tabIndex={-1}>Your Technology Stack</h2>
+        <TechnologySection orgId={orgId} canEdit={canEdit} headingRef={headingRef} />
       </section>
     </Frame>
   );

@@ -1,4 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type ComponentRef,
+  type RefObject,
+} from "react";
 import {
   OrgVendor,
   OrgVendorImportPreviewResponse,
@@ -12,11 +19,21 @@ import {
   autocompleteVendors,
 } from "../../api/vendors";
 import { useConfirm } from "../../components/shared/ConfirmDialog";
+import {
+  findRowAction,
+  focusOrder,
+} from "../../components/shared/focusAfterRemoval";
 import type { SectionProps } from "./types";
 
 const vendorPageSize = 20;
 
-export default function TechnologySection({ orgId }: Omit<SectionProps, "onChanged">) {
+export default function TechnologySection({
+  orgId,
+  headingRef,
+}: Omit<SectionProps, "onChanged"> & {
+  headingRef?: RefObject<ComponentRef<"h2"> | null>;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const [vendors, setVendors] = useState<OrgVendor[]>([]);
   const [vendorTotal, setVendorTotal] = useState(0);
   const [vendorPage, setVendorPage] = useState(1);
@@ -93,10 +110,26 @@ export default function TechnologySection({ orgId }: Omit<SectionProps, "onChang
     try {
       await deleteVendor(orgId, vendorId);
       setVendorPage(1);
-      loadVendors(orgId, 1);
+      await loadVendors(orgId, 1);
     } catch {
       setVendorError("Failed to remove vendor");
     }
+  };
+
+  const confirmDeleteVendor = (v: OrgVendor) => {
+    const ids = vendors.map((x) => x.id);
+    confirm({
+      title: "Delete vendor",
+      body: `Delete ${v.vendor_name} from your technology stack? Matching alerts for it will stop.`,
+      confirmLabel: "Delete",
+      tone: "danger",
+      // handleDeleteVendor catches API failures into vendorError itself.
+      onConfirm: () => handleDeleteVendor(v.id),
+      returnFocus: () =>
+        findRowAction(rootRef.current, focusOrder(ids, v.id), "delete") ??
+        headingRef?.current ??
+        null,
+    });
   };
 
   const handleCsvImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -211,7 +244,7 @@ export default function TechnologySection({ orgId }: Omit<SectionProps, "onChang
   }, [newProduct, newVendor]);
 
   return (
-    <div className="section-accordion-body">
+    <div className="section-accordion-body" ref={rootRef}>
       {confirmDialog}
       {vendorMsg && <div className="settings-action-msg">{vendorMsg}</div>}
       {vendorError && (
@@ -377,7 +410,7 @@ export default function TechnologySection({ orgId }: Omit<SectionProps, "onChang
             </thead>
             <tbody>
               {vendors.map((v) => (
-                <tr key={v.id}>
+                <tr key={v.id} data-row-id={v.id}>
                   <td>
                     {v.vendor_name}
                     <span className="matched-count-badge">
@@ -389,15 +422,8 @@ export default function TechnologySection({ orgId }: Omit<SectionProps, "onChang
                   <td>
                     <button
                       className="vendor-delete-btn"
-                      onClick={() =>
-                        confirm({
-                          title: "Delete vendor",
-                          body: `Delete ${v.vendor_name} from your technology stack? Matching alerts for it will stop.`,
-                          confirmLabel: "Delete",
-                          tone: "danger",
-                          onConfirm: () => handleDeleteVendor(v.id),
-                        })
-                      }
+                      data-action="delete"
+                      onClick={() => confirmDeleteVendor(v)}
                       aria-label={`Delete vendor ${v.vendor_name}`}
                       title="Delete"
                     >
