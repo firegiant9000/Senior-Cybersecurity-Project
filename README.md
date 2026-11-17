@@ -19,7 +19,8 @@ plain-English executive report.
 > assurance of the product itself. The threat model, the route-enumerating
 > authorization suite and the attested agent release with an SBOM are done
 > (S3, S4 and S1 respectively). The SAST/SCA gates are in place (S2) and become blocking once the
-> owner applies T-CI-05. The next work is DAST and a manual AppSec pass (S5) and
+> owner applies T-CI-05. A ZAP baseline scan of the local stack already runs in
+> CI; the next work is the rest of the DAST and manual AppSec pass (S5) and
 > matcher accuracy measured against Trivy on real images (S6). See
 > [docs/PRODUCT_VIABILITY_ROADMAP.md](docs/PRODUCT_VIABILITY_ROADMAP.md) and
 > [docs/roadmap-review-2026-09.md](docs/roadmap-review-2026-09.md).
@@ -113,7 +114,7 @@ flowchart LR
 
 | Component | Where | Notes |
 | --- | --- | --- |
-| Backend | `backend/` | FastAPI, SQLAlchemy 2 async, Alembic (52 migration files; two carry the 021 prefix), pytest |
+| Backend | `backend/` | FastAPI, SQLAlchemy 2 async, Alembic (53 migration files; two carry the 021 prefix), pytest |
 | Frontend | `frontend/` | React 18, TypeScript, Vite, React Router, Recharts, Vitest |
 | Host agent | `agent/` | Go 1.27, standard library only, Linux (dpkg/rpm, systemd, optional `ss`) |
 | Auth | Firebase Authentication | Backend verifies ID tokens with the Admin SDK |
@@ -198,7 +199,7 @@ flowchart LR
 ## Security design
 
 - **Threat model.** [docs/security/threat_model.md](docs/security/threat_model.md)
-  is a STRIDE model of 123 threats (40 controlled, 52 tested, 19 accepted, 12
+  is a STRIDE model of 124 threats (40 controlled, 52 tested, 19 accepted, 13
   open and scheduled for S5 or owner action). CI checks that every row has
   one classification and that its evidence exists.
 - **Authentication.** Users sign in through Firebase Authentication. The API
@@ -255,8 +256,9 @@ flowchart LR
 ## My contributions — Arlo Kharod
 
 Six people built this. The split below comes from `git log` and `git blame`
-on `main` (395 of 560 commits are mine, across the identities listed in
-[CONTRIBUTORS.md](CONTRIBUTORS.md)).
+on `main` as of 2026-09-28 (395 of 560 commits were mine, across the
+identities listed in [CONTRIBUTORS.md](CONTRIBUTORS.md)). I have kept
+developing it alone since then.
 
 ### Designed and implemented by me
 
@@ -281,7 +283,7 @@ on `main` (395 of 560 commits are mine, across the identities listed in
 - Most of the React dashboard: the analytics-tab rebuild, component
   reorganization, assets and findings views, executive report page, Firebase
   auth UI
-- The repository CI workflows; 50 of the 52 Alembic migration files; the majority of the
+- The repository CI workflows; 51 of the 53 Alembic migration files; the majority of the
   backend tests
 
 ### Major contributions by me (originally built by a teammate)
@@ -348,10 +350,10 @@ freshness at `GET /api/v1/ingest/freshness`. Agent: `make agent-build`, then
 
 | Suite | Count | Command |
 | --- | ---: | --- |
-| Backend (pytest) | 809 test functions in 73 files | `make backend-test` or `cd backend && pytest` |
+| Backend (pytest) | 1,396 test functions in 127 files | `make backend-test` or `cd backend && pytest` |
 | Matcher regression | known-good fixture set, gated at 95% pass / 2% high-confidence FP | `pytest tests/regression` |
-| Frontend (Vitest) | 466 `it`/`test` cases in 18 files | `cd frontend && npm test` |
-| Agent (Go) | 9 test functions in 3 files | `make agent-test` |
+| Frontend (Vitest) | 906 tests in 70 files (CI run on `main`, 2026-11-17) | `cd frontend && npm test` |
+| Agent (Go) | 22 test functions in 4 files | `make agent-test` |
 
 CI ([`ci.yml`](.github/workflows/ci.yml)) runs ruff lint and format checks,
 `alembic upgrade head` plus a blocking single-head check and a blocking
