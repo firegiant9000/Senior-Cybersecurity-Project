@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentRef } from "react";
 import { Link } from "react-router";
 import { useAuth } from "../context/AuthContext";
 import { useConfirm } from "../components/shared/ConfirmDialog";
@@ -39,6 +39,7 @@ export default function UploadInventoryPage() {
   const [rollingBack, setRollingBack] = useState(false);
   const [rolledBack, setRolledBack] = useState(false);
   const [error, setError] = useState("");
+  const uploadAnotherRef = useRef<ComponentRef<"button">>(null);
 
   const reset = () => {
     setFile(null);
@@ -72,6 +73,8 @@ export default function UploadInventoryPage() {
       tone: "danger",
       // handleRollback catches API failures into `error` itself.
       onConfirm: handleRollback,
+      // On success the "Undo last upload" trigger is removed.
+      returnFocus: () => uploadAnotherRef.current,
     });
   };
 
@@ -337,7 +340,7 @@ export default function UploadInventoryPage() {
           )}
           <Link to="/org/assets">View assets →</Link>
           <span style={{ margin: "0 12px" }}>·</span>
-          <button type="button" onClick={reset}>
+          <button type="button" ref={uploadAnotherRef} onClick={reset}>
             Upload another
           </button>
           {scanRun.status === "succeeded" && !rolledBack && (
