@@ -23,6 +23,7 @@ import {
   fetchWithAuth,
   getJsonAuth,
   ForbiddenError,
+  RequestTimeoutError,
   _resetForTest,
 } from "./fetchWithAuth";
 import { auth } from "../firebase";
@@ -272,7 +273,162 @@ describe("fetchWithAuth", () => {
       expect(result).toBe(mockResponse);
     });
   });
+
+  // ── Timeouts ─────────────────────────────────────────────────────────────
+  describe("timeouts", () => {
+    it("rejects with RequestTimeoutError on timeout (GET wording)", async () => {
+      hangingFetch();
+
+      const p = fetchWithAuth("https://api.test/slow", { timeoutMs: 20 });
+
+      await expect(p).rejects.toBeInstanceOf(RequestTimeoutError);
+      await expect(p).rejects.toThrow("It may be starting up");
+    });
+
+    it("uses the may-already-be-saved wording for a timed-out POST", async () => {
+      hangingFetch();
+
+      const err = await fetchWithAuth("https://api.test/slow", {
+        method: "post",
+        timeoutMs: 20,
+      }).catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(RequestTimeoutError);
+      expect((err as RequestTimeoutError).method).toBe("POST");
+      expect((err as Error).message).toContain(
+        "Your change may already have been saved",
+      );
+    });
+
+    it("applies the 60 s default when timeoutMs is omitted", async () => {
+      vi.spyOn(globalThis, "fetch").mockImplementation(mockFetchResponse(200));
+      const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
+
+      await fetchWithAuth("https://api.test/endpoint");
+
+      expect(timeoutSpy).toHaveBeenCalledWith(60_000);
+    });
+
+    it("does not pass timeoutMs through to fetch", async () => {
+      const spy = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(mockFetchResponse(200));
+
+      await fetchWithAuth("https://api.test/endpoint", { timeoutMs: 5000 });
+
+      const init = spy.mock.calls[0][1] as Record<string, unknown>;
+      expect(init).not.toHaveProperty("timeoutMs");
+      expect(init.signal).toBeInstanceOf(AbortSignal);
+    });
+
+    it("caller abort still rejects with AbortError, not RequestTimeoutError", async () => {
+      hangingFetch();
+      const ac = new AbortController();
+
+      const p = fetchWithAuth("https://api.test/slow", {
+        signal: ac.signal,
+        timeoutMs: 1000,
+      });
+      ac.abort();
+      const err = await p.catch((e: unknown) => e);
+
+      expect((err as Error).name).toBe("AbortError");
+      expect(err).not.toBeInstanceOf(RequestTimeoutError);
+    });
+
+    it("caller abort wins over timeout", async () => {
+      hangingFetch();
+      const ac = new AbortController();
+      ac.abort();
+
+      const err = await fetchWithAuth("https://api.test/slow", {
+        signal: ac.signal,
+        timeoutMs: 0,
+      }).catch((e: unknown) => e);
+
+      expect((err as Error).name).toBe("AbortError");
+    });
+
+    it("a fast response is unaffected", async () => {
+      const mockResponse = {
+        status: 200,
+        ok: true,
+        json: vi.fn().mockResolvedValue({}),
+      } as unknown as Response;
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(mockResponse);
+
+      const result = await fetchWithAuth("https://api.test/endpoint", {
+        timeoutMs: 20,
+      });
+      await new Promise((r) => setTimeout(r, 40));
+
+      expect(result).toBe(mockResponse);
+    });
+
+    // Browsers older than Chrome 116 / Firefox 124 / Safari 17.4 lack AbortSignal.any.
+    describe("without AbortSignal.any", () => {
+      const originalAny = AbortSignal.any;
+      beforeEach(() => {
+        (AbortSignal as unknown as { any: unknown }).any = undefined;
+      });
+      afterEach(() => {
+        AbortSignal.any = originalAny;
+      });
+
+      it("times out with RequestTimeoutError when the caller passes a signal", async () => {
+        hangingFetch();
+
+        const p = fetchWithAuth("https://api.test/slow", {
+          signal: new AbortController().signal,
+          timeoutMs: 20,
+        });
+
+        await expect(p).rejects.toBeInstanceOf(RequestTimeoutError);
+      });
+
+      it("caller abort still rejects with AbortError", async () => {
+        hangingFetch();
+        const ac = new AbortController();
+
+        const p = fetchWithAuth("https://api.test/slow", {
+          signal: ac.signal,
+          timeoutMs: 1000,
+        });
+        setTimeout(() => ac.abort(), 5);
+        const err = await p.catch((e: unknown) => e);
+
+        expect((err as Error).name).toBe("AbortError");
+      });
+
+      it("an already-aborted caller signal rejects with AbortError", async () => {
+        hangingFetch();
+        const ac = new AbortController();
+        ac.abort();
+
+        const err = await fetchWithAuth("https://api.test/slow", {
+          signal: ac.signal,
+          timeoutMs: 1000,
+        }).catch((e: unknown) => e);
+
+        expect((err as Error).name).toBe("AbortError");
+      });
+    });
+  });
 });
+
+// Real timers with small timeoutMs values: the timeout is driven by jsdom's
+// AbortSignal.timeout, so these tests wait a few ms instead of faking time.
+// fetch that never resolves but honours the abort signal, like real fetch.
+function hangingFetch() {
+  return vi.spyOn(globalThis, "fetch").mockImplementation(
+    (_url, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        const s = init?.signal;
+        if (s?.aborted) return reject(s.reason);
+        s?.addEventListener("abort", () => reject(s.reason), { once: true });
+      }),
+  );
+}
 
 describe("getJsonAuth", () => {
   beforeEach(() => {
@@ -312,5 +468,38 @@ describe("getJsonAuth", () => {
     await expect(
       getJsonAuth("https://api.test/data", controller.signal),
     ).rejects.toThrow("db connection failed");
+  });
+
+  it("converts a body-read timeout into RequestTimeoutError", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      status: 200,
+      ok: true,
+      json: vi
+        .fn()
+        .mockRejectedValue(new DOMException("signal timed out", "TimeoutError")),
+    } as unknown as Response);
+
+    await expect(
+      getJsonAuth("https://api.test/data", new AbortController().signal),
+    ).rejects.toBeInstanceOf(RequestTimeoutError);
+  });
+
+  it("leaves a body-read AbortError from the caller untouched", async () => {
+    const controller = new AbortController();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      status: 200,
+      ok: true,
+      json: vi.fn().mockImplementation(() => {
+        controller.abort();
+        return Promise.reject(new DOMException("aborted", "AbortError"));
+      }),
+    } as unknown as Response);
+
+    const err = await getJsonAuth("https://api.test/data", controller.signal).catch(
+      (e: unknown) => e,
+    );
+
+    expect((err as Error).name).toBe("AbortError");
+    expect(err).not.toBeInstanceOf(RequestTimeoutError);
   });
 });

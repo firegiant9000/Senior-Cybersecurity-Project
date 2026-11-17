@@ -12,6 +12,7 @@ import {
   fetchWithAuth,
   getJsonAuth,
 } from "./fetchWithAuth";
+import { LONG_TIMEOUT_MS } from "./timeouts";
 
 export interface M365Connection {
   connected: boolean;
@@ -51,8 +52,8 @@ export async function fetchM365Status(
   );
 }
 
-async function postJsonAuth<T>(url: string): Promise<T> {
-  const response = await fetchWithAuth(url, { method: "POST" });
+async function postJsonAuth<T>(url: string, timeoutMs?: number): Promise<T> {
+  const response = await fetchWithAuth(url, { method: "POST", timeoutMs });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     throw new Error(
@@ -72,6 +73,8 @@ export async function startM365Consent(orgId: number): Promise<M365ConsentRespon
 export async function syncM365(orgId: number): Promise<M365SyncResponse> {
   return postJsonAuth<M365SyncResponse>(
     `${API_BASE_URL}/api/v1/integrations/m365/sync?org_id=${orgId}`,
+    // Inline Graph paging + inventory upsert can run past the 60 s default.
+    LONG_TIMEOUT_MS,
   );
 }
 

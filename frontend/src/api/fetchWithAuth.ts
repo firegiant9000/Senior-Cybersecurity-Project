@@ -5,6 +5,13 @@
 
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
+import { DEFAULT_TIMEOUT_MS, anySignal, toTimeoutError } from "./timeouts";
+
+export {
+  DEFAULT_TIMEOUT_MS,
+  LONG_TIMEOUT_MS,
+  RequestTimeoutError,
+} from "./timeouts";
 
 export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
@@ -17,6 +24,8 @@ export class ForbiddenError extends Error {
   }
 }
 
+export type FetchWithAuthOptions = RequestInit & { timeoutMs?: number };
+
 // Prevents multiple concurrent 401s from firing multiple sign-outs
 let isLoggingOut = false;
 
@@ -27,18 +36,34 @@ export function _resetForTest() {
 
 export async function fetchWithAuth(
   url: string,
-  options: RequestInit = {},
+  options: FetchWithAuthOptions = {},
 ): Promise<Response> {
+  const {
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    signal: callerSignal,
+    ...init
+  } = options;
   const user = auth.currentUser;
   const token = user ? await user.getIdToken() : null;
 
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...options.headers,
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  const signal = callerSignal
+    ? anySignal(callerSignal, timeoutSignal)
+    : timeoutSignal;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...init,
+      signal,
+      headers: {
+        ...init.headers,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  } catch (err) {
+    throw toTimeoutError(err, callerSignal, init.method);
+  }
 
   if (response.status === 401) {
     if (!isLoggingOut) {
@@ -78,5 +103,9 @@ export async function getJsonAuth<T>(url: string, signal: AbortSignal): Promise<
         `Request failed: ${response.statusText}`,
     );
   }
-  return response.json() as Promise<T>;
+  try {
+    return (await response.json()) as T;
+  } catch (err) {
+    throw toTimeoutError(err, signal, "GET");
+  }
 }

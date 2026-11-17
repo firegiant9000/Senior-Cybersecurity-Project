@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDebounce } from '../../hooks/useDebounce';
 import { fetchWithAuth } from '../../api/fetchWithAuth';
+import { LONG_TIMEOUT_MS } from '../../api/timeouts';
 import SourceBadge from '../shared/SourceBadge';
 
 interface EconomicsItem {
@@ -73,7 +74,7 @@ const EconomicsTable: React.FC<Props> = ({ apiBaseUrl, datasetKey }) => {
             });
             if (search) params.set('search', search);
 
-            const response = await fetchWithAuth(`${apiBaseUrl}/api/v1/economics/indicators?${params}`, signal ? { signal } : undefined);
+            const response = await fetchWithAuth(`${apiBaseUrl}/api/v1/economics/indicators?${params}`, { signal, timeoutMs: LONG_TIMEOUT_MS });
             if (!response.ok) throw new Error(`Failed to fetch economics data: ${response.status}`);
             const result: ApiResponse = await response.json();
             setData(result.items);
