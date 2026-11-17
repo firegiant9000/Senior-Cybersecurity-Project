@@ -307,7 +307,7 @@ describe('AgentsPage - Scanner Agents', () => {
         expect(within(dialog).getByText('Revoke agent')).toBeInTheDocument()
         expect(
           within(dialog).getByText(
-            'Revoke web-01? This also revokes every token rotated from it, including any new token. The host must be re-enrolled. To cut off only the old token, use End grace now instead.',
+            'Revoke web-01? This also revokes every linked token rotated from it, including any new token. Tokens rotated before linking was added are not covered: revoke those separately. The host must be re-enrolled. To cut off only the old token, use End grace now instead.',
           ),
         ).toBeInTheDocument()
         fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
@@ -350,7 +350,7 @@ describe('AgentsPage - Scanner Agents', () => {
       renderPage()
 
       expect(
-        await screen.findByText(/tokens rotated before this update may not be linked/i),
+        await screen.findByText(/tokens rotated before linking was added are not covered/i),
       ).toBeInTheDocument()
       expect(await screen.findByText(/every token rotated from it/i)).toBeInTheDocument()
     })
