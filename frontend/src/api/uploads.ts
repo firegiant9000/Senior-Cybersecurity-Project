@@ -3,7 +3,7 @@
  */
 
 import { API_BASE_URL, fetchWithAuth } from "./fetchWithAuth";
-import { LONG_TIMEOUT_MS } from "./timeouts";
+import { LONG_TIMEOUT_MS, toTimeoutError } from "./timeouts";
 
 export interface OrgUpload {
   id: number;
@@ -78,9 +78,13 @@ export async function downloadUpload(
 ): Promise<void> {
   const resp = await fetchWithAuth(
     `${API_BASE_URL}/api/v1/organizations/${orgId}/uploads/${uploadId}/download`,
+    { timeoutMs: LONG_TIMEOUT_MS },
   );
   if (!resp.ok) throw new Error("Failed to download file");
-  const blob = await resp.blob();
+  // The timeout also covers the body transfer; convert it like getJsonAuth does.
+  const blob = await resp.blob().catch((err: unknown) => {
+    throw toTimeoutError(err, null, "GET");
+  });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

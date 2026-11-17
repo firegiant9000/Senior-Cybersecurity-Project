@@ -364,6 +364,55 @@ describe("fetchWithAuth", () => {
 
       expect(result).toBe(mockResponse);
     });
+
+    // Browsers older than Chrome 116 / Firefox 124 / Safari 17.4 lack AbortSignal.any.
+    describe("without AbortSignal.any", () => {
+      const originalAny = AbortSignal.any;
+      beforeEach(() => {
+        (AbortSignal as unknown as { any: unknown }).any = undefined;
+      });
+      afterEach(() => {
+        AbortSignal.any = originalAny;
+      });
+
+      it("times out with RequestTimeoutError when the caller passes a signal", async () => {
+        hangingFetch();
+
+        const p = fetchWithAuth("https://api.test/slow", {
+          signal: new AbortController().signal,
+          timeoutMs: 20,
+        });
+
+        await expect(p).rejects.toBeInstanceOf(RequestTimeoutError);
+      });
+
+      it("caller abort still rejects with AbortError", async () => {
+        hangingFetch();
+        const ac = new AbortController();
+
+        const p = fetchWithAuth("https://api.test/slow", {
+          signal: ac.signal,
+          timeoutMs: 1000,
+        });
+        setTimeout(() => ac.abort(), 5);
+        const err = await p.catch((e: unknown) => e);
+
+        expect((err as Error).name).toBe("AbortError");
+      });
+
+      it("an already-aborted caller signal rejects with AbortError", async () => {
+        hangingFetch();
+        const ac = new AbortController();
+        ac.abort();
+
+        const err = await fetchWithAuth("https://api.test/slow", {
+          signal: ac.signal,
+          timeoutMs: 1000,
+        }).catch((e: unknown) => e);
+
+        expect((err as Error).name).toBe("AbortError");
+      });
+    });
   });
 });
 
