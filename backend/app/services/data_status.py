@@ -128,7 +128,8 @@ _REGISTRY: list[DatasetStatus] = [
         key="domain_checks",
         label="Domain checks (HIBP / Shodan / OTX)",
         status="pending",
-        source="Third-party threat-intel APIs (HIBP / Shodan / OTX)",
+        source="HIBP, Shodan, OTX and crt.sh, queried on demand",
+        notes="Sources without a configured API key are skipped.",
     ),
     DatasetStatus(
         key="anomalies_ic3",
@@ -146,7 +147,7 @@ _REGISTRY: list[DatasetStatus] = [
         key="assets_inventory",
         label="Asset inventory",
         status="real",
-        source="User-uploaded CSV and scanner agents (Microsoft 365 coming soon)",
+        source="User-uploaded CSV and scanner agent check-ins",
         notes="Empty until you upload an inventory CSV or a scanner agent reports in.",
     ),
     DatasetStatus(
