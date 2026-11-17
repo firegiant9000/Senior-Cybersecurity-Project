@@ -9,6 +9,13 @@ on:
   pull_request:
     types: [closed]
     branches: [main]
+  # Manual run (write access required): clean up after a failed run, or test.
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number whose preview channel(s) to delete
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -19,8 +26,11 @@ jobs:
     runs-on: ubuntu-latest
     # Same guard as ci.yml deploy-preview (T-CI-01): only same-repository PRs get
     # the deploy secret. github.actor is the rule GitHub uses to withhold secrets
-    # from Dependabot; a human closing a Dependabot PR still cleans up.
-    if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
+    # from Dependabot; a human closing a Dependabot PR still cleans up. A manual
+    # dispatch needs write access, so it is trusted the same way.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
     steps:
       # No checkout: nothing from the repository runs while the credential is loaded.
       - name: Set up Node.js
@@ -37,9 +47,13 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           PROJECT: hacker-tracker-75f91
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
         run: |
           set -euo pipefail
+          if ! [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "::error::PR number must be digits, got '${PR_NUMBER}'."
+            exit 1
+          fi
           creds="$RUNNER_TEMP/firebase-sa.json"
           trap 'rm -f "$creds"' EXIT
           (umask 077; printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$creds")
@@ -49,9 +63,16 @@ jobs:
 
           # Channel ids are "pr<N>-<branch slug>"; the trailing "-" keeps PR 32
           # from matching PR 324's channel.
-          ids=$(fb hosting:channel:list --project "$PROJECT" --json \
-            | jq -r --arg p "pr${PR_NUMBER}-" \
-                '.result.channels[].name | split("/") | last | select(startswith($p))')
+          # On failure the CLI exits non-zero with {"status":"error","error":...}
+          # on stdout; surface that message (it carries no credential).
+          list=$(fb hosting:channel:list --project "$PROJECT" --json) || true
+          if [ "$(jq -r '.status // empty' <<<"$list" 2>/dev/null)" != "success" ]; then
+            msg=$(jq -r '.error // empty' <<<"$list" 2>/dev/null || true)
+            echo "::error::hosting:channel:list failed: ${msg:-no JSON output}"
+            exit 1
+          fi
+          ids=$(jq -r --arg p "pr${PR_NUMBER}-" \
+            '.result.channels[]?.name | split("/") | last | select(startswith($p))' <<<"$list")
           if [ -z "$ids" ]; then
             echo "No preview channel for PR #${PR_NUMBER}."
             exit 0
