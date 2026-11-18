@@ -174,6 +174,35 @@ describe('AssetsPage source badges', () => {
   })
 })
 
+describe('AssetsPage findings row de-emphasis', () => {
+  async function openFindings(items: unknown[]) {
+    mockGetAssetFindings.mockResolvedValue({ asset_id: 1, total: items.length, items, note: 'n' })
+    renderPage()
+    await screen.findByText('alpha-host')
+    fireEvent.click(screen.getAllByRole('button', { name: 'View' })[0])
+  }
+  const rowFor = async (cve: string) => (await screen.findByText(cve)).closest('tr') as HTMLElement
+
+  it('mutes low-confidence and false-positive rows without dimming via opacity', async () => {
+    await openFindings([
+      { ...finding, finding_id: 1, cve_id: 'CVE-2026-0001', match_confidence: 'low' },
+      { ...finding, finding_id: 2, cve_id: 'CVE-2026-0002', match_confidence: 'needs_review' },
+      { ...finding, finding_id: 3, cve_id: 'CVE-2026-0003', status: 'false_positive' },
+      { ...finding, finding_id: 4, cve_id: 'CVE-2026-0004', match_confidence: 'high' },
+    ])
+    for (const cve of ['CVE-2026-0001', 'CVE-2026-0002', 'CVE-2026-0003']) {
+      const row = await rowFor(cve)
+      expect(row).toHaveClass('assets-finding-row--muted')
+      expect(row.style.opacity).toBe('')
+    }
+    expect(await rowFor('CVE-2026-0003')).toHaveStyle({ textDecoration: 'line-through' })
+    const normal = await rowFor('CVE-2026-0004')
+    expect(normal).not.toHaveClass('assets-finding-row--muted')
+    expect(normal.style.opacity).toBe('')
+    expect(normal).toHaveStyle({ textDecoration: 'none' })
+  })
+})
+
 describe('AssetsPage (characterisation)', () => {
   it('lists assets from the API for the current organisation', async () => {
     renderPage()

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { SEVERITY_COLORS } from '../../theme';
+import { severityColor } from '../../theme';
 import { fetchWithAuth } from '../../api/fetchWithAuth';
 import {
     BarChart,
@@ -100,7 +100,7 @@ const SeverityDistributionChart: React.FC<Props> = ({ apiBaseUrl, search, severi
                             {data.map((entry) => (
                                 <Cell
                                     key={entry.severity}
-                                    fill={SEVERITY_COLORS[entry.severity as keyof typeof SEVERITY_COLORS] ?? '#9e9e9e'}
+                                    fill={severityColor(entry.severity)}
                                 />
                             ))}
                         </Bar>

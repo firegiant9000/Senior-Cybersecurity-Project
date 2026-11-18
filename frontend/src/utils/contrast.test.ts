@@ -92,6 +92,27 @@ describe('tier and confidence chip text contrast', () => {
   });
 });
 
+describe('muted findings row text contrast', () => {
+  // eslint-disable-next-line no-undef -- vitest injects __dirname
+  const assetsCss = readFileSync(resolve(__dirname, '../pages/AssetsPage.css'), 'utf8');
+
+  it('.assets-finding-row--muted colours text with --text-secondary and does not use opacity', () => {
+    const rule = assetsCss.match(/\.assets-finding-row--muted\s*\{([^}]*)\}/)?.[1] ?? '';
+    expect(rule).toMatch(/color:\s*var\(--text-secondary\)/);
+    expect(rule).not.toMatch(/opacity/);
+  });
+
+  for (const theme of ['light', 'dark'] as const) {
+    it(`${theme} --text-secondary meets 4.5:1 on the page and modal`, () => {
+      const fg = tokenBlocks[theme].match(/--text-secondary:\s*(#[0-9a-fA-F]{6})/)?.[1];
+      expect(fg, `${theme} --text-secondary`).toBeDefined();
+      for (const [surface, bg] of Object.entries(backgrounds[theme])) {
+        expect(contrastRatio(fg as string, bg), surface).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+  }
+});
+
 describe('discovered-via chip text contrast', () => {
   for (const theme of ['light', 'dark'] as const) {
     it.each(Object.keys(VIA_CHIP_COLORS[theme]) as (keyof (typeof VIA_CHIP_COLORS)[typeof theme])[])(
