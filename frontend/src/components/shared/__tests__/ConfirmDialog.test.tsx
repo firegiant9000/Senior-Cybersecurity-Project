@@ -223,6 +223,178 @@ describe('ConfirmDialog / useConfirm', () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
+  describe('returnFocus', () => {
+    // A list that reloads through a loading placeholder, like the settings tables.
+    function ListHarness({
+      remove,
+      disableWhileBusy = false,
+      asyncTarget = false,
+    }: {
+      remove: (id: number) => Promise<void>;
+      disableWhileBusy?: boolean;
+      asyncTarget?: boolean;
+    }) {
+      const { confirm, confirmDialog } = useConfirm();
+      const [items, setItems] = useState([1, 2, 3]);
+      const [loading, setLoading] = useState(false);
+      const [busy, setBusy] = useState(false);
+      const run = async (id: number) => {
+        setBusy(true);
+        try {
+          await remove(id);
+          setLoading(true);
+          await Promise.resolve();
+          setItems((xs) => xs.filter((x) => x !== id));
+          setLoading(false);
+        } catch {
+          // caller-owned error state
+        } finally {
+          setBusy(false);
+        }
+      };
+      return (
+        <div>
+          <h2 tabIndex={-1}>Items</h2>
+          <button>Elsewhere</button>
+          {loading ? (
+            <p>Loading…</p>
+          ) : (
+            <ul>
+              {items.map((id) => (
+                <li key={id} data-row-id={id}>
+                  <button
+                    data-action="remove"
+                    disabled={disableWhileBusy && busy}
+                    onClick={() =>
+                      confirm({
+                        title: `Remove ${id}?`,
+                        body: 'Body',
+                        confirmLabel: 'Remove',
+                        onConfirm: () => run(id),
+                        returnFocus: () => {
+                          const el = document.querySelector<HTMLElement>(
+                            `[data-row-id="${id === 3 ? 2 : id + 1}"] button`,
+                          );
+                          return asyncTarget ? Promise.resolve(el) : el;
+                        },
+                      })
+                    }
+                  >
+                    Remove {id}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {confirmDialog}
+        </div>
+      );
+    }
+
+    async function removeVia(name: string) {
+      const btn = screen.getByRole('button', { name });
+      btn.focus();
+      fireEvent.click(btn);
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+      });
+    }
+
+    it('focuses the returnFocus target once the reloaded list has rendered', async () => {
+      render(<ListHarness remove={vi.fn().mockResolvedValue(undefined)} />);
+      await removeVia('Remove 1');
+      expect(screen.queryByRole('button', { name: 'Remove 1' })).toBeNull();
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Remove 2' }));
+    });
+
+    it('awaits an async returnFocus', async () => {
+      render(<ListHarness remove={vi.fn().mockResolvedValue(undefined)} asyncTarget />);
+      await removeVia('Remove 3');
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Remove 2' }));
+    });
+
+    it('returns to the re-enabled trigger when the action fails', async () => {
+      render(<ListHarness remove={vi.fn().mockRejectedValue(new Error('nope'))} disableWhileBusy />);
+      await removeVia('Remove 2');
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Remove 2' }));
+    });
+
+    it('uses returnFocus when the trigger is still there but disabled', async () => {
+      const target = vi.fn(() => screen.getByRole('heading', { name: 'Items' }));
+      function DisabledHarness() {
+        const { confirm, confirmDialog } = useConfirm();
+        const [done, setDone] = useState(false);
+        return (
+          <div>
+            <h2 tabIndex={-1}>Items</h2>
+            <button
+              disabled={done}
+              onClick={() =>
+                confirm({
+                  title: 'T',
+                  body: 'B',
+                  confirmLabel: 'Go',
+                  onConfirm: async () => setDone(true),
+                  returnFocus: target,
+                })
+              }
+            >
+              Trigger
+            </button>
+            {confirmDialog}
+          </div>
+        );
+      }
+      render(<DisabledHarness />);
+      const trigger = screen.getByRole('button', { name: 'Trigger' });
+      trigger.focus();
+      fireEvent.click(trigger);
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Go' }));
+      });
+      expect(target).toHaveBeenCalledTimes(1);
+      expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Items' }));
+    });
+
+    it('does not call returnFocus on Cancel', () => {
+      const target = vi.fn(() => null);
+      render(<Harness opts={{ onConfirm: vi.fn().mockResolvedValue(undefined), returnFocus: target }} />);
+      open();
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(target).not.toHaveBeenCalled();
+    });
+
+    it('leaves focus alone if the user moved it while the action was pending', async () => {
+      const d = deferred();
+      render(<ListHarness remove={() => d.promise} />);
+      const btn = screen.getByRole('button', { name: 'Remove 1' });
+      btn.focus();
+      fireEvent.click(btn);
+      fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+      const elsewhere = screen.getByRole('button', { name: 'Elsewhere' });
+      elsewhere.focus();
+      await act(async () => {
+        d.resolve();
+      });
+      expect(document.activeElement).toBe(elsewhere);
+    });
+
+    it('does nothing if the host unmounts while the action is pending', async () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const d = deferred();
+      const target = vi.fn(() => null);
+      const { unmount } = render(<Harness opts={{ onConfirm: () => d.promise, returnFocus: target }} />);
+      open();
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      unmount();
+      await act(async () => {
+        d.resolve();
+      });
+      expect(target).not.toHaveBeenCalled();
+      expect(spy).not.toHaveBeenCalled();
+    });
+  });
+
   it('cancelLabel replaces the dismiss text', () => {
     render(
       <Harness opts={{ cancelLabel: 'Keep running', onConfirm: vi.fn().mockResolvedValue(undefined) }} />,

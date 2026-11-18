@@ -6,7 +6,7 @@
  * `enabled: false` the page shows a "feature disabled" notice instead.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentRef } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useAuth } from "../context/AuthContext.tsx";
 import { useConfirm } from "../components/shared/ConfirmDialog";
@@ -34,6 +34,9 @@ export default function IntegrationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [banner, setBanner] = useState<Banner>(null);
   const [lastSync, setLastSync] = useState<M365SyncResponse | null>(null);
+  const connectRef = useRef<ComponentRef<"button">>(null);
+  const headingRef = useRef<ComponentRef<"h2">>(null);
+  const pageHeadingRef = useRef<ComponentRef<"h1">>(null);
 
   const refresh = useCallback(async () => {
     if (orgId == null) return;
@@ -129,6 +132,9 @@ export default function IntegrationsPage() {
       tone: "danger",
       // handleDisconnect catches API failures into `error` itself.
       onConfirm: handleDisconnect,
+      // Success reloads the page through "Loading…", so the trigger is gone.
+      // The page heading covers the feature being switched off meanwhile.
+      returnFocus: () => connectRef.current ?? headingRef.current ?? pageHeadingRef.current,
     });
   };
 
@@ -153,7 +159,7 @@ export default function IntegrationsPage() {
   if (!status?.enabled) {
     return (
       <div style={{ padding: "2rem" }}>
-        <h1>Integrations</h1>
+        <h1 ref={pageHeadingRef} tabIndex={-1}>Integrations</h1>
         <p>
           Microsoft 365 sync isn&apos;t available on this deployment yet. You
           can still add assets by <Link to="/org/assets/upload">uploading an inventory file</Link>.
@@ -188,7 +194,7 @@ export default function IntegrationsPage() {
         className="integrations-card"
       >
         <header style={{ display: "flex", justifyContent: "space-between" }}>
-          <h2 style={{ margin: 0 }}>Microsoft 365 / Entra</h2>
+          <h2 ref={headingRef} tabIndex={-1} style={{ margin: 0 }}>Microsoft 365 / Entra</h2>
           <span data-testid="m365-status">
             {conn.connected ? conn.status ?? "connected" : "not connected"}
           </span>
@@ -238,7 +244,7 @@ export default function IntegrationsPage() {
 
         <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
           {!conn.connected && (
-            <button onClick={handleConnect} disabled={busy} data-testid="m365-connect">
+            <button ref={connectRef} onClick={handleConnect} disabled={busy} data-testid="m365-connect">
               {busy ? "Redirecting…" : "Connect Microsoft 365"}
             </button>
           )}
