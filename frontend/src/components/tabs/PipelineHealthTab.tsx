@@ -120,9 +120,22 @@ const PipelineHealthTab: React.FC = () => {
         }
     }, []);
 
+    // Responses can arrive out of order: a poll sent just before a cancel can
+    // answer after the refresh that follows it. Number each request and drop
+    // any answer older than the one already applied, so stale `running`
+    // never overwrites `failed`. (Aborting the previous request instead would
+    // starve polling whenever a request takes longer than the poll interval.)
+    const freshnessIssuedRef = useRef(0);
+    const freshnessAppliedRef = useRef(0);
     const refreshFreshness = useCallback((signal: AbortSignal) => {
+        freshnessIssuedRef.current += 1;
+        const seq = freshnessIssuedRef.current;
         return fetchIngestFreshness(signal)
-            .then(r => setFreshness(r.sources))
+            .then(r => {
+                if (seq < freshnessAppliedRef.current) return;
+                freshnessAppliedRef.current = seq;
+                setFreshness(r.sources);
+            })
             .catch(() => { /* non-fatal */ });
     }, []);
 
