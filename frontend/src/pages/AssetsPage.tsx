@@ -677,11 +677,12 @@ export default function AssetsPage() {
                     return (
                       <tr
                         key={m.finding_id}
-                        className="assets-row"
-                        style={{
-                          opacity: deemphasized || isFalsePositive ? 0.55 : 1,
-                          textDecoration: isFalsePositive ? "line-through" : "none",
-                        }}
+                        className={
+                          deemphasized || isFalsePositive
+                            ? "assets-row assets-finding-row--muted"
+                            : "assets-row"
+                        }
+                        style={{ textDecoration: isFalsePositive ? "line-through" : "none" }}
                       >
                         <td style={{ padding: 6, fontFamily: "monospace" }}>{m.cve_id}</td>
                         <td style={{ padding: 6 }}>

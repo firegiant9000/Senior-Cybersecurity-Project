@@ -1,11 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import SourceBadge from "../SourceBadge";
 import { leastConfident } from "../sourceConfidence";
 
+const state = vi.hoisted(() => ({ loading: false }));
+
 vi.mock("../../../hooks/useDataStatus", () => ({
   useDataStatus: () => ({
-    loading: false,
+    loading: state.loading,
     error: null,
     items: [],
     byKey: {
@@ -29,6 +31,43 @@ describe("leastConfident", () => {
 });
 
 describe("SourceBadge", () => {
+  afterEach(() => {
+    state.loading = false;
+  });
+
+  it("while loading, an absent entry ignores the fallback status but keeps the fallback source", () => {
+    state.loading = true;
+    render(
+      <SourceBadge datasetKey="not_registered" fallbackStatus="real" fallbackSource="Inline src" />,
+    );
+    const el = screen.getByText("…").closest("span");
+    expect(el?.className).toContain("source-badge--unknown");
+    expect(el?.getAttribute("aria-label")).toContain("Inline src");
+    expect(el?.getAttribute("aria-label")).not.toContain("Source not registered");
+    expect(screen.queryByText("Live")).toBeNull();
+  });
+
+  it("while loading, an absent entry without a fallback says loading, not unregistered", () => {
+    state.loading = true;
+    render(
+      <>
+        <SourceBadge datasetKey="not_registered" />
+        <SourceBadge datasetKeys={["not_registered", "also_missing"]} />
+      </>,
+    );
+    for (const el of screen.getAllByText("…")) {
+      const label = el.closest("span")?.getAttribute("aria-label") ?? "";
+      expect(label).toContain("Loading source");
+      expect(label).not.toMatch(/not registered|unregistered/);
+    }
+  });
+
+  it("after loading, an absent entry uses the fallback label", () => {
+    state.loading = false;
+    render(<SourceBadge datasetKey="not_registered" fallbackStatus="real" />);
+    expect(screen.getByText("Live")).toBeTruthy();
+  });
+
   it("single datasetKey behaves as before", () => {
     render(<SourceBadge datasetKey="kev" />);
     const el = screen.getByText("Live").closest("span");

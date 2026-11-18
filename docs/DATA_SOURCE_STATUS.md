@@ -41,12 +41,12 @@ for human review and audit purposes.
 | `loss_projection`            | Projected Annual Loss card               | static   | Statistical model over IC3 sector benchmarks                         |
 | `org_risk_score`             | SMB Advisor: Org Risk Score card         | static   | Org profile scored against static IC3 sector weights and size factors |
 | `ai_summary`                 | AI Summary tab                           | real     | LLM-generated summary over current dashboard signals                 |
-| `domain_checks`              | Findings: sources used in this scan      | pending  | HIBP / Shodan / OTX — Month 1 Phase E (#110)                         |
+| `domain_checks`              | Findings: sources used in this scan      | pending  | HIBP / Shodan / OTX / crt.sh, on demand; keyless sources skipped     |
 | `anomalies_ic3`              | Anomalies: IC3 State Anomalies           | static   | Statistical z-score over IC3 static dataset                          |
 | `anomalies_vendors`          | Vendor anomaly tab                       | real     | Derived from live KEV / NVD signals                                  |
-| `assets_inventory`           | Assets tab, Inventory Health card        | real     | User-uploaded CSV (Phase C) + M365 sync (Phase E, behind flag)       |
-| `asset_software`             | Per-asset software list, drill-down      | real     | Derived from uploaded inventory                                      |
-| `scan_runs`                  | Upload history / "last upload" badge     | real     | One row per CSV upload / M365 sync                                   |
+| `assets_inventory`           | Assets tab, Inventory Health card        | real     | User-uploaded CSV + scanner agent check-ins (M365 sync behind flag)  |
+| `asset_software`             | Per-asset software list, drill-down      | real     | Derived from uploaded inventory and scanner agent check-ins          |
+| `scan_runs`                  | Upload history / "last upload" badge     | real     | One row per CSV upload / M365 sync / agent check-in                  |
 | `asset_kev_matches`          | Asset → CVE drill-down, KEV badges       | real     | Literal vendor+product match — preliminary until Month 3 CPE matcher |
 | `vendor_aliases`             | Matcher dictionary (Month 3 input)       | static   | Hand-curated alias → canonical map (Phase A5 seed)                   |
 

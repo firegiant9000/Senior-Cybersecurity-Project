@@ -9,6 +9,8 @@ fails CI instead of shipping.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from httpx import AsyncClient
 
@@ -44,6 +46,19 @@ def test_registry_items_have_required_fields():
         assert item.key, "every registry entry must have a non-empty key"
         assert item.label, f"{item.key} missing human label"
         assert item.source, f"{item.key} missing source description"
+
+
+_PLANNING_JARGON = re.compile(r"\bPhase [A-Z0-9]|\bMonth \d|#\d+")
+
+
+def test_registry_text_has_no_planning_jargon():
+    """label/source/notes surface in badge tooltips; roadmap phases mean nothing to users."""
+    for item in list_data_status():
+        for field in ("label", "source", "notes"):
+            text = getattr(item, field) or ""
+            assert not _PLANNING_JARGON.search(text), (
+                f"{item.key}.{field} leaks planning jargon into a user tooltip: {text!r}"
+            )
 
 
 @pytest.mark.asyncio

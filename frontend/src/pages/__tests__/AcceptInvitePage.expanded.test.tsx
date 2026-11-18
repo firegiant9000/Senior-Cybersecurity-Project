@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
@@ -126,7 +126,10 @@ describe('AcceptInvitePage', () => {
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /Accept & Join/i })).toBeInTheDocument()
       })
-      fireEvent.click(screen.getByRole('button', { name: /Accept & Join/i }))
+      // Async act so the handler's trailing state updates (setAccepting) settle in-test.
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Accept & Join/i }))
+      })
     }
 
     it('not-verified 403 shows the verify panel', async () => {
@@ -146,7 +149,10 @@ describe('AcceptInvitePage', () => {
 
       renderPage()
       await clickAccept()
-      fireEvent.click(await screen.findByRole('button', { name: /I've verified my email/i }))
+      const verifyButton = await screen.findByRole('button', { name: /I've verified my email/i })
+      await act(async () => {
+        fireEvent.click(verifyButton)
+      })
 
       await waitFor(() => {
         expect(mockConfirmVerification).toHaveBeenCalledTimes(1)
