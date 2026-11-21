@@ -18,8 +18,8 @@ plain-English executive report.
 > and DevSecOps reference implementation, not as a startup. The next work is
 > assurance of the product itself. The threat model, the route-enumerating
 > authorization suite and the attested agent release with an SBOM are done
-> (S3, S4 and S1 respectively). The SAST/SCA gates are in place (S2) and become blocking once the
-> owner applies T-CI-05. A ZAP baseline scan of the local stack already runs in
+> (S3, S4 and S1 respectively). The SAST/SCA gates are in place (S2) and have
+> been required checks on `main` since 2026-11-11. A ZAP baseline scan of the local stack already runs in
 > CI; the next work is the rest of the DAST and manual AppSec pass (S5) and
 > matcher accuracy measured against Trivy on real images (S6). See
 > [docs/PRODUCT_VIABILITY_ROADMAP.md](docs/PRODUCT_VIABILITY_ROADMAP.md) and
@@ -352,7 +352,7 @@ freshness at `GET /api/v1/ingest/freshness`. Agent: `make agent-build`, then
 | --- | ---: | --- |
 | Backend (pytest) | 1,396 test functions in 127 files | `make backend-test` or `cd backend && pytest` |
 | Matcher regression | known-good fixture set, gated at 95% pass / 2% high-confidence FP | `pytest tests/regression` |
-| Frontend (Vitest) | 906 tests in 70 files (CI run on `main`, 2026-11-17) | `cd frontend && npm test` |
+| Frontend (Vitest) | 989 tests in 79 files (CI run on `main`, 2026-11-18) | `cd frontend && npm test` |
 | Agent (Go) | 22 test functions in 4 files | `make agent-test` |
 
 CI ([`ci.yml`](.github/workflows/ci.yml)) runs ruff lint and format checks,
